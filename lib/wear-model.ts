@@ -56,6 +56,35 @@ export function getChainringCascadeMultiplier(chainWearBeforeRide: number): numb
 }
 
 /**
+ * Braking module — disc and rim setups both wear from rain (grit turns into
+ * a grinding paste on the pad) and, for rotors specifically, from sustained
+ * heat on long descents. Rim brakes are modeled even though nothing seeded
+ * today uses them, so a future rim-brake bike is a data change, not a code
+ * change.
+ */
+export function getDiscPadRainMultiplier(rainMm: number): number {
+  return rainMm > 0 ? 3.5 : 1;
+}
+
+/** Elevation gain (m) over 1,000 in one ride implies sustained braking on
+ * descents — rotors run hot for long enough to accelerate wear. */
+export function getDiscRotorThermalMultiplier(elevationGainM: number): number {
+  return elevationGainM > 1000 ? 1.8 : 1;
+}
+
+/** Rim pads wear faster than disc pads in the wet — no thermal mass to shed
+ * water, and they're the ones doing the grinding against the rim itself. */
+export function getRimPadRainMultiplier(rainMm: number): number {
+  return rainMm > 0 ? 4.0 : 1;
+}
+
+/** The rim's braking track wears too — the wet pad acts like sandpaper on
+ * the aluminum or carbon surface. */
+export function getWheelRimRainMultiplier(rainMm: number): number {
+  return rainMm > 0 ? 2.5 : 1;
+}
+
+/**
  * Material tradeoffs by tier: Dura-Ace/Red lean on titanium/lighter alloys
  * that shave weight but don't last as long; 105/Rival's steel is heavier but
  * more durable. Only the cassette has a tier effect modeled today — chain
@@ -93,7 +122,7 @@ export function applyDistanceToWear(
   return Math.min(100, Math.round(next * 10) / 10);
 }
 
-export type DrivetrainComponent = {
+export type WearableComponent = {
   id: string;
   type: string;
   tier: string | null;
@@ -101,23 +130,30 @@ export type DrivetrainComponent = {
   current_wear_percentage: number;
 };
 
-export type DrivetrainWearUpdate = {
+export type ComponentWearUpdate = {
   id: string;
   newWearPercentage: number;
 };
 
 /**
- * The whole "Triángulo de la Transmisión" for one ride. The chain's wear
- * *before* this ride is read once and used to derive the cassette's and
- * chainring's cascade multipliers, so a chain that was already stretched
- * coming into the ride deforms the other two faster — independent of how
- * much further the chain itself stretches during this same ride.
+ * Every wearable part on the bike for one ride — drivetrain triangle
+ * (chain/cassette/chainring) plus the braking module (disc or rim). The
+ * chain's wear *before* this ride is read once and used to derive the
+ * cassette's and chainring's cascade multipliers, so a chain that was
+ * already stretched coming into the ride deforms the other two faster —
+ * independent of how much further the chain itself stretches during this
+ * same ride. Braking parts don't cascade off each other; each reacts
+ * directly to this ride's rain and elevation gain.
  */
-export function applyRideToDrivetrain(
-  components: DrivetrainComponent[],
-  rideKm: number,
-  weather: { humidityAvg: number; rainMm: number }
-): DrivetrainWearUpdate[] {
+export function applyRideToComponents(
+  components: WearableComponent[],
+  ride: {
+    km: number;
+    elevationGainM: number;
+    weather: { humidityAvg: number; rainMm: number };
+  }
+): ComponentWearUpdate[] {
+  const { km: rideKm, elevationGainM, weather } = ride;
   const chain = components.find((c) => c.type === "chain");
   const chainWearBeforeRide = chain?.current_wear_percentage ?? 0;
   const weatherMultiplier = getWeatherWearMultiplier(weather.humidityAvg, weather.rainMm);
@@ -126,12 +162,30 @@ export function applyRideToDrivetrain(
     const effectiveMaxKm = getEffectiveMaxKm(component.type, component.tier, component.max_km);
 
     let multiplier = 1;
-    if (component.type === "chain") {
-      multiplier = weatherMultiplier;
-    } else if (component.type === "cassette") {
-      multiplier = getCassetteCascadeMultiplier(chainWearBeforeRide);
-    } else if (component.type === "chainring") {
-      multiplier = getChainringCascadeMultiplier(chainWearBeforeRide);
+    switch (component.type) {
+      case "chain":
+        multiplier = weatherMultiplier;
+        break;
+      case "cassette":
+        multiplier = getCassetteCascadeMultiplier(chainWearBeforeRide);
+        break;
+      case "chainring":
+        multiplier = getChainringCascadeMultiplier(chainWearBeforeRide);
+        break;
+      case "disc_pad":
+        multiplier = getDiscPadRainMultiplier(weather.rainMm);
+        break;
+      case "disc_rotor":
+        multiplier = getDiscRotorThermalMultiplier(elevationGainM);
+        break;
+      case "rim_pad":
+        multiplier = getRimPadRainMultiplier(weather.rainMm);
+        break;
+      case "wheel_rim":
+        multiplier = getWheelRimRainMultiplier(weather.rainMm);
+        break;
+      default:
+        multiplier = 1;
     }
 
     return {

@@ -82,6 +82,10 @@ const componentTypeLabels: Record<string, string> = {
   chain: "Cadena",
   cassette: "Cassette",
   chainring: "Platos",
+  disc_pad: "Pastillas",
+  disc_rotor: "Discos",
+  rim_pad: "Zapatas",
+  wheel_rim: "Llanta",
 };
 
 /** Null for `optimal` — nothing worth saying yet. */
@@ -283,7 +287,7 @@ async function DrivetrainSection() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="font-medium text-neutral-900">Transmisión</CardTitle>
+          <CardTitle className="font-medium text-neutral-900">Componentes</CardTitle>
           <CardDescription className={eyebrow}>
             Sin componentes registrados todavía
           </CardDescription>
@@ -293,7 +297,7 @@ async function DrivetrainSection() {
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       {components.map((component) => (
         <DrivetrainComponentCard key={component.id} component={component} />
       ))}
@@ -303,8 +307,8 @@ async function DrivetrainSection() {
 
 function DrivetrainSkeleton() {
   return (
-    <div className="grid gap-6 md:grid-cols-3">
-      {Array.from({ length: 3 }).map((_, i) => (
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 5 }).map((_, i) => (
         <Card key={i}>
           <CardHeader>
             <Skeleton className="h-4 w-16" />

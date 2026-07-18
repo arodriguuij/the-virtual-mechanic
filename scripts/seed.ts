@@ -81,7 +81,7 @@ async function main() {
     bikeId = newBike.id;
   }
 
-  const drivetrainComponents = [
+  const bikeComponents = [
     {
       type: "chain",
       name: "Cadena Shimano Ultegra 11v",
@@ -106,9 +106,28 @@ async function main() {
       max_km: 18000,
       current_wear_percentage: 8.0,
     },
+    // Braking module — the Addict 30 runs discs, so rim_pad/wheel_rim stay
+    // unseeded for now (the wear model already handles them, see
+    // lib/wear-model.ts, for whenever a rim-brake bike shows up).
+    {
+      type: "disc_pad",
+      name: "Pastillas de freno Shimano L05A Resin",
+      brand: "Shimano",
+      tier: "L05A Resin",
+      max_km: 2500,
+      current_wear_percentage: 10.0,
+    },
+    {
+      type: "disc_rotor",
+      name: "Disco de freno Shimano RT-MT800 (Ultegra)",
+      brand: "Shimano",
+      tier: "RT-MT800 (Ultegra)",
+      max_km: 12000,
+      current_wear_percentage: 5.0,
+    },
   ];
 
-  for (const component of drivetrainComponents) {
+  for (const component of bikeComponents) {
     const { data: existingComponent, error: componentFetchError } = await supabase
       .from("components")
       .select("id")

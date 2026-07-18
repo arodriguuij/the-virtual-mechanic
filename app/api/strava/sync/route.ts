@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import { fetchLatestRideActivity, refreshStravaToken } from "@/lib/strava";
 import { getWeatherForRide } from "@/lib/open-meteo";
-import { applyRideToDrivetrain, estimateWattsLost } from "@/lib/wear-model";
+import { applyRideToComponents, estimateWattsLost } from "@/lib/wear-model";
 
 export async function POST(request: NextRequest) {
   const redirectWithError = (code: string) =>
@@ -101,11 +101,14 @@ export async function POST(request: NextRequest) {
     if (bikeError) throw bikeError;
 
     // Chain wear (weather-multiplied) is resolved first inside the model —
-    // its pre-ride value then drives the cassette/chainring cascade — so the
-    // whole drivetrain triangle comes back ready to persist in one pass.
-    const wearUpdates = applyRideToDrivetrain(bike?.components ?? [], rideKm, {
-      humidityAvg,
-      rainMm,
+    // its pre-ride value then drives the cassette/chainring cascade — plus
+    // the braking module reacting to this same ride's rain and elevation
+    // gain — so every wearable part on the bike comes back ready to persist
+    // in one pass.
+    const wearUpdates = applyRideToComponents(bike?.components ?? [], {
+      km: rideKm,
+      elevationGainM: activity.total_elevation_gain,
+      weather: { humidityAvg, rainMm },
     });
 
     for (const { id, newWearPercentage } of wearUpdates) {

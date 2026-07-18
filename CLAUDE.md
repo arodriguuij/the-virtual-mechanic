@@ -80,10 +80,11 @@ credentials at that point too.
 
 `npm run seed` (`scripts/seed.ts`) signs in as the dev test user and, only if missing,
 inserts: their `profiles` row, a "Scott Addict 30" bike, the full Shimano Ultegra
-drivetrain triangle (chain `max_km: 3000`, cassette `7500`, chainring `18000`; the chain
-starts at `current_wear_percentage: 35`, the other two lower), and one activity in Palma
-de Mallorca. It's safe to re-run — every insert is guarded by an existence check first,
-matching the pattern the Strava sync route also uses for `activities`.
+drivetrain triangle (chain `max_km: 3000`, cassette `7500`, chainring `18000`) plus its
+disc brakes (`disc_pad max_km: 2500`, `disc_rotor max_km: 12000`) — all `current_wear_percentage`
+seeded low except the chain (`35`) — and one activity in Palma de Mallorca. It's safe to
+re-run — every insert is guarded by an existence check first, matching the pattern the
+Strava sync route also uses for `activities`.
 
 ### Strava OAuth
 
@@ -100,19 +101,22 @@ matching the pattern the Strava sync route also uses for `activities`.
     further back) and derives `watts_lost` from humidity/rain with the heuristic in
     `lib/wear-model.ts` (`estimateWattsLost`). No GPS on the activity → falls back to a
     neutral placeholder (50% humidity, 0mm rain) rather than failing the sync.
-  - Applies the ride's distance to the whole drivetrain triangle via
-    `applyRideToDrivetrain` (`lib/wear-model.ts`) — this is what moves the component wear
-    cards on the Dashboard. See "Drivetrain wear cascade" below.
+  - Applies the ride's distance to every wearable component via `applyRideToComponents`
+    (`lib/wear-model.ts`) — this is what moves the component wear cards on the Dashboard.
+    See "Component wear model" below.
   - Both steps are skipped when the activity already exists, so re-clicking "Sincronizar
     rutas" never double-counts wear or re-derives weather for the same ride.
 - The Dashboard header shows "Conectar Strava" or "Sincronizar rutas" depending on
   whether `profiles.strava_athlete_id` is set (`getProfile()` in `lib/dashboard-data.ts`).
 
-### Drivetrain wear cascade
+### Component wear model
 
-`lib/wear-model.ts` models the chain, cassette, and chainring as one system rather than
-three independent odometers — all pure functions, no I/O, easy to unit-test in isolation:
+`lib/wear-model.ts` models every wearable part on the bike as one system rather than
+independent odometers — all pure functions, no I/O, easy to unit-test in isolation. The
+entry point is `applyRideToComponents(components, { km, elevationGainM, weather })`,
+called from the sync route; `component.type` picks the rule:
 
+**Drivetrain triangle** (chain / cassette / chainring):
 - `getWeatherWearMultiplier` — only the chain's own wear rate is weather-multiplied (it's
   the part directly exposed to road spray/grit); 1.0 at ≤50% humidity and no rain.
 - `getCassetteCascadeMultiplier` / `getChainringCascadeMultiplier` — a chain that's
@@ -122,10 +126,18 @@ three independent odometers — all pure functions, no I/O, easy to unit-test in
   past 75%, nothing below that.
 - `getEffectiveMaxKm` — only the cassette has a tier modifier today (Dura-Ace/SRAM Red
   0.9×, Ultegra/Force 1.0×, 105/Rival 1.1× — lighter titanium wears faster than steel).
-  Chain and chainring pass through their stored `max_km` unchanged regardless of tier.
-- `applyRideToDrivetrain` — the entry point the sync route calls: takes every component on
-  the bike plus the ride's distance and weather, reads the chain's pre-ride wear once, and
-  returns the new `current_wear_percentage` for all of them together.
+  Everything else passes through its stored `max_km` unchanged regardless of tier.
+
+**Braking module** (disc or rim — `type` drives which rule applies, no cascade between
+them, each reacts directly to this ride's own weather/elevation):
+- `getDiscPadRainMultiplier` — ×3.5 if `rain_mm > 0` (wet grit turns into a grinding paste
+  on resin pads).
+- `getDiscRotorThermalMultiplier` — ×1.8 if the ride's elevation gain exceeds 1,000 m
+  (sustained braking heat on long descents).
+- `getRimPadRainMultiplier` / `getWheelRimRainMultiplier` — ×4.0 / ×2.5 if it rained (rim
+  brakes have no thermal mass to shed water, and the wet pad sands the braking track).
+  `rim_pad`/`wheel_rim` aren't seeded on the Addict 30 (disc brakes) — modeled anyway so a
+  future rim-brake bike is a data change (`scripts/seed.ts`), not a code change.
 
 ### Wear status UI (app/page.tsx)
 
