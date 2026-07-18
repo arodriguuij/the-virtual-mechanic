@@ -35,8 +35,8 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const eyebrow = "text-[10px] font-medium tracking-widest text-neutral-500 uppercase";
-const statLabel = "text-[10px] font-medium tracking-widest text-neutral-500 uppercase";
+const eyebrow = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
+const statLabel = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
 const statValue = "text-2xl font-semibold text-neutral-900 tabular-nums";
 
 type WearStatus = "optimal" | "warning" | "critical" | "exhausted";
@@ -98,6 +98,19 @@ function getWearMessage(status: WearStatus, componentType: string): string | nul
   return "Sustitúyelo de inmediato. Rodar en este estado compromete tu seguridad y destroza el resto de componentes.";
 }
 
+/**
+ * Manual thousand-separator insertion instead of `.toLocaleString("es-ES")`
+ * — Node's ICU data for es-ES grouping isn't guaranteed to be present in
+ * every environment (it was silently missing locally), which is exactly
+ * what produced "7500 km" next to "18.000 km" on the same page. This is
+ * deterministic everywhere.
+ */
+function formatKm(km: number): string {
+  return Math.round(km)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
 function formatRelativeDate(iso: string) {
   const date = new Date(iso);
   const days = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
@@ -111,11 +124,15 @@ async function BikeHeroCard() {
 
   return (
     <Card className="overflow-hidden">
-      <div className="grid gap-6 sm:grid-cols-[220px_1fr]">
-        <div className="flex items-center justify-center border-b border-neutral-200 bg-neutral-100 p-8 sm:border-r sm:border-b-0">
-          <Bike className="size-14 text-neutral-900" strokeWidth={1} />
+      <div className="flex flex-col gap-6 sm:flex-row">
+        <div className="flex items-center justify-center border-b border-neutral-200 bg-neutral-100 p-8 sm:w-55 sm:shrink-0 sm:border-r sm:border-b-0">
+          {/* mt-1.5 is an optical nudge, not a layout fix: the container above
+              is measured pixel-symmetric (verified with Playwright), but the
+              Bike glyph's own ink (wheels) sits low in its viewBox, so
+              geometric centering alone reads as "stuck to the top". */}
+          <Bike className="mt-1.5 size-14 text-neutral-900" strokeWidth={1} />
         </div>
-        <CardContent className="flex flex-col justify-center gap-2 py-6 pl-0 sm:pl-2">
+        <CardContent className="flex flex-1 flex-col justify-center gap-2 py-6 pl-0 sm:pl-2">
           <CardDescription className={eyebrow}>Mi bicicleta actual</CardDescription>
           {bike ? (
             <>
@@ -240,7 +257,7 @@ function DrivetrainComponentCard({
 
         <p className="text-sm text-neutral-500">
           {message ??
-            `${wear}% de vida útil consumida · límite estimado ${component.max_km.toLocaleString("es-ES")} km.`}
+            `${wear}% de vida útil consumida · límite estimado ${formatKm(component.max_km)} km.`}
         </p>
 
         {status === "critical" && (
@@ -460,7 +477,7 @@ async function RideHistorySection() {
               </span>
               <span className="flex items-center gap-1 font-medium text-status-warning">
                 <ArrowDownRight className="size-3.5" />
-                -{Math.round(activity.watts_lost)} W netos
+                {Math.round(activity.watts_lost)} W perdidos
               </span>
               <a
                 href={`https://www.strava.com/activities/${activity.id}`}
