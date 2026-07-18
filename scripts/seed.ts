@@ -125,6 +125,24 @@ async function main() {
       max_km: 12000,
       current_wear_percentage: 5.0,
     },
+    // Tires — rear starts more worn since it carries more weight and all the
+    // drivetrain torque (see REAR_TIRE_TRACTION_MULTIPLIER in wear-model.ts).
+    {
+      type: "tire_front",
+      name: "Neumático Schwalbe Pro One TLE",
+      brand: "Schwalbe",
+      tier: "Pro One TLE",
+      max_km: 4500,
+      current_wear_percentage: 15.0,
+    },
+    {
+      type: "tire_rear",
+      name: "Neumático Schwalbe Pro One TLE",
+      brand: "Schwalbe",
+      tier: "Pro One TLE",
+      max_km: 4500,
+      current_wear_percentage: 40.0,
+    },
   ];
 
   for (const component of bikeComponents) {

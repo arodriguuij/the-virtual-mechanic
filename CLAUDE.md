@@ -80,11 +80,13 @@ credentials at that point too.
 
 `npm run seed` (`scripts/seed.ts`) signs in as the dev test user and, only if missing,
 inserts: their `profiles` row, a "Scott Addict 30" bike, the full Shimano Ultegra
-drivetrain triangle (chain `max_km: 3000`, cassette `7500`, chainring `18000`) plus its
-disc brakes (`disc_pad max_km: 2500`, `disc_rotor max_km: 12000`) — all `current_wear_percentage`
-seeded low except the chain (`35`) — and one activity in Palma de Mallorca. It's safe to
-re-run — every insert is guarded by an existence check first, matching the pattern the
-Strava sync route also uses for `activities`.
+drivetrain triangle (chain `max_km: 3000`, cassette `7500`, chainring `18000`), its disc
+brakes (`disc_pad max_km: 2500`, `disc_rotor max_km: 12000`), and its Schwalbe Pro One TLE
+tires (`max_km: 4500` each; rear seeded more worn — `40` vs. front's `15` — matching the
+extra load/torque it carries) — all `current_wear_percentage` seeded low except the chain
+(`35`) and rear tire (`40`) — and one activity in Palma de Mallorca. It's safe to re-run —
+every insert is guarded by an existence check first, matching the pattern the Strava sync
+route also uses for `activities`.
 
 ### Strava OAuth
 
@@ -139,15 +141,28 @@ them, each reacts directly to this ride's own weather/elevation):
   `rim_pad`/`wheel_rim` aren't seeded on the Addict 30 (disc brakes) — modeled anyway so a
   future rim-brake bike is a data change (`scripts/seed.ts`), not a code change.
 
+**Tires** (`tire_front` / `tire_rear` — flat multiplier, no weather/cascade input):
+- `REAR_TIRE_TRACTION_MULTIPLIER` (×1.3) — the rear tire carries 60–65% of the rider's
+  weight plus all of the drivetrain's torque, so it wears faster than the front on every
+  ride regardless of conditions. The front tire is the baseline (×1).
+
 ### Wear status UI (app/page.tsx)
 
-Four states, computed from `current_wear_percentage` alone by `wearStatus()`: `optimal`
-(<60%), `warning` (60–85%), `critical` (85–100%), `exhausted` (≥100%). `critical` and
-`exhausted` share the oxblood `--status-critical` token — the escalation is via weight
-(bold, larger % text) and fill (outline "Agendar cambio" badge vs. solid inverted "Pieza
-agotada" badge), not a new hue, to stay inside the validated editorial palette. Copy per
-state/component type lives in `getWearMessage()` — the chain's `warning` message is the
-only one that differs by component type (it names the cascade effect on the cassette).
+Four states, computed by `wearStatus(pct, componentType?)`: `optimal` (<60%), `warning`
+(60%–critical threshold), `critical` (critical threshold–100%), `exhausted` (≥100%). The
+critical threshold is 85% by default but 80% for `tire_front`/`tire_rear`
+(`CRITICAL_THRESHOLD_OVERRIDES`) — a thin tire is a puncture/blowout risk before it's
+"used up" the way a chain or rotor is, so **always pass `component.type`** to
+`wearStatus()`/`getWearMessage()`; omitting it silently falls back to the 85% default and
+tires won't flag early. `critical` and `exhausted` share the oxblood `--status-critical`
+token — the escalation is via weight (bold, larger % text) and fill (outline "Agendar
+cambio" badge vs. solid inverted "Pieza agotada"/"¡Peligro de reventón!" badge), not a new
+hue, to stay inside the validated editorial palette. Copy lives in `getWearMessage(status,
+componentType, wearPercentage)`: the chain's `warning` message is the only non-tire one
+that differs by component type (names the cascade effect on the cassette); tires ignore
+`status` granularity above the critical threshold and branch on the raw `wearPercentage`
+instead, since "critical" alone can't distinguish the 80–90% ("alto") / 90–99% ("muy
+alto") / ≥100% ("reventón") puncture-risk copy.
 `WorkshopAlertsBanner` re-fetches the same `getPrimaryBike()` call (deduped by
 `React.cache`, no extra query) and renders nothing (`Suspense fallback={null}`, not a
 skeleton) unless at least one component is `critical`/`exhausted` — avoids a

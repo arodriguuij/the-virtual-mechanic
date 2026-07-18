@@ -85,6 +85,14 @@ export function getWheelRimRainMultiplier(rainMm: number): number {
 }
 
 /**
+ * The rear tire carries 60-65% of the rider's weight and takes all of the
+ * drivetrain's torque, so it wears faster than the front on every ride
+ * regardless of conditions — a flat multiplier, not a weather/cascade one.
+ * The front tire is the model's baseline (multiplier 1).
+ */
+export const REAR_TIRE_TRACTION_MULTIPLIER = 1.3;
+
+/**
  * Material tradeoffs by tier: Dura-Ace/Red lean on titanium/lighter alloys
  * that shave weight but don't last as long; 105/Rival's steel is heavier but
  * more durable. Only the cassette has a tier effect modeled today — chain
@@ -137,13 +145,14 @@ export type ComponentWearUpdate = {
 
 /**
  * Every wearable part on the bike for one ride — drivetrain triangle
- * (chain/cassette/chainring) plus the braking module (disc or rim). The
- * chain's wear *before* this ride is read once and used to derive the
- * cassette's and chainring's cascade multipliers, so a chain that was
- * already stretched coming into the ride deforms the other two faster —
- * independent of how much further the chain itself stretches during this
- * same ride. Braking parts don't cascade off each other; each reacts
- * directly to this ride's rain and elevation gain.
+ * (chain/cassette/chainring), the braking module (disc or rim), and the two
+ * tires. The chain's wear *before* this ride is read once and used to
+ * derive the cassette's and chainring's cascade multipliers, so a chain
+ * that was already stretched coming into the ride deforms the other two
+ * faster — independent of how much further the chain itself stretches
+ * during this same ride. Braking parts and tires don't cascade off
+ * anything; each reacts directly to this ride's own rain/elevation, or —
+ * for the rear tire — a flat traction multiplier.
  */
 export function applyRideToComponents(
   components: WearableComponent[],
@@ -183,6 +192,12 @@ export function applyRideToComponents(
         break;
       case "wheel_rim":
         multiplier = getWheelRimRainMultiplier(weather.rainMm);
+        break;
+      case "tire_front":
+        multiplier = 1;
+        break;
+      case "tire_rear":
+        multiplier = REAR_TIRE_TRACTION_MULTIPLIER;
         break;
       default:
         multiplier = 1;

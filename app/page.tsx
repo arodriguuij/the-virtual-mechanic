@@ -41,12 +41,26 @@ const statValue = "text-2xl font-semibold text-neutral-900 tabular-nums";
 
 type WearStatus = "optimal" | "warning" | "critical" | "exhausted";
 
-function wearStatus(pct: number): WearStatus {
+// Tires turn critical earlier than the rest of the garage (80% vs. 85%) —
+// a thin-tread tire is a puncture/blowout risk well before it's "used up"
+// the way a chain or a rotor is.
+const CRITICAL_THRESHOLD_OVERRIDES: Record<string, number> = {
+  tire_front: 80,
+  tire_rear: 80,
+};
+const DEFAULT_CRITICAL_THRESHOLD = 85;
+
+function wearStatus(pct: number, componentType?: string): WearStatus {
   if (pct >= 100) return "exhausted";
-  if (pct >= 85) return "critical";
+  const criticalThreshold =
+    (componentType ? CRITICAL_THRESHOLD_OVERRIDES[componentType] : undefined) ??
+    DEFAULT_CRITICAL_THRESHOLD;
+  if (pct >= criticalThreshold) return "critical";
   if (pct >= 60) return "warning";
   return "optimal";
 }
+
+const TIRE_TYPES = new Set(["tire_front", "tire_rear"]);
 
 const statusMeta: Record<
   WearStatus,
@@ -86,10 +100,32 @@ const componentTypeLabels: Record<string, string> = {
   disc_rotor: "Discos",
   rim_pad: "Zapatas",
   wheel_rim: "Llanta",
+  tire_front: "Neumático delantero",
+  tire_rear: "Neumático trasero",
 };
 
 /** Null for `optimal` — nothing worth saying yet. */
-function getWearMessage(status: WearStatus, componentType: string): string | null {
+function getWearMessage(
+  status: WearStatus,
+  componentType: string,
+  wearPercentage: number
+): string | null {
+  if (TIRE_TYPES.has(componentType)) {
+    if (status === "exhausted") {
+      return "¡PELIGRO DE REVENTÓN! Neumático completamente plano. Riesgo estructural para tu seguridad en marcha.";
+    }
+    if (wearPercentage >= 90) {
+      return "Riesgo de pinchazo: MUY ALTO. Probabilidad crítica de quedar tirado por cámara pellizcada o destalonamiento.";
+    }
+    if (wearPercentage >= 80) {
+      return "Riesgo de pinchazo: ALTO. La banda de rodadura está muy delgada. Sutil riesgo de cortes bajando puertos.";
+    }
+    if (status === "warning") {
+      return "Rendimiento óptimo, vigilar en las próximas salidas.";
+    }
+    return null;
+  }
+
   if (status === "optimal") return null;
   if (status === "warning") {
     return componentType === "chain"
@@ -183,7 +219,10 @@ function BikeHeroSkeleton() {
 async function WorkshopAlertsBanner() {
   const bike = await getPrimaryBike();
   const flagged = (bike?.components ?? [])
-    .map((component) => ({ component, status: wearStatus(component.current_wear_percentage) }))
+    .map((component) => ({
+      component,
+      status: wearStatus(component.current_wear_percentage, component.type),
+    }))
     .filter(({ status }) => status === "critical" || status === "exhausted");
 
   if (flagged.length === 0) return null;
@@ -204,7 +243,7 @@ async function WorkshopAlertsBanner() {
               {componentTypeLabels[component.type] ?? component.type} · {statusMeta[status].label}
             </span>
             <span className="text-neutral-600">
-              {getWearMessage(status, component.type)}
+              {getWearMessage(status, component.type, component.current_wear_percentage)}
             </span>
           </li>
         ))}
@@ -219,10 +258,10 @@ function DrivetrainComponentCard({
   component: BikeWithComponents["components"][number];
 }) {
   const wear = component.current_wear_percentage;
-  const status = wearStatus(wear);
+  const status = wearStatus(wear, component.type);
   const meta = statusMeta[status];
   const Icon = meta.icon;
-  const message = getWearMessage(status, component.type);
+  const message = getWearMessage(status, component.type, wear);
   const severe = status === "critical" || status === "exhausted";
   const label = componentTypeLabels[component.type] ?? component.type;
 
@@ -308,7 +347,7 @@ async function DrivetrainSection() {
 function DrivetrainSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: 5 }).map((_, i) => (
+      {Array.from({ length: 7 }).map((_, i) => (
         <Card key={i}>
           <CardHeader>
             <Skeleton className="h-4 w-16" />
