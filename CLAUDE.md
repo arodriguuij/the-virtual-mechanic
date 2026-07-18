@@ -237,6 +237,16 @@ own query — keep call sites that can share data calling with identical argumen
 without it Next prerenders the dashboard at build time and the wear percentages would be
 frozen from whenever `next build` last ran.
 
+### Bike hero photo
+
+`public/images/scott-addict.webp` (transparent background) is a plain `<img>` in
+`BikeHeroCard`, not `next/image` — a fixed local asset with no responsive/remote-domain
+needs `next/image` would actually help with here. Sized with a fixed height
+(`object-contain`, `h-16 md:h-20`) rather than filling a background panel, since the
+transparent photo should float on the card's own background, not sit in a colored box.
+`public/images/README.md` explains what's there — there's also an unused
+`scott-addict.png` left over from an earlier pass.
+
 ## Code style
 
 - Functional components, no class components.

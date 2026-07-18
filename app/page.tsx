@@ -1,7 +1,6 @@
 import { Progress } from "@base-ui/react/progress";
 import {
   ArrowDownRight,
-  Bike,
   CircleAlert,
   CircleCheck,
   Droplets,
@@ -185,13 +184,16 @@ async function BikeHeroCard() {
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex flex-col gap-6 sm:flex-row">
-        <div className="flex items-center justify-center border-b border-neutral-200 bg-neutral-100 p-8 sm:w-55 sm:shrink-0 sm:border-r sm:border-b-0">
-          {/* mt-1.5 is an optical nudge, not a layout fix: the container above
-              is measured pixel-symmetric (verified with Playwright), but the
-              Bike glyph's own ink (wheels) sits low in its viewBox, so
-              geometric centering alone reads as "stuck to the top". */}
-          <Bike className="mt-1.5 size-14 text-neutral-900" strokeWidth={1} />
+      <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
+        <div className="pt-6 pl-6 sm:py-6 sm:pl-8">
+          {/* eslint-disable-next-line @next/next/no-img-element -- local
+              static asset, fixed intrinsic size, no responsive/optimization
+              needs that would justify next/image here. */}
+          <img
+            src="/images/scott-addict.webp"
+            alt={bike ? `${bike.brand} ${bike.model}` : "Scott Addict 30"}
+            className="h-16 w-auto object-contain md:h-20"
+          />
         </div>
         <CardContent className="flex flex-1 flex-col justify-center gap-2 py-6 pl-0 sm:pl-2">
           <CardDescription className={eyebrow}>Mi bicicleta actual</CardDescription>
@@ -223,11 +225,11 @@ async function BikeHeroCard() {
 function BikeHeroSkeleton() {
   return (
     <Card className="overflow-hidden">
-      <div className="grid gap-6 sm:grid-cols-[220px_1fr]">
-        <div className="flex items-center justify-center border-b border-neutral-200 bg-neutral-100 p-8 sm:border-r sm:border-b-0">
-          <Skeleton className="size-14 rounded-full" />
+      <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-6">
+        <div className="pt-6 pl-6 sm:py-6 sm:pl-8">
+          <Skeleton className="h-16 w-24 md:h-20" />
         </div>
-        <CardContent className="flex flex-col justify-center gap-3 py-6 pl-0 sm:pl-2">
+        <CardContent className="flex flex-1 flex-col justify-center gap-3 py-6 pl-0 sm:pl-2">
           <Skeleton className="h-3 w-32" />
           <Skeleton className="h-6 w-48" />
           <Skeleton className="h-9 w-24" />
