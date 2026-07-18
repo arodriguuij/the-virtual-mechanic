@@ -4,9 +4,9 @@ import {
   Bike,
   CircleAlert,
   CircleCheck,
+  Droplets,
   ExternalLink,
   Link2,
-  MapPin,
   OctagonAlert,
   RefreshCw,
   TriangleAlert,
@@ -27,9 +27,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardShell } from "@/components/dashboard-shell";
 import {
   type BikeWithComponents,
-  getLatestActivity,
   getPrimaryBike,
   getProfile,
+  getRecentActivities,
 } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 
@@ -96,12 +96,6 @@ function getWearMessage(status: WearStatus, componentType: string): string | nul
     return "Mantenimiento requerido. Programa el cambio de pieza para evitar daños estructurales en la transmisión.";
   }
   return "Sustitúyelo de inmediato. Rodar en este estado compromete tu seguridad y destroza el resto de componentes.";
-}
-
-function formatDuration(seconds: number) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.round((seconds % 3600) / 60);
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
 function formatRelativeDate(iso: string) {
@@ -314,7 +308,8 @@ function DrivetrainSkeleton() {
 }
 
 async function WattsTaxCard() {
-  const activity = await getLatestActivity();
+  const activities = await getRecentActivities(8);
+  const activity = activities[0];
 
   if (!activity || activity.average_watts == null) {
     return (
@@ -406,15 +401,23 @@ function WattsTaxSkeleton() {
   );
 }
 
-async function ActivityCard() {
-  const activity = await getLatestActivity();
+function weatherLabel(humidityAvg: number, rainMm: number): string {
+  const parts = [`${Math.round(humidityAvg)}% humedad`];
+  if (rainMm > 0) parts.push(`${rainMm}mm lluvia`);
+  return parts.join(" · ");
+}
 
-  if (!activity) {
+async function RideHistorySection() {
+  const activities = await getRecentActivities(8);
+
+  if (activities.length === 0) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="font-medium text-neutral-900">Última actividad</CardTitle>
-          <CardDescription className={eyebrow}>Sin actividades registradas todavía</CardDescription>
+          <CardTitle className="font-medium text-neutral-900">Historial de rutas</CardTitle>
+          <CardDescription className={eyebrow}>
+            Sin actividades registradas todavía
+          </CardDescription>
         </CardHeader>
       </Card>
     );
@@ -423,82 +426,81 @@ async function ActivityCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-medium text-neutral-900">Última actividad</CardTitle>
+        <CardTitle className="font-medium text-neutral-900">Historial de rutas</CardTitle>
         <CardDescription className={eyebrow}>
-          Vía Strava · {formatRelativeDate(activity.activity_date)}
+          Últimas salidas sincronizadas desde Strava
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-sm text-neutral-900">
-            <MapPin className="size-3.5 text-neutral-500" />
-            {activity.name}
-          </div>
-          <a
-            href={`https://www.strava.com/activities/${activity.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs font-medium tracking-wide text-neutral-900 uppercase hover:underline"
+      <CardContent className="flex flex-col">
+        {activities.map((activity, index) => (
+          <div
+            key={activity.id}
+            className={cn(
+              "flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4",
+              index !== activities.length - 1 && "border-b border-neutral-200"
+            )}
           >
-            Ver en Strava
-            <ExternalLink className="size-3" />
-          </a>
-        </div>
-        <Separator className="bg-neutral-200" />
-        <div className="grid grid-cols-4 gap-2 text-center">
-          <div className="flex flex-col gap-1">
-            <span className="text-lg font-semibold text-neutral-900 tabular-nums">
-              {(activity.distance / 1000).toFixed(1)}
-            </span>
-            <span className={statLabel}>km</span>
+            <div className="flex items-baseline gap-3 sm:w-56 sm:shrink-0">
+              <span className="text-xs text-neutral-400 tabular-nums">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium text-neutral-900">{activity.name}</span>
+                <span className={eyebrow}>{formatRelativeDate(activity.activity_date)}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 pl-8 text-sm sm:pl-0">
+              <span className="font-medium text-neutral-900 tabular-nums">
+                {(activity.distance / 1000).toFixed(1)} km
+              </span>
+              <span className="flex items-center gap-1.5 text-neutral-500">
+                <Droplets className="size-3.5" />
+                {weatherLabel(activity.humidity_avg, activity.rain_mm)}
+              </span>
+              <span className="flex items-center gap-1 font-medium text-status-warning">
+                <ArrowDownRight className="size-3.5" />
+                -{Math.round(activity.watts_lost)} W netos
+              </span>
+              <a
+                href={`https://www.strava.com/activities/${activity.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-neutral-400 hover:text-neutral-900"
+              >
+                <ExternalLink className="size-3.5" />
+              </a>
+            </div>
           </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-lg font-semibold text-neutral-900 tabular-nums">
-              {activity.total_elevation_gain != null
-                ? Math.round(activity.total_elevation_gain).toLocaleString("es-ES")
-                : "—"}
-            </span>
-            <span className={statLabel}>m D+</span>
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-lg font-semibold text-neutral-900 tabular-nums">
-              {formatDuration(activity.moving_time)}
-            </span>
-            <span className={statLabel}>duración</span>
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-lg font-semibold text-neutral-900 tabular-nums">
-              {activity.average_watts != null ? Math.round(activity.average_watts) : "—"}
-            </span>
-            <span className={statLabel}>W medios</span>
-          </div>
-        </div>
+        ))}
       </CardContent>
     </Card>
   );
 }
 
-function ActivitySkeleton() {
+function RideHistorySkeleton() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-medium text-neutral-900">Última actividad</CardTitle>
-        <Skeleton className="h-3 w-32" />
+        <CardTitle className="font-medium text-neutral-900">Historial de rutas</CardTitle>
+        <Skeleton className="h-3 w-56" />
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-2">
-          <Skeleton className="h-4 w-56" />
-          <Skeleton className="h-3 w-20" />
-        </div>
-        <Skeleton className="h-px w-full" />
-        <div className="grid grid-cols-4 gap-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex flex-col items-center gap-2">
-              <Skeleton className="h-5 w-10" />
-              <Skeleton className="h-3 w-8" />
+      <CardContent className="flex flex-col">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className={cn(
+              "flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between",
+              i !== 3 && "border-b border-neutral-200"
+            )}
+          >
+            <div className="flex flex-col gap-2 sm:w-56 sm:shrink-0">
+              <Skeleton className="h-4 w-36" />
+              <Skeleton className="h-3 w-14" />
             </div>
-          ))}
-        </div>
+            <Skeleton className="h-4 w-full max-w-xs" />
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
@@ -603,12 +605,12 @@ export default async function Home({
           <DrivetrainSection />
         </Suspense>
 
-        <Suspense fallback={<WattsTaxSkeleton />}>
-          <WattsTaxCard />
+        <Suspense fallback={<RideHistorySkeleton />}>
+          <RideHistorySection />
         </Suspense>
 
-        <Suspense fallback={<ActivitySkeleton />}>
-          <ActivityCard />
+        <Suspense fallback={<WattsTaxSkeleton />}>
+          <WattsTaxCard />
         </Suspense>
       </div>
     </DashboardShell>

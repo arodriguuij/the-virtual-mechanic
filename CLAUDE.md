@@ -141,6 +141,17 @@ only one that differs by component type (it names the cascade effect on the cass
 skeleton) unless at least one component is `critical`/`exhausted` — avoids a
 flash-then-vanish loading state for a banner that usually shouldn't appear at all.
 
+### Ride history lookbook (app/page.tsx)
+
+`getRecentActivities(limit)` (`lib/dashboard-data.ts`) replaced the old single-activity
+`getLatestActivity()` — `RideHistorySection` calls it with `limit: 8` to render the
+editorial list below the drivetrain grid (numbered rows, hairline dividers, no per-row
+card chrome — deliberately not another grid of boxes), and `WattsTaxCard` calls it with
+the *same* `8` and just reads `activities[0]`. Same argument value → same `React.cache`
+entry → one Supabase query serves both, same dedup trick as `getPrimaryBike()` elsewhere
+on this page. If you add a component that needs a different number of rows, it gets its
+own query — keep call sites that can share data calling with identical arguments.
+
 ### Route dynamic rendering
 
 `app/page.tsx` exports `dynamic = "force-dynamic"` because it reads live Supabase data —

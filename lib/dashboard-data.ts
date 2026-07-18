@@ -51,21 +51,27 @@ export const getPrimaryBike = cache(async (): Promise<BikeWithComponents | null>
   return data;
 });
 
-export const getLatestActivity = cache(async (): Promise<Activity | null> => {
-  const supabase = await getAuthenticatedSupabaseClient();
+/**
+ * Shared by every component that needs ride history — the Dashboard's "latest
+ * activity" stat and the ride lookbook both call this with the same `limit`
+ * so React's `cache()` dedupes them into one Supabase query per request.
+ */
+export const getRecentActivities = cache(
+  async (limit: number = 10): Promise<Activity[]> => {
+    const supabase = await getAuthenticatedSupabaseClient();
 
-  const { data, error } = await supabase
-    .from("activities")
-    .select(
-      "id, name, distance, total_elevation_gain, moving_time, average_watts, rain_mm, humidity_avg, watts_lost, activity_date"
-    )
-    .order("activity_date", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    const { data, error } = await supabase
+      .from("activities")
+      .select(
+        "id, name, distance, total_elevation_gain, moving_time, average_watts, rain_mm, humidity_avg, watts_lost, activity_date"
+      )
+      .order("activity_date", { ascending: false })
+      .limit(limit);
 
-  if (error) throw error;
-  return data;
-});
+    if (error) throw error;
+    return data ?? [];
+  }
+);
 
 export const getProfile = cache(async (): Promise<Profile | null> => {
   const supabase = await getAuthenticatedSupabaseClient();
