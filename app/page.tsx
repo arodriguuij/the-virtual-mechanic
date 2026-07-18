@@ -7,8 +7,10 @@ import {
   ExternalLink,
   Link2,
   MapPin,
+  OctagonAlert,
   RefreshCw,
   TriangleAlert,
+  Wrench,
 } from "lucide-react";
 import { Suspense } from "react";
 
@@ -23,7 +25,12 @@ import { ProgressIndicator, ProgressTrack } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { getLatestActivity, getPrimaryBike, getProfile } from "@/lib/dashboard-data";
+import {
+  type BikeWithComponents,
+  getLatestActivity,
+  getPrimaryBike,
+  getProfile,
+} from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -32,19 +39,20 @@ const eyebrow = "text-[10px] font-medium tracking-widest text-neutral-500 upperc
 const statLabel = "text-[10px] font-medium tracking-widest text-neutral-500 uppercase";
 const statValue = "text-2xl font-semibold text-neutral-900 tabular-nums";
 
-type WearStatus = "good" | "warning" | "critical";
+type WearStatus = "optimal" | "warning" | "critical" | "exhausted";
 
 function wearStatus(pct: number): WearStatus {
-  if (pct >= 80) return "critical";
-  if (pct >= 50) return "warning";
-  return "good";
+  if (pct >= 100) return "exhausted";
+  if (pct >= 85) return "critical";
+  if (pct >= 60) return "warning";
+  return "optimal";
 }
 
 const statusMeta: Record<
   WearStatus,
   { label: string; icon: typeof CircleCheck; dot: string; text: string }
 > = {
-  good: {
+  optimal: {
     label: "Óptimo",
     icon: CircleCheck,
     dot: "bg-status-good",
@@ -57,12 +65,38 @@ const statusMeta: Record<
     text: "text-status-warning",
   },
   critical: {
-    label: "Reemplazar",
+    label: "Crítico",
     icon: CircleAlert,
     dot: "bg-status-critical",
     text: "text-status-critical",
   },
+  exhausted: {
+    label: "Agotado",
+    icon: OctagonAlert,
+    dot: "bg-status-critical",
+    text: "text-status-critical",
+  },
 };
+
+const componentTypeLabels: Record<string, string> = {
+  chain: "Cadena",
+  cassette: "Cassette",
+  chainring: "Platos",
+};
+
+/** Null for `optimal` — nothing worth saying yet. */
+function getWearMessage(status: WearStatus, componentType: string): string | null {
+  if (status === "optimal") return null;
+  if (status === "warning") {
+    return componentType === "chain"
+      ? "Desgaste moderado. El estiramiento está empezando a acelerar el desgaste del cassette (fricción ×1.5)."
+      : "Rendimiento óptimo, vigilar en las próximas salidas.";
+  }
+  if (status === "critical") {
+    return "Mantenimiento requerido. Programa el cambio de pieza para evitar daños estructurales en la transmisión.";
+  }
+  return "Sustitúyelo de inmediato. Rodar en este estado compromete tu seguridad y destroza el resto de componentes.";
+}
 
 function formatDuration(seconds: number) {
   const hours = Math.floor(seconds / 3600);
@@ -131,92 +165,151 @@ function BikeHeroSkeleton() {
   );
 }
 
-async function ChainWearCard() {
+async function WorkshopAlertsBanner() {
   const bike = await getPrimaryBike();
-  const chain = bike?.components.find((c) => c.type === "chain");
+  const flagged = (bike?.components ?? [])
+    .map((component) => ({ component, status: wearStatus(component.current_wear_percentage) }))
+    .filter(({ status }) => status === "critical" || status === "exhausted");
 
-  if (!chain) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-medium text-neutral-900">
-            Semáforo de desgaste
-          </CardTitle>
-          <CardDescription className={eyebrow}>Sin cadena registrada todavía</CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
+  if (flagged.length === 0) return null;
 
-  const wear = chain.current_wear_percentage;
+  return (
+    <div className="flex flex-col gap-3 border border-status-critical/40 bg-status-critical/5 px-5 py-4">
+      <div className="flex items-center gap-2 text-xs font-medium tracking-widest text-status-critical uppercase">
+        <Wrench className="size-4" />
+        Alertas de taller
+      </div>
+      <ul className="flex flex-col gap-1.5">
+        {flagged.map(({ component, status }) => (
+          <li
+            key={component.id}
+            className="flex flex-col gap-0.5 text-sm sm:flex-row sm:items-baseline sm:gap-2"
+          >
+            <span className="font-medium text-neutral-900">
+              {componentTypeLabels[component.type] ?? component.type} · {statusMeta[status].label}
+            </span>
+            <span className="text-neutral-600">
+              {getWearMessage(status, component.type)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function DrivetrainComponentCard({
+  component,
+}: {
+  component: BikeWithComponents["components"][number];
+}) {
+  const wear = component.current_wear_percentage;
   const status = wearStatus(wear);
   const meta = statusMeta[status];
   const Icon = meta.icon;
+  const message = getWearMessage(status, component.type);
+  const severe = status === "critical" || status === "exhausted";
+  const label = componentTypeLabels[component.type] ?? component.type;
 
   return (
-    <Card>
+    <Card className={cn(severe && "border-status-critical/40")}>
       <CardHeader>
-        <CardTitle className="font-medium text-neutral-900">Semáforo de desgaste</CardTitle>
-        <CardDescription className={eyebrow}>{chain.name}</CardDescription>
+        <CardTitle className="font-medium text-neutral-900">{label}</CardTitle>
+        <CardDescription className={eyebrow}>{component.name}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <span
-              className={cn(
-                "size-2 rounded-full",
-                status === "good" ? "bg-status-good" : "bg-status-good/20"
-              )}
-            />
-            <span
-              className={cn(
-                "size-2 rounded-full",
-                status === "warning" ? "bg-status-warning" : "bg-status-warning/20"
-              )}
-            />
-            <span
-              className={cn(
-                "size-2 rounded-full",
-                status === "critical" ? "bg-status-critical" : "bg-status-critical/20"
-              )}
-            />
-          </div>
-          <span className={cn("flex items-center gap-1 text-xs font-medium tracking-wide uppercase", meta.text)}>
+        <div className="flex items-center justify-between gap-2">
+          <span
+            className={cn(
+              "text-neutral-900 tabular-nums transition-all",
+              severe ? "text-3xl font-bold" : "text-2xl font-semibold"
+            )}
+          >
+            {wear}%
+          </span>
+          <span
+            className={cn(
+              "flex items-center gap-1 text-xs font-medium tracking-wide uppercase",
+              meta.text
+            )}
+          >
             <Icon className="size-3.5" />
             {meta.label}
           </span>
         </div>
 
-        <Progress.Root value={wear}>
+        <Progress.Root value={Math.min(wear, 100)}>
           <ProgressTrack className="bg-neutral-200">
             <ProgressIndicator className={meta.dot} />
           </ProgressTrack>
         </Progress.Root>
 
         <p className="text-sm text-neutral-500">
-          {wear}% de vida útil consumida · límite estimado {chain.max_km.toLocaleString("es-ES")} km.
+          {message ??
+            `${wear}% de vida útil consumida · límite estimado ${component.max_km.toLocaleString("es-ES")} km.`}
         </p>
+
+        {status === "critical" && (
+          <span className="inline-flex w-fit items-center gap-1.5 border border-status-critical/40 bg-status-critical/10 px-3 py-1 text-[10px] font-medium tracking-widest text-status-critical uppercase">
+            Agendar cambio
+          </span>
+        )}
+        {status === "exhausted" && (
+          <span className="inline-flex w-fit items-center gap-1.5 bg-status-critical px-3 py-1 text-[10px] font-medium tracking-widest text-background uppercase">
+            Pieza agotada
+          </span>
+        )}
       </CardContent>
     </Card>
   );
 }
 
-function ChainWearSkeleton() {
+async function DrivetrainSection() {
+  const bike = await getPrimaryBike();
+  const components = bike?.components ?? [];
+
+  if (components.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-medium text-neutral-900">Transmisión</CardTitle>
+          <CardDescription className={eyebrow}>
+            Sin componentes registrados todavía
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-medium text-neutral-900">Semáforo de desgaste</CardTitle>
-        <Skeleton className="h-3 w-40" />
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-2 w-12 rounded-full" />
-          <Skeleton className="h-3 w-16" />
-        </div>
-        <Skeleton className="h-1 w-full rounded-full" />
-        <Skeleton className="h-4 w-full" />
-      </CardContent>
-    </Card>
+    <div className="grid gap-6 md:grid-cols-3">
+      {components.map((component) => (
+        <DrivetrainComponentCard key={component.id} component={component} />
+      ))}
+    </div>
+  );
+}
+
+function DrivetrainSkeleton() {
+  return (
+    <div className="grid gap-6 md:grid-cols-3">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader>
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-3 w-32" />
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-8 w-14" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+            <Skeleton className="h-1 w-full rounded-full" />
+            <Skeleton className="h-4 w-full" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 }
 
@@ -498,19 +591,21 @@ export default async function Home({
           </div>
         )}
 
+        <Suspense fallback={null}>
+          <WorkshopAlertsBanner />
+        </Suspense>
+
         <Suspense fallback={<BikeHeroSkeleton />}>
           <BikeHeroCard />
         </Suspense>
 
-        <section className="grid gap-6 md:grid-cols-2">
-          <Suspense fallback={<ChainWearSkeleton />}>
-            <ChainWearCard />
-          </Suspense>
+        <Suspense fallback={<DrivetrainSkeleton />}>
+          <DrivetrainSection />
+        </Suspense>
 
-          <Suspense fallback={<WattsTaxSkeleton />}>
-            <WattsTaxCard />
-          </Suspense>
-        </section>
+        <Suspense fallback={<WattsTaxSkeleton />}>
+          <WattsTaxCard />
+        </Suspense>
 
         <Suspense fallback={<ActivitySkeleton />}>
           <ActivityCard />

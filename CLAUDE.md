@@ -101,8 +101,8 @@ matching the pattern the Strava sync route also uses for `activities`.
     `lib/wear-model.ts` (`estimateWattsLost`). No GPS on the activity → falls back to a
     neutral placeholder (50% humidity, 0mm rain) rather than failing the sync.
   - Applies the ride's distance to the whole drivetrain triangle via
-    `applyRideToDrivetrain` (`lib/wear-model.ts`) — this is what moves the "Semáforo de
-    desgaste" on the Dashboard. See "Drivetrain wear cascade" below.
+    `applyRideToDrivetrain` (`lib/wear-model.ts`) — this is what moves the component wear
+    cards on the Dashboard. See "Drivetrain wear cascade" below.
   - Both steps are skipped when the activity already exists, so re-clicking "Sincronizar
     rutas" never double-counts wear or re-derives weather for the same ride.
 - The Dashboard header shows "Conectar Strava" or "Sincronizar rutas" depending on
@@ -126,6 +126,20 @@ three independent odometers — all pure functions, no I/O, easy to unit-test in
 - `applyRideToDrivetrain` — the entry point the sync route calls: takes every component on
   the bike plus the ride's distance and weather, reads the chain's pre-ride wear once, and
   returns the new `current_wear_percentage` for all of them together.
+
+### Wear status UI (app/page.tsx)
+
+Four states, computed from `current_wear_percentage` alone by `wearStatus()`: `optimal`
+(<60%), `warning` (60–85%), `critical` (85–100%), `exhausted` (≥100%). `critical` and
+`exhausted` share the oxblood `--status-critical` token — the escalation is via weight
+(bold, larger % text) and fill (outline "Agendar cambio" badge vs. solid inverted "Pieza
+agotada" badge), not a new hue, to stay inside the validated editorial palette. Copy per
+state/component type lives in `getWearMessage()` — the chain's `warning` message is the
+only one that differs by component type (it names the cascade effect on the cassette).
+`WorkshopAlertsBanner` re-fetches the same `getPrimaryBike()` call (deduped by
+`React.cache`, no extra query) and renders nothing (`Suspense fallback={null}`, not a
+skeleton) unless at least one component is `critical`/`exhausted` — avoids a
+flash-then-vanish loading state for a banner that usually shouldn't appear at all.
 
 ### Route dynamic rendering
 
