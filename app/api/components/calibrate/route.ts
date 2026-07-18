@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
-import { getEffectiveMaxKm } from "@/lib/wear-model";
+import { getEffectiveMaxKm, REAR_TIRE_TRACTION_MULTIPLIER } from "@/lib/wear-model";
 
 const VALID_GAUGE_READINGS = new Set([0.5, 0.75, 1.0]);
 
@@ -41,7 +41,13 @@ export async function POST(request: NextRequest) {
       return redirectWithError("invalid_km");
     }
     const effectiveMaxKm = getEffectiveMaxKm(component.type, component.tier, component.max_km);
-    wearPercentage = Math.min(100, Math.round((kmValue / effectiveMaxKm) * 1000) / 10);
+    // Same asymmetry the ride sync applies: a manually-entered mileage still
+    // means more accumulated stress on the rear tire, not less, just because
+    // it came from a form instead of a Strava activity.
+    const tractionMultiplier =
+      component.type === "tire_rear" ? REAR_TIRE_TRACTION_MULTIPLIER : 1;
+    wearPercentage =
+      Math.min(100, Math.round((kmValue / effectiveMaxKm) * tractionMultiplier * 1000) / 10);
     statusType = "estimated";
   } else if (method === "gauge") {
     if (component.type !== "chain") {

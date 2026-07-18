@@ -112,7 +112,7 @@ const statusTypeMeta: Record<
   { label: string; explanation: string; className: string }
 > = {
   estimated: {
-    label: "Calibrando",
+    label: "Estimación manual",
     explanation:
       "Cálculo basado en estimación manual. La precisión del Gemelo Digital se activará al instalar un componente nuevo.",
     className: "border-neutral-300 bg-neutral-100 text-neutral-600",

@@ -180,10 +180,12 @@ a previous chain). `components.status_type` tracks that distinction everywhere a
 number is shown:
 
 - **`estimated`** (default) — legacy/seeded data or anything the user entered by hand.
-  Dashboard cards show a neutral "Calibrando" badge (`statusTypeMeta.estimated` in
-  `app/page.tsx`) with an always-visible explanation line (not hover-only — a `title`
-  attribute alone would be invisible on mobile and unreliable for a11y) plus a native
-  `title` as a free desktop-hover bonus.
+  Dashboard cards show a neutral "Estimación manual" badge (`statusTypeMeta.estimated` in
+  `app/page.tsx` — originally labeled "Calibrando", renamed after a real user read that as
+  "still loading/processing" rather than "you calibrated this yourself") with an
+  always-visible explanation line (not hover-only — a `title` attribute alone would be
+  invisible on mobile and unreliable for a11y) plus a native `title` as a free
+  desktop-hover bonus.
 - **`certified`** — set the moment a user calibrates a component as genuinely new (0 km).
   From that point every ride synced through `applyRideToComponents` is a real physical
   simulation. Badge reuses `--status-good` (olive) rather than introducing a new "premium"
@@ -196,7 +198,12 @@ component type:
 - **Any component**: "Es una pieza nueva (0 km)" → `current_wear_percentage = 0`,
   `status_type = 'certified'`. "Introducir kilómetros estimados" → linear
   `km / effectiveMaxKm * 100` (via `getEffectiveMaxKm`, the same tier-aware helper the ride
-  sync uses), `status_type = 'estimated'`.
+  sync uses), `status_type = 'estimated'` — and for `tire_rear` specifically, multiplied by
+  the same `REAR_TIRE_TRACTION_MULTIPLIER` the ride sync applies (a manually-entered
+  mileage still means more accumulated stress on the rear tire; skipping this originally
+  meant entering the same km for both tires produced identical wear%, which read as a
+  rendering bug — it wasn't, `DrivetrainComponentCard` was never cross-wired, the
+  calibration route just hadn't carried the asymmetry over from `applyRideToComponents`).
 - **Chain only**: a third method, "Tengo un medidor de desgaste físico" — a wear-indicator
   gauge that only reads three fixed points, `0.5` / `0.75` / `1.0`, so the result is fixed
   at exactly 50%, 75%, or 100% wear (not a linear calculation), `status_type = 'estimated'`.
