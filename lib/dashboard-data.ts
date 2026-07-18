@@ -1,7 +1,8 @@
 import "server-only";
 
 import { cache } from "react";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 
 export type BikeWithComponents = {
   id: string;
@@ -30,60 +31,13 @@ export type Activity = {
   activity_date: string;
 };
 
-/**
- * Module-level singleton: sign in once per server process and let the SDK's
- * built-in token refresh keep the session alive, instead of calling
- * signInWithPassword on every request. `app/page.tsx` is `force-dynamic`, so
- * one sign-in per request used to blow through Supabase Auth's rate limit
- * within seconds. Swap this whole file for the real logged-in user's session
- * once Auth.js lands.
- */
-let clientPromise: Promise<SupabaseClient> | null = null;
-
-function getAuthenticatedClient(): Promise<SupabaseClient> {
-  if (!clientPromise) {
-    clientPromise = (async () => {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      const seedEmail = process.env.SEED_USER_EMAIL;
-      const seedPassword = process.env.SEED_USER_PASSWORD;
-
-      if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error(
-          "Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local"
-        );
-      }
-      if (!seedEmail || !seedPassword) {
-        throw new Error(
-          "Faltan SEED_USER_EMAIL o SEED_USER_PASSWORD en .env.local (necesarias mientras no exista login con Auth.js)"
-        );
-      }
-
-      const supabase = createClient(supabaseUrl, supabaseAnonKey);
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: seedEmail,
-        password: seedPassword,
-      });
-      if (signInError) {
-        throw new Error(
-          `No se pudo autenticar con el usuario temporal de desarrollo: ${signInError.message}`
-        );
-      }
-
-      return supabase;
-    })();
-
-    // Don't cache a failed sign-in forever — let the next call retry.
-    clientPromise.catch(() => {
-      clientPromise = null;
-    });
-  }
-
-  return clientPromise;
-}
+export type Profile = {
+  id: string;
+  strava_athlete_id: string | null;
+};
 
 export const getPrimaryBike = cache(async (): Promise<BikeWithComponents | null> => {
-  const supabase = await getAuthenticatedClient();
+  const supabase = await getAuthenticatedSupabaseClient();
 
   const { data, error } = await supabase
     .from("bikes")
@@ -98,7 +52,7 @@ export const getPrimaryBike = cache(async (): Promise<BikeWithComponents | null>
 });
 
 export const getLatestActivity = cache(async (): Promise<Activity | null> => {
-  const supabase = await getAuthenticatedClient();
+  const supabase = await getAuthenticatedSupabaseClient();
 
   const { data, error } = await supabase
     .from("activities")
@@ -107,6 +61,24 @@ export const getLatestActivity = cache(async (): Promise<Activity | null> => {
     )
     .order("activity_date", { ascending: false })
     .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+});
+
+export const getProfile = cache(async (): Promise<Profile | null> => {
+  const supabase = await getAuthenticatedSupabaseClient();
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  const userId = authData.user?.id;
+  if (!userId) return null;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, strava_athlete_id")
+    .eq("id", userId)
     .maybeSingle();
 
   if (error) throw error;

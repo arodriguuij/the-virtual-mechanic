@@ -5,12 +5,13 @@ import {
   CircleAlert,
   CircleCheck,
   ExternalLink,
+  Link2,
   MapPin,
+  RefreshCw,
   TriangleAlert,
 } from "lucide-react";
 import { Suspense } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -22,7 +23,7 @@ import { ProgressIndicator, ProgressTrack } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { getLatestActivity, getPrimaryBike } from "@/lib/dashboard-data";
+import { getLatestActivity, getPrimaryBike, getProfile } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -410,7 +411,71 @@ function ActivitySkeleton() {
   );
 }
 
-export default function Home() {
+const stravaButtonClass =
+  "inline-flex items-center gap-2 px-4 py-2 text-[11px] font-medium tracking-widest uppercase transition-colors";
+
+async function StravaButton() {
+  const profile = await getProfile();
+  const connected = Boolean(profile?.strava_athlete_id);
+
+  if (!connected) {
+    return (
+      <a
+        href="/api/strava/connect"
+        className={cn(
+          stravaButtonClass,
+          "border border-neutral-900 bg-neutral-900 text-background hover:bg-neutral-700"
+        )}
+      >
+        <Link2 className="size-3.5" />
+        Conectar Strava
+      </a>
+    );
+  }
+
+  return (
+    <form action="/api/strava/sync" method="POST">
+      <button
+        type="submit"
+        className={cn(
+          stravaButtonClass,
+          "border border-neutral-900 bg-transparent text-neutral-900 hover:bg-neutral-900 hover:text-background"
+        )}
+      >
+        <RefreshCw className="size-3.5" />
+        Sincronizar rutas
+      </button>
+    </form>
+  );
+}
+
+function StravaButtonSkeleton() {
+  return <Skeleton className="h-8.5 w-40" />;
+}
+
+const stravaErrorMessages: Record<string, string> = {
+  access_denied: "Cancelaste la conexión con Strava.",
+  missing_code: "Strava no envió un código de autorización válido.",
+  token_exchange_failed: "No se pudo intercambiar el código con Strava.",
+  no_session: "No se pudo verificar la sesión de desarrollo.",
+  save_failed: "No se pudieron guardar los tokens de Strava.",
+  update_blocked_by_rls:
+    "Los tokens no se guardaron: falta la policy de UPDATE en profiles.",
+  not_connected: "Conecta Strava antes de sincronizar rutas.",
+  no_rides: "No se encontró ninguna actividad de ciclismo reciente en Strava.",
+};
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const stravaErrorCode = (await searchParams).strava_error;
+  const stravaError =
+    typeof stravaErrorCode === "string"
+      ? (stravaErrorMessages[stravaErrorCode] ?? "No se pudo completar la operación con Strava.")
+      : null;
+
   return (
     <DashboardShell>
       <div className="flex flex-col gap-10">
@@ -421,11 +486,17 @@ export default function Home() {
               Dashboard
             </h1>
           </div>
-          <Badge variant="outline" className="gap-1.5 border-neutral-200 text-neutral-500">
-            <span className="size-1.5 rounded-full bg-status-good" />
-            <span className="tracking-wide uppercase">Sincronizado hace 2 h</span>
-          </Badge>
+          <Suspense fallback={<StravaButtonSkeleton />}>
+            <StravaButton />
+          </Suspense>
         </header>
+
+        {stravaError && (
+          <div className="flex items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-sm text-status-warning">
+            <TriangleAlert className="size-4 shrink-0" />
+            {stravaError}
+          </div>
+        )}
 
         <Suspense fallback={<BikeHeroSkeleton />}>
           <BikeHeroCard />
