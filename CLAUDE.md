@@ -198,8 +198,13 @@ component type:
   `km / effectiveMaxKm * 100` (via `getEffectiveMaxKm`, the same tier-aware helper the ride
   sync uses), `status_type = 'estimated'`.
 - **Chain only**: a third method, "Tengo un medidor de desgaste físico" — a wear-indicator
-  gauge that only reads two fixed points, 0.5 or 0.75, so the result is fixed at exactly
-  50% or 75% wear (not a linear calculation), `status_type = 'estimated'`.
+  gauge that only reads three fixed points, `0.5` / `0.75` / `1.0`, so the result is fixed
+  at exactly 50%, 75%, or 100% wear (not a linear calculation), `status_type = 'estimated'`.
+  `1.0` ("cadena totalmente estirada") pins wear at exactly 100 — no new Dashboard logic
+  needed for that to flip the card to `exhausted` and pull it into the workshop banner;
+  `wearStatus`/`WorkshopAlertsBanner` already react to any component crossing 100%,
+  calibration or ride sync alike. The dialog shows an inline danger warning the moment
+  `1.0` is selected, before the form is even submitted.
 
 The form POSTs (plain HTML `<form>`, no client fetch — same progressive-enhancement
 pattern as "Sincronizar rutas") to `POST /api/components/calibrate`, which re-fetches the

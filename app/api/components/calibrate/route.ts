@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import { getEffectiveMaxKm } from "@/lib/wear-model";
 
-const VALID_GAUGE_READINGS = new Set([0.5, 0.75]);
+const VALID_GAUGE_READINGS = new Set([0.5, 0.75, 1.0]);
 
 export async function POST(request: NextRequest) {
   const redirectWithError = (code: string) =>

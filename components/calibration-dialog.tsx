@@ -28,12 +28,16 @@ export function CalibrationDialog({
   componentName: string;
 }) {
   const [method, setMethod] = useState<Method>("new");
+  const [gauge, setGauge] = useState("0.5");
   const isChain = componentType === "chain";
 
   return (
     <Dialog
       onOpenChange={(open) => {
-        if (open) setMethod("new");
+        if (open) {
+          setMethod("new");
+          setGauge("0.5");
+        }
       }}
     >
       <DialogTrigger className="text-[11px] font-medium tracking-widest text-neutral-500 uppercase transition-colors hover:text-neutral-900">
@@ -124,15 +128,41 @@ export function CalibrationDialog({
                   type="radio"
                   name="gauge"
                   value="0.5"
-                  defaultChecked
+                  checked={gauge === "0.5"}
+                  onChange={() => setGauge("0.5")}
                   className={radioInputClass}
                 />
                 El medidor entra hasta 0.5% — fija el desgaste al 50%
               </label>
               <label className={radioLabelClass}>
-                <input type="radio" name="gauge" value="0.75" className={radioInputClass} />
+                <input
+                  type="radio"
+                  name="gauge"
+                  value="0.75"
+                  checked={gauge === "0.75"}
+                  onChange={() => setGauge("0.75")}
+                  className={radioInputClass}
+                />
                 El medidor entra hasta 0.75% — fija el desgaste al 75% (zona crítica)
               </label>
+              <label className={radioLabelClass}>
+                <input
+                  type="radio"
+                  name="gauge"
+                  value="1.0"
+                  checked={gauge === "1.0"}
+                  onChange={() => setGauge("1.0")}
+                  className={radioInputClass}
+                />
+                El medidor entra hasta 1.0% — cadena totalmente estirada
+              </label>
+
+              {gauge === "1.0" && (
+                <p className="border border-status-critical/40 bg-status-critical/10 px-3 py-2 text-xs text-status-critical">
+                  ¡Peligro estructural! Tu cadena está destrozando el cassette y los platos
+                  en cada pedalada. Sustitución inmediata requerida.
+                </p>
+              )}
             </div>
           )}
 
