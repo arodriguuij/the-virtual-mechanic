@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import { fetchLatestRideActivity, refreshStravaToken } from "@/lib/strava";
 import { getWeatherForRide } from "@/lib/open-meteo";
-import { applyDistanceToWear, estimateWattsLost } from "@/lib/wear-model";
+import { applyRideToDrivetrain, estimateWattsLost } from "@/lib/wear-model";
 
 export async function POST(request: NextRequest) {
   const redirectWithError = (code: string) =>
@@ -94,28 +94,31 @@ export async function POST(request: NextRequest) {
     const rideKm = activity.distance / 1000;
     const { data: bike, error: bikeError } = await supabase
       .from("bikes")
-      .select("id, components(id, max_km, current_wear_percentage)")
+      .select("id, components(id, type, tier, max_km, current_wear_percentage)")
       .eq("profile_id", userId)
       .limit(1)
       .maybeSingle();
     if (bikeError) throw bikeError;
 
-    for (const component of bike?.components ?? []) {
-      const newWear = applyDistanceToWear(
-        component.current_wear_percentage,
-        component.max_km,
-        rideKm
-      );
+    // Chain wear (weather-multiplied) is resolved first inside the model —
+    // its pre-ride value then drives the cassette/chainring cascade — so the
+    // whole drivetrain triangle comes back ready to persist in one pass.
+    const wearUpdates = applyRideToDrivetrain(bike?.components ?? [], rideKm, {
+      humidityAvg,
+      rainMm,
+    });
+
+    for (const { id, newWearPercentage } of wearUpdates) {
       const { data: updated, error: wearUpdateError } = await supabase
         .from("components")
-        .update({ current_wear_percentage: newWear })
-        .eq("id", component.id)
+        .update({ current_wear_percentage: newWearPercentage })
+        .eq("id", id)
         .select("id")
         .maybeSingle();
       if (wearUpdateError) throw wearUpdateError;
       if (!updated) {
         console.error(
-          `No se pudo actualizar el desgaste del componente ${component.id}: RLS bloqueó el UPDATE.`
+          `No se pudo actualizar el desgaste del componente ${id}: RLS bloqueó el UPDATE.`
         );
       }
     }

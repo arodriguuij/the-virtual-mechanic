@@ -81,28 +81,51 @@ async function main() {
     bikeId = newBike.id;
   }
 
-  const { data: existingChain, error: chainFetchError } = await supabase
-    .from("components")
-    .select("id")
-    .eq("bike_id", bikeId)
-    .eq("type", "chain")
-    .maybeSingle();
-  if (chainFetchError) throw chainFetchError;
+  const drivetrainComponents = [
+    {
+      type: "chain",
+      name: "Cadena Shimano Ultegra 11v",
+      brand: "Shimano",
+      tier: "Ultegra",
+      max_km: 3000,
+      current_wear_percentage: 35.0,
+    },
+    {
+      type: "cassette",
+      name: "Cassette Shimano Ultegra 11v",
+      brand: "Shimano",
+      tier: "Ultegra",
+      max_km: 7500,
+      current_wear_percentage: 20.0,
+    },
+    {
+      type: "chainring",
+      name: "Platos Shimano Ultegra 11v",
+      brand: "Shimano",
+      tier: "Ultegra",
+      max_km: 18000,
+      current_wear_percentage: 8.0,
+    },
+  ];
 
-  if (existingChain) {
-    console.log("✓ Cadena ya existía:", existingChain.id);
-  } else {
-    const { error: chainInsertError } = await supabase
+  for (const component of drivetrainComponents) {
+    const { data: existingComponent, error: componentFetchError } = await supabase
       .from("components")
-      .insert({
-        bike_id: bikeId,
-        name: "Cadena Shimano Ultegra 11v",
-        type: "chain",
-        max_km: 3000,
-        current_wear_percentage: 35.0,
-      });
-    if (chainInsertError) throw chainInsertError;
-    console.log("+ Cadena creada");
+      .select("id")
+      .eq("bike_id", bikeId)
+      .eq("type", component.type)
+      .maybeSingle();
+    if (componentFetchError) throw componentFetchError;
+
+    if (existingComponent) {
+      console.log(`✓ ${component.name} ya existía:`, existingComponent.id);
+    } else {
+      const { error: componentInsertError } = await supabase
+        .from("components")
+        .insert({ bike_id: bikeId, ...component });
+      if (componentInsertError) throw componentInsertError;
+      console.log(`+ ${component.name} creado`);
+    }
   }
 
   const activityId = "seed-serra-tramuntana-001";

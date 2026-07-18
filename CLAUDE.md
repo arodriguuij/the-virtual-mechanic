@@ -43,10 +43,13 @@ Copy `.env.local.example` to `.env.local` and fill in the real values:
 
 Tables: `profiles` (id references `auth.users`; also holds `strava_athlete_id` /
 `strava_access_token` / `strava_refresh_token` / `strava_expires_at`), `bikes`
-(`profile_id` FK), `components` (`bike_id` FK), `activities` (`profile_id` FK; `id` is
-`text` — either a real Strava activity id or the seed script's synthetic one), `wear_logs`
-(`component_id` FK, not wired into the UI or the sync flow yet — `components.current_wear_percentage`
-is the only wear number that actually updates today). RLS is enabled and ownership-scoped
+(`profile_id` FK), `components` (`bike_id` FK; `type` is `'chain' | 'cassette' |
+'chainring' | ...` — reused rather than adding a redundant column when the drivetrain
+cascade was built; `brand`/`tier` hold e.g. `'Shimano'`/`'Ultegra'`), `activities`
+(`profile_id` FK; `id` is `text` — either a real Strava activity id or the seed script's
+synthetic one), `wear_logs` (`component_id` FK, not wired into the UI or the sync flow yet
+— `components.current_wear_percentage` is the only wear number that actually updates
+today). RLS is enabled and ownership-scoped
 (`auth.uid() = profile_id`/`id`, or via a `bikes`/`components` join) on all of them —
 SELECT and INSERT everywhere, plus UPDATE on `profiles` and `components` and DELETE on
 `activities` (needed for the Strava token exchange and the sync route's wear updates).
@@ -76,10 +79,11 @@ credentials at that point too.
 ### Seeding dev data
 
 `npm run seed` (`scripts/seed.ts`) signs in as the dev test user and, only if missing,
-inserts: their `profiles` row, a "Scott Addict 30" bike, a "Cadena Shimano Ultegra 11v"
-chain component (`max_km: 3000`, `current_wear_percentage: 35`), and one activity in
-Palma de Mallorca. It's safe to re-run — every insert is guarded by an existence check
-first, matching the pattern the Strava sync route also uses for `activities`.
+inserts: their `profiles` row, a "Scott Addict 30" bike, the full Shimano Ultegra
+drivetrain triangle (chain `max_km: 3000`, cassette `7500`, chainring `18000`; the chain
+starts at `current_wear_percentage: 35`, the other two lower), and one activity in Palma
+de Mallorca. It's safe to re-run — every insert is guarded by an existence check first,
+matching the pattern the Strava sync route also uses for `activities`.
 
 ### Strava OAuth
 
@@ -96,13 +100,32 @@ first, matching the pattern the Strava sync route also uses for `activities`.
     further back) and derives `watts_lost` from humidity/rain with the heuristic in
     `lib/wear-model.ts` (`estimateWattsLost`). No GPS on the activity → falls back to a
     neutral placeholder (50% humidity, 0mm rain) rather than failing the sync.
-  - Applies the ride's distance to every component on the profile's (first) bike via
-    `applyDistanceToWear` (`current_wear_percentage += ride_km / component.max_km * 100`,
-    clamped to 100) — this is what moves the "Semáforo de desgaste" on the Dashboard.
+  - Applies the ride's distance to the whole drivetrain triangle via
+    `applyRideToDrivetrain` (`lib/wear-model.ts`) — this is what moves the "Semáforo de
+    desgaste" on the Dashboard. See "Drivetrain wear cascade" below.
   - Both steps are skipped when the activity already exists, so re-clicking "Sincronizar
     rutas" never double-counts wear or re-derives weather for the same ride.
 - The Dashboard header shows "Conectar Strava" or "Sincronizar rutas" depending on
   whether `profiles.strava_athlete_id` is set (`getProfile()` in `lib/dashboard-data.ts`).
+
+### Drivetrain wear cascade
+
+`lib/wear-model.ts` models the chain, cassette, and chainring as one system rather than
+three independent odometers — all pure functions, no I/O, easy to unit-test in isolation:
+
+- `getWeatherWearMultiplier` — only the chain's own wear rate is weather-multiplied (it's
+  the part directly exposed to road spray/grit); 1.0 at ≤50% humidity and no rain.
+- `getCassetteCascadeMultiplier` / `getChainringCascadeMultiplier` — a chain that's
+  already stretched rides high on the other two's teeth. Both read the chain's
+  **pre-ride** `current_wear_percentage` (never the value after this ride's own delta is
+  applied) — cassette gets ×1.5 past 60% chain wear, ×2.5 past 85%; chainring gets ×1.3
+  past 75%, nothing below that.
+- `getEffectiveMaxKm` — only the cassette has a tier modifier today (Dura-Ace/SRAM Red
+  0.9×, Ultegra/Force 1.0×, 105/Rival 1.1× — lighter titanium wears faster than steel).
+  Chain and chainring pass through their stored `max_km` unchanged regardless of tier.
+- `applyRideToDrivetrain` — the entry point the sync route calls: takes every component on
+  the bike plus the ride's distance and weather, reads the chain's pre-ride wear once, and
+  returns the new `current_wear_percentage` for all of them together.
 
 ### Route dynamic rendering
 
