@@ -16,6 +16,7 @@ import { Suspense } from "react";
 
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -24,9 +25,11 @@ import {
 import { ProgressIndicator, ProgressTrack } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CalibrationDialog } from "@/components/calibration-dialog";
 import { DashboardShell } from "@/components/dashboard-shell";
 import {
   type BikeWithComponents,
+  type StatusType,
   getPrimaryBike,
   getProfile,
   getRecentActivities,
@@ -102,6 +105,24 @@ const componentTypeLabels: Record<string, string> = {
   wheel_rim: "Llanta",
   tire_front: "Neumático delantero",
   tire_rear: "Neumático trasero",
+};
+
+const statusTypeMeta: Record<
+  StatusType,
+  { label: string; explanation: string; className: string }
+> = {
+  estimated: {
+    label: "Calibrando",
+    explanation:
+      "Cálculo basado en estimación manual. La precisión del Gemelo Digital se activará al instalar un componente nuevo.",
+    className: "border-neutral-300 bg-neutral-100 text-neutral-600",
+  },
+  certified: {
+    label: "Precisión certificada",
+    explanation:
+      "Simulación física al 100%. Monitorizando fricción y clima desde el kilómetro cero.",
+    className: "border-status-good/40 bg-status-good/10 text-status-good",
+  },
 };
 
 /** Null for `optimal` — nothing worth saying yet. */
@@ -264,12 +285,24 @@ function DrivetrainComponentCard({
   const message = getWearMessage(status, component.type, wear);
   const severe = status === "critical" || status === "exhausted";
   const label = componentTypeLabels[component.type] ?? component.type;
+  const statusTypeInfo = statusTypeMeta[component.status_type];
 
   return (
     <Card className={cn(severe && "border-status-critical/40")}>
       <CardHeader>
         <CardTitle className="font-medium text-neutral-900">{label}</CardTitle>
         <CardDescription className={eyebrow}>{component.name}</CardDescription>
+        <CardAction>
+          <span
+            title={statusTypeInfo.explanation}
+            className={cn(
+              "inline-flex w-fit items-center border px-2 py-0.5 text-[9px] font-medium tracking-widest uppercase",
+              statusTypeInfo.className
+            )}
+          >
+            {statusTypeInfo.label}
+          </span>
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-2">
@@ -302,6 +335,7 @@ function DrivetrainComponentCard({
           {message ??
             `${wear}% de vida útil consumida · límite estimado ${formatKm(component.max_km)} km.`}
         </p>
+        <p className="text-xs text-neutral-500">{statusTypeInfo.explanation}</p>
 
         {status === "critical" && (
           <span className="inline-flex w-fit items-center gap-1.5 border border-status-critical/40 bg-status-critical/10 px-3 py-1 text-[10px] font-medium tracking-widest text-status-critical uppercase">
@@ -313,6 +347,14 @@ function DrivetrainComponentCard({
             Pieza agotada
           </span>
         )}
+
+        <div className="border-t border-neutral-200 pt-3">
+          <CalibrationDialog
+            componentId={component.id}
+            componentType={component.type}
+            componentName={label}
+          />
+        </div>
       </CardContent>
     </Card>
   );
@@ -620,15 +662,34 @@ const stravaErrorMessages: Record<string, string> = {
   no_rides: "No se encontró ninguna actividad de ciclismo reciente en Strava.",
 };
 
+const calibrationErrorMessages: Record<string, string> = {
+  missing_fields: "Faltan datos para calibrar la pieza.",
+  not_found: "No se encontró el componente a calibrar.",
+  invalid_km: "Introduce un número de kilómetros válido.",
+  invalid_gauge: "Selecciona una lectura válida del medidor de desgaste.",
+  gauge_not_supported: "El medidor de desgaste físico solo aplica a la cadena.",
+  invalid_method: "Selecciona un método de calibración.",
+  update_blocked_by_rls: "No se pudo guardar la calibración: RLS bloqueó el UPDATE.",
+};
+
 export default async function Home({
   searchParams,
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const stravaErrorCode = (await searchParams).strava_error;
+  const params = await searchParams;
+
+  const stravaErrorCode = params.strava_error;
   const stravaError =
     typeof stravaErrorCode === "string"
       ? (stravaErrorMessages[stravaErrorCode] ?? "No se pudo completar la operación con Strava.")
+      : null;
+
+  const calibrationErrorCode = params.calibration_error;
+  const calibrationError =
+    typeof calibrationErrorCode === "string"
+      ? (calibrationErrorMessages[calibrationErrorCode] ??
+        "No se pudo completar la calibración.")
       : null;
 
   return (
@@ -650,6 +711,13 @@ export default async function Home({
           <div className="flex items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-sm text-status-warning">
             <TriangleAlert className="size-4 shrink-0" />
             {stravaError}
+          </div>
+        )}
+
+        {calibrationError && (
+          <div className="flex items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-sm text-status-warning">
+            <TriangleAlert className="size-4 shrink-0" />
+            {calibrationError}
           </div>
         )}
 

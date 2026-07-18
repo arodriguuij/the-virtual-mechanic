@@ -45,7 +45,10 @@ Tables: `profiles` (id references `auth.users`; also holds `strava_athlete_id` /
 `strava_access_token` / `strava_refresh_token` / `strava_expires_at`), `bikes`
 (`profile_id` FK), `components` (`bike_id` FK; `type` is `'chain' | 'cassette' |
 'chainring' | ...` — reused rather than adding a redundant column when the drivetrain
-cascade was built; `brand`/`tier` hold e.g. `'Shimano'`/`'Ultegra'`), `activities`
+cascade was built; `brand`/`tier` hold e.g. `'Shimano'`/`'Ultegra'`; `status_type` is
+`'estimated' | 'certified'` — text with a `CHECK` constraint, unlike every other free-text
+column here, because it drives user-facing trust messaging directly and a typo would
+silently break the badge instead of erroring), `activities`
 (`profile_id` FK; `id` is `text` — either a real Strava activity id or the seed script's
 synthetic one), `wear_logs` (`component_id` FK, not wired into the UI or the sync flow yet
 — `components.current_wear_percentage` is the only wear number that actually updates
@@ -167,6 +170,43 @@ alto") / ≥100% ("reventón") puncture-risk copy.
 `React.cache`, no extra query) and renders nothing (`Suspense fallback={null}`, not a
 skeleton) unless at least one component is `critical`/`exhausted` — avoids a
 flash-then-vanish loading state for a banner that usually shouldn't appear at all.
+
+### Calibration system ("Cold Start Problem")
+
+We can't assume a new user's components start at 0% wear, and manually-entered mileage
+can't claim the same precision as a real Strava-synced ride (we don't know if that
+mileage was ridden in the rain, or whether a "new" cassette had already absorbed wear from
+a previous chain). `components.status_type` tracks that distinction everywhere a wear
+number is shown:
+
+- **`estimated`** (default) — legacy/seeded data or anything the user entered by hand.
+  Dashboard cards show a neutral "Calibrando" badge (`statusTypeMeta.estimated` in
+  `app/page.tsx`) with an always-visible explanation line (not hover-only — a `title`
+  attribute alone would be invisible on mobile and unreliable for a11y) plus a native
+  `title` as a free desktop-hover bonus.
+- **`certified`** — set the moment a user calibrates a component as genuinely new (0 km).
+  From that point every ride synced through `applyRideToComponents` is a real physical
+  simulation. Badge reuses `--status-good` (olive) rather than introducing a new "premium"
+  hue, same restraint as the rest of the palette.
+
+`components/calibration-dialog.tsx` (`"use client"`) is the only client-side piece — a
+Dialog (shadcn, `@base-ui/react/dialog`) with a method radio group that adapts to
+component type:
+
+- **Any component**: "Es una pieza nueva (0 km)" → `current_wear_percentage = 0`,
+  `status_type = 'certified'`. "Introducir kilómetros estimados" → linear
+  `km / effectiveMaxKm * 100` (via `getEffectiveMaxKm`, the same tier-aware helper the ride
+  sync uses), `status_type = 'estimated'`.
+- **Chain only**: a third method, "Tengo un medidor de desgaste físico" — a wear-indicator
+  gauge that only reads two fixed points, 0.5 or 0.75, so the result is fixed at exactly
+  50% or 75% wear (not a linear calculation), `status_type = 'estimated'`.
+
+The form POSTs (plain HTML `<form>`, no client fetch — same progressive-enhancement
+pattern as "Sincronizar rutas") to `POST /api/components/calibrate`, which re-fetches the
+component server-side for its `type`/`tier`/`max_km`, computes the new wear percentage,
+and redirects to `/?calibration_error=<code>` on any failure (missing/invalid fields, RLS
+blocking the UPDATE, or a `gauge` method requested for a non-chain component) instead of
+pretending it worked — see `calibrationErrorMessages` in `app/page.tsx`.
 
 ### Ride history lookbook (app/page.tsx)
 
