@@ -210,6 +210,10 @@ export type WearableComponent = {
   current_wear_percentage: number;
   lubricant_type: LubricantType | null;
   kms_since_last_lube: number | null;
+  /** Null for frame-level parts (chain, chainring) that wear on every
+   * ride. Non-null components only wear while their wheelset matches the
+   * ride's `activeWheelsetId` — see `applyRideToComponents`. */
+  wheelset_id: string | null;
 };
 
 export type ComponentWearUpdate = {
@@ -245,6 +249,13 @@ const INDOOR_ZERO_WEAR_TYPES = new Set([
  * contribution for every road-contact part (brakes, tires) — the drivetrain
  * still wears by distance, but with no weather multiplier on the chain,
  * since there's no real rain or humidity to have queried in the first place.
+ *
+ * `ride.activeWheelsetId` gates every wheelset-bound component (non-null
+ * `wheelset_id` — tires, cassette, brakes): a component belonging to a
+ * wheelset that isn't currently mounted can't have worn on this ride at
+ * all, checked *before* the indoor short-circuit above since "not mounted"
+ * overrides everything else. Frame-level parts (`wheelset_id: null` —
+ * chain, chainring) are never gated by this and always wear normally.
  */
 export function applyRideToComponents(
   components: WearableComponent[],
@@ -253,9 +264,10 @@ export function applyRideToComponents(
     elevationGainM: number;
     weather: { humidityAvg: number; rainMm: number };
     isIndoor?: boolean;
+    activeWheelsetId?: string | null;
   }
 ): ComponentWearUpdate[] {
-  const { km: rideKm, elevationGainM, weather, isIndoor = false } = ride;
+  const { km: rideKm, elevationGainM, weather, isIndoor = false, activeWheelsetId = null } = ride;
   const chain = components.find((c) => c.type === "chain");
   const chainWearBeforeRide = chain?.current_wear_percentage ?? 0;
   const chainLubricantType = chain?.lubricant_type ?? null;
@@ -272,6 +284,10 @@ export function applyRideToComponents(
   );
 
   return components.map((component) => {
+    if (component.wheelset_id != null && component.wheelset_id !== activeWheelsetId) {
+      return { id: component.id, newWearPercentage: component.current_wear_percentage };
+    }
+
     if (isIndoor && INDOOR_ZERO_WEAR_TYPES.has(component.type)) {
       return { id: component.id, newWearPercentage: component.current_wear_percentage };
     }

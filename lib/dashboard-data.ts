@@ -4,15 +4,19 @@ import { cache } from "react";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import type { LubricantType } from "@/lib/wear-model";
+import { ensureDefaultWheelset, getWheelsets, type Wheelset } from "@/lib/wheelsets";
 
 export type StatusType = "estimated" | "certified";
 export type CalibrationMethod = "new" | "km" | "gauge";
+export type { Wheelset };
 
 export type BikeWithComponents = {
   id: string;
   brand: string;
   model: string;
   weight: number | null;
+  wheelsets: Wheelset[];
+  activeWheelsetId: string | null;
   components: {
     id: string;
     name: string;
@@ -32,6 +36,11 @@ export type BikeWithComponents = {
      * component from a migration default, so it can't be used as this
      * signal on its own. */
     lubricant_set_by_user: boolean;
+    /** Null for frame-level parts (chain, chainring) that wear regardless
+     * of which wheelset is mounted. Non-null components only wear while
+     * their wheelset matches `activeWheelsetId` — see "Multi-wheelset
+     * kits" in CLAUDE.md. */
+    wheelset_id: string | null;
   }[];
 };
 
@@ -59,13 +68,34 @@ export const getPrimaryBike = cache(async (): Promise<BikeWithComponents | null>
   const { data, error } = await supabase
     .from("bikes")
     .select(
-      "id, brand, model, weight, components(id, name, type, tier, max_km, current_wear_percentage, status_type, lubricant_type, kms_since_last_lube, calibration_method, lubricant_set_by_user)"
+      "id, brand, model, weight, components(id, name, type, tier, max_km, current_wear_percentage, status_type, lubricant_type, kms_since_last_lube, calibration_method, lubricant_set_by_user, wheelset_id)"
     )
     .limit(1)
     .maybeSingle();
 
   if (error) throw error;
-  return data;
+  if (!data) return null;
+
+  // Lazy graceful upgrade — a no-op SELECT once the bike has any wheelset.
+  const justMigrated = await ensureDefaultWheelset(supabase, data.id);
+  const wheelsets = await getWheelsets(supabase, data.id);
+  const activeWheelsetId = wheelsets.find((w) => w.is_active)?.id ?? null;
+
+  // The backfill above just assigned wheelset_id to components read
+  // *before* it ran — re-fetch so the returned shape is consistent.
+  if (justMigrated) {
+    const { data: refetched, error: refetchError } = await supabase
+      .from("bikes")
+      .select(
+        "id, brand, model, weight, components(id, name, type, tier, max_km, current_wear_percentage, status_type, lubricant_type, kms_since_last_lube, calibration_method, lubricant_set_by_user, wheelset_id)"
+      )
+      .eq("id", data.id)
+      .maybeSingle();
+    if (refetchError) throw refetchError;
+    return refetched ? { ...refetched, wheelsets, activeWheelsetId } : null;
+  }
+
+  return { ...data, wheelsets, activeWheelsetId };
 });
 
 /**

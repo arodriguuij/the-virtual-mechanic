@@ -57,17 +57,23 @@ wear model, see "Chain lubrication model" below; `calibration_method` — `'new'
 'gauge'`, `null` until the user runs a calibration, another `CHECK`-constrained column for
 the same reason as `status_type` — and `lubricant_set_by_user` exist purely as clean
 signals for the Digital Twin fidelity score, see "Calibration system" below for why
-`status_type`/`lubricant_type` alone can't serve that purpose), `activities`
+`status_type`/`lubricant_type` alone can't serve that purpose; `wheelset_id` — nullable FK
+to `wheelsets`, `null` for frame-level parts (chain, chainring) — gates which components
+wear on a given ride, see "Multi-wheelset kits" below), `wheelsets` (`bike_id` FK; `name`
+text; `is_active` boolean — app-level invariant, not a DB constraint, that exactly one
+wheelset per bike has this `true` at a time, enforced by `activateWheelset()` in
+`lib/wheelsets.ts` deactivating every other wheelset on the bike before activating the
+target one), `activities`
 (`profile_id` FK; `id` is `text` — either a real Strava activity id or the seed script's
 synthetic one), `wear_logs` (`component_id` FK, not wired into the UI or the sync flow yet
 — `components.current_wear_percentage` is the only wear number that actually updates
 today). RLS is enabled and ownership-scoped
 (`auth.uid() = profile_id`/`id`, or via a `bikes`/`components` join) on all of them —
-SELECT and INSERT everywhere, plus UPDATE on `profiles`, `bikes`, and `components`, and
-DELETE on `activities` (needed for the Strava token exchange, gear-id binding, and the sync
-route's wear updates). There is no public/anon read or write access. No generated types
-yet — if the schema stabilizes, generate them with `supabase gen types typescript` and type
-the client instead of guessing column shapes.
+SELECT and INSERT everywhere, plus UPDATE on `profiles`, `bikes`, `components`, and
+`wheelsets`, and DELETE on `activities` (needed for the Strava token exchange, gear-id
+binding, and the sync route's wear updates). There is no public/anon read or write access.
+No generated types yet — if the schema stabilizes, generate them with
+`supabase gen types typescript` and type the client instead of guessing column shapes.
 
 Every one of those non-SELECT/INSERT policies got added reactively, mid-implementation,
 because the default (RLS on, no policy for that command) fails *silently* — the write
@@ -272,6 +278,58 @@ drivetrain triangle inside `applyRideToComponents`:
   just relubed. Both routes redirect on failure to `/?lube_error=<code>` (see
   `lubeErrorMessages` in `app/page.tsx`), same non-silent-failure convention as calibration
   and Strava sync.
+
+### Multi-wheelset kits
+
+A bike can own more than one physical wheelset (e.g. a winter training set and a race-day
+carbon set) but only one is mounted at a time — the wear model needs to know which so a
+spare kit sitting in the garage doesn't accumulate phantom mileage. `lib/wheelsets.ts`
+holds all of the logic:
+
+- **`WHEEL_COMPONENT_TYPES`** — `tire_front` / `tire_rear` / `cassette` / `disc_pad` /
+  `disc_rotor` / `rim_pad` / `wheel_rim`: everything that "spins with the wheel." Chain and
+  chainring are frame-level and never belong to a wheelset (`wheelset_id: null` always).
+- **`ensureDefaultWheelset()`** — lazy graceful upgrade, called from `getPrimaryBike()`
+  (`lib/dashboard-data.ts`) and the Strava sync route on every read. A no-op (one SELECT)
+  once a bike has any wheelset; the first time it finds zero, it creates "Kit por Defecto
+  (Original)" (`is_active: true`) and reassigns every existing wheel-type component to it
+  — this is how the one real bike in this database got migrated. Returns a boolean so
+  callers know whether to re-fetch components they already read before the backfill ran
+  (both call sites do this — see the `justMigrated` re-fetch in each).
+- **`activateWheelset()`** — deactivates every wheelset on the bike, then activates the
+  target one (two sequential UPDATEs, not a transaction — consistent with every other
+  multi-step write in this codebase). Returns `false` rather than throwing when the final
+  UPDATE matches zero rows, so `POST /api/wheelsets/activate` can redirect with a normal
+  `?wheelset_error=<code>` instead of a 500, same convention as calibration/lube.
+- **`createWheelset()`** — inserts a new wheelset (`is_active: false` — creating a kit is a
+  separate action from mounting it) and its 5 wheel-type components at 0 km / `'estimated'`
+  with generic placeholder names and the same `max_km` baselines `scripts/seed.ts` uses for
+  the original kit (no real product data for a kit the user just created).
+  `POST /api/wheelsets/create` is the route handler.
+
+**Wear model gating** (`lib/wear-model.ts`): `applyRideToComponents` takes
+`ride.activeWheelsetId` and checks it *before* the indoor short-circuit — a component
+whose `wheelset_id` is set but doesn't match the active one returns completely unchanged
+(zero wear), regardless of indoor/outdoor or any other condition, since a wheelset that
+isn't mounted physically cannot have worn on this ride. Frame-level components
+(`wheelset_id: null`) are never gated and always wear normally. The Strava sync route
+resolves `activeWheelsetId` via `getWheelsets()` right before calling
+`applyRideToComponents`.
+
+**Dashboard visibility** (`app/page.tsx`): `getVisibleComponents(bike)` filters to
+`wheelset_id == null || wheelset_id === bike.activeWheelsetId` — used by `DrivetrainSection`,
+`DigitalTwinConfidenceCard`, and `WorkshopAlertsBanner` instead of `bike.components`
+directly, so a spare wheelset's parts drop out of the grid, the fidelity score, and the
+workshop alerts entirely while inactive (their wear state is preserved in the DB and picks
+back up the moment that kit is remounted — this is also why the fidelity score's "7 pieces"
+framing still holds regardless of how many wheelsets a bike owns).
+
+**UI**: `components/wheelset-switcher.tsx` (`"use client"`) renders next to the bike photo
+in `BikeHeroCard` — a Dialog (same primitive as `CalibrationDialog`) showing the active
+kit's name as its trigger (🛞 prefix), a list of the bike's wheelsets each with its own tiny
+`activate` `<form>`, and an "Añadir kit" form at the bottom. Both forms are plain
+progressive-enhancement POSTs redirecting back to `/`, so the `force-dynamic` re-render
+naturally picks up the new active wheelset — no client-side revalidation needed.
 
 ### Wear status UI (app/page.tsx)
 

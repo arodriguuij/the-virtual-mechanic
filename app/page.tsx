@@ -25,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalibrationDialog } from "@/components/calibration-dialog";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { WheelsetSwitcher } from "@/components/wheelset-switcher";
 import {
   type BikeWithComponents,
   getPrimaryBike,
@@ -33,6 +34,22 @@ import {
 } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 import { LUBRICANT_LIMIT_KM, type LubricantType } from "@/lib/wear-model";
+
+/**
+ * Components currently relevant to show/score: frame-level parts
+ * (`wheelset_id: null` — chain, chainring) plus whichever wheelset is
+ * active. A spare kit sitting in the garage stays in the database (its own
+ * wear is preserved and picks back up when remounted) but drops out of the
+ * grid, the fidelity score, and the workshop alerts entirely while inactive
+ * — those should only ever reflect the bike as it's mounted right now.
+ */
+function getVisibleComponents(
+  bike: Pick<BikeWithComponents, "components" | "activeWheelsetId">
+) {
+  return bike.components.filter(
+    (c) => c.wheelset_id == null || c.wheelset_id === bike.activeWheelsetId
+  );
+}
 
 export const dynamic = "force-dynamic";
 
@@ -197,6 +214,9 @@ async function BikeHeroCard() {
                   <span className="pb-1 text-sm text-neutral-500">kg</span>
                 </div>
               )}
+              <div className="mt-2">
+                <WheelsetSwitcher bikeId={bike.id} wheelsets={bike.wheelsets} />
+              </div>
             </>
           ) : (
             <CardTitle className="text-xl font-medium text-neutral-500">
@@ -228,7 +248,7 @@ function BikeHeroSkeleton() {
 
 async function WorkshopAlertsBanner() {
   const bike = await getPrimaryBike();
-  const flagged = (bike?.components ?? [])
+  const flagged = (bike ? getVisibleComponents(bike) : [])
     .map((component) => ({
       component,
       status: wearStatus(component.current_wear_percentage, component.type),
@@ -290,7 +310,7 @@ function getFidelityLabel(score: number): string {
 
 async function DigitalTwinConfidenceCard() {
   const bike = await getPrimaryBike();
-  const components = bike?.components ?? [];
+  const components = bike ? getVisibleComponents(bike) : [];
   const total = components.length;
 
   const calibratedCount = components.filter((c) => c.calibration_method != null).length;
@@ -506,7 +526,7 @@ function DrivetrainComponentCard({
 
 async function DrivetrainSection() {
   const bike = await getPrimaryBike();
-  const components = bike?.components ?? [];
+  const components = bike ? getVisibleComponents(bike) : [];
 
   if (components.length === 0) {
     return (
@@ -826,6 +846,12 @@ const lubeErrorMessages: Record<string, string> = {
   update_blocked_by_rls: "No se pudo guardar: RLS bloqueó el UPDATE.",
 };
 
+const wheelsetErrorMessages: Record<string, string> = {
+  missing_fields: "Faltan datos para procesar el kit de ruedas.",
+  not_found: "No se encontró el kit de ruedas.",
+  update_blocked_by_rls: "No se pudo activar el kit: RLS bloqueó el UPDATE.",
+};
+
 export default async function Home({
   searchParams,
 }: {
@@ -850,6 +876,12 @@ export default async function Home({
   const lubeError =
     typeof lubeErrorCode === "string"
       ? (lubeErrorMessages[lubeErrorCode] ?? "No se pudo completar la operación de lubricación.")
+      : null;
+
+  const wheelsetErrorCode = params.wheelset_error;
+  const wheelsetError =
+    typeof wheelsetErrorCode === "string"
+      ? (wheelsetErrorMessages[wheelsetErrorCode] ?? "No se pudo completar la operación del kit de ruedas.")
       : null;
 
   return (
@@ -885,6 +917,13 @@ export default async function Home({
           <div className="flex items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-sm text-status-warning">
             <TriangleAlert className="size-4 shrink-0" />
             {lubeError}
+          </div>
+        )}
+
+        {wheelsetError && (
+          <div className="flex items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-sm text-status-warning">
+            <TriangleAlert className="size-4 shrink-0" />
+            {wheelsetError}
           </div>
         )}
 

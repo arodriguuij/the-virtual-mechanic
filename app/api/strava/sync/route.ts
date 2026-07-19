@@ -9,6 +9,7 @@ import {
 } from "@/lib/strava";
 import { getWeatherForRoute } from "@/lib/open-meteo";
 import { applyRideToComponents, estimateWattsLost } from "@/lib/wear-model";
+import { ensureDefaultWheelset, getWheelsets } from "@/lib/wheelsets";
 
 export async function POST(request: NextRequest) {
   const redirectWithError = (code: string) =>
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
   const { data: bike, error: bikeError } = await supabase
     .from("bikes")
     .select(
-      "id, strava_gear_id, components(id, type, tier, max_km, current_wear_percentage, lubricant_type, kms_since_last_lube)"
+      "id, strava_gear_id, components(id, type, tier, max_km, current_wear_percentage, lubricant_type, kms_since_last_lube, wheelset_id)"
     )
     .eq("profile_id", userId)
     .limit(1)
@@ -128,12 +129,32 @@ export async function POST(request: NextRequest) {
 
     const rideKm = activity.distance / 1000;
 
+    // Lazy graceful upgrade (no-op once the bike already has a wheelset) —
+    // if it just backfilled wheelset_id onto components, `bike.components`
+    // (fetched above, before the backfill) is stale and needs re-reading.
+    const justMigrated = bike ? await ensureDefaultWheelset(supabase, bike.id) : false;
+    const wheelsets = bike ? await getWheelsets(supabase, bike.id) : [];
+    const activeWheelsetId = wheelsets.find((w) => w.is_active)?.id ?? null;
+
+    let wearableComponents = bike?.components ?? [];
+    if (justMigrated && bike) {
+      const { data: refetchedBike, error: refetchError } = await supabase
+        .from("bikes")
+        .select(
+          "components(id, type, tier, max_km, current_wear_percentage, lubricant_type, kms_since_last_lube, wheelset_id)"
+        )
+        .eq("id", bike.id)
+        .maybeSingle();
+      if (refetchError) throw refetchError;
+      wearableComponents = refetchedBike?.components ?? [];
+    }
+
     // "Ruta en Mojado" — at least one geographic sample point along the
     // route crossed real rain, even if the start coordinate stayed dry.
     // Chemically strips the chain's lubricant — flagged here (before the
     // model runs) purely as an internal signal; the actual counter jump
     // happens inside applyRideToComponents/getNextKmsSinceLastLube.
-    if (!isIndoor && rainMm > 0 && (bike?.components ?? []).some((c) => c.type === "chain")) {
+    if (!isIndoor && rainMm > 0 && wearableComponents.some((c) => c.type === "chain")) {
       console.warn(
         `Ruta en Mojado: "${activity.name}" (máx ${rainMm}mm en un punto de muestreo). kms_since_last_lube salta al límite de degradación del lubricante hasta la próxima relubricación.`
       );
@@ -146,11 +167,12 @@ export async function POST(request: NextRequest) {
     // so every wearable part on the bike comes back ready to persist in one
     // pass. Indoor rides zero out every road-contact part regardless of the
     // (placeholder) weather values passed in.
-    const wearUpdates = applyRideToComponents(bike?.components ?? [], {
+    const wearUpdates = applyRideToComponents(wearableComponents, {
       km: rideKm,
       elevationGainM: activity.total_elevation_gain,
       weather: { humidityAvg, rainMm },
       isIndoor,
+      activeWheelsetId,
     });
 
     for (const { id, newWearPercentage, newKmsSinceLastLube } of wearUpdates) {
