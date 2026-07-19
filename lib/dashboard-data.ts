@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
+import type { LubricantType } from "@/lib/wear-model";
 
 export type StatusType = "estimated" | "certified";
 
@@ -19,6 +20,8 @@ export type BikeWithComponents = {
     max_km: number;
     current_wear_percentage: number;
     status_type: StatusType;
+    lubricant_type: LubricantType | null;
+    kms_since_last_lube: number | null;
   }[];
 };
 
@@ -46,7 +49,7 @@ export const getPrimaryBike = cache(async (): Promise<BikeWithComponents | null>
   const { data, error } = await supabase
     .from("bikes")
     .select(
-      "id, brand, model, weight, components(id, name, type, tier, max_km, current_wear_percentage, status_type)"
+      "id, brand, model, weight, components(id, name, type, tier, max_km, current_wear_percentage, status_type, lubricant_type, kms_since_last_lube)"
     )
     .limit(1)
     .maybeSingle();

@@ -45,22 +45,25 @@ Tables: `profiles` (id references `auth.users`; also holds `strava_athlete_id` /
 `strava_access_token` / `strava_refresh_token` / `strava_expires_at`), `bikes`
 (`profile_id` FK; `strava_gear_id` — the Strava gear id string, e.g. `"b12345678"`, this
 bike is bound to. Nullable — see "Strava gear-id shield" below for what an unset value
-means), `components` (`bike_id` FK; `type` is `'chain' | 'cassette' |
+means, and currently bound to the real `b15919114` for the Scott Addict 30), `components`
+(`bike_id` FK; `type` is `'chain' | 'cassette' |
 'chainring' | ...` — reused rather than adding a redundant column when the drivetrain
 cascade was built; `brand`/`tier` hold e.g. `'Shimano'`/`'Ultegra'`; `status_type` is
 `'estimated' | 'certified'` — text with a `CHECK` constraint, unlike every other free-text
 column here, because it drives user-facing trust messaging directly and a typo would
-silently break the badge instead of erroring), `activities`
+silently break the badge instead of erroring; `lubricant_type` — `'oil' | 'liquid_wax' |
+'hot_wax'`, meaningful only on the chain row — and `kms_since_last_lube` drive the chemical
+wear model, see "Chain lubrication model" below), `activities`
 (`profile_id` FK; `id` is `text` — either a real Strava activity id or the seed script's
 synthetic one), `wear_logs` (`component_id` FK, not wired into the UI or the sync flow yet
 — `components.current_wear_percentage` is the only wear number that actually updates
 today). RLS is enabled and ownership-scoped
 (`auth.uid() = profile_id`/`id`, or via a `bikes`/`components` join) on all of them —
-SELECT and INSERT everywhere, plus UPDATE on `profiles` and `components` and DELETE on
-`activities` (needed for the Strava token exchange and the sync route's wear updates).
-There is no public/anon read or write access. No generated types yet — if the schema
-stabilizes, generate them with `supabase gen types typescript` and type the client instead
-of guessing column shapes.
+SELECT and INSERT everywhere, plus UPDATE on `profiles`, `bikes`, and `components`, and
+DELETE on `activities` (needed for the Strava token exchange, gear-id binding, and the sync
+route's wear updates). There is no public/anon read or write access. No generated types
+yet — if the schema stabilizes, generate them with `supabase gen types typescript` and type
+the client instead of guessing column shapes.
 
 Every one of those non-SELECT/INSERT policies got added reactively, mid-implementation,
 because the default (RLS on, no policy for that command) fails *silently* — the write
@@ -163,6 +166,9 @@ wears normally by distance on an indoor ride; only the road-contact parts freeze
   **pre-ride** `current_wear_percentage` (never the value after this ride's own delta is
   applied) — cassette gets ×1.5 past 60% chain wear, ×2.5 past 85%; chainring gets ×1.3
   past 75%, nothing below that.
+- `getLubricantWearMultiplier` — see "Chain lubrication model" below. Multiplies chain,
+  cassette, *and* chainring wear alike (a dry/gritty chain grinds down everything it rides
+  on, not just itself), stacked with the multipliers above rather than replacing them.
 - `getEffectiveMaxKm` — only the cassette has a tier modifier today (Dura-Ace/SRAM Red
   0.9×, Ultegra/Force 1.0×, 105/Rival 1.1× — lighter titanium wears faster than steel).
   Everything else passes through its stored `max_km` unchanged regardless of tier.
@@ -182,6 +188,51 @@ them, each reacts directly to this ride's own weather/elevation):
 - `REAR_TIRE_TRACTION_MULTIPLIER` (×1.3) — the rear tire carries 60–65% of the rider's
   weight plus all of the drivetrain's torque, so it wears faster than the front on every
   ride regardless of conditions. The front tire is the baseline (×1).
+
+### Chain lubrication model
+
+`components.lubricant_type` (`'oil' | 'liquid_wax' | 'hot_wax'`) and
+`kms_since_last_lube` — meaningful only on the chain row, `null`/unset on every other
+component — feed `getLubricantWearMultiplier` and `getNextKmsSinceLastLube`
+(`lib/wear-model.ts`), both pure functions read once per ride and reused across the whole
+drivetrain triangle inside `applyRideToComponents`:
+
+- **Baseline multiplier by type**, applied while `kms_since_last_lube` (pre-ride) is still
+  under the lubricant's limit: oil ×1.2 (attracts grit, forms an abrasive paste),
+  liquid wax ×1.0 (clean baseline), hot wax ×0.75 (baked-in paraffin/PTFE coating cuts
+  friction further). `LUBRICANT_LIMIT_KM` holds the km limit each type is good for before
+  it needs reapplying: oil 150 km, liquid wax 200 km, hot wax 400 km.
+- **Washed-out override**: once `kms_since_last_lube` (pre-ride) reaches that limit —
+  through ordinary accumulated km *or* a rain wash-out (below) — the multiplier becomes a
+  flat ×2.0 regardless of lubricant type, modeling dry metal-on-metal contact. This stays
+  in effect until the rider logs a re-lube (`kms_since_last_lube` back to `0`).
+- **Rain wash-out**: for a non-indoor ride with `rain_mm > 0`, `getNextKmsSinceLastLube`
+  jumps the counter straight to `LUBRICANT_LIMIT_KM[type]` (via `Math.max`, so it never
+  *lowers* a counter that had already climbed past the limit on its own) instead of just
+  adding this ride's distance — rain doesn't just add wear, it chemically strips the
+  lubricant early. `app/api/strava/sync/route.ts` also `console.warn`s this as an internal
+  signal before calling into the wear model. Indoor/virtual rides never trigger this (no
+  real rain), matching the existing `isIndoor` handling elsewhere in the model.
+- Only the chain's `ComponentWearUpdate` carries a `newKmsSinceLastLube` — the sync route
+  merges it into the same `components` UPDATE as `current_wear_percentage` when present,
+  one write per component, no extra round trip.
+- **UI heuristic** (`getLubricationInfo` in `app/page.tsx`): there's no dedicated "washed
+  out" column, so the Dashboard tells a rain wash-out apart from ordinary overdue mileage
+  by exact equality — `kms_since_last_lube === LUBRICANT_LIMIT_KM[type]` reads as "Lavada
+  por lluvia," anything greater as "Cadena seca." Real ride distances carry enough
+  fractional km that organic accumulation essentially never lands exactly on the limit, so
+  this holds in practice without needing a schema change.
+- **"Lubricar cadena" button** (chain card, `DrivetrainComponentCard`) POSTs to
+  `POST /api/components/lube` (componentId only), which resets `kms_since_last_lube` to
+  `0` — the only write that route makes; it rejects non-chain component ids with
+  `not_a_chain`. Changing the lubricant *type* itself is a separate action: the chain's
+  `CalibrationDialog` has a second, independent `<form>` (not part of the wear-calibration
+  radio flow — orthogonal concern, submitted on its own) that POSTs to
+  `POST /api/components/lubricant`, which only updates `lubricant_type` and leaves
+  `kms_since_last_lube` untouched — switching products doesn't itself mean the chain was
+  just relubed. Both routes redirect on failure to `/?lube_error=<code>` (see
+  `lubeErrorMessages` in `app/page.tsx`), same non-silent-failure convention as calibration
+  and Strava sync.
 
 ### Wear status UI (app/page.tsx)
 

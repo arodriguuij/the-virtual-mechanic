@@ -14,18 +14,27 @@ import {
 } from "@/components/ui/dialog";
 
 type Method = "new" | "km" | "gauge";
+type LubricantType = "oil" | "liquid_wax" | "hot_wax";
 
 const radioLabelClass = "flex items-center gap-2 text-sm text-neutral-900";
 const radioInputClass = "size-4 accent-neutral-900";
+
+const lubricantOptions: { value: LubricantType; label: string }[] = [
+  { value: "oil", label: "Aceite tradicional" },
+  { value: "liquid_wax", label: "Cera líquida" },
+  { value: "hot_wax", label: "Cera en caliente" },
+];
 
 export function CalibrationDialog({
   componentId,
   componentType,
   componentName,
+  currentLubricantType,
 }: {
   componentId: string;
   componentType: string;
   componentName: string;
+  currentLubricantType?: LubricantType | null;
 }) {
   const [method, setMethod] = useState<Method>("new");
   const [gauge, setGauge] = useState("0.5");
@@ -178,6 +187,40 @@ export function CalibrationDialog({
             </button>
           </DialogFooter>
         </form>
+
+        {isChain && (
+          <form
+            action="/api/components/lubricant"
+            method="POST"
+            className="flex flex-col gap-2 border-t border-neutral-200 pt-4"
+          >
+            <input type="hidden" name="componentId" value={componentId} />
+            <label
+              htmlFor="lubricantType"
+              className="text-[10px] font-medium tracking-widest text-neutral-600 uppercase"
+            >
+              Tipo de lubricante
+            </label>
+            <select
+              id="lubricantType"
+              name="lubricantType"
+              defaultValue={currentLubricantType ?? "oil"}
+              className="border border-neutral-300 bg-background px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-900"
+            >
+              {lubricantOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="self-start text-[11px] font-medium tracking-widest text-neutral-500 uppercase transition-colors hover:text-neutral-900"
+            >
+              Guardar tipo de lubricante
+            </button>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

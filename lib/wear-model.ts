@@ -118,6 +118,78 @@ export function getEffectiveMaxKm(
   return Math.round(baseMaxKm * modifier);
 }
 
+export type LubricantType = "oil" | "liquid_wax" | "hot_wax";
+
+/**
+ * Km before the chain's current lubricant needs reapplying — oil attracts
+ * grit and needs refreshing most often, liquid wax lasts longer since it
+ * doesn't hold onto dirt, and hot wax's baked-in paraffin/PTFE coating lasts
+ * longest of all.
+ */
+export const LUBRICANT_LIMIT_KM: Record<LubricantType, number> = {
+  oil: 150,
+  liquid_wax: 200,
+  hot_wax: 400,
+};
+
+/**
+ * Baseline wear multiplier while the lubricant is still within its window —
+ * oil attracts grit and forms an abrasive paste (1.2x), liquid wax is the
+ * clean baseline (1.0x), hot wax's baked-in coating cuts friction further
+ * (0.75x).
+ */
+const LUBRICANT_BASE_MULTIPLIERS: Record<LubricantType, number> = {
+  oil: 1.2,
+  liquid_wax: 1.0,
+  hot_wax: 0.75,
+};
+
+/** Metal-on-metal penalty once the chain has gone past its lubricant's
+ * window — either through ordinary accumulated km or a rain wash-out (see
+ * `getNextKmsSinceLastLube`) — overrides the lubricant type's own
+ * multiplier entirely until the rider logs a re-lube. */
+const WASHED_OUT_MULTIPLIER = 2.0;
+
+/**
+ * Applied to the whole drivetrain triangle (chain/cassette/chainring), not
+ * just the chain itself — a dry or gritty chain grinds down whatever it
+ * rides on. Reads `kmsSinceLastLubeBeforeRide` (never this ride's own
+ * accumulated value), same pre-ride convention as the chain-wear cascade
+ * multipliers below.
+ */
+export function getLubricantWearMultiplier(
+  lubricantType: LubricantType | null,
+  kmsSinceLastLubeBeforeRide: number
+): number {
+  const type = lubricantType ?? "oil";
+  if (kmsSinceLastLubeBeforeRide >= LUBRICANT_LIMIT_KM[type]) return WASHED_OUT_MULTIPLIER;
+  return LUBRICANT_BASE_MULTIPLIERS[type];
+}
+
+/**
+ * Rain doesn't just add this ride's distance to the tally — it chemically
+ * strips the lubricant off the chain, so an outdoor ride with any rain
+ * jumps the counter straight to its lubricant's degradation limit (arming
+ * the 2.0x "washed out" multiplier for the *next* ride) instead of
+ * accumulating normally. `Math.max` keeps this monotonic — a wash-out never
+ * lowers a counter that had already climbed past the limit on its own.
+ * Indoor rides never have real rain to react to.
+ */
+export function getNextKmsSinceLastLube(
+  lubricantType: LubricantType | null,
+  kmsSinceLastLubeBeforeRide: number,
+  rideKm: number,
+  isIndoor: boolean,
+  rainMm: number
+): number {
+  const type = lubricantType ?? "oil";
+  const accumulated = kmsSinceLastLubeBeforeRide + rideKm;
+  if (!isIndoor && rainMm > 0) {
+    return Math.max(accumulated, LUBRICANT_LIMIT_KM[type]);
+  }
+  return accumulated;
+}
+
 /** One decimal place of wear, clamped so it never reports past 100%. */
 export function applyDistanceToWear(
   currentWearPercentage: number,
@@ -136,11 +208,15 @@ export type WearableComponent = {
   tier: string | null;
   max_km: number;
   current_wear_percentage: number;
+  lubricant_type: LubricantType | null;
+  kms_since_last_lube: number | null;
 };
 
 export type ComponentWearUpdate = {
   id: string;
   newWearPercentage: number;
+  /** Only set for the chain — the one component that tracks lubrication. */
+  newKmsSinceLastLube?: number;
 };
 
 /** Road-contact parts an indoor/virtual ride can't wear at all — no real
@@ -182,9 +258,18 @@ export function applyRideToComponents(
   const { km: rideKm, elevationGainM, weather, isIndoor = false } = ride;
   const chain = components.find((c) => c.type === "chain");
   const chainWearBeforeRide = chain?.current_wear_percentage ?? 0;
+  const chainLubricantType = chain?.lubricant_type ?? null;
+  const kmsSinceLastLubeBeforeRide = chain?.kms_since_last_lube ?? 0;
   const weatherMultiplier = isIndoor
     ? 1
     : getWeatherWearMultiplier(weather.humidityAvg, weather.rainMm);
+  // Chemical wear from the chain's lubricant condition — dry or gritty
+  // lubricant grinds down the whole drivetrain triangle, not just the chain
+  // itself, so this multiplier is reused below for cassette/chainring too.
+  const lubricantMultiplier = getLubricantWearMultiplier(
+    chainLubricantType,
+    kmsSinceLastLubeBeforeRide
+  );
 
   return components.map((component) => {
     if (isIndoor && INDOOR_ZERO_WEAR_TYPES.has(component.type)) {
@@ -196,13 +281,13 @@ export function applyRideToComponents(
     let multiplier = 1;
     switch (component.type) {
       case "chain":
-        multiplier = weatherMultiplier;
+        multiplier = weatherMultiplier * lubricantMultiplier;
         break;
       case "cassette":
-        multiplier = getCassetteCascadeMultiplier(chainWearBeforeRide);
+        multiplier = getCassetteCascadeMultiplier(chainWearBeforeRide) * lubricantMultiplier;
         break;
       case "chainring":
-        multiplier = getChainringCascadeMultiplier(chainWearBeforeRide);
+        multiplier = getChainringCascadeMultiplier(chainWearBeforeRide) * lubricantMultiplier;
         break;
       case "disc_pad":
         multiplier = getDiscPadRainMultiplier(weather.rainMm);
@@ -226,14 +311,27 @@ export function applyRideToComponents(
         multiplier = 1;
     }
 
-    return {
-      id: component.id,
-      newWearPercentage: applyDistanceToWear(
-        component.current_wear_percentage,
-        effectiveMaxKm,
-        rideKm,
-        multiplier
-      ),
-    };
+    const newWearPercentage = applyDistanceToWear(
+      component.current_wear_percentage,
+      effectiveMaxKm,
+      rideKm,
+      multiplier
+    );
+
+    if (component.type === "chain") {
+      return {
+        id: component.id,
+        newWearPercentage,
+        newKmsSinceLastLube: getNextKmsSinceLastLube(
+          chainLubricantType,
+          kmsSinceLastLubeBeforeRide,
+          rideKm,
+          isIndoor,
+          weather.rainMm
+        ),
+      };
+    }
+
+    return { id: component.id, newWearPercentage };
   });
 }

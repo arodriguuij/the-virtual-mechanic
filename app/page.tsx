@@ -32,6 +32,7 @@ import {
   getRecentActivities,
 } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
+import { LUBRICANT_LIMIT_KM, type LubricantType } from "@/lib/wear-model";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,12 @@ const componentTypeLabels: Record<string, string> = {
   wheel_rim: "Llanta",
   tire_front: "Neumático delantero",
   tire_rear: "Neumático trasero",
+};
+
+const lubricantLabels: Record<LubricantType, string> = {
+  oil: "Aceite tradicional",
+  liquid_wax: "Cera líquida",
+  hot_wax: "Cera en caliente",
 };
 
 /** Null for `optimal` — nothing worth saying yet. */
@@ -310,6 +317,50 @@ function DigitalTwinConfidenceSkeleton() {
   );
 }
 
+type LubricationInfo = {
+  lubricantType: LubricantType;
+  kmsSinceLastLube: number;
+  limitKm: number;
+  ratio: number;
+  isOverdue: boolean;
+  isWashedOut: boolean;
+  statusLabel: string;
+};
+
+/**
+ * A rain wash-out jumps `kms_since_last_lube` to *exactly* the lubricant's
+ * limit (see `getNextKmsSinceLastLube` in `lib/wear-model.ts`); ordinary
+ * riding almost never lands on that precise value given real-world
+ * fractional ride distances, so exact equality is a reliable enough signal
+ * to tell "washed out by rain" apart from "just organically overdue"
+ * without a dedicated status column.
+ */
+function getLubricationInfo(
+  lubricantType: LubricantType | null,
+  kmsSinceLastLube: number | null
+): LubricationInfo {
+  const type = lubricantType ?? "oil";
+  const kms = kmsSinceLastLube ?? 0;
+  const limitKm = LUBRICANT_LIMIT_KM[type];
+  const isOverdue = kms >= limitKm;
+  const isWashedOut = kms === limitKm;
+  const statusLabel = isWashedOut
+    ? "Lavada por lluvia"
+    : isOverdue
+      ? "Cadena seca"
+      : `${formatKm(limitKm - kms)} km para relubricar`;
+
+  return {
+    lubricantType: type,
+    kmsSinceLastLube: kms,
+    limitKm,
+    ratio: Math.min((kms / limitKm) * 100, 100),
+    isOverdue,
+    isWashedOut,
+    statusLabel,
+  };
+}
+
 function DrivetrainComponentCard({
   component,
 }: {
@@ -322,6 +373,10 @@ function DrivetrainComponentCard({
   const message = getWearMessage(status, component.type, wear);
   const severe = status === "critical" || status === "exhausted";
   const label = componentTypeLabels[component.type] ?? component.type;
+  const lubrication =
+    component.type === "chain"
+      ? getLubricationInfo(component.lubricant_type, component.kms_since_last_lube)
+      : null;
 
   return (
     <Card className={cn(severe && "border-status-critical/40")}>
@@ -372,11 +427,50 @@ function DrivetrainComponentCard({
           </span>
         )}
 
+        {lubrication && (
+          <div className="flex flex-col gap-2 border-t border-neutral-200 pt-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className={eyebrow}>
+                Propulsión: {lubricantLabels[lubrication.lubricantType]}
+              </span>
+              {lubrication.isOverdue && (
+                <span className="text-[10px] font-medium tracking-widest text-status-critical uppercase">
+                  {lubrication.statusLabel}
+                </span>
+              )}
+            </div>
+            <Progress.Root value={lubrication.ratio}>
+              <ProgressTrack className="bg-neutral-200">
+                <ProgressIndicator
+                  className={lubrication.isOverdue ? "bg-status-critical" : "bg-neutral-900"}
+                />
+              </ProgressTrack>
+            </Progress.Root>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-neutral-500">
+                {lubrication.isOverdue
+                  ? lubrication.statusLabel
+                  : `${formatKm(lubrication.kmsSinceLastLube)} / ${formatKm(lubrication.limitKm)} km`}
+              </span>
+              <form action="/api/components/lube" method="POST">
+                <input type="hidden" name="componentId" value={component.id} />
+                <button
+                  type="submit"
+                  className="text-[10px] font-medium tracking-widest text-neutral-500 uppercase transition-colors hover:text-neutral-900"
+                >
+                  Lubricar cadena
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
         <div className="border-t border-neutral-200 pt-3">
           <CalibrationDialog
             componentId={component.id}
             componentType={component.type}
             componentName={label}
+            currentLubricantType={component.lubricant_type}
           />
         </div>
       </CardContent>
@@ -698,6 +792,14 @@ const calibrationErrorMessages: Record<string, string> = {
   update_blocked_by_rls: "No se pudo guardar la calibración: RLS bloqueó el UPDATE.",
 };
 
+const lubeErrorMessages: Record<string, string> = {
+  missing_fields: "Faltan datos para procesar la lubricación.",
+  not_found: "No se encontró el componente.",
+  not_a_chain: "La lubricación solo aplica a la cadena.",
+  invalid_lubricant_type: "Selecciona un tipo de lubricante válido.",
+  update_blocked_by_rls: "No se pudo guardar: RLS bloqueó el UPDATE.",
+};
+
 export default async function Home({
   searchParams,
 }: {
@@ -716,6 +818,12 @@ export default async function Home({
     typeof calibrationErrorCode === "string"
       ? (calibrationErrorMessages[calibrationErrorCode] ??
         "No se pudo completar la calibración.")
+      : null;
+
+  const lubeErrorCode = params.lube_error;
+  const lubeError =
+    typeof lubeErrorCode === "string"
+      ? (lubeErrorMessages[lubeErrorCode] ?? "No se pudo completar la operación de lubricación.")
       : null;
 
   return (
@@ -744,6 +852,13 @@ export default async function Home({
           <div className="flex items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-sm text-status-warning">
             <TriangleAlert className="size-4 shrink-0" />
             {calibrationError}
+          </div>
+        )}
+
+        {lubeError && (
+          <div className="flex items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-sm text-status-warning">
+            <TriangleAlert className="size-4 shrink-0" />
+            {lubeError}
           </div>
         )}
 
