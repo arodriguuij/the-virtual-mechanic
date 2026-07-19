@@ -37,7 +37,13 @@ export async function POST(request: NextRequest) {
 
   const { data: updated, error: updateError } = await supabase
     .from("components")
-    .update({ lubricant_type: lubricantType })
+    .update({
+      lubricant_type: lubricantType,
+      // `lubricant_type` itself is non-null everywhere from a migration
+      // default, so this flag is what actually signals "the user chose
+      // this" for the Digital Twin fidelity score.
+      lubricant_set_by_user: true,
+    })
     .eq("id", componentId)
     .select("id")
     .maybeSingle();

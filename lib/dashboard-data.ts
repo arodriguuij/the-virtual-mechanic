@@ -6,6 +6,7 @@ import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import type { LubricantType } from "@/lib/wear-model";
 
 export type StatusType = "estimated" | "certified";
+export type CalibrationMethod = "new" | "km" | "gauge";
 
 export type BikeWithComponents = {
   id: string;
@@ -22,6 +23,15 @@ export type BikeWithComponents = {
     status_type: StatusType;
     lubricant_type: LubricantType | null;
     kms_since_last_lube: number | null;
+    /** Null until the user runs a calibration (any method) — distinguishes
+     * a genuinely calibrated component from seed/migration defaults for the
+     * Digital Twin fidelity score. */
+    calibration_method: CalibrationMethod | null;
+    /** True only once the user has explicitly saved a lubricant choice via
+     * the calibration dialog — `lubricant_type` itself is non-null on every
+     * component from a migration default, so it can't be used as this
+     * signal on its own. */
+    lubricant_set_by_user: boolean;
   }[];
 };
 
@@ -49,7 +59,7 @@ export const getPrimaryBike = cache(async (): Promise<BikeWithComponents | null>
   const { data, error } = await supabase
     .from("bikes")
     .select(
-      "id, brand, model, weight, components(id, name, type, tier, max_km, current_wear_percentage, status_type, lubricant_type, kms_since_last_lube)"
+      "id, brand, model, weight, components(id, name, type, tier, max_km, current_wear_percentage, status_type, lubricant_type, kms_since_last_lube, calibration_method, lubricant_set_by_user)"
     )
     .limit(1)
     .maybeSingle();

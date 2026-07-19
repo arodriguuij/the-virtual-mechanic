@@ -53,7 +53,11 @@ cascade was built; `brand`/`tier` hold e.g. `'Shimano'`/`'Ultegra'`; `status_typ
 column here, because it drives user-facing trust messaging directly and a typo would
 silently break the badge instead of erroring; `lubricant_type` — `'oil' | 'liquid_wax' |
 'hot_wax'`, meaningful only on the chain row — and `kms_since_last_lube` drive the chemical
-wear model, see "Chain lubrication model" below), `activities`
+wear model, see "Chain lubrication model" below; `calibration_method` — `'new' | 'km' |
+'gauge'`, `null` until the user runs a calibration, another `CHECK`-constrained column for
+the same reason as `status_type` — and `lubricant_set_by_user` exist purely as clean
+signals for the Digital Twin fidelity score, see "Calibration system" below for why
+`status_type`/`lubricant_type` alone can't serve that purpose), `activities`
 (`profile_id` FK; `id` is `text` — either a real Strava activity id or the seed script's
 synthetic one), `wear_logs` (`component_id` FK, not wired into the UI or the sync flow yet
 — `components.current_wear_percentage` is the only wear number that actually updates
@@ -273,13 +277,34 @@ Sprint A removed the original per-card "Estimación manual"/"Precisión certific
 (it lived in each `DrivetrainComponentCard`'s corner — originally labeled "Calibrando"
 before that, renamed after a real user read it as "still loading/processing" rather than
 "you calibrated this yourself") in favor of one global readout: `DigitalTwinConfidenceCard`
-(`app/page.tsx`, top of the Dashboard, above `WorkshopAlertsBanner`) computes
-`certified / total` across the bike's components and shows it as a single percentage with a
-minimal PNS-style progress bar (`Progress.Root` + `ProgressTrack`/`ProgressIndicator`,
-same primitives the component cards use), plus the fixed copy "Tu precisión aumentará a
-medida que instales componentes nuevos desde cero con la app." Per-card badges were judged
-too much visual noise across 7 cards at once; `status_type` itself is unchanged and still
-drives this score and the calibration flow below.
+(`app/page.tsx`, top of the Dashboard, above `WorkshopAlertsBanner`). Per-card badges were
+judged too much visual noise across 7 cards at once; `status_type` itself is unchanged and
+still drives part of this score and the calibration flow below.
+
+Sprint B re-weighted that score to match what a user can realistically do on day one from
+their couch (estimate every part's mileage, declare a lubricant) rather than things they
+can't (a physical gauge reading, a genuinely fresh 0 km part) — see the doc comment above
+`getFidelityLabel`/`DigitalTwinConfidenceCard` in `app/page.tsx` for the full breakdown:
+
+- **+10% per component** with a non-null `calibration_method` (any of `'new' | 'km' |
+  'gauge'`) — core of the score, caps at 70% across this bike's 7 components.
+- **+15% flat** once `lubricant_set_by_user` is `true` on the chain.
+- **+5% flat** if the chain's `calibration_method` is specifically `'gauge'`.
+- **+10%** distributed proportionally across `certified` components (`certifiedCount /
+  total`).
+
+Both `calibration_method` and `lubricant_set_by_user` exist *only* to give this score a
+clean signal — neither is derivable from `status_type`/`lubricant_type` alone. Migrating in
+`lubricant_type` with a table-wide `DEFAULT` (as happened here — every component, not just
+the chain, came back non-null) means `lubricant_type IS NOT NULL` can't be used to detect
+"the user chose this"; `lubricant_set_by_user` (set `true` only by
+`POST /api/components/lubricant`) is the real signal. Likewise `calibration_method` (set by
+`POST /api/components/calibrate` to whichever method was actually used) is what separates a
+seed/migration default from a component the user has actually touched — `status_type`
+alone can't do this either, since the `'km'` calibration method and a seeded default are
+both `'estimated'`. The band copy (`getFidelityLabel`) reads: 0% "Sin datos...", 1–69%
+"Fidelidad Inicial...", 70–84% "Fidelidad Media...", 85–95% "Fidelidad Alta...", >95%
+"Precisión Absoluta...".
 
 `components/calibration-dialog.tsx` (`"use client"`) is the only client-side piece — a
 Dialog (shadcn, `@base-ui/react/dialog`) with a method radio group that adapts to

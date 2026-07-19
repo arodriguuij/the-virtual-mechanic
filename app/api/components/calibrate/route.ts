@@ -65,7 +65,13 @@ export async function POST(request: NextRequest) {
 
   const { data: updated, error: updateError } = await supabase
     .from("components")
-    .update({ current_wear_percentage: wearPercentage, status_type: statusType })
+    .update({
+      current_wear_percentage: wearPercentage,
+      status_type: statusType,
+      // Distinguishes a genuinely user-calibrated component from a
+      // seed/migration default — drives the Digital Twin fidelity score.
+      calibration_method: method,
+    })
     .eq("id", componentId)
     .select("id")
     .maybeSingle();

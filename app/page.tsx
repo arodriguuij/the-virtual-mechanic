@@ -263,26 +263,55 @@ async function WorkshopAlertsBanner() {
 }
 
 /**
- * Replaces the per-card "Estimado / Certificado" badges with a single global
- * readout — how much of the bike's wear data comes from real physics
- * simulation (`certified`) vs. a manual estimate (`estimated`). Rounds down
- * so the score never claims more confidence than it has.
+ * Weighted to match what a real user can realistically do on day one from
+ * their couch — estimate every component's mileage and declare their
+ * lubricant — without requiring a physical gauge or a freshly-installed
+ * (0 km) part they're unlikely to have that same day:
+ *
+ * - +10%/component once it has an actual `calibration_method` (any of
+ *   new/km/gauge) — never a seed/migration default. Core of the score,
+ *   caps at 70% across this bike's 7 components.
+ * - +15% flat the moment the chain's lubricant has been explicitly saved
+ *   (`lubricant_set_by_user`) — removes the "blind" friction variable.
+ *   Combined with full component calibration, day-one tops out at 85%.
+ * - +5% flat if the chain's last calibration used the physical wear-gauge
+ *   method — a workshop-only extra, not expected on day one.
+ * - +10% distributed proportionally across components in `certified`
+ *   status (genuinely installed at 0 km) — a lab-precision extra most
+ *   users won't have on day one either.
  */
+function getFidelityLabel(score: number): string {
+  if (score === 0) return "Sin datos. El Gemelo Digital está ciego. Calibra tus componentes.";
+  if (score < 70) return "Fidelidad Inicial. Calibrando los componentes del garaje...";
+  if (score < 85) return "Fidelidad Media. Modelo matemático base activo.";
+  if (score <= 95) return "Fidelidad Alta. Simulación optimizada para tus rutas diarias.";
+  return "Precisión Absoluta. Certificación de laboratorio y taller.";
+}
+
 async function DigitalTwinConfidenceCard() {
   const bike = await getPrimaryBike();
   const components = bike?.components ?? [];
   const total = components.length;
-  const certified = components.filter((c) => c.status_type === "certified").length;
-  const score = total > 0 ? Math.floor((certified / total) * 100) : 0;
+
+  const calibratedCount = components.filter((c) => c.calibration_method != null).length;
+  const chain = components.find((c) => c.type === "chain");
+  const lubricantScore = chain?.lubricant_set_by_user ? 15 : 0;
+  const gaugeScore = chain?.calibration_method === "gauge" ? 5 : 0;
+  const certifiedCount = components.filter((c) => c.status_type === "certified").length;
+  const certifiedScore = total > 0 ? 10 * (certifiedCount / total) : 0;
+
+  const score = Math.floor(
+    Math.min(100, calibratedCount * 10 + lubricantScore + gaugeScore + certifiedScore)
+  );
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="font-medium text-neutral-900">
-          Precisión del Gemelo Digital
+          Fidelidad del Gemelo Digital
         </CardTitle>
         <CardDescription className={eyebrow}>
-          {certified} de {total} componentes con simulación física certificada
+          {calibratedCount} de {total} piezas calibradas individualmente
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -292,10 +321,7 @@ async function DigitalTwinConfidenceCard() {
             <ProgressIndicator className="bg-neutral-900" />
           </ProgressTrack>
         </Progress.Root>
-        <p className="text-xs text-neutral-500">
-          Tu precisión aumentará a medida que instales componentes nuevos desde cero con la
-          app.
-        </p>
+        <p className="text-xs text-neutral-500">{getFidelityLabel(score)}</p>
       </CardContent>
     </Card>
   );
