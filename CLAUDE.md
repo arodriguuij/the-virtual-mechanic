@@ -43,7 +43,9 @@ Copy `.env.local.example` to `.env.local` and fill in the real values:
 
 Tables: `profiles` (id references `auth.users`; also holds `strava_athlete_id` /
 `strava_access_token` / `strava_refresh_token` / `strava_expires_at`), `bikes`
-(`profile_id` FK), `components` (`bike_id` FK; `type` is `'chain' | 'cassette' |
+(`profile_id` FK; `strava_gear_id` — the Strava gear id string, e.g. `"b12345678"`, this
+bike is bound to. Nullable — see "Strava gear-id shield" below for what an unset value
+means), `components` (`bike_id` FK; `type` is `'chain' | 'cassette' |
 'chainring' | ...` — reused rather than adding a redundant column when the drivetrain
 cascade was built; `brand`/`tier` hold e.g. `'Shimano'`/`'Ultegra'`; `status_type` is
 `'estimated' | 'certified'` — text with a `CHECK` constraint, unlike every other free-text
@@ -99,13 +101,15 @@ route also uses for `activities`.
   redirects to `/?strava_error=<code>` instead of pretending it worked — see
   `stravaErrorMessages` in `app/page.tsx` for the human-readable copy per code.
 - `POST /api/strava/sync` — refreshes the access token if it's expired, pulls the
-  athlete's recent activities, and inserts the latest ride into `activities` if it isn't
-  there yet. Only for a genuinely new activity (the `!existing` branch) it also:
+  athlete's latest cycling activity, and (after the gear-id shield below) inserts it into
+  `activities` if it isn't there yet. Only for a genuinely new activity (the `!existing`
+  branch) it also:
   - Fetches real weather for the ride's start coordinates + time window from Open-Meteo
     (`lib/open-meteo.ts` — forecast endpoint for the last 5 days, archive endpoint
     further back) and derives `watts_lost` from humidity/rain with the heuristic in
-    `lib/wear-model.ts` (`estimateWattsLost`). No GPS on the activity → falls back to a
-    neutral placeholder (50% humidity, 0mm rain) rather than failing the sync.
+    `lib/wear-model.ts` (`estimateWattsLost`). No GPS on the activity, or an indoor ride
+    (see below) → falls back to a neutral placeholder (50% humidity, 0mm rain) rather than
+    failing the sync or calling Open-Meteo for a ride with no real weather.
   - Applies the ride's distance to every wearable component via `applyRideToComponents`
     (`lib/wear-model.ts`) — this is what moves the component wear cards on the Dashboard.
     See "Component wear model" below.
@@ -114,12 +118,42 @@ route also uses for `activities`.
 - The Dashboard header shows "Conectar Strava" or "Sincronizar rutas" depending on
   whether `profiles.strava_athlete_id` is set (`getProfile()` in `lib/dashboard-data.ts`).
 
+#### Strava gear-id shield
+
+The synced athlete may own more than one bike in Strava; nothing before Sprint A stopped a
+ride logged against a *different* bike from wearing down the Scott Addict 30's components.
+The sync route now fetches `bikes.strava_gear_id` before touching `activities` at all and
+compares it against the incoming activity's `gear_id`. A mismatch redirects to
+`/?strava_error=wrong_bike` and stops immediately — no `activities` insert, no wear update,
+nothing written. The check is skipped entirely when `strava_gear_id` is `null` (the
+cold-start default — see `scripts/seed.ts` and `fetchAthleteBikes()` in `lib/strava.ts`
+below), so an unbound bike still accepts every ride exactly like before Sprint A.
+`fetchAthleteBikes()` lists the athlete's Strava bikes with their real gear ids — the only
+way to discover the value to write into `strava_gear_id` short of Strava's own (non-obvious)
+UI for it. There's no UI for this yet; setting it today means a one-off authenticated
+`UPDATE` on `bikes`.
+
+#### Indoor/trainer rides
+
+`isIndoorRide()` (`lib/strava.ts`) flags an activity as indoor when Strava reports
+`trainer: true` or `sport_type`/`type` is `"VirtualRide"` (Zwift, Rouvy, a smart trainer).
+For an indoor ride the sync route skips the Open-Meteo call outright (there's no real
+weather to query) and passes `isIndoor: true` into `applyRideToComponents`, which zeroes
+this ride's wear contribution for every road-contact part — see "Component wear model"
+below for which parts that covers and why.
+
 ### Component wear model
 
 `lib/wear-model.ts` models every wearable part on the bike as one system rather than
 independent odometers — all pure functions, no I/O, easy to unit-test in isolation. The
-entry point is `applyRideToComponents(components, { km, elevationGainM, weather })`,
-called from the sync route; `component.type` picks the rule:
+entry point is `applyRideToComponents(components, { km, elevationGainM, weather, isIndoor })`,
+called from the sync route; `component.type` picks the rule. `isIndoor` (default `false`)
+short-circuits first: for `disc_pad` / `disc_rotor` / `rim_pad` / `wheel_rim` / `tire_front`
+/ `tire_rear` (`INDOOR_ZERO_WEAR_TYPES`) it returns the component completely unchanged — no
+real road surface, rain, or descents to brake for on a trainer — and it also pins the
+chain's weather multiplier to `1` (skipping `getWeatherWearMultiplier` entirely) since
+there's no real humidity/rain to have queried. The drivetrain triangle otherwise still
+wears normally by distance on an indoor ride; only the road-contact parts freeze.
 
 **Drivetrain triangle** (chain / cassette / chainring):
 - `getWeatherWearMultiplier` — only the chain's own wear rate is weather-multiplied (it's
@@ -180,16 +214,21 @@ a previous chain). `components.status_type` tracks that distinction everywhere a
 number is shown:
 
 - **`estimated`** (default) — legacy/seeded data or anything the user entered by hand.
-  Dashboard cards show a neutral "Estimación manual" badge (`statusTypeMeta.estimated` in
-  `app/page.tsx` — originally labeled "Calibrando", renamed after a real user read that as
-  "still loading/processing" rather than "you calibrated this yourself") with an
-  always-visible explanation line (not hover-only — a `title` attribute alone would be
-  invisible on mobile and unreliable for a11y) plus a native `title` as a free
-  desktop-hover bonus.
 - **`certified`** — set the moment a user calibrates a component as genuinely new (0 km).
   From that point every ride synced through `applyRideToComponents` is a real physical
-  simulation. Badge reuses `--status-good` (olive) rather than introducing a new "premium"
-  hue, same restraint as the rest of the palette.
+  simulation.
+
+Sprint A removed the original per-card "Estimación manual"/"Precisión certificada" badge
+(it lived in each `DrivetrainComponentCard`'s corner — originally labeled "Calibrando"
+before that, renamed after a real user read it as "still loading/processing" rather than
+"you calibrated this yourself") in favor of one global readout: `DigitalTwinConfidenceCard`
+(`app/page.tsx`, top of the Dashboard, above `WorkshopAlertsBanner`) computes
+`certified / total` across the bike's components and shows it as a single percentage with a
+minimal PNS-style progress bar (`Progress.Root` + `ProgressTrack`/`ProgressIndicator`,
+same primitives the component cards use), plus the fixed copy "Tu precisión aumentará a
+medida que instales componentes nuevos desde cero con la app." Per-card badges were judged
+too much visual noise across 7 cards at once; `status_type` itself is unchanged and still
+drives this score and the calibration flow below.
 
 `components/calibration-dialog.tsx` (`"use client"`) is the only client-side piece — a
 Dialog (shadcn, `@base-ui/react/dialog`) with a method radio group that adapts to

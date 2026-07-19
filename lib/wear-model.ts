@@ -143,6 +143,17 @@ export type ComponentWearUpdate = {
   newWearPercentage: number;
 };
 
+/** Road-contact parts an indoor/virtual ride can't wear at all — no real
+ * road surface, no rain, no descents to brake for. */
+const INDOOR_ZERO_WEAR_TYPES = new Set([
+  "disc_pad",
+  "disc_rotor",
+  "rim_pad",
+  "wheel_rim",
+  "tire_front",
+  "tire_rear",
+]);
+
 /**
  * Every wearable part on the bike for one ride — drivetrain triangle
  * (chain/cassette/chainring), the braking module (disc or rim), and the two
@@ -153,6 +164,11 @@ export type ComponentWearUpdate = {
  * during this same ride. Braking parts and tires don't cascade off
  * anything; each reacts directly to this ride's own rain/elevation, or —
  * for the rear tire — a flat traction multiplier.
+ *
+ * `ride.isIndoor` (a trainer/Zwift/Rouvy ride) zeroes this ride's wear
+ * contribution for every road-contact part (brakes, tires) — the drivetrain
+ * still wears by distance, but with no weather multiplier on the chain,
+ * since there's no real rain or humidity to have queried in the first place.
  */
 export function applyRideToComponents(
   components: WearableComponent[],
@@ -160,14 +176,21 @@ export function applyRideToComponents(
     km: number;
     elevationGainM: number;
     weather: { humidityAvg: number; rainMm: number };
+    isIndoor?: boolean;
   }
 ): ComponentWearUpdate[] {
-  const { km: rideKm, elevationGainM, weather } = ride;
+  const { km: rideKm, elevationGainM, weather, isIndoor = false } = ride;
   const chain = components.find((c) => c.type === "chain");
   const chainWearBeforeRide = chain?.current_wear_percentage ?? 0;
-  const weatherMultiplier = getWeatherWearMultiplier(weather.humidityAvg, weather.rainMm);
+  const weatherMultiplier = isIndoor
+    ? 1
+    : getWeatherWearMultiplier(weather.humidityAvg, weather.rainMm);
 
   return components.map((component) => {
+    if (isIndoor && INDOOR_ZERO_WEAR_TYPES.has(component.type)) {
+      return { id: component.id, newWearPercentage: component.current_wear_percentage };
+    }
+
     const effectiveMaxKm = getEffectiveMaxKm(component.type, component.tier, component.max_km);
 
     let multiplier = 1;

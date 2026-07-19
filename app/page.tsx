@@ -15,7 +15,6 @@ import { Suspense } from "react";
 
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -28,7 +27,6 @@ import { CalibrationDialog } from "@/components/calibration-dialog";
 import { DashboardShell } from "@/components/dashboard-shell";
 import {
   type BikeWithComponents,
-  type StatusType,
   getPrimaryBike,
   getProfile,
   getRecentActivities,
@@ -104,24 +102,6 @@ const componentTypeLabels: Record<string, string> = {
   wheel_rim: "Llanta",
   tire_front: "Neumático delantero",
   tire_rear: "Neumático trasero",
-};
-
-const statusTypeMeta: Record<
-  StatusType,
-  { label: string; explanation: string; className: string }
-> = {
-  estimated: {
-    label: "Estimación manual",
-    explanation:
-      "Cálculo basado en estimación manual. La precisión del Gemelo Digital se activará al instalar un componente nuevo.",
-    className: "border-neutral-300 bg-neutral-100 text-neutral-600",
-  },
-  certified: {
-    label: "Precisión certificada",
-    explanation:
-      "Simulación física al 100%. Monitorizando fricción y clima desde el kilómetro cero.",
-    className: "border-status-good/40 bg-status-good/10 text-status-good",
-  },
 };
 
 /** Null for `optimal` — nothing worth saying yet. */
@@ -275,6 +255,61 @@ async function WorkshopAlertsBanner() {
   );
 }
 
+/**
+ * Replaces the per-card "Estimado / Certificado" badges with a single global
+ * readout — how much of the bike's wear data comes from real physics
+ * simulation (`certified`) vs. a manual estimate (`estimated`). Rounds down
+ * so the score never claims more confidence than it has.
+ */
+async function DigitalTwinConfidenceCard() {
+  const bike = await getPrimaryBike();
+  const components = bike?.components ?? [];
+  const total = components.length;
+  const certified = components.filter((c) => c.status_type === "certified").length;
+  const score = total > 0 ? Math.floor((certified / total) * 100) : 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="font-medium text-neutral-900">
+          Precisión del Gemelo Digital
+        </CardTitle>
+        <CardDescription className={eyebrow}>
+          {certified} de {total} componentes con simulación física certificada
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <span className="text-3xl font-semibold text-neutral-900 tabular-nums">{score}%</span>
+        <Progress.Root value={score}>
+          <ProgressTrack className="bg-neutral-200">
+            <ProgressIndicator className="bg-neutral-900" />
+          </ProgressTrack>
+        </Progress.Root>
+        <p className="text-xs text-neutral-500">
+          Tu precisión aumentará a medida que instales componentes nuevos desde cero con la
+          app.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DigitalTwinConfidenceSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-4 w-56" />
+        <Skeleton className="h-3 w-64" />
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <Skeleton className="h-8 w-16" />
+        <Skeleton className="h-1 w-full rounded-full" />
+        <Skeleton className="h-3 w-full" />
+      </CardContent>
+    </Card>
+  );
+}
+
 function DrivetrainComponentCard({
   component,
 }: {
@@ -287,24 +322,12 @@ function DrivetrainComponentCard({
   const message = getWearMessage(status, component.type, wear);
   const severe = status === "critical" || status === "exhausted";
   const label = componentTypeLabels[component.type] ?? component.type;
-  const statusTypeInfo = statusTypeMeta[component.status_type];
 
   return (
     <Card className={cn(severe && "border-status-critical/40")}>
       <CardHeader>
         <CardTitle className="font-medium text-neutral-900">{label}</CardTitle>
         <CardDescription className={eyebrow}>{component.name}</CardDescription>
-        <CardAction>
-          <span
-            title={statusTypeInfo.explanation}
-            className={cn(
-              "inline-flex w-fit items-center border px-2 py-0.5 text-[9px] font-medium tracking-widest uppercase",
-              statusTypeInfo.className
-            )}
-          >
-            {statusTypeInfo.label}
-          </span>
-        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-2">
@@ -337,7 +360,6 @@ function DrivetrainComponentCard({
           {message ??
             `${wear}% de vida útil consumida · límite estimado ${formatKm(component.max_km)} km.`}
         </p>
-        <p className="text-xs text-neutral-500">{statusTypeInfo.explanation}</p>
 
         {status === "critical" && (
           <span className="inline-flex w-fit items-center gap-1.5 border border-status-critical/40 bg-status-critical/10 px-3 py-1 text-[10px] font-medium tracking-widest text-status-critical uppercase">
@@ -662,6 +684,8 @@ const stravaErrorMessages: Record<string, string> = {
     "Los tokens no se guardaron: falta la policy de UPDATE en profiles.",
   not_connected: "Conecta Strava antes de sincronizar rutas.",
   no_rides: "No se encontró ninguna actividad de ciclismo reciente en Strava.",
+  wrong_bike:
+    "La última actividad de Strava está registrada con otra bicicleta y se ha descartado sin aplicar desgaste.",
 };
 
 const calibrationErrorMessages: Record<string, string> = {
@@ -722,6 +746,10 @@ export default async function Home({
             {calibrationError}
           </div>
         )}
+
+        <Suspense fallback={<DigitalTwinConfidenceSkeleton />}>
+          <DigitalTwinConfidenceCard />
+        </Suspense>
 
         <Suspense fallback={null}>
           <WorkshopAlertsBanner />

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
-import { fetchLatestRideActivity, refreshStravaToken } from "@/lib/strava";
+import { fetchLatestRideActivity, isIndoorRide, refreshStravaToken } from "@/lib/strava";
 import { getWeatherForRide } from "@/lib/open-meteo";
 import { applyRideToComponents, estimateWattsLost } from "@/lib/wear-model";
 
@@ -51,6 +51,23 @@ export async function POST(request: NextRequest) {
     return redirectWithError("no_rides");
   }
 
+  // Fetched up front (even before we know if this activity is new) so the
+  // gear-id shield can reject a wrong-bike activity before any DB write —
+  // including the `activities` insert itself.
+  const { data: bike, error: bikeError } = await supabase
+    .from("bikes")
+    .select("id, strava_gear_id, components(id, type, tier, max_km, current_wear_percentage)")
+    .eq("profile_id", userId)
+    .limit(1)
+    .maybeSingle();
+  if (bikeError) throw bikeError;
+
+  // Only enforced once a real gear id has been bound — until then, an unset
+  // strava_gear_id means "accept every ride," matching pre-Sprint-A behavior.
+  if (bike?.strava_gear_id && activity.gear_id !== bike.strava_gear_id) {
+    return redirectWithError("wrong_bike");
+  }
+
   const activityId = String(activity.id);
   const { data: existing, error: existingError } = await supabase
     .from("activities")
@@ -63,17 +80,25 @@ export async function POST(request: NextRequest) {
   // already-stored ride must not double-count its distance against wear.
   if (!existing) {
     const averageWatts = activity.average_watts ?? null;
+    const isIndoor = isIndoorRide(activity);
 
-    const startLatLng = activity.start_latlng.length === 2 ? activity.start_latlng : null;
-    const weather = await getWeatherForRide(
-      startLatLng,
-      activity.start_date,
-      activity.moving_time
-    );
-    // No GPS / no data for the window (indoor trainer, privacy zone, API
-    // hiccup) — fall back to a neutral placeholder instead of failing sync.
-    const humidityAvg = weather?.humidityAvg ?? 50;
-    const rainMm = weather?.rainMm ?? 0;
+    // Indoor/virtual rides have no real road weather to speak of — skip the
+    // Open-Meteo round trip entirely and fall back to the same neutral
+    // placeholder used when outdoor weather data is unavailable.
+    let humidityAvg = 50;
+    let rainMm = 0;
+    if (!isIndoor) {
+      const startLatLng = activity.start_latlng.length === 2 ? activity.start_latlng : null;
+      const weather = await getWeatherForRide(
+        startLatLng,
+        activity.start_date,
+        activity.moving_time
+      );
+      // No GPS / no data for the window (privacy zone, API hiccup) — fall
+      // back to a neutral placeholder instead of failing sync.
+      humidityAvg = weather?.humidityAvg ?? 50;
+      rainMm = weather?.rainMm ?? 0;
+    }
     const wattsLost = estimateWattsLost({ averageWatts, humidityAvg, rainMm });
 
     const { error: insertError } = await supabase.from("activities").insert({
@@ -92,23 +117,18 @@ export async function POST(request: NextRequest) {
     if (insertError) throw insertError;
 
     const rideKm = activity.distance / 1000;
-    const { data: bike, error: bikeError } = await supabase
-      .from("bikes")
-      .select("id, components(id, type, tier, max_km, current_wear_percentage)")
-      .eq("profile_id", userId)
-      .limit(1)
-      .maybeSingle();
-    if (bikeError) throw bikeError;
 
     // Chain wear (weather-multiplied) is resolved first inside the model —
     // its pre-ride value then drives the cassette/chainring cascade — plus
     // the braking module reacting to this same ride's rain and elevation
     // gain — so every wearable part on the bike comes back ready to persist
-    // in one pass.
+    // in one pass. Indoor rides zero out every road-contact part regardless
+    // of the (placeholder) weather values passed in.
     const wearUpdates = applyRideToComponents(bike?.components ?? [], {
       km: rideKm,
       elevationGainM: activity.total_elevation_gain,
       weather: { humidityAvg, rainMm },
+      isIndoor,
     });
 
     for (const { id, newWearPercentage } of wearUpdates) {

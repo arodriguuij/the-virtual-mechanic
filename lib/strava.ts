@@ -101,6 +101,11 @@ export type StravaActivity = {
   // [lat, lng], or an empty array when the activity has no GPS data or the
   // start is hidden by a privacy zone.
   start_latlng: [number, number] | [];
+  // The Strava "gear" (bike) id this ride was logged against, e.g. "b12345678"
+  // — null if the athlete didn't tag a bike on the activity.
+  gear_id: string | null;
+  // True for indoor trainer rides regardless of sport_type.
+  trainer: boolean;
 };
 
 export async function fetchLatestRideActivity(
@@ -114,4 +119,33 @@ export async function fetchLatestRideActivity(
   }
   const activities: StravaActivity[] = await res.json();
   return activities.find((a) => CYCLING_SPORT_TYPES.has(a.sport_type ?? a.type)) ?? null;
+}
+
+/** True for an indoor/virtual ride — Zwift, Rouvy, a smart trainer, etc. —
+ * where there's no real road surface or weather to model wear/climate from. */
+export function isIndoorRide(activity: Pick<StravaActivity, "trainer" | "sport_type" | "type">): boolean {
+  return activity.trainer === true || activity.sport_type === "VirtualRide" || activity.type === "VirtualRide";
+}
+
+export type StravaGear = {
+  id: string;
+  name: string;
+  primary: boolean;
+  distance: number;
+};
+
+/**
+ * Lists the athlete's bikes as Strava knows them, id included — the only way
+ * to find the real `gear_id` to store in `bikes.strava_gear_id` short of the
+ * user reading it out of Strava's own UI (which doesn't surface it plainly).
+ */
+export async function fetchAthleteBikes(accessToken: string): Promise<StravaGear[]> {
+  const res = await fetch(`${STRAVA_API_BASE}/athlete`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Strava athlete request failed: ${res.status} ${await res.text()}`);
+  }
+  const athlete = await res.json();
+  return athlete.bikes ?? [];
 }
