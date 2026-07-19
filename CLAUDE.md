@@ -111,12 +111,12 @@ route also uses for `activities`.
   athlete's latest cycling activity, and (after the gear-id shield below) inserts it into
   `activities` if it isn't there yet. Only for a genuinely new activity (the `!existing`
   branch) it also:
-  - Fetches real weather for the ride's start coordinates + time window from Open-Meteo
-    (`lib/open-meteo.ts` — forecast endpoint for the last 5 days, archive endpoint
-    further back) and derives `watts_lost` from humidity/rain with the heuristic in
-    `lib/wear-model.ts` (`estimateWattsLost`). No GPS on the activity, or an indoor ride
-    (see below) → falls back to a neutral placeholder (50% humidity, 0mm rain) rather than
-    failing the sync or calling Open-Meteo for a ride with no real weather.
+  - Samples real weather along the ride's actual route from Open-Meteo (see "Geographic
+    microclimate sampling" below) and derives `watts_lost` from the aggregated
+    humidity/rain with the heuristic in `lib/wear-model.ts` (`estimateWattsLost`). No route
+    map on the activity, or an indoor ride (see below) → falls back to a neutral
+    placeholder (50% humidity, 0mm rain) rather than failing the sync or calling
+    Open-Meteo for a ride with no real weather.
   - Applies the ride's distance to every wearable component via `applyRideToComponents`
     (`lib/wear-model.ts`) — this is what moves the component wear cards on the Dashboard.
     See "Component wear model" below.
@@ -148,6 +148,39 @@ For an indoor ride the sync route skips the Open-Meteo call outright (there's no
 weather to query) and passes `isIndoor: true` into `applyRideToComponents`, which zeroes
 this ride's wear contribution for every road-contact part — see "Component wear model"
 below for which parts that covers and why.
+
+#### Geographic microclimate sampling
+
+A single start-coordinate weather lookup (the pre-Sprint-B approach) can completely miss a
+localized storm the rider actually rode through further down the route, or over-represent a
+big ride's weather from one point. `lib/strava.ts` and `lib/open-meteo.ts` sample the
+ride's *actual path* instead:
+
+- `decodePolyline()` (`lib/strava.ts`) decodes the activity's `map.summary_polyline`
+  (Strava/Google's standard polyline encoding) into `[lat, lng]` pairs — pure geometry
+  decode, no I/O.
+- `getSamplePointCount(distanceKm)` picks a dynamic control-point count instead of a fixed
+  one: one point per 25km, clamped to `[3, 8]` — enough coverage on a long ride to catch a
+  storm cell without hammering Open-Meteo, a minimum of 3 on a short one.
+- `getRouteSamplePoints()` picks that many coordinates evenly spaced across the decoded
+  polyline (always including the first and last point) and assigns each an estimated
+  pass-through time via linear interpolation across `moving_time` — point `i` of `n` lands
+  at `start_date + moving_time * i / (n - 1)`, same fraction driving both the geographic and
+  temporal spacing.
+- `getWeatherForRoute()` (`lib/open-meteo.ts`) queries Open-Meteo for all of those
+  points in parallel (`Promise.all`, one request per point, each its own single-hour
+  lookup at that point's estimated time — same forecast-vs-archive 5-day split as before),
+  then aggregates: `humidityAvg` is the mean across points, `rainMm` is the *max* reading
+  across points but only kept if it's above `WET_THRESHOLD_MM` (0.1mm — sub-threshold
+  readings are treated as measurement noise, not real rain), otherwise `rainMm` is `0`. A
+  single wet point anywhere on the route is enough to mark the whole ride "wet"
+  (`isWet: true`) and carry that point's rain reading through as the ride's `rainMm` —
+  every downstream `rainMm > 0` check (the chain's weather multiplier, the braking module,
+  the lube wash-out below) reacts to it exactly as if the whole ride had been rained on,
+  even if every other sampled point stayed dry.
+- Any point request that fails (network hiccup, no data for that hour) is dropped rather
+  than failing the whole sync — `getWeatherForRoute` only returns `null` if *every* point
+  came back empty, matching the existing "fall back to a neutral placeholder" convention.
 
 ### Component wear model
 
@@ -210,13 +243,15 @@ drivetrain triangle inside `applyRideToComponents`:
   through ordinary accumulated km *or* a rain wash-out (below) — the multiplier becomes a
   flat ×2.0 regardless of lubricant type, modeling dry metal-on-metal contact. This stays
   in effect until the rider logs a re-lube (`kms_since_last_lube` back to `0`).
-- **Rain wash-out**: for a non-indoor ride with `rain_mm > 0`, `getNextKmsSinceLastLube`
-  jumps the counter straight to `LUBRICANT_LIMIT_KM[type]` (via `Math.max`, so it never
-  *lowers* a counter that had already climbed past the limit on its own) instead of just
-  adding this ride's distance — rain doesn't just add wear, it chemically strips the
-  lubricant early. `app/api/strava/sync/route.ts` also `console.warn`s this as an internal
-  signal before calling into the wear model. Indoor/virtual rides never trigger this (no
-  real rain), matching the existing `isIndoor` handling elsewhere in the model.
+- **Rain wash-out ("Ruta en Mojado")**: for a non-indoor ride with `rain_mm > 0` — which,
+  per "Geographic microclimate sampling" above, means at least one sampled point along the
+  route crossed real rain, not just the start coordinate — `getNextKmsSinceLastLube` jumps
+  the counter straight to `LUBRICANT_LIMIT_KM[type]` (via `Math.max`, so it never *lowers* a
+  counter that had already climbed past the limit on its own) instead of just adding this
+  ride's distance — rain doesn't just add wear, it chemically strips the lubricant early.
+  `app/api/strava/sync/route.ts` also `console.warn`s this as an internal signal before
+  calling into the wear model. Indoor/virtual rides never trigger this (no real rain),
+  matching the existing `isIndoor` handling elsewhere in the model.
 - Only the chain's `ComponentWearUpdate` carries a `newKmsSinceLastLube` — the sync route
   merges it into the same `components` UPDATE as `current_wear_percentage` when present,
   one write per component, no extra round trip.

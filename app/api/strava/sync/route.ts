@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
-import { fetchLatestRideActivity, isIndoorRide, refreshStravaToken } from "@/lib/strava";
-import { getWeatherForRide } from "@/lib/open-meteo";
+import {
+  fetchLatestRideActivity,
+  getRouteSamplePoints,
+  isIndoorRide,
+  refreshStravaToken,
+} from "@/lib/strava";
+import { getWeatherForRoute } from "@/lib/open-meteo";
 import { applyRideToComponents, estimateWattsLost } from "@/lib/wear-model";
 
 export async function POST(request: NextRequest) {
@@ -90,14 +95,17 @@ export async function POST(request: NextRequest) {
     let humidityAvg = 50;
     let rainMm = 0;
     if (!isIndoor) {
-      const startLatLng = activity.start_latlng.length === 2 ? activity.start_latlng : null;
-      const weather = await getWeatherForRide(
-        startLatLng,
-        activity.start_date,
-        activity.moving_time
-      );
-      // No GPS / no data for the window (privacy zone, API hiccup) — fall
-      // back to a neutral placeholder instead of failing sync.
+      const distanceKm = activity.distance / 1000;
+      const summaryPolyline = activity.map?.summary_polyline;
+      // Dynamic point count (1 per 25km, clamped to [3, 8]) instead of a
+      // fixed sample size — a long ride gets enough coverage to catch a
+      // localized storm, a short one doesn't hammer the API for nothing.
+      const samplePoints = summaryPolyline
+        ? getRouteSamplePoints(summaryPolyline, distanceKm, activity.start_date, activity.moving_time)
+        : [];
+      const weather = samplePoints.length > 0 ? await getWeatherForRoute(samplePoints) : null;
+      // No route map / no data at any sampled point (privacy zone, API
+      // hiccup) — fall back to a neutral placeholder instead of failing sync.
       humidityAvg = weather?.humidityAvg ?? 50;
       rainMm = weather?.rainMm ?? 0;
     }
@@ -120,12 +128,14 @@ export async function POST(request: NextRequest) {
 
     const rideKm = activity.distance / 1000;
 
-    // A wet outdoor ride chemically strips the chain's lubricant — flagged
-    // here (before the model runs) purely as an internal signal; the actual
-    // counter jump happens inside applyRideToComponents/getNextKmsSinceLastLube.
+    // "Ruta en Mojado" — at least one geographic sample point along the
+    // route crossed real rain, even if the start coordinate stayed dry.
+    // Chemically strips the chain's lubricant — flagged here (before the
+    // model runs) purely as an internal signal; the actual counter jump
+    // happens inside applyRideToComponents/getNextKmsSinceLastLube.
     if (!isIndoor && rainMm > 0 && (bike?.components ?? []).some((c) => c.type === "chain")) {
       console.warn(
-        `Cadena lavada por lluvia en "${activity.name}" (${rainMm}mm): kms_since_last_lube salta al límite de degradación del lubricante hasta la próxima relubricación.`
+        `Ruta en Mojado: "${activity.name}" (máx ${rainMm}mm en un punto de muestreo). kms_since_last_lube salta al límite de degradación del lubricante hasta la próxima relubricación.`
       );
     }
 

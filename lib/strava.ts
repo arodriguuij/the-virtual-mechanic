@@ -106,6 +106,9 @@ export type StravaActivity = {
   gear_id: string | null;
   // True for indoor trainer rides regardless of sport_type.
   trainer: boolean;
+  // Encoded route geometry for the ride's map, if Strava generated one —
+  // absent for indoor rides and occasionally for GPS-less outdoor ones.
+  map: { summary_polyline: string | null } | null;
 };
 
 export async function fetchLatestRideActivity(
@@ -148,4 +151,96 @@ export async function fetchAthleteBikes(accessToken: string): Promise<StravaGear
   }
   const athlete = await res.json();
   return athlete.bikes ?? [];
+}
+
+/**
+ * Decodes a Strava/Google-encoded polyline string into `[lat, lng]` pairs.
+ * Pure geometry decode, no I/O — see
+ * https://developers.google.com/maps/documentation/utilities/polylinealgorithm
+ */
+export function decodePolyline(encoded: string): [number, number][] {
+  const coordinates: [number, number][] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let shift = 0;
+    let result = 0;
+    let byte: number;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+
+    shift = 0;
+    result = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+
+    coordinates.push([lat / 1e5, lng / 1e5]);
+  }
+
+  return coordinates;
+}
+
+const KM_PER_SAMPLE_POINT = 25;
+const MIN_SAMPLE_POINTS = 3;
+const MAX_SAMPLE_POINTS = 8;
+
+/**
+ * A fixed 3-point sample would miss a localized storm on a long ride and
+ * over-query Open-Meteo on a short one — one control point per 25km scales
+ * with the actual route, clamped to [3, 8] to guarantee minimum coverage on
+ * short rides and protect the API on very long ones (double centuries+).
+ */
+export function getSamplePointCount(distanceKm: number): number {
+  return Math.min(
+    MAX_SAMPLE_POINTS,
+    Math.max(MIN_SAMPLE_POINTS, Math.ceil(distanceKm / KM_PER_SAMPLE_POINT))
+  );
+}
+
+export type RouteSamplePoint = {
+  lat: number;
+  lng: number;
+  atDate: Date;
+};
+
+/**
+ * Picks `getSamplePointCount(distanceKm)` control points evenly spaced
+ * across the decoded polyline (always including the first and last
+ * coordinate) and assigns each an estimated pass-through time via linear
+ * interpolation across `moving_time` — point `i` of `n` lands at
+ * `start_date + moving_time * i / (n - 1)`, same convention as the
+ * geographic spacing. Returns fewer points than requested if the decoded
+ * polyline itself has fewer coordinates than the target count.
+ */
+export function getRouteSamplePoints(
+  summaryPolyline: string,
+  distanceKm: number,
+  startDateIso: string,
+  movingTimeSeconds: number
+): RouteSamplePoint[] {
+  const coordinates = decodePolyline(summaryPolyline);
+  if (coordinates.length === 0) return [];
+
+  const pointCount = Math.min(getSamplePointCount(distanceKm), coordinates.length);
+  const start = new Date(startDateIso);
+
+  return Array.from({ length: pointCount }, (_, i) => {
+    const fraction = pointCount === 1 ? 0 : i / (pointCount - 1);
+    const [lat, lng] = coordinates[Math.round(fraction * (coordinates.length - 1))];
+    return {
+      lat,
+      lng,
+      atDate: new Date(start.getTime() + movingTimeSeconds * 1000 * fraction),
+    };
+  });
 }
