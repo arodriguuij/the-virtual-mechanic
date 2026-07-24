@@ -52,117 +52,24 @@ async function main() {
     console.log("+ Perfil creado:", userId);
   }
 
-  const { data: existingBike, error: bikeFetchError } = await supabase
-    .from("bikes")
+  const { data: existingAthleteProfile, error: athleteProfileFetchError } = await supabase
+    .from("athlete_profiles")
     .select("id")
-    .eq("profile_id", userId)
-    .eq("brand", "Scott")
-    .eq("model", "Addict 30")
+    .eq("id", userId)
     .maybeSingle();
-  if (bikeFetchError) throw bikeFetchError;
+  if (athleteProfileFetchError) throw athleteProfileFetchError;
 
-  let bikeId: string;
-  if (existingBike) {
-    console.log("✓ Bici ya existía:", existingBike.id);
-    bikeId = existingBike.id;
+  if (existingAthleteProfile) {
+    console.log("✓ Perfil fisiológico ya existía:", existingAthleteProfile.id);
   } else {
-    const { data: newBike, error: bikeInsertError } = await supabase
-      .from("bikes")
-      .insert({
-        profile_id: userId,
-        brand: "Scott",
-        model: "Addict 30",
-        weight: 7.9,
-      })
-      .select("id")
-      .single();
-    if (bikeInsertError) throw bikeInsertError;
-    console.log("+ Bici creada:", newBike.id);
-    bikeId = newBike.id;
-  }
-
-  const bikeComponents = [
-    {
-      type: "chain",
-      name: "Cadena Shimano Ultegra 11v",
-      brand: "Shimano",
-      tier: "Ultegra",
-      max_km: 3000,
-      current_wear_percentage: 35.0,
-    },
-    {
-      type: "cassette",
-      name: "Cassette Shimano Ultegra 11v",
-      brand: "Shimano",
-      tier: "Ultegra",
-      max_km: 7500,
-      current_wear_percentage: 20.0,
-    },
-    {
-      type: "chainring",
-      name: "Platos Shimano Ultegra 11v",
-      brand: "Shimano",
-      tier: "Ultegra",
-      max_km: 18000,
-      current_wear_percentage: 8.0,
-    },
-    // Braking module — the Addict 30 runs discs, so rim_pad/wheel_rim stay
-    // unseeded for now (the wear model already handles them, see
-    // lib/wear-model.ts, for whenever a rim-brake bike shows up).
-    {
-      type: "disc_pad",
-      name: "Pastillas de freno Shimano L05A Resin",
-      brand: "Shimano",
-      tier: "L05A Resin",
-      max_km: 2500,
-      current_wear_percentage: 10.0,
-    },
-    {
-      type: "disc_rotor",
-      name: "Disco de freno Shimano RT-MT800 (Ultegra)",
-      brand: "Shimano",
-      tier: "RT-MT800 (Ultegra)",
-      max_km: 12000,
-      current_wear_percentage: 5.0,
-    },
-    // Tires — rear starts more worn since it carries more weight and all the
-    // drivetrain torque (see REAR_TIRE_TRACTION_MULTIPLIER in wear-model.ts).
-    {
-      type: "tire_front",
-      name: "Neumático Schwalbe Pro One TLE",
-      brand: "Schwalbe",
-      tier: "Pro One TLE",
-      max_km: 4500,
-      current_wear_percentage: 15.0,
-    },
-    {
-      type: "tire_rear",
-      name: "Neumático Schwalbe Pro One TLE",
-      brand: "Schwalbe",
-      tier: "Pro One TLE",
-      max_km: 4500,
-      current_wear_percentage: 40.0,
-    },
-  ];
-
-  for (const component of bikeComponents) {
-    const { data: existingComponent, error: componentFetchError } = await supabase
-      .from("components")
-      .select("id")
-      .eq("bike_id", bikeId)
-      .eq("type", component.type)
-      .maybeSingle();
-    if (componentFetchError) throw componentFetchError;
-
-    if (existingComponent) {
-      console.log(`✓ ${component.name} ya existía:`, existingComponent.id);
-    } else {
-      const { error: componentInsertError } = await supabase
-        .from("components")
-        .insert({ bike_id: bikeId, ...component });
-      if (componentInsertError) throw componentInsertError;
-      console.log(`+ ${component.name} creado`);
-    }
+    const { error: athleteProfileInsertError } = await supabase.from("athlete_profiles").insert({
+      id: userId,
+      ftp: 250,
+      weight_kg: 72,
+      sweat_rate: "medium",
+    });
+    if (athleteProfileInsertError) throw athleteProfileInsertError;
+    console.log("+ Perfil fisiológico creado:", userId);
   }
 
   const activityId = "seed-serra-tramuntana-001";
@@ -177,6 +84,10 @@ async function main() {
     console.log("✓ Actividad ya existía:", existingActivity.id);
   } else {
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Nutrition figures computed by hand from lib/metabolic-engine.ts's
+    // formulas for FTP 250 / 244W avg / 82% humidity / 24°C / medium sweat
+    // rate over this ride's 3h24m — a fixed plausible fixture, same
+    // convention as the other static fields below, not a live computation.
     const { error: activityInsertError } = await supabase.from("activities").insert({
       id: activityId,
       profile_id: userId,
@@ -187,7 +98,10 @@ async function main() {
       average_watts: 244,
       rain_mm: 0,
       humidity_avg: 82,
-      watts_lost: 15,
+      temperature_avg: 24,
+      carbs_burned_g: 306,
+      fluid_loss_ml: 3223,
+      sodium_loss_mg: 2258,
       activity_date: yesterday,
     });
     if (activityInsertError) throw activityInsertError;

@@ -8,8 +8,18 @@ import {
   refreshStravaToken,
 } from "@/lib/strava";
 import { getWeatherForRoute } from "@/lib/open-meteo";
-import { applyRideToComponents, estimateWattsLost } from "@/lib/wear-model";
-import { ensureDefaultWheelset, getWheelsets } from "@/lib/wheelsets";
+import {
+  getCarbOxidationRateGPerHour,
+  getFluidLossMlPerHour,
+  getRelativeIntensity,
+  getSodiumLossMgPerHour,
+} from "@/lib/metabolic-engine";
+
+// Typical smart-trainer-room conditions — warmer and more humid than a
+// comfortable outdoor baseline, since indoor rides get none of the
+// convective cooling a moving bike gets outside.
+const INDOOR_TEMPERATURE_C = 26;
+const INDOOR_HUMIDITY_PCT = 60;
 
 export async function POST(request: NextRequest) {
   const redirectWithError = (code: string) =>
@@ -57,25 +67,6 @@ export async function POST(request: NextRequest) {
     return redirectWithError("no_rides");
   }
 
-  // Fetched up front (even before we know if this activity is new) so the
-  // gear-id shield can reject a wrong-bike activity before any DB write —
-  // including the `activities` insert itself.
-  const { data: bike, error: bikeError } = await supabase
-    .from("bikes")
-    .select(
-      "id, strava_gear_id, components(id, type, tier, max_km, current_wear_percentage, lubricant_type, kms_since_last_lube, wheelset_id)"
-    )
-    .eq("profile_id", userId)
-    .limit(1)
-    .maybeSingle();
-  if (bikeError) throw bikeError;
-
-  // Only enforced once a real gear id has been bound — until then, an unset
-  // strava_gear_id means "accept every ride," matching pre-Sprint-A behavior.
-  if (bike?.strava_gear_id && activity.gear_id !== bike.strava_gear_id) {
-    return redirectWithError("wrong_bike");
-  }
-
   const activityId = String(activity.id);
   const { data: existing, error: existingError } = await supabase
     .from("activities")
@@ -85,22 +76,22 @@ export async function POST(request: NextRequest) {
   if (existingError) throw existingError;
 
   // Everything below only runs for a genuinely new activity — re-syncing an
-  // already-stored ride must not double-count its distance against wear.
+  // already-stored ride must not double-count its nutritional cost.
   if (!existing) {
     const averageWatts = activity.average_watts ?? null;
     const isIndoor = isIndoorRide(activity);
 
-    // Indoor/virtual rides have no real road weather to speak of — skip the
-    // Open-Meteo round trip entirely and fall back to the same neutral
-    // placeholder used when outdoor weather data is unavailable.
-    let humidityAvg = 50;
-    let rainMm = 0;
-    if (!isIndoor) {
+    let humidityAvg: number;
+    let temperatureAvgC: number;
+    let rainMm: number;
+    if (isIndoor) {
+      // No real outdoor weather to sample for a trainer ride.
+      humidityAvg = INDOOR_HUMIDITY_PCT;
+      temperatureAvgC = INDOOR_TEMPERATURE_C;
+      rainMm = 0;
+    } else {
       const distanceKm = activity.distance / 1000;
       const summaryPolyline = activity.map?.summary_polyline;
-      // Dynamic point count (1 per 25km, clamped to [3, 8]) instead of a
-      // fixed sample size — a long ride gets enough coverage to catch a
-      // localized storm, a short one doesn't hammer the API for nothing.
       const samplePoints = summaryPolyline
         ? getRouteSamplePoints(summaryPolyline, distanceKm, activity.start_date, activity.moving_time)
         : [];
@@ -108,9 +99,32 @@ export async function POST(request: NextRequest) {
       // No route map / no data at any sampled point (privacy zone, API
       // hiccup) — fall back to a neutral placeholder instead of failing sync.
       humidityAvg = weather?.humidityAvg ?? 50;
+      temperatureAvgC = weather?.temperatureAvgC ?? 18;
       rainMm = weather?.rainMm ?? 0;
     }
-    const wattsLost = estimateWattsLost({ averageWatts, humidityAvg, rainMm });
+
+    const { data: athleteProfile, error: athleteProfileError } = await supabase
+      .from("athlete_profiles")
+      .select("ftp, sweat_rate")
+      .eq("id", userId)
+      .maybeSingle();
+    if (athleteProfileError) throw athleteProfileError;
+
+    // No FTP set up yet → can't estimate carb oxidation for this ride; the
+    // ride is still logged, just without nutrition figures attached.
+    let carbsBurnedG: number | null = null;
+    let fluidLossMl: number | null = null;
+    let sodiumLossMg: number | null = null;
+    if (athleteProfile?.ftp && averageWatts != null) {
+      const relativeIntensity = getRelativeIntensity(averageWatts, athleteProfile.ftp);
+      const hours = activity.moving_time / 3600;
+      carbsBurnedG = Math.round(getCarbOxidationRateGPerHour(relativeIntensity) * hours);
+
+      const sweatRate = athleteProfile.sweat_rate ?? "medium";
+      const fluidLossMlPerHour = getFluidLossMlPerHour(sweatRate, temperatureAvgC, humidityAvg);
+      fluidLossMl = Math.round(fluidLossMlPerHour * hours);
+      sodiumLossMg = Math.round(getSodiumLossMgPerHour(fluidLossMlPerHour) * hours);
+    }
 
     const { error: insertError } = await supabase.from("activities").insert({
       id: activityId,
@@ -122,79 +136,13 @@ export async function POST(request: NextRequest) {
       average_watts: averageWatts,
       rain_mm: Math.round(rainMm * 10) / 10,
       humidity_avg: Math.round(humidityAvg * 10) / 10,
-      watts_lost: wattsLost,
+      temperature_avg: Math.round(temperatureAvgC * 10) / 10,
+      carbs_burned_g: carbsBurnedG,
+      fluid_loss_ml: fluidLossMl,
+      sodium_loss_mg: sodiumLossMg,
       activity_date: activity.start_date,
     });
     if (insertError) throw insertError;
-
-    const rideKm = activity.distance / 1000;
-
-    // Lazy graceful upgrade (no-op once the bike already has a wheelset) —
-    // if it just backfilled wheelset_id onto components, `bike.components`
-    // (fetched above, before the backfill) is stale and needs re-reading.
-    const justMigrated = bike ? await ensureDefaultWheelset(supabase, bike.id) : false;
-    const wheelsets = bike ? await getWheelsets(supabase, bike.id) : [];
-    const activeWheelsetId = wheelsets.find((w) => w.is_active)?.id ?? null;
-
-    let wearableComponents = bike?.components ?? [];
-    if (justMigrated && bike) {
-      const { data: refetchedBike, error: refetchError } = await supabase
-        .from("bikes")
-        .select(
-          "components(id, type, tier, max_km, current_wear_percentage, lubricant_type, kms_since_last_lube, wheelset_id)"
-        )
-        .eq("id", bike.id)
-        .maybeSingle();
-      if (refetchError) throw refetchError;
-      wearableComponents = refetchedBike?.components ?? [];
-    }
-
-    // "Ruta en Mojado" — at least one geographic sample point along the
-    // route crossed real rain, even if the start coordinate stayed dry.
-    // Chemically strips the chain's lubricant — flagged here (before the
-    // model runs) purely as an internal signal; the actual counter jump
-    // happens inside applyRideToComponents/getNextKmsSinceLastLube.
-    if (!isIndoor && rainMm > 0 && wearableComponents.some((c) => c.type === "chain")) {
-      console.warn(
-        `Ruta en Mojado: "${activity.name}" (máx ${rainMm}mm en un punto de muestreo). kms_since_last_lube salta al límite de degradación del lubricante hasta la próxima relubricación.`
-      );
-    }
-
-    // Chain wear (weather- and lubricant-multiplied) is resolved first
-    // inside the model — its pre-ride wear and lubrication state then drive
-    // the cassette/chainring cascade and chemical multipliers — plus the
-    // braking module reacting to this same ride's rain and elevation gain —
-    // so every wearable part on the bike comes back ready to persist in one
-    // pass. Indoor rides zero out every road-contact part regardless of the
-    // (placeholder) weather values passed in.
-    const wearUpdates = applyRideToComponents(wearableComponents, {
-      km: rideKm,
-      elevationGainM: activity.total_elevation_gain,
-      weather: { humidityAvg, rainMm },
-      isIndoor,
-      activeWheelsetId,
-    });
-
-    for (const { id, newWearPercentage, newKmsSinceLastLube } of wearUpdates) {
-      const patch: { current_wear_percentage: number; kms_since_last_lube?: number } = {
-        current_wear_percentage: newWearPercentage,
-      };
-      if (newKmsSinceLastLube !== undefined) {
-        patch.kms_since_last_lube = newKmsSinceLastLube;
-      }
-      const { data: updated, error: wearUpdateError } = await supabase
-        .from("components")
-        .update(patch)
-        .eq("id", id)
-        .select("id")
-        .maybeSingle();
-      if (wearUpdateError) throw wearUpdateError;
-      if (!updated) {
-        console.error(
-          `No se pudo actualizar el desgaste del componente ${id}: RLS bloqueó el UPDATE.`
-        );
-      }
-    }
   }
 
   return NextResponse.redirect(new URL("/", request.url), { status: 303 });

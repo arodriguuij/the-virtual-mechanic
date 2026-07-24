@@ -17,6 +17,7 @@ const WET_THRESHOLD_MM = 0.1;
 
 export type RouteWeather = {
   humidityAvg: number;
+  temperatureAvgC: number;
   rainMm: number;
   isWet: boolean;
 };
@@ -25,12 +26,14 @@ type OpenMeteoHourlyResponse = {
   hourly?: {
     time: string[];
     relative_humidity_2m: (number | null)[];
+    temperature_2m: (number | null)[];
     rain: (number | null)[];
   };
 };
 
 type PointSample = {
   humidity: number;
+  temperatureC: number;
   rainMm: number;
 };
 
@@ -46,7 +49,7 @@ async function getWeatherAtPoint(point: RouteSamplePoint): Promise<PointSample |
   url.searchParams.set("longitude", String(point.lng));
   url.searchParams.set("start_date", dateStr);
   url.searchParams.set("end_date", dateStr);
-  url.searchParams.set("hourly", "relative_humidity_2m,rain");
+  url.searchParams.set("hourly", "relative_humidity_2m,temperature_2m,rain");
   url.searchParams.set("timezone", "UTC");
 
   const res = await fetch(url);
@@ -72,23 +75,24 @@ async function getWeatherAtPoint(point: RouteSamplePoint): Promise<PointSample |
   });
 
   const humidity = hourly.relative_humidity_2m[closestIndex];
+  const temperature = hourly.temperature_2m[closestIndex];
   const rain = hourly.rain[closestIndex];
-  if (humidity == null && rain == null) return null;
+  if (humidity == null && temperature == null && rain == null) return null;
 
-  return { humidity: humidity ?? 50, rainMm: rain ?? 0 };
+  return { humidity: humidity ?? 50, temperatureC: temperature ?? 18, rainMm: rain ?? 0 };
 }
 
 /**
  * Samples weather at every geographic control point along the route, each
  * at its own estimated pass-through time, in parallel — a single
- * start-coordinate lookup can completely miss a localized storm the rider
- * actually rode through further down the route. Any one point reading above
- * `WET_THRESHOLD_MM` marks the whole ride "wet" (a microclimate rain cell
- * was crossed somewhere on the route) and drives `rainMm` from that point's
- * reading, even if every other sampled point was dry — this is what feeds
- * the chain's rain wash-out in `lib/wear-model.ts`. Returns null (rather
- * than throwing) when there are no points to sample or every request
- * failed — callers should fall back to a placeholder.
+ * start-coordinate lookup can completely miss a localized storm (or a hot
+ * valley climb) the rider actually rode through further down the route.
+ * `humidityAvg`/`temperatureAvgC` are the mean across points (both feed the
+ * metabolic engine's fluid/sodium loss estimate); any one point reading
+ * above `WET_THRESHOLD_MM` marks the whole ride "wet" and drives `rainMm`
+ * from that point's reading, even if every other sampled point was dry.
+ * Returns null (rather than throwing) when there are no points to sample or
+ * every request failed — callers should fall back to a placeholder.
  */
 export async function getWeatherForRoute(
   points: RouteSamplePoint[]
@@ -100,11 +104,13 @@ export async function getWeatherForRoute(
   if (samples.length === 0) return null;
 
   const humidityAvg = samples.reduce((sum, s) => sum + s.humidity, 0) / samples.length;
+  const temperatureAvgC = samples.reduce((sum, s) => sum + s.temperatureC, 0) / samples.length;
   const maxRain = Math.max(...samples.map((s) => s.rainMm));
   const isWet = maxRain > WET_THRESHOLD_MM;
 
   return {
     humidityAvg,
+    temperatureAvgC,
     rainMm: isWet ? maxRain : 0,
     isWet,
   };

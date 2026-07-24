@@ -2,11 +2,11 @@
 
 import {
   Activity,
-  Bike,
-  Cog,
+  Flame,
   LayoutDashboard,
   Menu,
   Settings,
+  UserCircle,
   X,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -16,9 +16,8 @@ import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "Dashboard", icon: LayoutDashboard, current: true },
-  { name: "Mis bicicletas", icon: Bike, current: false },
-  { name: "Componentes", icon: Cog, current: false },
-  { name: "Actividad", icon: Activity, current: false },
+  { name: "Mi perfil", icon: UserCircle, current: false },
+  { name: "Historial", icon: Activity, current: false },
   { name: "Ajustes", icon: Settings, current: false },
 ];
 
@@ -26,8 +25,8 @@ function SidebarContent() {
   return (
     <div className="flex h-full flex-col gap-10 px-6 py-8">
       <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.2em] text-neutral-900 uppercase">
-        <Bike className="size-4" strokeWidth={1.5} />
-        The Virtual Mechanic
+        <Flame className="size-4" strokeWidth={1.5} />
+        Motor Metabólico
       </div>
 
       <nav className="flex flex-1 flex-col gap-0.5">
@@ -57,7 +56,7 @@ function SidebarContent() {
             Alejandro Rodríguez
           </span>
           <span className="truncate text-[10px] tracking-widest text-neutral-500 uppercase">
-            Scott Addict 30
+            Ciclista de resistencia
           </span>
         </div>
       </div>
@@ -104,7 +103,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             <Menu className="size-5" />
           </button>
           <span className="text-xs font-semibold tracking-[0.2em] text-neutral-900 uppercase">
-            The Virtual Mechanic
+            Motor Metabólico
           </span>
         </header>
 
