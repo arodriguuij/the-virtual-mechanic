@@ -559,3 +559,40 @@ export function getCarbLoadingTarget(weightKg: number): CarbLoadingPlan {
     guidelines: CARB_LOADING_GUIDELINES,
   };
 }
+
+// Plain-text summary for the "Copiar Receta" button — pasteable as-is into
+// WhatsApp, Notes, or read straight off the phone at the kitchen counter,
+// so it spells out exact per-bottle grams rather than just totals.
+export function formatRecipeForSharing({
+  durationHours,
+  carbsGPerHour,
+  sodiumMgPerHour,
+  recipe,
+  bottlePlan,
+}: {
+  durationHours: number;
+  carbsGPerHour: number;
+  sodiumMgPerHour: number;
+  recipe: HomeLabRecipe;
+  bottlePlan: Pick<BottlePlan, "fuelBottles" | "waterBottles">;
+}): string {
+  const lines = [
+    "🚴 RECETA DIY — MOTOR METABÓLICO",
+    `Duración: ${durationHours}h · ${carbsGPerHour}g/h HC · ${sodiumMgPerHour}mg/h sodio`,
+    "",
+    `🧪 ${bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel Concentrado × ${bottlePlan.fuelBottles.count}`,
+    `   ${bottlePlan.fuelBottles.maltodextrinGPerBottle}g maltodextrina · ${bottlePlan.fuelBottles.fructoseGPerBottle}g fructosa · ${bottlePlan.fuelBottles.sodiumMgPerBottle}mg sodio / bidón`,
+  ];
+  if (bottlePlan.waterBottles.count > 0) {
+    lines.push(
+      "",
+      `💧 ${bottlePlan.waterBottles.count > 1 ? "Bidones" : "Bidón"} Agua / Electrolitos × ${bottlePlan.waterBottles.count}`,
+      "   A demanda para completar la hidratación"
+    );
+  }
+  lines.push(
+    "",
+    `Total: ${recipe.maltodextrinG}g maltodextrina + ${recipe.fructoseG}g fructosa + ${recipe.sodiumMg}mg sodio + ${recipe.waterMl}ml agua`
+  );
+  return lines.join("\n");
+}

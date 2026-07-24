@@ -1,18 +1,19 @@
 "use client";
 
+import { Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { intensityLabels, type IntensityLevel } from "@/lib/metabolic-engine";
+import { formatRecipeForSharing, intensityLabels, type IntensityLevel } from "@/lib/metabolic-engine";
 import type { StravaRoute } from "@/lib/strava-routes";
 
 const eyebrow = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
 const statLabel = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
-const statValue = "text-2xl font-semibold text-neutral-900 tabular-nums";
+const statValue = "text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
 const inputClass =
-  "border border-neutral-300 bg-background px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-900";
+  "border border-neutral-300 bg-background px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900";
 
 const INTENSITY_OPTIONS: IntensityLevel[] = [
   "recovery",
@@ -96,6 +97,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
   const [result, setResult] = useState<PlanResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === selectedRouteId) ?? null,
@@ -151,6 +153,24 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
     }
   }
 
+  async function handleCopyRecipe() {
+    if (!result) return;
+    const text = formatRecipeForSharing({
+      durationHours: result.durationHours,
+      carbsGPerHour: result.carbsGPerHour,
+      sodiumMgPerHour: result.sodiumMgPerHour,
+      recipe: result.recipe,
+      bottlePlan: result.bottlePlan,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("No se pudo copiar la receta al portapapeles.");
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -160,12 +180,12 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setMode("route")}
             className={cn(
-              "px-3 py-1.5 text-[11px] font-medium tracking-widest uppercase transition-colors",
+              "px-3 py-2 text-[11px] font-medium tracking-widest uppercase transition-colors",
               mode === "route"
                 ? "border border-neutral-900 bg-neutral-900 text-background"
                 : "border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
@@ -177,7 +197,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
             type="button"
             onClick={() => setMode("quick")}
             className={cn(
-              "px-3 py-1.5 text-[11px] font-medium tracking-widest uppercase transition-colors",
+              "px-3 py-2 text-[11px] font-medium tracking-widest uppercase transition-colors",
               mode === "quick"
                 ? "border border-neutral-900 bg-neutral-900 text-background"
                 : "border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
@@ -189,8 +209,8 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
 
         {mode === "route" ? (
           routes.length > 0 ? (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 flex flex-col gap-1.5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label htmlFor="route" className={eyebrow}>
                   Ruta
                 </label>
@@ -243,7 +263,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
             </p>
           )
         ) : (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="duration" className={eyebrow}>
                 Duración (h)
@@ -251,6 +271,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               <input
                 id="duration"
                 type="number"
+                inputMode="decimal"
                 min={0.5}
                 step={0.5}
                 className={inputClass}
@@ -265,6 +286,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               <input
                 id="watts"
                 type="number"
+                inputMode="numeric"
                 min={1}
                 className={inputClass}
                 value={quickAverageWatts}
@@ -320,7 +342,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <div className="flex flex-col gap-1">
                 <span className={statLabel}>Duración estimada</span>
                 <span className={statValue}>
@@ -352,7 +374,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               </p>
             )}
 
-            <div className="grid grid-cols-2 gap-4 border border-neutral-200 px-3 py-3">
+            <div className="grid grid-cols-1 gap-3 border border-neutral-200 px-3 py-3 sm:grid-cols-2 sm:gap-4">
               <div className="flex flex-col gap-1">
                 <span className={eyebrow}>Sin nutrir</span>
                 {result.glycogenBattery.noFuel.bonkOccurs ? (
@@ -389,9 +411,25 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
             <Separator className="bg-neutral-200" />
 
             <div>
-              <span className={eyebrow}>
-                Receta de laboratorio casero (DIY) · {result.durationHours} h
-              </span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className={eyebrow}>
+                  Receta de laboratorio casero (DIY) · {result.durationHours} h
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyRecipe}
+                  className="inline-flex shrink-0 items-center gap-1.5 border border-neutral-300 px-2.5 py-1.5 text-[10px] font-medium tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900"
+                >
+                  {copied ? (
+                    "✓ Receta copiada"
+                  ) : (
+                    <>
+                      <Copy className="size-3" />
+                      Copiar receta
+                    </>
+                  )}
+                </button>
+              </div>
               <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
                 <div className="flex items-center justify-between">
                   <span>Maltodextrina</span>
@@ -426,7 +464,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
                   <div className="flex flex-wrap items-center justify-between gap-1">
                     <span>
-                      🧪 Bidón{result.bottlePlan.fuelBottles.count > 1 ? "es" : ""} Fuel
+                      🧪 {result.bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel
                       Concentrado × {result.bottlePlan.fuelBottles.count}
                     </span>
                     <span className="text-xs text-neutral-500">
@@ -438,7 +476,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   {result.bottlePlan.waterBottles.count > 0 && (
                     <div className="flex flex-wrap items-center justify-between gap-1">
                       <span>
-                        💧 Bidón{result.bottlePlan.waterBottles.count > 1 ? "es" : ""} Agua /
+                        💧 {result.bottlePlan.waterBottles.count > 1 ? "Bidones" : "Bidón"} Agua /
                         Electrolitos × {result.bottlePlan.waterBottles.count}
                       </span>
                       <span className="text-xs text-neutral-500">a demanda</span>

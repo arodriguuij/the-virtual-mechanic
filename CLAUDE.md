@@ -337,6 +337,13 @@ recipe for that specific ride's real forecast conditions.
   (`dynamic` vs `planning_default`), a "Gut Training" warning banner whenever
   `gutTraining.isGutLimited` is true, and the collapsible carb-loading module when
   applicable.
+- **"Copiar Receta"** — a button next to the recipe header calls
+  `navigator.clipboard.writeText()` with the output of
+  `formatRecipeForSharing()` (`lib/metabolic-engine.ts`, pure/no I/O like the rest of the
+  engine): a plain-text summary with exact per-bottle grams (not just totals) so it's
+  readable pasted into WhatsApp/Notes or read straight off the phone at the kitchen
+  counter. The button label flips to "✓ Receta copiada" for 2s (local `copied` state,
+  `setTimeout`-reset) instead of a separate toast element.
 
 ### Gut Training Scale
 
@@ -446,6 +453,39 @@ single stacked-card layout this replaced:
 `app/page.tsx` exports `dynamic = "force-dynamic"` because it reads live Supabase data —
 without it Next prerenders the dashboard at build time and the figures would be frozen
 from whenever `next build` last ran.
+
+### Mobile-first layout
+
+The multi-column grids across the Dashboard (profile form, planner inputs, result-panel
+stat rows, the glycogen battery comparison) stack to a single column at the default
+breakpoint and only go multi-column at `sm:` — mobile is the default layout, not an
+afterthought squeezed into a desktop grid. The `app/page.tsx` header (title + Strava
+button) and the "Ruta guardada de Strava"/"Calculadora rápida" mode toggle both wrap
+(`flex-col`/`flex-wrap`) instead of forcing a single row that would overflow a narrow
+viewport. The "Perfil & Gut Training" tab label shortens to just "Perfil" below `sm:` (the
+`&amp; Gut Training` suffix is in a `hidden sm:inline` span) since three tab labels at
+full length don't all fit on a phone-width `TabsList`. Numeric inputs carry
+`inputMode="decimal"` (weight, duration — anything with a fractional step) or
+`inputMode="numeric"` (FTP, watts — integers only) so mobile keyboards show the right
+keypad; shared input classes across `page.tsx`/`fueling-planner.tsx`/
+`post-ride-analysis.tsx` use `py-2.5` rather than `py-2` for a more comfortable touch
+target. `app/layout.tsx`'s `<body>` carries `overflow-x-hidden` as a defensive backstop
+against any stray horizontal overflow, on top of (not instead of) fixing the actual
+layouts above.
+
+### PWA / "Add to Home Screen"
+
+`app/manifest.ts` (Next's `MetadataRoute.Manifest` file convention — auto-linked into
+`<head>`, no manual `<link rel="manifest">` needed) declares `display: "standalone"` so
+Android/Chrome's install prompt launches the app without browser chrome. `app/icon.tsx`
+(512×512) and `app/apple-icon.tsx` (180×180) both generate a PNG at request time via
+`next/og`'s `ImageResponse` — a flame emoji on the `--foreground` dark square — rather
+than needing a hand-exported image asset; Next auto-injects the corresponding
+`<link rel="icon">`/`<link rel="apple-touch-icon">` tags. `app/layout.tsx`'s `metadata`
+sets `appleWebApp: { title, statusBarStyle: "default" }`, which is what actually gets iOS
+Safari's "Add to Home Screen" to launch standalone (Android reads the manifest instead).
+`viewport.themeColor` matches `--background` (`#faf9f5`) so the installed app's title/
+status bar blends with the page instead of showing a mismatched color.
 
 ## Code style
 

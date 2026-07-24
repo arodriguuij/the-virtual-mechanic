@@ -7,9 +7,9 @@ import { Separator } from "@/components/ui/separator";
 
 const eyebrow = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
 const statLabel = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
-const statValue = "text-2xl font-semibold text-neutral-900 tabular-nums";
+const statValue = "text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
 const inputClass =
-  "border border-neutral-300 bg-background px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-900";
+  "border border-neutral-300 bg-background px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900";
 
 type ActivityOption = {
   id: string;
@@ -142,7 +142,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
               <span className="text-xs text-neutral-500">{sourceLabels[result.source]}</span>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <div className="flex flex-col gap-1">
                 <span className={statLabel}>Glucógeno quemado</span>
                 <span className={statValue}>

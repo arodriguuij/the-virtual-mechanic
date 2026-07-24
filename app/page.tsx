@@ -39,7 +39,7 @@ function formatRelativeDate(iso: string) {
 }
 
 const profileInputClass =
-  "border border-neutral-300 bg-background px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-900";
+  "border border-neutral-300 bg-background px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900";
 
 async function PhysiologicalProfileCard() {
   const profile = await getAthleteProfile();
@@ -65,6 +65,7 @@ async function PhysiologicalProfileCard() {
                 id="weight_kg"
                 name="weight_kg"
                 type="number"
+                inputMode="decimal"
                 step="0.1"
                 min="1"
                 required
@@ -80,6 +81,7 @@ async function PhysiologicalProfileCard() {
                 id="ftp"
                 name="ftp"
                 type="number"
+                inputMode="numeric"
                 min="1"
                 required
                 defaultValue={profile?.ftp ?? ""}
@@ -514,7 +516,7 @@ export default async function Home({
   return (
     <DashboardShell>
       <div className="flex flex-col gap-10">
-        <header className="flex items-end justify-between border-b border-neutral-200 pb-6">
+        <header className="flex flex-col items-start gap-4 border-b border-neutral-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className={eyebrow}>Buenas tardes, Alejandro</p>
             <h1 className="mt-1 text-2xl font-medium tracking-tight text-neutral-900">
@@ -548,7 +550,9 @@ export default async function Home({
           <TabsList variant="line">
             <TabsTrigger value="pre-ride">Pre-Ride</TabsTrigger>
             <TabsTrigger value="post-ride">Post-Ride</TabsTrigger>
-            <TabsTrigger value="profile">Perfil &amp; Gut Training</TabsTrigger>
+            <TabsTrigger value="profile">
+              Perfil<span className="hidden sm:inline"> &amp; Gut Training</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="pre-ride">
