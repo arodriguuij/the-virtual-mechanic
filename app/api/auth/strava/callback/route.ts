@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
-import { exchangeCodeForToken, getStravaRedirectUri } from "@/lib/strava";
+import { exchangeCodeForToken, fetchAthlete, getStravaRedirectUri } from "@/lib/strava";
+
+// Placeholder physiological defaults for a brand-new athlete_profiles row —
+// Strava only ever gives us weight, never FTP or sweat rate, so a first-time
+// connection still needs *something* non-null to satisfy the table's
+// NOT NULL columns until the athlete edits their real numbers.
+const DEFAULT_FTP = 200;
+const DEFAULT_SWEAT_RATE = "medium";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
@@ -52,6 +59,36 @@ export async function GET(request: NextRequest) {
     // erroring — surface that explicitly rather than redirecting as if the
     // connection succeeded.
     return NextResponse.redirect(new URL("/?strava_error=update_blocked_by_rls", request.url));
+  }
+
+  // Zero-friction weight sync: pull it straight from the athlete's own
+  // Strava profile instead of asking them to type it in. Best-effort — a
+  // failure here shouldn't undo an otherwise-successful Strava connection.
+  try {
+    const athlete = await fetchAthlete(token.access_token);
+    if (athlete.weight) {
+      const { data: existingAthleteProfile } = await supabase
+        .from("athlete_profiles")
+        .select("id")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (existingAthleteProfile) {
+        await supabase
+          .from("athlete_profiles")
+          .update({ weight_kg: athlete.weight })
+          .eq("id", userId);
+      } else {
+        await supabase.from("athlete_profiles").insert({
+          id: userId,
+          weight_kg: athlete.weight,
+          ftp: DEFAULT_FTP,
+          sweat_rate: DEFAULT_SWEAT_RATE,
+        });
+      }
+    }
+  } catch (error) {
+    console.error("No se pudo sincronizar el peso del atleta desde Strava:", error);
   }
 
   return NextResponse.redirect(new URL("/", request.url));

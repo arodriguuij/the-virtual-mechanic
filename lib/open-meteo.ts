@@ -115,3 +115,63 @@ export async function getWeatherForRoute(
     isWet,
   };
 }
+
+export type DepartureWeather = {
+  temperatureAvgC: number;
+  humidityAvg: number;
+};
+
+/**
+ * Averages the hourly forecast at one point across the exact hours a
+ * planned ride will be in progress — a ride leaving at 08:00 and lasting 3h
+ * averages the 08:00/09:00/10:00 readings (the hour block *during* the
+ * ride, not the arrival hour). Always the forecast endpoint (never the
+ * archive one) since this is exclusively for planning a future departure.
+ * Returns `null` if Open-Meteo has no data for that window — callers
+ * should fall back to a placeholder.
+ */
+export async function getWeatherForDeparture(
+  lat: number,
+  lng: number,
+  departureIso: string,
+  durationHours: number
+): Promise<DepartureWeather | null> {
+  const start = new Date(departureIso);
+  const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
+
+  const url = new URL(FORECAST_URL);
+  url.searchParams.set("latitude", String(lat));
+  url.searchParams.set("longitude", String(lng));
+  url.searchParams.set("start_date", start.toISOString().slice(0, 10));
+  url.searchParams.set("end_date", end.toISOString().slice(0, 10));
+  url.searchParams.set("hourly", "temperature_2m,relative_humidity_2m");
+  url.searchParams.set("timezone", "UTC");
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    console.error(`Open-Meteo forecast request failed: ${res.status} ${await res.text()}`);
+    return null;
+  }
+
+  const data: OpenMeteoHourlyResponse = await res.json();
+  const hourly = data.hourly;
+  if (!hourly) return null;
+
+  const temps: number[] = [];
+  const humidities: number[] = [];
+  hourly.time.forEach((isoHour, i) => {
+    const hourDate = new Date(`${isoHour}:00Z`);
+    if (hourDate >= start && hourDate < end) {
+      const t = hourly.temperature_2m[i];
+      const h = hourly.relative_humidity_2m[i];
+      if (t != null) temps.push(t);
+      if (h != null) humidities.push(h);
+    }
+  });
+  if (temps.length === 0 && humidities.length === 0) return null;
+
+  return {
+    temperatureAvgC: temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : 18,
+    humidityAvg: humidities.length > 0 ? humidities.reduce((a, b) => a + b, 0) / humidities.length : 50,
+  };
+}

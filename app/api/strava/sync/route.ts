@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
-import {
-  fetchLatestRideActivity,
-  getRouteSamplePoints,
-  isIndoorRide,
-  refreshStravaToken,
-} from "@/lib/strava";
+import { fetchLatestRideActivity, getRouteSamplePoints, isIndoorRide } from "@/lib/strava";
+import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { getWeatherForRoute } from "@/lib/open-meteo";
 import {
   getCarbOxidationRateGPerHour,
@@ -30,39 +26,12 @@ export async function POST(request: NextRequest) {
   const userId = authData.user?.id;
   if (!userId) return redirectWithError("no_session");
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("strava_access_token, strava_refresh_token, strava_expires_at")
-    .eq("id", userId)
-    .maybeSingle();
-  if (profileError) throw profileError;
-
-  if (!profile?.strava_refresh_token) {
+  const accessToken = await getValidStravaAccessToken(supabase, userId);
+  if (!accessToken) {
     return redirectWithError("not_connected");
   }
 
-  let accessToken = profile.strava_access_token as string | null;
-  const expiresAtMs = profile.strava_expires_at
-    ? new Date(profile.strava_expires_at as string).getTime()
-    : 0;
-  const needsRefresh = !accessToken || expiresAtMs < Date.now() + 60_000;
-
-  if (needsRefresh) {
-    const refreshed = await refreshStravaToken(profile.strava_refresh_token as string);
-    accessToken = refreshed.access_token;
-
-    const { error: refreshUpdateError } = await supabase
-      .from("profiles")
-      .update({
-        strava_access_token: refreshed.access_token,
-        strava_refresh_token: refreshed.refresh_token,
-        strava_expires_at: new Date(refreshed.expires_at * 1000).toISOString(),
-      })
-      .eq("id", userId);
-    if (refreshUpdateError) throw refreshUpdateError;
-  }
-
-  const activity = await fetchLatestRideActivity(accessToken!);
+  const activity = await fetchLatestRideActivity(accessToken);
   if (!activity) {
     return redirectWithError("no_rides");
   }

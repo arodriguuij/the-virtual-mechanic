@@ -99,7 +99,17 @@ Strava sync route also uses for `activities`.
   them on the dev test user's `profiles` row, then redirects to `/`. On any failure it
   redirects to `/?strava_error=<code>` instead of pretending it worked — see
   `stravaErrorMessages` in `app/page.tsx` for the human-readable copy per code.
-- `POST /api/strava/sync` — refreshes the access token if it's expired, pulls the
+  Also does a best-effort, zero-friction weight sync: fetches `/athlete` (`fetchAthlete()`
+  in `lib/strava.ts`) and upserts its `weight` (kg) into `athlete_profiles.weight_kg` —
+  `UPDATE` if the athlete already has a profile row (never overwrites their own `ftp`/
+  `sweat_rate`), otherwise `INSERT`s a fresh row with placeholder `ftp: 200` /
+  `sweat_rate: 'medium'` (Strava has no concept of either) so the row satisfies the
+  table's `NOT NULL` columns until the athlete edits their real numbers via the
+  Physiological Profile form. A failure here is logged but never undoes an otherwise-
+  successful Strava connection.
+- `POST /api/strava/sync` — refreshes the access token if it's expired (via
+  `getValidStravaAccessToken()` in `lib/strava-session.ts`, shared with the routes
+  listing below so the refresh-and-persist dance lives in one place), pulls the
   athlete's latest cycling activity, and inserts it into `activities` if it isn't there
   yet. Only for a genuinely new activity (the `!existing` branch) it also:
   - Samples real weather along the ride's actual route from Open-Meteo (see "Geographic
@@ -171,28 +181,83 @@ sports-nutrition guidance rather than a clinical or individually-calibrated mode
   2:1-equivalent glucose:fructose ratio that raises the gut's total absorption ceiling
   above what either sugar alone achieves), plus the sodium and water targets for the same
   duration — one bottle recipe covering both carbs and hydration.
-- **`getMoneySavedVsGels()`** — compares the recipe's bulk-ingredient cost (fixed
-  €/kg assumptions for maltodextrin/fructose/electrolyte salt) against buying the
-  equivalent carbs as commercial gels (€1.50/25g gel assumption) — a rough illustrative
-  comparison, not a live price feed.
+- **`getMoneySavedVsGels(totalCarbsG)`** — compares a flat €2.50/30g-of-carbs commercial
+  gel price against a €0.35/30g homemade equivalent — a rough illustrative comparison, not
+  a live price feed.
 - **`getGlycogenBurnedGrams(relativeIntensity, movingTimeSeconds)`** — the oxidation rate
   integrated over the ride's actual duration; this is what the sync route stores as
   `activities.carbs_burned_g`.
 - **`getPostRideRecoveryTarget(weightKg)`** — standard post-exercise window guidance:
   ~1.1g carbs/kg and ~0.3g protein/kg to kickstart glycogen resynthesis and muscle repair.
+- **`estimateRideDurationHours({ distanceKm, elevationGainM, ftp, weightKg, intensity })`**
+  — sizes the fueling window for a saved Strava route, which has no real moving-time of
+  its own. A simplified two-term heuristic, not a physical simulation: a flat-road speed
+  estimated from W/kg (~22km/h at 2.5 W/kg, +5km/h per extra W/kg) plus a
+  Naismith's-rule-style climbing time bonus from an estimated VAM (~700 vertical m/h at
+  2.5 W/kg, scaling with W/kg) — `flatTimeHours + climbTimeHours`, both clamped to
+  plausible ranges.
+
+### Fueling planner ("Paso 1")
+
+The planner is the friction-zero pre-ride tool: pick a saved Strava route (or use the
+quick manual calculator), pick a departure date/time, and get back the exact DIY bottle
+recipe for that specific ride's real forecast conditions.
+
+- **`lib/strava-routes.ts`** — `fetchAthleteRoutes(accessToken)` lists the athlete's
+  saved/starred routes from `/athlete/routes`, filtered to `type === 1` (ride, not run)
+  and mapped to `{ id, name, distanceKm, elevationGainM, startLat, startLng }` — the start
+  coordinates come from decoding the route's own `map.summary_polyline` (reusing
+  `decodePolyline()` from `lib/strava.ts`) rather than a second API call. Returns `[]`
+  (never throws) on any Strava API failure, so a hiccup here just leaves the planner in
+  its manual quick-calculator mode instead of breaking the Dashboard.
+- **`getStravaRoutes()`** (`lib/dashboard-data.ts`) — the cached, auth-aware wrapper
+  `FuelingPlannerSection` calls: resolves a valid access token via
+  `getValidStravaAccessToken()` and returns `[]` outright if Strava isn't connected.
+- **`getWeatherForDeparture(lat, lng, departureIso, durationHours)`** (`lib/open-meteo.ts`)
+  — always the forecast endpoint (never archive, since a planned departure is always in
+  the future); averages `temperature_2m`/`relative_humidity_2m` across the exact hour
+  blocks the ride will be *in progress* — a ride leaving 08:00 and lasting 3h averages the
+  08:00/09:00/10:00 readings, not the 11:00 arrival hour (`hourDate >= start && hourDate <
+  end`, half-open interval).
+- **`POST /api/fueling/plan`** — the compute endpoint the planner's "Calcular estrategia"
+  button calls via `fetch` (a JSON API, not a form-POST-redirect, since this is a
+  read/compute operation whose result should render in place rather than trigger a
+  navigation — the one deliberate departure from this codebase's usual
+  progressive-enhancement form convention). Body is either route mode
+  (`{ mode: "route", distanceKm, elevationGainM, startLat, startLng, intensity,
+  departureIso }`, using `estimateRideDurationHours()` for the duration and a named
+  intensity level for the target %FTP) or quick mode (`{ mode: "quick", durationHours,
+  averageWatts, departureIso }`, using the real watts directly via
+  `getRelativeIntensity()`). Dynamic weather is only sampled in route mode (needs start
+  coordinates); quick mode always uses the fixed "typical training day" planning default
+  (22°C/55% humidity). Re-fetches `ftp`/`weight_kg`/`sweat_rate` from `athlete_profiles`
+  server-side rather than trusting client-supplied values.
+- **`components/fueling-planner.tsx`** (`"use client"`) — the interactive planner UI:
+  a route/quick mode toggle, a route `<select>` (built from the routes passed down as
+  props) or duration+watts inputs, a `datetime-local` departure input (defaults to
+  tomorrow 08:00 via `defaultDepartureLocal()`), and a result panel rendering whatever
+  `/api/fueling/plan` returns — carb/sodium targets, the DIY recipe, and the money-saved
+  comparison, plus which weather source was used (`dynamic` vs `planning_default`).
+
+### Athlete profile
+
+**`app/api/athlete-profile/update`** — the plain-form-POST route behind the
+Physiological Profile card's inline edit form (weight/FTP/sweat rate, all in one Card,
+no separate view/edit toggle). Uses `.upsert({ id: userId, ... })` rather than a
+select-then-update/insert branch, since `athlete_profiles.id` is the primary key and
+Supabase's upsert already handles "create if missing, update if present" in one call.
+Redirects to `/?profile_error=<code>` on invalid input or an RLS block, same
+non-silent-failure convention as everywhere else.
 
 ### Dashboard (app/page.tsx)
 
-- **`PhysiologicalProfileCard`** — reads `getAthleteProfile()` and shows FTP/weight/sweat
-  rate, or a "not configured yet" empty state if the athlete has no `athlete_profiles`
-  row (no in-app editor yet — seeded or set directly in Supabase).
-- **`FuelingCalculatorSection`** wraps the client component `components/fueling-calculator.tsx`
-  (`"use client"`, needs interactive state for the duration/intensity selectors) — passes
-  down only `sweatRate` from the athlete profile; duration and intensity are picked live
-  in the browser and recomputed via `lib/metabolic-engine.ts` on every change, no server
-  round trip. Uses a fixed "typical training day" climate assumption (22°C/55% humidity)
-  since there's no real forecast to sample for a ride that hasn't happened yet — contrast
-  with the Recovery card below, which uses the *actual* weather from the synced ride.
+- **`PhysiologicalProfileCard`** — reads `getAthleteProfile()` and renders an inline
+  edit form (weight/FTP/sweat rate, pre-filled with current values) POSTing to
+  `/api/athlete-profile/update` — see "Athlete profile" above.
+- **`FuelingPlannerSection`** — fetches the athlete profile and `getStravaRoutes()`,
+  handing the route list to the client `FuelingPlanner` (see "Fueling planner" above).
+  Shows a "configure your profile first" prompt instead if there's no `athlete_profiles`
+  row yet, since the plan endpoint requires one.
 - **`RecoveryCard`** — reads the most recent synced activity (`getRecentActivities(8)`,
   same `React.cache` dedup trick as `RideHistorySection` calling with the same `limit`)
   and shows its stored `carbs_burned_g`/`fluid_loss_ml`/`sodium_loss_mg` plus the athlete's
@@ -214,9 +279,11 @@ from whenever `next build` last ran.
 - Functional components, no class components.
 - Server Components by default; add `"use client"` only where interactivity/state is
   needed (e.g. the sidebar toggle in `components/dashboard-shell.tsx`, the fueling
-  calculator's live inputs). Prefer a plain `<form action="...">` POSTing to a Route
-  Handler over a client component + `fetch` when a native form covers it (see the
-  "Sincronizar rutas" button).
+  planner's route/quick-mode inputs). Prefer a plain `<form action="...">` POSTing to a
+  Route Handler over a client component + `fetch` when a native form covers it (see the
+  "Sincronizar rutas" button and the Physiological Profile edit form) — reserve the
+  `fetch`-based pattern for read/compute operations like `/api/fueling/plan` that should
+  render a result in place rather than trigger a navigation.
 - Compose UI from `components/ui` primitives rather than raw HTML where one exists.
 - Tailwind utility classes only — no CSS modules, no styled-components.
 - Design tokens (`--brand`, `--status-good`, `--status-warning`, `--status-critical`)

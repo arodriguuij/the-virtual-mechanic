@@ -5,8 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { FuelingCalculator } from "@/components/fueling-calculator";
-import { getAthleteProfile, getProfile, getRecentActivities } from "@/lib/dashboard-data";
+import { FuelingPlanner } from "@/components/fueling-planner";
+import {
+  getAthleteProfile,
+  getProfile,
+  getRecentActivities,
+  getStravaRoutes,
+} from "@/lib/dashboard-data";
 import { getPostRideRecoveryTarget, sweatRateLabels } from "@/lib/metabolic-engine";
 import { cn } from "@/lib/utils";
 
@@ -24,47 +29,81 @@ function formatRelativeDate(iso: string) {
   return date.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
 }
 
+const profileInputClass =
+  "border border-neutral-300 bg-background px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-900";
+
 async function PhysiologicalProfileCard() {
   const profile = await getAthleteProfile();
-
-  if (!profile) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-medium text-neutral-900">Perfil fisiológico</CardTitle>
-          <CardDescription className={eyebrow}>
-            Todavía no has configurado tu perfil de atleta
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="font-medium text-neutral-900">Perfil fisiológico</CardTitle>
-        <CardDescription className={eyebrow}>Tu línea base metabólica</CardDescription>
+        <CardDescription className={eyebrow}>
+          {profile
+            ? "Tu línea base metabólica — peso sincronizado desde Strava al conectar"
+            : "Todavía no has configurado tu perfil de atleta"}
+        </CardDescription>
       </CardHeader>
-      <CardContent className="grid grid-cols-3 gap-4">
-        <div className="flex flex-col gap-1">
-          <span className={statLabel}>FTP</span>
-          <span className={statValue}>
-            {profile.ftp}
-            <span className="ml-1 text-sm font-normal text-neutral-500">W</span>
-          </span>
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className={statLabel}>Peso</span>
-          <span className={statValue}>
-            {profile.weight_kg}
-            <span className="ml-1 text-sm font-normal text-neutral-500">kg</span>
-          </span>
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className={statLabel}>Sudoración</span>
-          <span className={statValue}>{sweatRateLabels[profile.sweat_rate]}</span>
-        </div>
+      <CardContent>
+        <form
+          action="/api/athlete-profile/update"
+          method="POST"
+          className="grid grid-cols-2 gap-4 sm:grid-cols-4 sm:items-end"
+        >
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="weight_kg" className={eyebrow}>
+              Peso (kg)
+            </label>
+            <input
+              id="weight_kg"
+              name="weight_kg"
+              type="number"
+              step="0.1"
+              min="1"
+              required
+              defaultValue={profile?.weight_kg ?? ""}
+              className={profileInputClass}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="ftp" className={eyebrow}>
+              FTP (W)
+            </label>
+            <input
+              id="ftp"
+              name="ftp"
+              type="number"
+              min="1"
+              required
+              defaultValue={profile?.ftp ?? ""}
+              className={profileInputClass}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="sweat_rate" className={eyebrow}>
+              Sudoración
+            </label>
+            <select
+              id="sweat_rate"
+              name="sweat_rate"
+              defaultValue={profile?.sweat_rate ?? "medium"}
+              className={profileInputClass}
+            >
+              {(Object.keys(sweatRateLabels) as (keyof typeof sweatRateLabels)[]).map((rate) => (
+                <option key={rate} value={rate}>
+                  {sweatRateLabels[rate]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="submit"
+            className="inline-flex items-center justify-center border border-neutral-900 bg-neutral-900 px-4 py-2 text-[11px] font-medium tracking-widest text-background uppercase transition-colors hover:bg-neutral-700"
+          >
+            Guardar
+          </button>
+        </form>
       </CardContent>
     </Card>
   );
@@ -77,11 +116,11 @@ function PhysiologicalProfileSkeleton() {
         <Skeleton className="h-4 w-40" />
         <Skeleton className="h-3 w-56" />
       </CardHeader>
-      <CardContent className="grid grid-cols-3 gap-4">
-        {Array.from({ length: 3 }).map((_, i) => (
+      <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="flex flex-col gap-2">
             <Skeleton className="h-3 w-14" />
-            <Skeleton className="h-8 w-16" />
+            <Skeleton className="h-9 w-full" />
           </div>
         ))}
       </CardContent>
@@ -89,7 +128,7 @@ function PhysiologicalProfileSkeleton() {
   );
 }
 
-async function FuelingCalculatorSection() {
+async function FuelingPlannerSection() {
   const profile = await getAthleteProfile();
 
   if (!profile) {
@@ -97,32 +136,37 @@ async function FuelingCalculatorSection() {
       <Card>
         <CardHeader>
           <CardTitle className="font-medium text-neutral-900">
-            Calculadora de fueling pre-ruta
+            Planificador de fueling
           </CardTitle>
           <CardDescription className={eyebrow}>
-            Configura tu perfil fisiológico para planificar tus bidones
+            Configura tu perfil fisiológico arriba para planificar tus bidones
           </CardDescription>
         </CardHeader>
       </Card>
     );
   }
 
-  return <FuelingCalculator sweatRate={profile.sweat_rate} />;
+  const routes = await getStravaRoutes();
+  return <FuelingPlanner routes={routes} />;
 }
 
-function FuelingCalculatorSkeleton() {
+function FuelingPlannerSkeleton() {
   return (
     <Card>
       <CardHeader>
         <Skeleton className="h-4 w-56" />
-        <Skeleton className="h-3 w-48" />
+        <Skeleton className="h-3 w-64" />
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        <div className="flex gap-2">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-8 w-36" />
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <Skeleton className="h-9 w-full" />
           <Skeleton className="h-9 w-full" />
         </div>
-        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-9 w-32" />
       </CardContent>
     </Card>
   );
@@ -394,6 +438,14 @@ const stravaErrorMessages: Record<string, string> = {
   no_rides: "No se encontró ninguna actividad de ciclismo reciente en Strava.",
 };
 
+const profileErrorMessages: Record<string, string> = {
+  invalid_weight: "Introduce un peso válido.",
+  invalid_ftp: "Introduce un FTP válido.",
+  invalid_sweat_rate: "Selecciona una tasa de sudoración válida.",
+  no_session: "No se pudo verificar la sesión de desarrollo.",
+  update_blocked_by_rls: "No se pudo guardar el perfil: RLS bloqueó el UPDATE.",
+};
+
 export default async function Home({
   searchParams,
 }: {
@@ -405,6 +457,12 @@ export default async function Home({
   const stravaError =
     typeof stravaErrorCode === "string"
       ? (stravaErrorMessages[stravaErrorCode] ?? "No se pudo completar la operación con Strava.")
+      : null;
+
+  const profileErrorCode = params.profile_error;
+  const profileError =
+    typeof profileErrorCode === "string"
+      ? (profileErrorMessages[profileErrorCode] ?? "No se pudo guardar el perfil fisiológico.")
       : null;
 
   return (
@@ -429,12 +487,19 @@ export default async function Home({
           </div>
         )}
 
+        {profileError && (
+          <div className="flex items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-sm text-status-warning">
+            <TriangleAlert className="size-4 shrink-0" />
+            {profileError}
+          </div>
+        )}
+
         <Suspense fallback={<PhysiologicalProfileSkeleton />}>
           <PhysiologicalProfileCard />
         </Suspense>
 
-        <Suspense fallback={<FuelingCalculatorSkeleton />}>
-          <FuelingCalculatorSection />
+        <Suspense fallback={<FuelingPlannerSkeleton />}>
+          <FuelingPlannerSection />
         </Suspense>
 
         <Suspense fallback={<RecoveryCardSkeleton />}>

@@ -108,6 +108,26 @@ export type StravaActivity = {
   map: { summary_polyline: string | null } | null;
 };
 
+export type StravaAthlete = {
+  id: number;
+  // Kilograms, as set in the athlete's own Strava profile — 0/undefined if
+  // they've never entered it there.
+  weight: number | null;
+};
+
+/** The authenticated athlete's own Strava profile — currently only used to
+ * pull their body weight as a zero-friction default for `athlete_profiles`. */
+export async function fetchAthlete(accessToken: string): Promise<StravaAthlete> {
+  const res = await fetch(`${STRAVA_API_BASE}/athlete`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Strava athlete request failed: ${res.status} ${await res.text()}`);
+  }
+  const athlete = await res.json();
+  return { id: athlete.id, weight: athlete.weight || null };
+}
+
 export async function fetchLatestRideActivity(
   accessToken: string
 ): Promise<StravaActivity | null> {

@@ -41,6 +41,43 @@ export function getRelativeIntensity(averageWatts: number, ftp: number): number 
 }
 
 /**
+ * Estimated ride moving time from distance + elevation + the rider's own
+ * FTP-derived target power — a simplified two-term heuristic, not a full
+ * physical simulation of aerodynamic drag, rolling resistance, or gradient:
+ * a flat-road speed estimated from W/kg, plus a Naismith's-rule-style
+ * climbing time bonus from an estimated VAM (vertical meters/hour), both
+ * scaling with the same W/kg figure. Used to size the fueling window for a
+ * saved Strava route, which has no real moving-time data of its own yet.
+ */
+export function estimateRideDurationHours({
+  distanceKm,
+  elevationGainM,
+  ftp,
+  weightKg,
+  intensity = "endurance",
+}: {
+  distanceKm: number;
+  elevationGainM: number;
+  ftp: number;
+  weightKg: number;
+  intensity?: IntensityLevel;
+}): number {
+  const targetWatts = ftp * getRelativeIntensityFromLevel(intensity);
+  const wPerKg = weightKg > 0 ? targetWatts / weightKg : 0;
+
+  // ~22km/h flat at 2.5 W/kg, +5km/h per extra W/kg, clamped to a plausible
+  // range for a road ride.
+  const flatSpeedKmh = Math.min(45, Math.max(15, 22 + (wPerKg - 2.5) * 5));
+  // ~700 vertical meters/hour at 2.5 W/kg, scaling with W/kg, clamped
+  // between a gentle spin and a pro-level sustained climb.
+  const vamMPerHour = Math.min(1800, Math.max(300, wPerKg * 280));
+
+  const flatTimeHours = distanceKm / flatSpeedKmh;
+  const climbTimeHours = elevationGainM / vamMPerHour;
+  return flatTimeHours + climbTimeHours;
+}
+
+/**
  * Carbohydrate oxidation rate (g/h) by relative intensity (%FTP). Bands
  * follow the widely-cited progression from ~30g/h at low aerobic intensity
  * up to the ~90-100g/h practical gut-absorption ceiling for single/multiple
@@ -134,20 +171,17 @@ export function getHomeLabRecipe({
   };
 }
 
-/** Rough per-kg market prices for buying maltodextrin/fructose/electrolyte
- * salt in bulk vs. a single commercial energy gel — used only for the
+/** Price per 30g-of-carbs "unit" — a commercial gel vs. the equivalent
+ * bulk-bought DIY maltodextrin/fructose/sodium mix — used only for the
  * "money saved" comparison, not a real price feed. */
-const BULK_PRICE_EUR_PER_KG = { maltodextrin: 6, fructose: 8, sodium: 3 };
-const COMMERCIAL_GEL_PRICE_EUR = 1.5;
-const COMMERCIAL_GEL_CARBS_G = 25;
+const COMMERCIAL_PRICE_EUR_PER_30G = 2.5;
+const HOMEMADE_PRICE_EUR_PER_30G = 0.35;
+const GEL_EQUIVALENT_CARBS_G = 30;
 
-export function getMoneySavedVsGels(recipe: HomeLabRecipe): number {
-  const homemadeCost =
-    (recipe.maltodextrinG / 1000) * BULK_PRICE_EUR_PER_KG.maltodextrin +
-    (recipe.fructoseG / 1000) * BULK_PRICE_EUR_PER_KG.fructose +
-    (recipe.sodiumMg / 1_000_000) * BULK_PRICE_EUR_PER_KG.sodium;
-  const commercialCost = (recipe.totalCarbsG / COMMERCIAL_GEL_CARBS_G) * COMMERCIAL_GEL_PRICE_EUR;
-  return Math.round((commercialCost - homemadeCost) * 100) / 100;
+export function getMoneySavedVsGels(totalCarbsG: number): number {
+  const units = totalCarbsG / GEL_EQUIVALENT_CARBS_G;
+  const saved = units * (COMMERCIAL_PRICE_EUR_PER_30G - HOMEMADE_PRICE_EUR_PER_30G);
+  return Math.round(saved * 100) / 100;
 }
 
 /** Total carbs burned across a whole ride — the oxidation rate integrated

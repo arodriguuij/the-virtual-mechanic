@@ -4,6 +4,8 @@ import { cache } from "react";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import type { SweatRate } from "@/lib/metabolic-engine";
+import { getValidStravaAccessToken } from "@/lib/strava-session";
+import { fetchAthleteRoutes, type StravaRoute } from "@/lib/strava-routes";
 
 export type AthleteProfile = {
   id: string;
@@ -72,6 +74,26 @@ export const getRecentActivities = cache(
     return data ?? [];
   }
 );
+
+/**
+ * The athlete's saved/starred Strava cycling routes, for the fueling
+ * planner's route selector. `[]` (not an error) whenever Strava isn't
+ * connected or the API call fails — the planner just falls back to its
+ * manual quick-calculator mode.
+ */
+export const getStravaRoutes = cache(async (): Promise<StravaRoute[]> => {
+  const supabase = await getAuthenticatedSupabaseClient();
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  const userId = authData.user?.id;
+  if (!userId) return [];
+
+  const accessToken = await getValidStravaAccessToken(supabase, userId);
+  if (!accessToken) return [];
+
+  return fetchAthleteRoutes(accessToken);
+});
 
 export const getProfile = cache(async (): Promise<Profile | null> => {
   const supabase = await getAuthenticatedSupabaseClient();
