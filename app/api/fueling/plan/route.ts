@@ -5,15 +5,24 @@ import { getWeatherForDeparture } from "@/lib/open-meteo";
 import { logFuelingPlan } from "@/lib/fueling-logs";
 import {
   estimateRideDurationHours,
+  getBottlePlan,
+  getCarbLoadingTarget,
   getFluidLossMlPerHour,
   getGutCappedCarbTarget,
   getHomeLabRecipe,
   getMoneySavedVsGels,
+  getPersonalizedCarbOxidationRateGPerHour,
   getRelativeIntensity,
   getRelativeIntensityFromLevel,
   getSodiumLossMgPerHour,
+  simulateGlycogenBattery,
   type IntensityLevel,
 } from "@/lib/metabolic-engine";
+
+// Above this ride duration, the pre-event carb-loading module shows
+// automatically — below it, only if the athlete flags the ride as a
+// target event/competition via the planner's optional switch.
+const TARGET_EVENT_DURATION_THRESHOLD_HOURS = 3.5;
 
 // Fallback climate for whenever there's no real forecast to sample (quick
 // calculator mode with no route coordinates, or Open-Meteo came back empty)
@@ -39,7 +48,7 @@ export async function POST(request: NextRequest) {
 
   const { data: athleteProfile, error: athleteProfileError } = await supabase
     .from("athlete_profiles")
-    .select("ftp, weight_kg, sweat_rate, gut_training_level")
+    .select("ftp, weight_kg, sweat_rate, gut_training_level, athlete_type")
     .eq("id", userId)
     .maybeSingle();
   if (athleteProfileError) throw athleteProfileError;
@@ -53,11 +62,14 @@ export async function POST(request: NextRequest) {
   }
 
   const departureIso = typeof body.departureIso === "string" ? body.departureIso : null;
+  const isTargetEvent = body.isTargetEvent === true;
+  const athleteType = athleteProfile.athlete_type ?? "balanced";
 
   let durationHours: number;
   let relativeIntensity: number;
   let startLat: number | null = null;
   let startLng: number | null = null;
+  let rideDistanceKm: number | null = null;
 
   if (body.mode === "route") {
     const { distanceKm, elevationGainM, intensity } = body;
@@ -77,6 +89,7 @@ export async function POST(request: NextRequest) {
     relativeIntensity = getRelativeIntensityFromLevel(intensityLevel);
     startLat = typeof body.startLat === "number" ? body.startLat : null;
     startLng = typeof body.startLng === "number" ? body.startLng : null;
+    rideDistanceKm = distanceKm;
   } else {
     const { durationHours: hours, averageWatts } = body;
     if (
@@ -104,7 +117,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const gutTarget = getGutCappedCarbTarget(relativeIntensity, athleteProfile.gut_training_level);
+  const gutTarget = getGutCappedCarbTarget(
+    relativeIntensity,
+    athleteProfile.gut_training_level,
+    athleteType
+  );
   const carbsGPerHour = gutTarget.recommendedGPerHour;
   const fluidLossMlPerHour = getFluidLossMlPerHour(
     athleteProfile.sweat_rate,
@@ -119,6 +136,22 @@ export async function POST(request: NextRequest) {
     durationHours,
   });
   const moneySaved = getMoneySavedVsGels(recipe.totalCarbsG);
+  const bottlePlan = getBottlePlan(recipe);
+
+  // The battery drains at the ride's *true* metabolic demand (uncapped,
+  // phenotype-adjusted) regardless of what the gut can absorb — the gut cap
+  // limits the recommended intake, not the body's actual burn rate.
+  const trueBurnRateGPerHour = getPersonalizedCarbOxidationRateGPerHour(relativeIntensity, athleteType);
+  const glycogenBattery = simulateGlycogenBattery({
+    weightKg: athleteProfile.weight_kg,
+    burnRateGPerHour: trueBurnRateGPerHour,
+    intakeGPerHour: carbsGPerHour,
+    durationHours,
+    distanceKm: rideDistanceKm,
+  });
+
+  const isLongOrTargetRide = durationHours > TARGET_EVENT_DURATION_THRESHOLD_HOURS || isTargetEvent;
+  const carbLoading = isLongOrTargetRide ? getCarbLoadingTarget(athleteProfile.weight_kg) : null;
 
   await logFuelingPlan(supabase, {
     profileId: userId,
@@ -146,5 +179,8 @@ export async function POST(request: NextRequest) {
       gutCapGPerHour: gutTarget.gutCapGPerHour,
       uncappedGPerHour: gutTarget.uncappedGPerHour,
     },
+    bottlePlan,
+    glycogenBattery,
+    carbLoading,
   });
 }

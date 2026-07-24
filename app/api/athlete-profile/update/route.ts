@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
-import type { GutTrainingLevel, SweatRate } from "@/lib/metabolic-engine";
+import type { AthleteType, GutTrainingLevel, SweatRate } from "@/lib/metabolic-engine";
 
 const VALID_SWEAT_RATES = new Set<SweatRate>(["low", "medium", "high"]);
 const VALID_GUT_TRAINING_LEVELS = new Set<GutTrainingLevel>([
@@ -10,6 +10,7 @@ const VALID_GUT_TRAINING_LEVELS = new Set<GutTrainingLevel>([
   "advanced",
   "pro",
 ]);
+const VALID_ATHLETE_TYPES = new Set<AthleteType>(["diesel", "balanced", "explosive"]);
 
 export async function POST(request: NextRequest) {
   const redirectWithError = (code: string) =>
@@ -20,6 +21,7 @@ export async function POST(request: NextRequest) {
   const ftp = Number(formData.get("ftp"));
   const sweatRate = formData.get("sweat_rate")?.toString();
   const gutTrainingLevel = formData.get("gut_training_level")?.toString();
+  const athleteType = formData.get("athlete_type")?.toString();
 
   if (!Number.isFinite(weightKg) || weightKg <= 0) {
     return redirectWithError("invalid_weight");
@@ -32,6 +34,9 @@ export async function POST(request: NextRequest) {
   }
   if (!gutTrainingLevel || !VALID_GUT_TRAINING_LEVELS.has(gutTrainingLevel as GutTrainingLevel)) {
     return redirectWithError("invalid_gut_training_level");
+  }
+  if (!athleteType || !VALID_ATHLETE_TYPES.has(athleteType as AthleteType)) {
+    return redirectWithError("invalid_athlete_type");
   }
 
   const supabase = await getAuthenticatedSupabaseClient();
@@ -49,6 +54,7 @@ export async function POST(request: NextRequest) {
       ftp,
       sweat_rate: sweatRate,
       gut_training_level: gutTrainingLevel,
+      athlete_type: athleteType,
     })
     .select("id")
     .maybeSingle();

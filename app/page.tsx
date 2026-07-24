@@ -15,7 +15,13 @@ import {
   getRecentActivities,
   getStravaRoutes,
 } from "@/lib/dashboard-data";
-import { gutTrainingLevelLabels, gutTrainingLevelRanges, sweatRateLabels } from "@/lib/metabolic-engine";
+import {
+  athleteTypeDescriptions,
+  athleteTypeLabels,
+  gutTrainingLevelLabels,
+  gutTrainingLevelRanges,
+  sweatRateLabels,
+} from "@/lib/metabolic-engine";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -49,79 +55,108 @@ async function PhysiologicalProfileCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
-        <form
-          action="/api/athlete-profile/update"
-          method="POST"
-          className="grid grid-cols-2 gap-4 sm:grid-cols-5 sm:items-end"
-        >
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="weight_kg" className={eyebrow}>
-              Peso (kg)
-            </label>
-            <input
-              id="weight_kg"
-              name="weight_kg"
-              type="number"
-              step="0.1"
-              min="1"
-              required
-              defaultValue={profile?.weight_kg ?? ""}
-              className={profileInputClass}
-            />
+        <form action="/api/athlete-profile/update" method="POST" className="flex flex-col gap-5">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="weight_kg" className={eyebrow}>
+                Peso (kg)
+              </label>
+              <input
+                id="weight_kg"
+                name="weight_kg"
+                type="number"
+                step="0.1"
+                min="1"
+                required
+                defaultValue={profile?.weight_kg ?? ""}
+                className={profileInputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="ftp" className={eyebrow}>
+                FTP (W)
+              </label>
+              <input
+                id="ftp"
+                name="ftp"
+                type="number"
+                min="1"
+                required
+                defaultValue={profile?.ftp ?? ""}
+                className={profileInputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="sweat_rate" className={eyebrow}>
+                Sudoración
+              </label>
+              <select
+                id="sweat_rate"
+                name="sweat_rate"
+                defaultValue={profile?.sweat_rate ?? "medium"}
+                className={profileInputClass}
+              >
+                {(Object.keys(sweatRateLabels) as (keyof typeof sweatRateLabels)[]).map((rate) => (
+                  <option key={rate} value={rate}>
+                    {sweatRateLabels[rate]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="gut_training_level" className={eyebrow}>
+                Gut training
+              </label>
+              <select
+                id="gut_training_level"
+                name="gut_training_level"
+                defaultValue={profile?.gut_training_level ?? "intermediate"}
+                className={profileInputClass}
+              >
+                {(
+                  Object.keys(gutTrainingLevelLabels) as (keyof typeof gutTrainingLevelLabels)[]
+                ).map((level) => (
+                  <option key={level} value={level}>
+                    {gutTrainingLevelLabels[level]} ({gutTrainingLevelRanges[level]})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="ftp" className={eyebrow}>
-              FTP (W)
-            </label>
-            <input
-              id="ftp"
-              name="ftp"
-              type="number"
-              min="1"
-              required
-              defaultValue={profile?.ftp ?? ""}
-              className={profileInputClass}
-            />
+            <span className={eyebrow}>Fenotipo metabólico (VLaMax)</span>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {(Object.keys(athleteTypeLabels) as (keyof typeof athleteTypeLabels)[]).map(
+                (type) => (
+                  <label
+                    key={type}
+                    className="flex cursor-pointer flex-col gap-1 border border-neutral-300 px-3 py-2.5 has-checked:border-neutral-900 has-checked:bg-neutral-900/5"
+                  >
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="athlete_type"
+                        value={type}
+                        defaultChecked={(profile?.athlete_type ?? "balanced") === type}
+                        className="size-3.5 accent-neutral-900"
+                      />
+                      <span className="text-sm font-medium text-neutral-900">
+                        {athleteTypeLabels[type]}
+                      </span>
+                    </span>
+                    <span className="text-xs text-neutral-500">
+                      {athleteTypeDescriptions[type]}
+                    </span>
+                  </label>
+                )
+              )}
+            </div>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="sweat_rate" className={eyebrow}>
-              Sudoración
-            </label>
-            <select
-              id="sweat_rate"
-              name="sweat_rate"
-              defaultValue={profile?.sweat_rate ?? "medium"}
-              className={profileInputClass}
-            >
-              {(Object.keys(sweatRateLabels) as (keyof typeof sweatRateLabels)[]).map((rate) => (
-                <option key={rate} value={rate}>
-                  {sweatRateLabels[rate]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="gut_training_level" className={eyebrow}>
-              Gut training
-            </label>
-            <select
-              id="gut_training_level"
-              name="gut_training_level"
-              defaultValue={profile?.gut_training_level ?? "intermediate"}
-              className={profileInputClass}
-            >
-              {(
-                Object.keys(gutTrainingLevelLabels) as (keyof typeof gutTrainingLevelLabels)[]
-              ).map((level) => (
-                <option key={level} value={level}>
-                  {gutTrainingLevelLabels[level]} ({gutTrainingLevelRanges[level]})
-                </option>
-              ))}
-            </select>
-          </div>
+
           <button
             type="submit"
-            className="inline-flex items-center justify-center border border-neutral-900 bg-neutral-900 px-4 py-2 text-[11px] font-medium tracking-widest text-background uppercase transition-colors hover:bg-neutral-700"
+            className="inline-flex w-fit items-center justify-center border border-neutral-900 bg-neutral-900 px-4 py-2 text-[11px] font-medium tracking-widest text-background uppercase transition-colors hover:bg-neutral-700"
           >
             Guardar
           </button>

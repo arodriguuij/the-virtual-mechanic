@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
   const { data: athleteProfile, error: athleteProfileError } = await supabase
     .from("athlete_profiles")
-    .select("ftp, weight_kg, sweat_rate")
+    .select("ftp, weight_kg, sweat_rate, athlete_type")
     .eq("id", userId)
     .maybeSingle();
   if (athleteProfileError) throw athleteProfileError;
@@ -59,18 +59,20 @@ export async function POST(request: NextRequest) {
   let carbsBurnedG: number | null = null;
   let source: "zones" | "average_watts" | "stored" | "no_data" = "no_data";
 
+  const athleteType = athleteProfile.athlete_type ?? "balanced";
+
   const accessToken = await getValidStravaAccessToken(supabase, userId);
   if (accessToken) {
     const buckets = await fetchActivityPowerZones(accessToken, activityId);
     if (buckets && athleteProfile.ftp) {
-      carbsBurnedG = getGlycogenBurnedFromPowerZones(buckets, athleteProfile.ftp);
+      carbsBurnedG = getGlycogenBurnedFromPowerZones(buckets, athleteProfile.ftp, athleteType);
       source = "zones";
     }
   }
 
   if (carbsBurnedG == null && athleteProfile.ftp && activity.average_watts != null) {
     const relativeIntensity = getRelativeIntensity(activity.average_watts, athleteProfile.ftp);
-    carbsBurnedG = getGlycogenBurnedGrams(relativeIntensity, activity.moving_time);
+    carbsBurnedG = getGlycogenBurnedGrams(relativeIntensity, activity.moving_time, athleteType);
     source = "average_watts";
   }
 

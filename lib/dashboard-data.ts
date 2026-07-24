@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
-import type { GutTrainingLevel, SweatRate } from "@/lib/metabolic-engine";
+import type { AthleteType, GutTrainingLevel, SweatRate } from "@/lib/metabolic-engine";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { fetchAthleteRoutes, type StravaRoute } from "@/lib/strava-routes";
 
@@ -13,6 +13,7 @@ export type AthleteProfile = {
   weight_kg: number;
   sweat_rate: SweatRate;
   gut_training_level: GutTrainingLevel;
+  athlete_type: AthleteType;
 };
 
 export type FuelingTotals = {
@@ -53,7 +54,7 @@ export const getAthleteProfile = cache(async (): Promise<AthleteProfile | null> 
 
   const { data, error } = await supabase
     .from("athlete_profiles")
-    .select("id, ftp, weight_kg, sweat_rate, gut_training_level")
+    .select("id, ftp, weight_kg, sweat_rate, gut_training_level, athlete_type")
     .eq("id", userId)
     .maybeSingle();
 

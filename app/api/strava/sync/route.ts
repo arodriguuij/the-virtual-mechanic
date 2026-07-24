@@ -5,8 +5,8 @@ import { fetchLatestRideActivity, getRouteSamplePoints, isIndoorRide } from "@/l
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { getWeatherForRoute } from "@/lib/open-meteo";
 import {
-  getCarbOxidationRateGPerHour,
   getFluidLossMlPerHour,
+  getGlycogenBurnedGrams,
   getRelativeIntensity,
   getSodiumLossMgPerHour,
 } from "@/lib/metabolic-engine";
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     const { data: athleteProfile, error: athleteProfileError } = await supabase
       .from("athlete_profiles")
-      .select("ftp, sweat_rate")
+      .select("ftp, sweat_rate, athlete_type")
       .eq("id", userId)
       .maybeSingle();
     if (athleteProfileError) throw athleteProfileError;
@@ -86,8 +86,9 @@ export async function POST(request: NextRequest) {
     let sodiumLossMg: number | null = null;
     if (athleteProfile?.ftp && averageWatts != null) {
       const relativeIntensity = getRelativeIntensity(averageWatts, athleteProfile.ftp);
+      const athleteType = athleteProfile.athlete_type ?? "balanced";
+      carbsBurnedG = getGlycogenBurnedGrams(relativeIntensity, activity.moving_time, athleteType);
       const hours = activity.moving_time / 3600;
-      carbsBurnedG = Math.round(getCarbOxidationRateGPerHour(relativeIntensity) * hours);
 
       const sweatRate = athleteProfile.sweat_rate ?? "medium";
       const fluidLossMlPerHour = getFluidLossMlPerHour(sweatRate, temperatureAvgC, humidityAvg);

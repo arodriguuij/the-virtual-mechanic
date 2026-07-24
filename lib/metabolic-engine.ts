@@ -93,6 +93,50 @@ export function getCarbOxidationRateGPerHour(relativeIntensity: number): number 
 }
 
 /**
+ * Metabolic phenotype (a simplified VLaMax-style classification) — a
+ * "diesel" athlete's higher fat-oxidation efficiency and an "explosive"
+ * athlete's higher glycolytic rate both show up mainly at low-moderate
+ * intensity; above tempo everyone burns glycolytically regardless of
+ * phenotype, so the adjustment only applies below the aerobic-zone
+ * threshold shared with `getCarbOxidationRateGPerHour`'s own bands.
+ */
+export type AthleteType = "diesel" | "balanced" | "explosive";
+
+export const athleteTypeLabels: Record<AthleteType, string> = {
+  diesel: "🚵 Diésel / Escalador de Fondo",
+  balanced: "🚴 Balanced / Todoterreno",
+  explosive: "⚡ Explosivo / Esprinter / BTT",
+};
+
+export const athleteTypeDescriptions: Record<AthleteType, string> = {
+  diesel: "Alta eficiencia en grasa — menor consumo de glucógeno en ritmos suaves.",
+  balanced: "Línea base metabólica, sin ajuste.",
+  explosive: "Alta VLaMax — mayor tasa glucolítica incluso a ritmos suaves.",
+};
+
+const AEROBIC_ZONE_RELATIVE_INTENSITY_THRESHOLD = 0.8;
+const ATHLETE_TYPE_MULTIPLIER: Record<AthleteType, number> = {
+  diesel: 0.85,
+  balanced: 1.0,
+  explosive: 1.15,
+};
+
+/**
+ * The phenotype-adjusted carb oxidation rate — same %FTP bands as
+ * `getCarbOxidationRateGPerHour`, scaled by the athlete type multiplier
+ * only while below the aerobic-zone threshold (tempo and above converge to
+ * the unadjusted rate for every phenotype).
+ */
+export function getPersonalizedCarbOxidationRateGPerHour(
+  relativeIntensity: number,
+  athleteType: AthleteType
+): number {
+  const base = getCarbOxidationRateGPerHour(relativeIntensity);
+  if (relativeIntensity >= AEROBIC_ZONE_RELATIVE_INTENSITY_THRESHOLD) return base;
+  return Math.round(base * ATHLETE_TYPE_MULTIPLIER[athleteType]);
+}
+
+/**
  * "Gut Training Scale" — the gut's carb-absorption rate is itself trainable
  * and improves gradually with repeated exposure to high intra-workout carb
  * intake, so a rider who has never practiced fueling at 90g/h will likely
@@ -147,9 +191,10 @@ export type GutCappedCarbTarget = {
  */
 export function getGutCappedCarbTarget(
   relativeIntensity: number,
-  gutTrainingLevel: GutTrainingLevel
+  gutTrainingLevel: GutTrainingLevel,
+  athleteType: AthleteType = "balanced"
 ): GutCappedCarbTarget {
-  const uncappedGPerHour = getCarbOxidationRateGPerHour(relativeIntensity);
+  const uncappedGPerHour = getPersonalizedCarbOxidationRateGPerHour(relativeIntensity, athleteType);
   const gutCapGPerHour = getGutTrainingCapGPerHour(gutTrainingLevel);
   return {
     uncappedGPerHour,
@@ -253,9 +298,13 @@ export function getMoneySavedVsGels(totalCarbsG: number): number {
 
 /** Total carbs burned across a whole ride — the oxidation rate integrated
  * over its duration, used for the post-ride "glycogen quemado" readout. */
-export function getGlycogenBurnedGrams(relativeIntensity: number, movingTimeSeconds: number): number {
+export function getGlycogenBurnedGrams(
+  relativeIntensity: number,
+  movingTimeSeconds: number,
+  athleteType: AthleteType = "balanced"
+): number {
   const hours = movingTimeSeconds / 3600;
-  return Math.round(getCarbOxidationRateGPerHour(relativeIntensity) * hours);
+  return Math.round(getPersonalizedCarbOxidationRateGPerHour(relativeIntensity, athleteType) * hours);
 }
 
 export type RecoveryTarget = {
@@ -294,7 +343,8 @@ export type PowerZoneBucket = {
  */
 export function getGlycogenBurnedFromPowerZones(
   buckets: PowerZoneBucket[],
-  ftp: number
+  ftp: number,
+  athleteType: AthleteType = "balanced"
 ): number {
   if (ftp <= 0) return 0;
   let totalGrams = 0;
@@ -303,7 +353,7 @@ export function getGlycogenBurnedFromPowerZones(
     const midpointWatts = bucket.max > 0 ? (bucket.min + bucket.max) / 2 : bucket.min;
     const relativeIntensity = getRelativeIntensity(midpointWatts, ftp);
     const hours = bucket.time / 3600;
-    totalGrams += getCarbOxidationRateGPerHour(relativeIntensity) * hours;
+    totalGrams += getPersonalizedCarbOxidationRateGPerHour(relativeIntensity, athleteType) * hours;
   }
   return Math.round(totalGrams);
 }
@@ -358,4 +408,154 @@ export function getRecoveryMealOptions(target: RecoveryTarget): RecoveryMealOpti
       ),
     },
   ];
+}
+
+/** Combined liver + muscle glycogen storage, a standard sports-science
+ * approximation (~560g for a 70kg athlete) — not an individually measured
+ * value. */
+const GLYCOGEN_STORAGE_G_PER_KG = 8;
+
+export function getGlycogenStoresGrams(weightKg: number): number {
+  return Math.round(weightKg * GLYCOGEN_STORAGE_G_PER_KG);
+}
+
+export type GlycogenBatterySimulation = {
+  glycogenStoresG: number;
+  noFuel: {
+    bonkOccurs: boolean;
+    bonkAtHours: number | null;
+    /** Only set when the ride has a real distance (route mode). */
+    bonkAtKm: number | null;
+    remainingBatteryPct: number;
+  };
+  withRecipe: {
+    bonkOccurs: boolean;
+    remainingBatteryPct: number;
+  };
+};
+
+/**
+ * "Simulador de Batería de Glucógeno" — models the ride as a simple tank
+ * draining at the body's own (phenotype-adjusted) burn rate, comparing two
+ * scenarios: eating nothing at all vs. following the DIY recipe's
+ * recommended (gut-capped) intake. Not a real-time depletion/replenishment
+ * model — glycogen resynthesis during the ride from ingested carbs is
+ * simplified to a constant net burn rate (burn − intake) rather than
+ * separately modeling gut absorption lag.
+ */
+export function simulateGlycogenBattery({
+  weightKg,
+  burnRateGPerHour,
+  intakeGPerHour,
+  durationHours,
+  distanceKm,
+}: {
+  weightKg: number;
+  burnRateGPerHour: number;
+  intakeGPerHour: number;
+  durationHours: number;
+  distanceKm: number | null;
+}): GlycogenBatterySimulation {
+  const glycogenStoresG = getGlycogenStoresGrams(weightKg);
+
+  const hoursToBonkNoFuel = burnRateGPerHour > 0 ? glycogenStoresG / burnRateGPerHour : Infinity;
+  const bonkOccursNoFuel = hoursToBonkNoFuel < durationHours;
+  const remainingNoFuelG = Math.max(0, glycogenStoresG - burnRateGPerHour * durationHours);
+
+  const netBurnRateWithRecipe = Math.max(0, burnRateGPerHour - intakeGPerHour);
+  const remainingWithRecipeG = Math.max(0, glycogenStoresG - netBurnRateWithRecipe * durationHours);
+
+  return {
+    glycogenStoresG,
+    noFuel: {
+      bonkOccurs: bonkOccursNoFuel,
+      bonkAtHours: bonkOccursNoFuel ? Math.round(hoursToBonkNoFuel * 100) / 100 : null,
+      bonkAtKm:
+        bonkOccursNoFuel && distanceKm != null
+          ? Math.round(distanceKm * (hoursToBonkNoFuel / durationHours) * 10) / 10
+          : null,
+      remainingBatteryPct: Math.round((remainingNoFuelG / glycogenStoresG) * 100),
+    },
+    withRecipe: {
+      bonkOccurs: remainingWithRecipeG <= 0,
+      remainingBatteryPct: Math.round((remainingWithRecipeG / glycogenStoresG) * 100),
+    },
+  };
+}
+
+export type BottlePlan = {
+  bottleSizeMl: number;
+  fuelBottles: {
+    count: number;
+    maltodextrinGPerBottle: number;
+    fructoseGPerBottle: number;
+    sodiumMgPerBottle: number;
+  };
+  waterBottles: {
+    count: number;
+  };
+  totalBottles: number;
+};
+
+const BOTTLE_SIZE_ML = 750;
+// 8% carb concentration keeps a comfortable margin below the ~10-12%
+// threshold widely cited for hypertonic-solution gastric distress/delayed
+// emptying — a safety-first cap, not the maximum theoretically tolerable.
+const MAX_BOTTLE_CARB_CONCENTRATION = 0.08;
+
+/**
+ * "Arquitectura de Bidones" — splits the recipe's total carbs across as
+ * many concentrated "fuel" bottles as needed to keep each one at or below
+ * `MAX_BOTTLE_CARB_CONCENTRATION`, then covers any remaining fluid target
+ * with plain water/electrolyte bottles. On a long ride this often implies
+ * refilling the same one or two bottles multiple times from a support
+ * car/musette rather than literally carrying every bottle at once.
+ */
+export function getBottlePlan(recipe: HomeLabRecipe): BottlePlan {
+  const maxCarbsPerBottle = BOTTLE_SIZE_ML * MAX_BOTTLE_CARB_CONCENTRATION;
+  const fuelBottleCount = Math.max(1, Math.ceil(recipe.totalCarbsG / maxCarbsPerBottle));
+  const totalBottles = Math.max(fuelBottleCount, Math.ceil(recipe.waterMl / BOTTLE_SIZE_ML));
+  const waterBottleCount = Math.max(0, totalBottles - fuelBottleCount);
+
+  return {
+    bottleSizeMl: BOTTLE_SIZE_ML,
+    fuelBottles: {
+      count: fuelBottleCount,
+      maltodextrinGPerBottle: Math.round(recipe.maltodextrinG / fuelBottleCount),
+      fructoseGPerBottle: Math.round(recipe.fructoseG / fuelBottleCount),
+      sodiumMgPerBottle: Math.round(recipe.sodiumMg / fuelBottleCount),
+    },
+    waterBottles: {
+      count: waterBottleCount,
+    },
+    totalBottles,
+  };
+}
+
+export type CarbLoadingPlan = {
+  minCarbsG: number;
+  maxCarbsG: number;
+  guidelines: string[];
+};
+
+/** Fixed day-before-event guidance — low-fiber, low-fat/protein choices
+ * that maximize carb density without adding gastrointestinal weight or
+ * slow-digesting bulk before a big effort. */
+const CARB_LOADING_GUIDELINES = [
+  "Prioriza arroz blanco, pasta refinada, pan blanco y patata — evita legumbres e integrales, que aportan fibra innecesaria el día antes.",
+  "Reduce grasas y proteínas en las comidas principales para dejar sitio a los carbohidratos sin sentirte pesado.",
+  "Reparte la carga en 4-5 tomas a lo largo del día en vez de 1-2 comidas copiosas.",
+];
+
+/**
+ * "Protocolo de Carga de Hidratos Pre-Evento (Día -1)" — the classic
+ * 8-10g/kg carb-loading target for the day before a long/target event,
+ * maximizing muscle glycogen stores going into the ride.
+ */
+export function getCarbLoadingTarget(weightKg: number): CarbLoadingPlan {
+  return {
+    minCarbsG: Math.round(weightKg * 8),
+    maxCarbsG: Math.round(weightKg * 10),
+    guidelines: CARB_LOADING_GUIDELINES,
+  };
 }
