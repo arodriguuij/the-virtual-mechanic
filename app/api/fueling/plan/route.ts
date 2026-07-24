@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import { getWeatherForDeparture } from "@/lib/open-meteo";
+import { logFuelingPlan } from "@/lib/fueling-logs";
 import {
   estimateRideDurationHours,
-  getCarbOxidationRateGPerHour,
   getFluidLossMlPerHour,
+  getGutCappedCarbTarget,
   getHomeLabRecipe,
   getMoneySavedVsGels,
   getRelativeIntensity,
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
 
   const { data: athleteProfile, error: athleteProfileError } = await supabase
     .from("athlete_profiles")
-    .select("ftp, weight_kg, sweat_rate")
+    .select("ftp, weight_kg, sweat_rate, gut_training_level")
     .eq("id", userId)
     .maybeSingle();
   if (athleteProfileError) throw athleteProfileError;
@@ -103,7 +104,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const carbsGPerHour = getCarbOxidationRateGPerHour(relativeIntensity);
+  const gutTarget = getGutCappedCarbTarget(relativeIntensity, athleteProfile.gut_training_level);
+  const carbsGPerHour = gutTarget.recommendedGPerHour;
   const fluidLossMlPerHour = getFluidLossMlPerHour(
     athleteProfile.sweat_rate,
     temperatureC,
@@ -118,6 +120,15 @@ export async function POST(request: NextRequest) {
   });
   const moneySaved = getMoneySavedVsGels(recipe.totalCarbsG);
 
+  await logFuelingPlan(supabase, {
+    profileId: userId,
+    kind: "pre_ride",
+    totalCarbsG: recipe.totalCarbsG,
+    fluidMl: recipe.waterMl,
+    sodiumMg: recipe.sodiumMg,
+    moneySaved,
+  });
+
   return NextResponse.json({
     durationHours: Math.round(durationHours * 100) / 100,
     carbsGPerHour,
@@ -129,6 +140,11 @@ export async function POST(request: NextRequest) {
       temperatureC: Math.round(temperatureC * 10) / 10,
       humidityPct: Math.round(humidityPct * 10) / 10,
       source: weatherSource,
+    },
+    gutTraining: {
+      isGutLimited: gutTarget.isGutLimited,
+      gutCapGPerHour: gutTarget.gutCapGPerHour,
+      uncappedGPerHour: gutTarget.uncappedGPerHour,
     },
   });
 }

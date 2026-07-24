@@ -92,6 +92,73 @@ export function getCarbOxidationRateGPerHour(relativeIntensity: number): number 
   return 100;
 }
 
+/**
+ * "Gut Training Scale" — the gut's carb-absorption rate is itself trainable
+ * and improves gradually with repeated exposure to high intra-workout carb
+ * intake, so a rider who has never practiced fueling at 90g/h will likely
+ * feel gut distress even if their legs/lungs could support that intensity.
+ * Each level's cap is the *upper* bound of its stated range — the ceiling
+ * the recommendation should never exceed regardless of how hard the ride
+ * itself demands.
+ */
+export type GutTrainingLevel = "beginner" | "intermediate" | "advanced" | "pro";
+
+export const gutTrainingLevelLabels: Record<GutTrainingLevel, string> = {
+  beginner: "Principiante",
+  intermediate: "Intermedio",
+  advanced: "Avanzado",
+  pro: "Pro",
+};
+
+/** Full advertised range per level, for display — the cap used in
+ * calculations is always the upper bound (`GUT_TRAINING_CAP_G_PER_HOUR`). */
+export const gutTrainingLevelRanges: Record<GutTrainingLevel, string> = {
+  beginner: "40-50 g/h",
+  intermediate: "60-75 g/h",
+  advanced: "80-90 g/h",
+  pro: "100-120 g/h",
+};
+
+const GUT_TRAINING_CAP_G_PER_HOUR: Record<GutTrainingLevel, number> = {
+  beginner: 50,
+  intermediate: 75,
+  advanced: 90,
+  pro: 120,
+};
+
+export function getGutTrainingCapGPerHour(level: GutTrainingLevel): number {
+  return GUT_TRAINING_CAP_G_PER_HOUR[level];
+}
+
+export type GutCappedCarbTarget = {
+  /** What the ride's intensity alone would call for. */
+  uncappedGPerHour: number;
+  /** The actual recommendation — never above the athlete's current gut
+   * training cap. */
+  recommendedGPerHour: number;
+  isGutLimited: boolean;
+  gutCapGPerHour: number;
+};
+
+/**
+ * Clamps the intensity-driven carb target to the athlete's current
+ * digestive capacity — recommending more than the gut can absorb just
+ * causes GI distress mid-ride, it doesn't extract more energy.
+ */
+export function getGutCappedCarbTarget(
+  relativeIntensity: number,
+  gutTrainingLevel: GutTrainingLevel
+): GutCappedCarbTarget {
+  const uncappedGPerHour = getCarbOxidationRateGPerHour(relativeIntensity);
+  const gutCapGPerHour = getGutTrainingCapGPerHour(gutTrainingLevel);
+  return {
+    uncappedGPerHour,
+    recommendedGPerHour: Math.min(uncappedGPerHour, gutCapGPerHour),
+    isGutLimited: uncappedGPerHour > gutCapGPerHour,
+    gutCapGPerHour,
+  };
+}
+
 /** Baseline sweat rate (ml/h) at comfortable conditions (~18°C, 50%
  * humidity) for each self-reported category. */
 const SWEAT_RATE_BASE_ML_PER_HOUR: Record<SweatRate, number> = {
@@ -203,4 +270,92 @@ export function getPostRideRecoveryTarget(weightKg: number): RecoveryTarget {
     carbsG: Math.round(weightKg * 1.1),
     proteinG: Math.round(weightKg * 0.3),
   };
+}
+
+export type PowerZoneBucket = {
+  /** Watts. */
+  min: number;
+  max: number;
+  /** Seconds spent in this bucket. */
+  time: number;
+};
+
+/**
+ * Glycogen burned across a whole ride from real time-in-power-zone data
+ * (Strava's `/activities/{id}/zones`) rather than a single ride-average
+ * watts figure — a ride with the same average power but spent half at
+ * recovery pace and half at threshold burns meaningfully more glycogen
+ * than a steady ride at that same average, since oxidation rate isn't
+ * linear in power. Each bucket's own midpoint %FTP picks its oxidation
+ * rate via `getCarbOxidationRateGPerHour`, applied to that bucket's actual
+ * time, then summed — no fixed Z1-Z5 relabeling, since Strava's bucket
+ * boundaries are whatever the athlete configured, not a standard 5-zone
+ * split.
+ */
+export function getGlycogenBurnedFromPowerZones(
+  buckets: PowerZoneBucket[],
+  ftp: number
+): number {
+  if (ftp <= 0) return 0;
+  let totalGrams = 0;
+  for (const bucket of buckets) {
+    if (bucket.time <= 0) continue;
+    const midpointWatts = bucket.max > 0 ? (bucket.min + bucket.max) / 2 : bucket.min;
+    const relativeIntensity = getRelativeIntensity(midpointWatts, ftp);
+    const hours = bucket.time / 3600;
+    totalGrams += getCarbOxidationRateGPerHour(relativeIntensity) * hours;
+  }
+  return Math.round(totalGrams);
+}
+
+export type RecoveryMealOption = {
+  label: string;
+  description: string;
+  approxCarbsG: number;
+  approxProteinG: number;
+};
+
+/** Household-measure reference macros (illustrative fixtures, not a real
+ * nutrition database) used to scale two simple, no-scale-needed recovery
+ * meal templates to the athlete's actual recovery target. */
+const RICE_CARBS_G_PER_CUP = 45;
+const RICE_PROTEIN_G_PER_CUP = 4;
+const CHICKEN_PROTEIN_G_PER_100G = 31;
+const CHICKPEA_CAN_CARBS_G = 35;
+const CHICKPEA_CAN_PROTEIN_G = 20;
+const TUNA_CAN_PROTEIN_G = 26;
+const BANANA_CARBS_G = 27;
+const BANANA_PROTEIN_G = 1;
+
+/**
+ * "Plato de Recuperación Objetivo" — two real, scale-free meal proposals
+ * sized (in whole/half household units) to approximately hit the target
+ * carbs/protein, rather than a precise gram-for-gram recipe.
+ */
+export function getRecoveryMealOptions(target: RecoveryTarget): RecoveryMealOption[] {
+  const riceCups = Math.max(0.5, Math.round((target.carbsG / RICE_CARBS_G_PER_CUP) * 2) / 2);
+  const rawChickenG = (target.proteinG / CHICKEN_PROTEIN_G_PER_100G) * 100;
+  const chickenG = Math.max(50, Math.round(rawChickenG / 10) * 10);
+
+  const chickpeaCans = Math.max(1, Math.round((target.carbsG - BANANA_CARBS_G) / CHICKPEA_CAN_CARBS_G));
+  const tunaCans = Math.max(1, Math.round(target.proteinG / TUNA_CAN_PROTEIN_G));
+
+  return [
+    {
+      label: "Opción A",
+      description: `${riceCups} tazas de arroz blanco cocido + ${chickenG}g de pechuga de pollo`,
+      approxCarbsG: Math.round(riceCups * RICE_CARBS_G_PER_CUP),
+      approxProteinG: Math.round(
+        riceCups * RICE_PROTEIN_G_PER_CUP + (chickenG / 100) * CHICKEN_PROTEIN_G_PER_100G
+      ),
+    },
+    {
+      label: "Opción B",
+      description: `${chickpeaCans} bote(s) de garbanzos + ${tunaCans} lata(s) de atún + 1 plátano`,
+      approxCarbsG: Math.round(chickpeaCans * CHICKPEA_CAN_CARBS_G + BANANA_CARBS_G),
+      approxProteinG: Math.round(
+        chickpeaCans * CHICKPEA_CAN_PROTEIN_G + tunaCans * TUNA_CAN_PROTEIN_G + BANANA_PROTEIN_G
+      ),
+    },
+  ];
 }

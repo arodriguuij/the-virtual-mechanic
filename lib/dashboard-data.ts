@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
-import type { SweatRate } from "@/lib/metabolic-engine";
+import type { GutTrainingLevel, SweatRate } from "@/lib/metabolic-engine";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { fetchAthleteRoutes, type StravaRoute } from "@/lib/strava-routes";
 
@@ -12,6 +12,14 @@ export type AthleteProfile = {
   ftp: number;
   weight_kg: number;
   sweat_rate: SweatRate;
+  gut_training_level: GutTrainingLevel;
+};
+
+export type FuelingTotals = {
+  totalMoneySaved: number;
+  totalGlycogenKg: number;
+  totalFluidL: number;
+  totalSodiumG: number;
 };
 
 export type Activity = {
@@ -45,12 +53,46 @@ export const getAthleteProfile = cache(async (): Promise<AthleteProfile | null> 
 
   const { data, error } = await supabase
     .from("athlete_profiles")
-    .select("id, ftp, weight_kg, sweat_rate")
+    .select("id, ftp, weight_kg, sweat_rate, gut_training_level")
     .eq("id", userId)
     .maybeSingle();
 
   if (error) throw error;
   return data;
+});
+
+/**
+ * Lifetime totals across every fueling plan this athlete has ever
+ * generated — both pre-ride plans (`POST /api/fueling/plan`) and post-ride
+ * analyses (`POST /api/post-ride/analysis`) log a row to `fueling_logs`,
+ * so this is a simple SUM over their own rows.
+ */
+export const getFuelingTotals = cache(async (): Promise<FuelingTotals> => {
+  const supabase = await getAuthenticatedSupabaseClient();
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  const userId = authData.user?.id;
+  if (!userId) {
+    return { totalMoneySaved: 0, totalGlycogenKg: 0, totalFluidL: 0, totalSodiumG: 0 };
+  }
+
+  const { data, error } = await supabase
+    .from("fueling_logs")
+    .select("total_carbs_g, fluid_ml, sodium_mg, money_saved")
+    .eq("profile_id", userId);
+  if (error) throw error;
+
+  const rows = data ?? [];
+  const sum = (pick: (row: (typeof rows)[number]) => number) =>
+    rows.reduce((total, row) => total + pick(row), 0);
+
+  return {
+    totalMoneySaved: Math.round(sum((r) => r.money_saved) * 100) / 100,
+    totalGlycogenKg: Math.round(sum((r) => r.total_carbs_g) / 10) / 100,
+    totalFluidL: Math.round(sum((r) => r.fluid_ml) / 10) / 100,
+    totalSodiumG: Math.round(sum((r) => r.sodium_mg) / 10) / 100,
+  };
 });
 
 /**

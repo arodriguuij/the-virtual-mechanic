@@ -49,19 +49,25 @@ Tables: `profiles` (id references `auth.users`; also holds `strava_athlete_id` /
 `strava_access_token` / `strava_refresh_token` / `strava_expires_at` — the Strava
 connection itself, independent of the athlete's physiological data), `athlete_profiles`
 (id references `auth.users`; `ftp` integer watts; `weight_kg` numeric; `sweat_rate` —
-`'low' | 'medium' | 'high'`, a `CHECK`-constrained self-reported category rather than a
-real sweat-test value — see "Metabolic engine" below for how each field is used),
-`activities` (`profile_id` FK; `id` is `text` — either a real Strava activity id or the
-seed script's synthetic one; `average_watts`/`rain_mm`/`humidity_avg`/`temperature_avg`
-capture the ride's own conditions; `carbs_burned_g`/`fluid_loss_ml`/`sodium_loss_mg` are
-computed once at sync time from those plus the athlete's profile — `null` on rides synced
-before an FTP was set, since carb oxidation can't be estimated without one). RLS is
+`'low' | 'medium' | 'high'`; `gut_training_level` — `'beginner' | 'intermediate' |
+'advanced' | 'pro'`, both `CHECK`-constrained self-reported categories rather than real
+sweat-test/gut-test values, `gut_training_level` defaulting to `'intermediate'` so the
+column could be added `NOT NULL` without a separate backfill step — see "Metabolic
+engine" and "Gut Training Scale" below for how each field is used), `activities`
+(`profile_id` FK; `id` is `text` — either a real Strava activity id or the seed script's
+synthetic one; `average_watts`/`rain_mm`/`humidity_avg`/`temperature_avg` capture the
+ride's own conditions; `carbs_burned_g`/`fluid_loss_ml`/`sodium_loss_mg` are computed once
+at sync time from those plus the athlete's profile — `null` on rides synced before an FTP
+was set, since carb oxidation can't be estimated without one), `fueling_logs` (`profile_id`
+FK; `kind` — `'pre_ride' | 'post_ride'`; `activity_id` nullable FK to `activities`, only
+set for `post_ride` rows; `total_carbs_g`/`fluid_ml`/`sodium_mg`/`money_saved` — see
+"Lifetime fueling totals" below for how this table is populated and summed). RLS is
 enabled and ownership-scoped (`auth.uid() = profile_id`/`id`) on all of them — SELECT,
 INSERT, and UPDATE on `profiles` and `athlete_profiles`, SELECT and INSERT on
-`activities`, plus DELETE on `activities` (needed for the Strava token exchange and retry
-flows). There is no public/anon read or write access. No generated types yet — if the
-schema stabilizes, generate them with `supabase gen types typescript` and type the client
-instead of guessing column shapes.
+`activities` and `fueling_logs`, plus DELETE on `activities` (needed for the Strava token
+exchange and retry flows). There is no public/anon read or write access. No generated
+types yet — if the schema stabilizes, generate them with `supabase gen types typescript`
+and type the client instead of guessing column shapes.
 
 Every one of those non-SELECT/INSERT policies got added reactively, mid-implementation,
 because the default (RLS on, no policy for that command) fails *silently* — the write
@@ -161,16 +167,18 @@ instead:
 
 `lib/metabolic-engine.ts` turns physiological inputs into a fueling plan — all pure
 functions, no I/O, safe to import from both server components (the Dashboard cards) and
-client components (`FuelingCalculator`'s live recompute on every duration/intensity
-change). Heuristic and documented as such throughout, grounded in mainstream
-sports-nutrition guidance rather than a clinical or individually-calibrated model:
+client components (`FuelingPlanner`/`PostRideAnalysis`'s live recompute in the browser).
+Heuristic and documented as such throughout, grounded in mainstream sports-nutrition
+guidance rather than a clinical or individually-calibrated model:
 
 - **`getCarbOxidationRateGPerHour(relativeIntensity)`** — carb burn rate (g/h) banded by
   %FTP: 30g/h below 50% FTP up to a 100g/h practical gut-absorption ceiling at/above 110%
   FTP. `relativeIntensity` comes from either `getRelativeIntensityFromLevel(level)` (the
   pre-ride planner's assumed %FTP per named intensity — recovery 55%, endurance 70%, tempo
-  85%, threshold 98%, vo2max 115%) or `getRelativeIntensity(averageWatts, ftp)` (real data,
-  used for the post-ride Recovery card).
+  85%, threshold 98%, vo2max 115%) or `getRelativeIntensity(averageWatts, ftp)` (real
+  data, used for the Post-Ride Analysis and the pre-ride planner's quick-calculator mode).
+  This raw figure is what `getGutCappedCarbTarget` (see "Gut Training Scale" below) then
+  clamps down to what the athlete's gut can actually absorb.
 - **`getFluidLossMlPerHour(sweatRate, temperatureC, humidityPct)`** — a baseline ml/h by
   sweat-rate category (low 500 / medium 750 / high 1000, at a comfortable ~18°C/50%
   humidity) scaled up by `getHeatHumidityMultiplier` (+2%/°C above 18°C, +0.4%/point of
@@ -196,6 +204,17 @@ sports-nutrition guidance rather than a clinical or individually-calibrated mode
   Naismith's-rule-style climbing time bonus from an estimated VAM (~700 vertical m/h at
   2.5 W/kg, scaling with W/kg) — `flatTimeHours + climbTimeHours`, both clamped to
   plausible ranges.
+- **`getGlycogenBurnedFromPowerZones(buckets, ftp)`** — sums oxidation rate × time across
+  real Strava time-in-power-zone buckets instead of one ride-average watts figure, since
+  oxidation isn't linear in power: a ride spent half at recovery pace and half at
+  threshold burns more glycogen than a steady ride at the same average. Each bucket's own
+  midpoint watts picks its rate via `getCarbOxidationRateGPerHour` — no fixed Z1-Z5
+  relabeling, since Strava's bucket boundaries are whatever the athlete configured, not a
+  standard 5-zone split. Feeds the Post-Ride Analysis (see below).
+- **`getRecoveryMealOptions(target)`** — two real, scale-free "Opción A"/"Opción B" meal
+  proposals (rice+chicken, chickpeas+tuna+banana) sized in whole/half household units
+  (cups, cans) from fixed reference macros (illustrative fixtures, not a real nutrition
+  database) to approximately hit the post-ride recovery target.
 
 ### Fueling planner ("Paso 1")
 
@@ -230,14 +249,81 @@ recipe for that specific ride's real forecast conditions.
   averageWatts, departureIso }`, using the real watts directly via
   `getRelativeIntensity()`). Dynamic weather is only sampled in route mode (needs start
   coordinates); quick mode always uses the fixed "typical training day" planning default
-  (22°C/55% humidity). Re-fetches `ftp`/`weight_kg`/`sweat_rate` from `athlete_profiles`
-  server-side rather than trusting client-supplied values.
+  (22°C/55% humidity). Re-fetches `ftp`/`weight_kg`/`sweat_rate`/`gut_training_level` from
+  `athlete_profiles` server-side rather than trusting client-supplied values, runs the
+  intensity-driven carb target through `getGutCappedCarbTarget()` before building the
+  recipe (so the recipe itself never recommends more than the athlete's gut can handle),
+  and logs the resulting totals to `fueling_logs` (`kind: 'pre_ride'`) on every successful
+  calculation — see "Lifetime fueling totals" below.
 - **`components/fueling-planner.tsx`** (`"use client"`) — the interactive planner UI:
   a route/quick mode toggle, a route `<select>` (built from the routes passed down as
   props) or duration+watts inputs, a `datetime-local` departure input (defaults to
   tomorrow 08:00 via `defaultDepartureLocal()`), and a result panel rendering whatever
-  `/api/fueling/plan` returns — carb/sodium targets, the DIY recipe, and the money-saved
-  comparison, plus which weather source was used (`dynamic` vs `planning_default`).
+  `/api/fueling/plan` returns — carb/sodium targets, the DIY recipe, the money-saved
+  comparison, which weather source was used (`dynamic` vs `planning_default`), and a
+  "Gut Training" warning banner whenever `gutTraining.isGutLimited` is true.
+
+### Gut Training Scale
+
+The gut's carb-absorption rate is itself trainable — a rider who's never practiced fueling
+at 90g/h will likely feel GI distress even if their legs/lungs could support that
+intensity, so recommending more than the gut can currently handle just causes distress
+without extracting more usable energy. `athlete_profiles.gut_training_level` caps the
+*recommendation*, never the ride's own demands:
+
+- **`getGutTrainingCapGPerHour(level)`** — the upper bound of each level's advertised
+  range (`gutTrainingLevelRanges`, shown in the Physiological Profile tab): beginner 50,
+  intermediate 75, advanced 90, pro 120 g/h.
+- **`getGutCappedCarbTarget(relativeIntensity, gutTrainingLevel)`** — computes the ride's
+  uncapped intensity-driven target via `getCarbOxidationRateGPerHour`, then clamps it to
+  the level's cap. Returns both figures plus `isGutLimited` so callers can show the
+  didactic warning ("Tu intestino está limitado a X g/h...") exactly when the ride would
+  otherwise have called for more.
+- Used by `POST /api/fueling/plan` (see above) — the DIY recipe is always built from the
+  *capped* figure, so a beginner's bottle is never scaled to more carbs than they can
+  currently absorb, even for a hard ride.
+
+### Post-Ride Analysis
+
+**`POST /api/post-ride/analysis`** — given an `activityId` (the athlete's own, ownership
+checked via `activities.profile_id`), computes that specific ride's "Deuda de Glucógeno"
+and a recovery meal plan, preferring the most precise data source available and falling
+back gracefully:
+
+1. **Real time-in-power-zone data** — `fetchActivityPowerZones()` (`lib/strava-zones.ts`)
+   calls Strava's `/activities/{id}/zones`, returning `null` (not throwing) on a 404/no-
+   scope/not-configured response. If present, `getGlycogenBurnedFromPowerZones()` gives
+   the most accurate glycogen figure (`source: 'zones'`).
+2. **Ride-average watts** — if zones aren't available but the activity has
+   `average_watts` and the athlete has an FTP, falls back to the same
+   `getRelativeIntensity` + `getGlycogenBurnedGrams` path the sync route already uses
+   (`source: 'average_watts'`).
+3. **Stored sync-time figure** — if neither of the above works, falls back to whatever
+   `activities.carbs_burned_g` was already computed at sync time (`source: 'stored'`).
+4. **`no_data`** — only if none of the three produced a number (no FTP ever configured).
+
+Fluid/sodium loss for the ride reuses its *stored* `humidity_avg`/`temperature_avg`
+(the real weather sampled at sync time) with the athlete's current `sweat_rate`.
+`getPostRideRecoveryTarget()` + `getRecoveryMealOptions()` build the recovery plan. Logs
+to `fueling_logs` (`kind: 'post_ride'`, `activity_id` set) — but only the *first* time
+this activity is analyzed (`hasPostRideLog()` check in `lib/fueling-logs.ts`), so
+re-viewing the same past ride's analysis doesn't inflate the lifetime totals.
+`components/post-ride-analysis.tsx` (`"use client"`) is the UI: an activity `<select>`
+(defaulting to the most recent) plus an "Analizar" button, matching the same
+manual-trigger interaction pattern as the pre-ride planner rather than auto-fetching on
+mount.
+
+### Lifetime fueling totals
+
+`fueling_logs` is an append-only log — both `POST /api/fueling/plan` (every calculation,
+unconditionally — each one represents a genuinely considered ride) and
+`POST /api/post-ride/analysis` (once per activity, deduped) insert one row via
+`logFuelingPlan()` (`lib/fueling-logs.ts`). `getFuelingTotals()` (`lib/dashboard-data.ts`)
+just `SELECT`s every row for the current athlete and sums client-side in JS (no
+`aggregate`/RPC — the row count per athlete is small enough that this is simpler than
+maintaining a Postgres view). `GlobalMetricsBar` (`app/page.tsx`) renders the four totals
+(€ saved, kg glycogen, L fluid, g sodium) above the tabs, so they're visible regardless of
+which tab is open.
 
 ### Athlete profile
 
@@ -251,22 +337,26 @@ non-silent-failure convention as everywhere else.
 
 ### Dashboard (app/page.tsx)
 
-- **`PhysiologicalProfileCard`** — reads `getAthleteProfile()` and renders an inline
-  edit form (weight/FTP/sweat rate, pre-filled with current values) POSTing to
-  `/api/athlete-profile/update` — see "Athlete profile" above.
-- **`FuelingPlannerSection`** — fetches the athlete profile and `getStravaRoutes()`,
-  handing the route list to the client `FuelingPlanner` (see "Fueling planner" above).
-  Shows a "configure your profile first" prompt instead if there's no `athlete_profiles`
-  row yet, since the plan endpoint requires one.
-- **`RecoveryCard`** — reads the most recent synced activity (`getRecentActivities(8)`,
-  same `React.cache` dedup trick as `RideHistorySection` calling with the same `limit`)
-  and shows its stored `carbs_burned_g`/`fluid_loss_ml`/`sodium_loss_mg` plus the athlete's
-  post-ride recovery target. Falls back to a prompt to set up an FTP if the latest ride
-  has no nutrition figures attached (synced before `athlete_profiles` existed, or before
-  FTP was set).
-- **`RideHistorySection`** — the ride lookbook (numbered rows, hairline dividers, no
-  per-row card chrome), each row showing distance, a humidity/rain weather label, and
-  carbs burned when available.
+`GlobalMetricsBar` (lifetime totals, see above) sits above three `components/ui/tabs.tsx`
+(`@base-ui/react/tabs`) panels — all three panels' Server Component data fetches still run
+on every page load regardless of which tab is active (Tabs hides inactive panels with
+CSS, it doesn't unmount/defer their Suspense boundaries), same total fetch cost as the
+single stacked-card layout this replaced:
+
+- **Pre-Ride tab** — `FuelingPlannerSection` fetches the athlete profile and
+  `getStravaRoutes()`, handing the route list to the client `FuelingPlanner` (see
+  "Fueling planner" above). Shows a "configure your profile first" prompt instead if
+  there's no `athlete_profiles` row yet, since the plan endpoint requires one.
+- **Post-Ride tab** — `PostRideAnalysisSection` fetches `getRecentActivities(8)` and hands
+  the list to the client `PostRideAnalysis` (see "Post-Ride Analysis" above), followed by
+  `RideHistorySection` — the ride lookbook (numbered rows, hairline dividers, no per-row
+  card chrome), each row showing distance, a humidity/rain weather label, and carbs burned
+  when available.
+- **Perfil & Gut Training tab** — `PhysiologicalProfileCard` reads `getAthleteProfile()`
+  and renders an inline edit form (weight/FTP/sweat rate/gut training level, pre-filled
+  with current values) POSTing to `/api/athlete-profile/update` (see "Athlete profile"
+  above), plus a static reference table of the four Gut Training levels and their g/h
+  ranges (see "Gut Training Scale" above).
 
 ### Route dynamic rendering
 

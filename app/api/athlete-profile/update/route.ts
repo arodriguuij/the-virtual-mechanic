@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
-import type { SweatRate } from "@/lib/metabolic-engine";
+import type { GutTrainingLevel, SweatRate } from "@/lib/metabolic-engine";
 
 const VALID_SWEAT_RATES = new Set<SweatRate>(["low", "medium", "high"]);
+const VALID_GUT_TRAINING_LEVELS = new Set<GutTrainingLevel>([
+  "beginner",
+  "intermediate",
+  "advanced",
+  "pro",
+]);
 
 export async function POST(request: NextRequest) {
   const redirectWithError = (code: string) =>
@@ -13,6 +19,7 @@ export async function POST(request: NextRequest) {
   const weightKg = Number(formData.get("weight_kg"));
   const ftp = Number(formData.get("ftp"));
   const sweatRate = formData.get("sweat_rate")?.toString();
+  const gutTrainingLevel = formData.get("gut_training_level")?.toString();
 
   if (!Number.isFinite(weightKg) || weightKg <= 0) {
     return redirectWithError("invalid_weight");
@@ -22,6 +29,9 @@ export async function POST(request: NextRequest) {
   }
   if (!sweatRate || !VALID_SWEAT_RATES.has(sweatRate as SweatRate)) {
     return redirectWithError("invalid_sweat_rate");
+  }
+  if (!gutTrainingLevel || !VALID_GUT_TRAINING_LEVELS.has(gutTrainingLevel as GutTrainingLevel)) {
+    return redirectWithError("invalid_gut_training_level");
   }
 
   const supabase = await getAuthenticatedSupabaseClient();
@@ -33,7 +43,13 @@ export async function POST(request: NextRequest) {
 
   const { data: updated, error: upsertError } = await supabase
     .from("athlete_profiles")
-    .upsert({ id: userId, weight_kg: weightKg, ftp, sweat_rate: sweatRate })
+    .upsert({
+      id: userId,
+      weight_kg: weightKg,
+      ftp,
+      sweat_rate: sweatRate,
+      gut_training_level: gutTrainingLevel,
+    })
     .select("id")
     .maybeSingle();
   if (upsertError) throw upsertError;

@@ -2,17 +2,19 @@ import { Droplets, ExternalLink, Flame, Link2, RefreshCw, TriangleAlert } from "
 import { Suspense } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FuelingPlanner } from "@/components/fueling-planner";
+import { PostRideAnalysis } from "@/components/post-ride-analysis";
 import {
   getAthleteProfile,
+  getFuelingTotals,
   getProfile,
   getRecentActivities,
   getStravaRoutes,
 } from "@/lib/dashboard-data";
-import { getPostRideRecoveryTarget, sweatRateLabels } from "@/lib/metabolic-engine";
+import { gutTrainingLevelLabels, gutTrainingLevelRanges, sweatRateLabels } from "@/lib/metabolic-engine";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -45,11 +47,11 @@ async function PhysiologicalProfileCard() {
             : "Todavía no has configurado tu perfil de atleta"}
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-6">
         <form
           action="/api/athlete-profile/update"
           method="POST"
-          className="grid grid-cols-2 gap-4 sm:grid-cols-4 sm:items-end"
+          className="grid grid-cols-2 gap-4 sm:grid-cols-5 sm:items-end"
         >
           <div className="flex flex-col gap-1.5">
             <label htmlFor="weight_kg" className={eyebrow}>
@@ -97,6 +99,25 @@ async function PhysiologicalProfileCard() {
               ))}
             </select>
           </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="gut_training_level" className={eyebrow}>
+              Gut training
+            </label>
+            <select
+              id="gut_training_level"
+              name="gut_training_level"
+              defaultValue={profile?.gut_training_level ?? "intermediate"}
+              className={profileInputClass}
+            >
+              {(
+                Object.keys(gutTrainingLevelLabels) as (keyof typeof gutTrainingLevelLabels)[]
+              ).map((level) => (
+                <option key={level} value={level}>
+                  {gutTrainingLevelLabels[level]} ({gutTrainingLevelRanges[level]})
+                </option>
+              ))}
+            </select>
+          </div>
           <button
             type="submit"
             className="inline-flex items-center justify-center border border-neutral-900 bg-neutral-900 px-4 py-2 text-[11px] font-medium tracking-widest text-background uppercase transition-colors hover:bg-neutral-700"
@@ -104,6 +125,26 @@ async function PhysiologicalProfileCard() {
             Guardar
           </button>
         </form>
+
+        <div className="border-t border-neutral-200 pt-4">
+          <span className={eyebrow}>Escala de adaptación digestiva (Gut Training)</span>
+          <p className="mt-1.5 text-sm text-neutral-500">
+            El intestino se entrena igual que las piernas — tolerar más carbohidratos por hora
+            en ruta es una capacidad que se gana progresivamente. Tu nivel actual limita el
+            máximo que el planificador te recomendará, aunque la intensidad de la ruta pida
+            más.
+          </p>
+          <ul className="mt-3 grid grid-cols-2 gap-2 text-sm text-neutral-700 sm:grid-cols-4">
+            {(
+              Object.keys(gutTrainingLevelLabels) as (keyof typeof gutTrainingLevelLabels)[]
+            ).map((level) => (
+              <li key={level} className="flex flex-col gap-0.5 border border-neutral-200 px-3 py-2">
+                <span className="font-medium text-neutral-900">{gutTrainingLevelLabels[level]}</span>
+                <span className="text-xs text-neutral-500">{gutTrainingLevelRanges[level]}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </CardContent>
     </Card>
   );
@@ -172,107 +213,31 @@ function FuelingPlannerSkeleton() {
   );
 }
 
-async function RecoveryCard() {
-  const [profile, activities] = await Promise.all([
-    getAthleteProfile(),
-    getRecentActivities(8),
-  ]);
-  const activity = activities[0];
-
-  if (!activity) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-medium text-neutral-900">
-            Recuperación de la última ruta
-          </CardTitle>
-          <CardDescription className={eyebrow}>
-            Sin actividades registradas todavía
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  const hasNutritionData = activity.carbs_burned_g != null;
-  const recovery = profile ? getPostRideRecoveryTarget(profile.weight_kg) : null;
-
+async function PostRideAnalysisSection() {
+  const activities = await getRecentActivities(8);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-medium text-neutral-900">
-          Recuperación de la última ruta
-        </CardTitle>
-        <CardDescription className={eyebrow}>
-          &ldquo;{activity.name}&rdquo; · {formatRelativeDate(activity.activity_date)}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {hasNutritionData ? (
-          <div className="grid grid-cols-3 gap-4">
-            <div className="flex flex-col gap-1">
-              <span className={statLabel}>Glucógeno quemado</span>
-              <span className={statValue}>
-                {activity.carbs_burned_g}
-                <span className="ml-1 text-sm font-normal text-neutral-500">g</span>
-              </span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className={statLabel}>Líquido perdido</span>
-              <span className={statValue}>
-                {(((activity.fluid_loss_ml ?? 0) / 1000).toFixed(1))}
-                <span className="ml-1 text-sm font-normal text-neutral-500">L</span>
-              </span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className={statLabel}>Sodio perdido</span>
-              <span className={statValue}>
-                {activity.sodium_loss_mg}
-                <span className="ml-1 text-sm font-normal text-neutral-500">mg</span>
-              </span>
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-neutral-500">
-            Configura tu FTP en el perfil fisiológico para calcular el gasto metabólico de esta
-            ruta.
-          </p>
-        )}
-
-        {recovery && (
-          <>
-            <Separator className="bg-neutral-200" />
-            <div>
-              <span className={eyebrow}>Objetivo de recuperación (primeros 30 min)</span>
-              <div className="mt-2 flex items-center gap-2 text-sm">
-                <span className="font-medium text-neutral-900">
-                  {recovery.carbsG}g carbohidratos
-                </span>
-                <span className="text-neutral-400">·</span>
-                <span className="font-medium text-neutral-900">{recovery.proteinG}g proteína</span>
-              </div>
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+    <PostRideAnalysis
+      activities={activities.map((a) => ({
+        id: a.id,
+        name: a.name,
+        activity_date: a.activity_date,
+      }))}
+    />
   );
 }
 
-function RecoveryCardSkeleton() {
+function PostRideAnalysisSkeleton() {
   return (
     <Card>
       <CardHeader>
-        <Skeleton className="h-4 w-56" />
-        <Skeleton className="h-3 w-40" />
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-3 w-56" />
       </CardHeader>
-      <CardContent className="grid grid-cols-3 gap-4">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="flex flex-col gap-2">
-            <Skeleton className="h-3 w-16" />
-            <Skeleton className="h-8 w-14" />
-          </div>
-        ))}
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex items-end gap-3">
+          <Skeleton className="h-9 flex-1" />
+          <Skeleton className="h-9 w-28" />
+        </div>
       </CardContent>
     </Card>
   );
@@ -385,6 +350,56 @@ function RideHistorySkeleton() {
   );
 }
 
+async function GlobalMetricsBar() {
+  const totals = await getFuelingTotals();
+
+  return (
+    <div className="grid grid-cols-2 gap-6 border-b border-neutral-200 pb-6 sm:grid-cols-4">
+      <div className="flex flex-col gap-1">
+        <span className={statLabel}>€ Ahorrado</span>
+        <span className={statValue}>
+          {totals.totalMoneySaved.toFixed(2)}
+          <span className="ml-1 text-sm font-normal text-neutral-500">€</span>
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className={statLabel}>Glucógeno rastreado</span>
+        <span className={statValue}>
+          {totals.totalGlycogenKg.toFixed(2)}
+          <span className="ml-1 text-sm font-normal text-neutral-500">kg</span>
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className={statLabel}>Hidratación gestionada</span>
+        <span className={statValue}>
+          {totals.totalFluidL.toFixed(1)}
+          <span className="ml-1 text-sm font-normal text-neutral-500">L</span>
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className={statLabel}>Sodio gestionado</span>
+        <span className={statValue}>
+          {totals.totalSodiumG.toFixed(1)}
+          <span className="ml-1 text-sm font-normal text-neutral-500">g</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function GlobalMetricsBarSkeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-6 border-b border-neutral-200 pb-6 sm:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="flex flex-col gap-2">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-7 w-16" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const stravaButtonClass =
   "inline-flex items-center gap-2 px-4 py-2 text-[11px] font-medium tracking-widest uppercase transition-colors";
 
@@ -442,6 +457,7 @@ const profileErrorMessages: Record<string, string> = {
   invalid_weight: "Introduce un peso válido.",
   invalid_ftp: "Introduce un FTP válido.",
   invalid_sweat_rate: "Selecciona una tasa de sudoración válida.",
+  invalid_gut_training_level: "Selecciona un nivel de Gut Training válido.",
   no_session: "No se pudo verificar la sesión de desarrollo.",
   update_blocked_by_rls: "No se pudo guardar el perfil: RLS bloqueó el UPDATE.",
 };
@@ -494,21 +510,44 @@ export default async function Home({
           </div>
         )}
 
-        <Suspense fallback={<PhysiologicalProfileSkeleton />}>
-          <PhysiologicalProfileCard />
+        <Suspense fallback={<GlobalMetricsBarSkeleton />}>
+          <GlobalMetricsBar />
         </Suspense>
 
-        <Suspense fallback={<FuelingPlannerSkeleton />}>
-          <FuelingPlannerSection />
-        </Suspense>
+        <Tabs defaultValue="pre-ride">
+          <TabsList variant="line">
+            <TabsTrigger value="pre-ride">Pre-Ride</TabsTrigger>
+            <TabsTrigger value="post-ride">Post-Ride</TabsTrigger>
+            <TabsTrigger value="profile">Perfil &amp; Gut Training</TabsTrigger>
+          </TabsList>
 
-        <Suspense fallback={<RecoveryCardSkeleton />}>
-          <RecoveryCard />
-        </Suspense>
+          <TabsContent value="pre-ride">
+            <div className="flex flex-col gap-10 pt-6">
+              <Suspense fallback={<FuelingPlannerSkeleton />}>
+                <FuelingPlannerSection />
+              </Suspense>
+            </div>
+          </TabsContent>
 
-        <Suspense fallback={<RideHistorySkeleton />}>
-          <RideHistorySection />
-        </Suspense>
+          <TabsContent value="post-ride">
+            <div className="flex flex-col gap-10 pt-6">
+              <Suspense fallback={<PostRideAnalysisSkeleton />}>
+                <PostRideAnalysisSection />
+              </Suspense>
+              <Suspense fallback={<RideHistorySkeleton />}>
+                <RideHistorySection />
+              </Suspense>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="profile">
+            <div className="flex flex-col gap-10 pt-6">
+              <Suspense fallback={<PhysiologicalProfileSkeleton />}>
+                <PhysiologicalProfileCard />
+              </Suspense>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardShell>
   );

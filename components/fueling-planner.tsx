@@ -40,6 +40,11 @@ type PlanResult = {
     humidityPct: number;
     source: "dynamic" | "planning_default";
   };
+  gutTraining: {
+    isGutLimited: boolean;
+    gutCapGPerHour: number;
+    uncappedGPerHour: number;
+  };
 };
 
 /** Local datetime-local input value for "tomorrow at 08:00" — the planner's
@@ -296,6 +301,14 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 </span>
               </div>
             </div>
+
+            {result.gutTraining.isGutLimited && (
+              <p className="border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
+                Tu intestino está limitado a {result.gutTraining.gutCapGPerHour} g/h (esta ruta
+                pediría {result.gutTraining.uncappedGPerHour} g/h). Activa el protocolo de Gut
+                Training para subir de nivel gradualmente.
+              </p>
+            )}
 
             <Separator className="bg-neutral-200" />
 
