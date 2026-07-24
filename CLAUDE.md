@@ -132,6 +132,13 @@ Strava sync route also uses for `activities`.
     never double-counts nutrition cost or re-derives weather for the same ride.
 - The Dashboard header shows "Conectar Strava" or "Sincronizar rutas" depending on
   whether `profiles.strava_athlete_id` is set (`getProfile()` in `lib/dashboard-data.ts`).
+  The sync button (`components/sync-button.tsx`, `"use client"`) still hits the exact same
+  `POST /api/strava/sync` route as a native form would, but through a client action
+  function instead of a plain string `action` — `useFormStatus` only tracks pending state
+  for function actions, so this is what makes the "Sincronizando…" spinner text real.
+  Since the route always redirects (to `/` or `/?strava_error=<code>`), the action follows
+  that via `fetch`'s default redirect behavior and navigates to `res.url` itself,
+  preserving the same error-surfacing behavior a native submit would have had.
 
 #### Geographic microclimate sampling
 

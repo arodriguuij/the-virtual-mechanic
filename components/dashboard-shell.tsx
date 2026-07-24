@@ -1,25 +1,10 @@
 "use client";
 
-import {
-  Activity,
-  Flame,
-  LayoutDashboard,
-  Menu,
-  Settings,
-  UserCircle,
-  X,
-} from "lucide-react";
+import { Flame, LayoutDashboard, Menu, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-
-const navigation = [
-  { name: "Dashboard", icon: LayoutDashboard, current: true },
-  { name: "Mi perfil", icon: UserCircle, current: false },
-  { name: "Historial", icon: Activity, current: false },
-  { name: "Ajustes", icon: Settings, current: false },
-];
 
 function SidebarContent() {
   return (
@@ -30,21 +15,15 @@ function SidebarContent() {
       </div>
 
       <nav className="flex flex-1 flex-col gap-0.5">
-        {navigation.map((item) => (
-          <a
-            key={item.name}
-            href="#"
-            className={cn(
-              "flex items-center gap-3 border-l-2 px-3 py-2.5 text-[11px] font-medium tracking-widest uppercase transition-colors",
-              item.current
-                ? "border-neutral-900 text-neutral-900"
-                : "border-transparent text-neutral-500 hover:border-neutral-300 hover:text-neutral-900"
-            )}
-          >
-            <item.icon className="size-4" strokeWidth={1.5} />
-            {item.name}
-          </a>
-        ))}
+        <span
+          className={cn(
+            "flex items-center gap-3 border-l-2 px-3 py-2.5 text-[11px] font-medium tracking-widest uppercase",
+            "border-neutral-900 text-neutral-900"
+          )}
+        >
+          <LayoutDashboard className="size-4" strokeWidth={1.5} />
+          Dashboard
+        </span>
       </nav>
 
       <div className="flex items-center gap-3 border-t border-neutral-200 pt-6">

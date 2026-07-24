@@ -1,4 +1,4 @@
-import { Droplets, ExternalLink, Flame, Link2, RefreshCw, TriangleAlert } from "lucide-react";
+import { Droplets, ExternalLink, Flame, Link2, TriangleAlert } from "lucide-react";
 import { Suspense } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FuelingPlanner } from "@/components/fueling-planner";
 import { PostRideAnalysis } from "@/components/post-ride-analysis";
+import { SyncForm } from "@/components/sync-button";
 import {
   getAthleteProfile,
   getFuelingTotals,
@@ -423,18 +424,12 @@ async function StravaButton() {
   }
 
   return (
-    <form action="/api/strava/sync" method="POST">
-      <button
-        type="submit"
-        className={cn(
-          stravaButtonClass,
-          "border border-neutral-900 bg-transparent text-neutral-900 hover:bg-neutral-900 hover:text-background"
-        )}
-      >
-        <RefreshCw className="size-3.5" />
-        Sincronizar rutas
-      </button>
-    </form>
+    <SyncForm
+      className={cn(
+        stravaButtonClass,
+        "border border-neutral-900 bg-transparent text-neutral-900 hover:bg-neutral-900 hover:text-background"
+      )}
+    />
   );
 }
 
