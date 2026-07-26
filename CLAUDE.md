@@ -290,16 +290,21 @@ selected item (2 gels → 2 separate milestones) plus one milestone for any `cus
 evenly across the ride's duration/distance, never right at the start or finish, feeding
 the "Hitos de Nutrición" in both nutrition-export mechanisms below. The Pre-Ride UI
 (`PocketFoodStepperRow` in `components/fueling-planner.tsx`) renders the four non-gel
-items, the three gel doses, and the custom entry as one unified, bordered list
-(`divide-y` rows inside a single `border-neutral-900` container — a "matrix," not
-separate floating boxes) under "Comida de bolsillo que llevarás encima." Each row's
-label is rendered without emoji, as a plain uppercase technical tag (`[PLÁTANO · 22G
-HC]`) via a local `pocketFoodTag()` helper that calls `stripEmoji()` (imported from
-`lib/gpx-export.ts`, reused rather than duplicated) on `pocketFoodLabels[type]` at
+items, the three gel doses, and the custom entry as a compact `grid grid-cols-1
+md:grid-cols-2 gap-3` — each its own soft `border-neutral-200` cell rather than one
+harder-edged block, keeping the form short even with 8 catalog entries. Each cell's
+food name is rendered without emoji, in the same clean sans as everything else (via a
+local `pocketFoodName()` helper that calls `stripEmoji()`, imported from
+`lib/gpx-export.ts` and reused rather than duplicated, on `pocketFoodLabels[type]` at
 render time — `pocketFoodLabels` itself keeps its friendly emoji-prefixed copy
 unchanged, since that's what feeds the clipboard/GPX nutrition exports elsewhere; only
-this one UI surface strips it. The result panel still shows a one-line "🍌 Comida de
-bolsillo cubre Xg de Yg HC — el resto va en el bidón" whenever any item is selected —
+this one UI surface strips it), with its carb figure directly underneath in `font-mono`
+— monospace is reserved for the numeric readout, never the food name, so a name like
+"Bollo de arroz" stays unambiguous instead of rendering in a terminal-style face where
+similar letterforms (o/u) are easy to misread. The stepper buttons themselves are a
+soft `bg-neutral-100` pair, not a stark black-bordered block. The result panel still
+shows a one-line "🍌 Comida de bolsillo cubre Xg de Yg HC — el resto va en el bidón"
+whenever any item is selected —
 that summary line isn't part of the pocket-food *catalog* UI, so it keeps its emoji.
 
 ### Bottle architecture & osmolarity control
@@ -640,14 +645,19 @@ status bar blends with the page instead of showing a mismatched color.
 - Tailwind utility classes only — no CSS modules, no styled-components.
 - Design tokens (`--brand`, `--status-good`, `--status-warning`, `--status-critical`)
   live in `app/globals.css` alongside the shadcn theme variables; reuse them instead of
-  hardcoding hex colors so the light, Rapha/Pas Normal Studios/MAAP-inspired technical
+  hardcoding hex colors so the light, Scandinavian-technical Pas Normal Studios/Apple-style
   editorial look stays consistent: bold uppercase tracked headers (`CardTitle`'s default,
-  the page `<h1>`, `TabsTrigger` labels), `font-mono` on every *displayed* numeric metric
-  (stat blocks, recipe grams, ride distances — never on user-editable form inputs, since
-  monospacing a `<select>` full of words reads oddly), thin `border-neutral-200`/
-  `border-neutral-900` lines instead of soft shadows (`Card` uses a border, not
-  `ring-1 ring-foreground/10`), and `rounded-sm` (2-4px) or square corners instead of
-  Tailwind's larger default radii. `--font-sans` in `app/globals.css` must stay wired to
+  the page `<h1>`, `TabsTrigger` labels) in the same clean geometric sans as everything
+  else — never a monospace/retro face for names or labels — with `font-mono` reserved
+  strictly for *displayed numeric metrics* (stat blocks, recipe grams, ride distances,
+  the pocket-food carb figures — never on user-editable form inputs like a `<select>` full
+  of words, and never on a food/label *name*, only the number next to it). Structural
+  dividers are soft `border-neutral-200`/`border-neutral-300` lines, not `border-neutral-900`
+  or `ring-1 ring-foreground/10` shadows — `border-neutral-900` is reserved for solid,
+  deliberate elements (a primary CTA's black fill, a toggle's active/selected state), not
+  general-purpose borders, since a black divider line reads as heavy-handed/brutalist
+  rather than clean. Corners are `rounded-sm` (2-4px) or square, never Tailwind's larger
+  default radii. `--font-sans` in `app/globals.css` must stay wired to
   `var(--font-geist-sans)` (the actual variable `next/font/google`'s `Geist` sets in
   `app/layout.tsx`) — it was accidentally self-referential (`var(--font-sans)`) for a long
   stretch of this project's history, which silently fell back to the browser's default

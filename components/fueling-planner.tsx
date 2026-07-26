@@ -24,11 +24,11 @@ const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = [...POCKET_FOOD_TYPES, ...GE
 const MAX_POCKET_FOOD_QTY = 6;
 const MAX_CUSTOM_CARBS_G = 500;
 
-/** Plain, uppercase, no-emoji tag for the pocket-food matrix — `pocketFoodLabels`
- * keeps its friendly emoji-prefixed copy for the clipboard/GPX exports, this
- * derives the technical readout variant from the same source at render time. */
-function pocketFoodTag(type: PocketFoodItemType): string {
-  return `[${stripEmoji(pocketFoodLabels[type]).toUpperCase()} · ${POCKET_FOOD_CARBS_G[type]}G HC]`;
+/** Plain, no-emoji name for the pocket-food matrix — `pocketFoodLabels` keeps
+ * its friendly emoji-prefixed copy for the clipboard/GPX exports, this derives
+ * the clean-label variant from the same source at render time. */
+function pocketFoodName(type: PocketFoodItemType): string {
+  return stripEmoji(pocketFoodLabels[type]);
 }
 
 const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
@@ -135,26 +135,29 @@ function PocketFoodStepperRow({
   onChange: (qty: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-      <span className="font-mono text-[11px] font-medium tracking-wide text-neutral-900">
-        {pocketFoodTag(type)}
-      </span>
-      <div className="flex items-stretch border border-neutral-900">
+    <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-2.5">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-sm font-medium text-neutral-900">{pocketFoodName(type)}</span>
+        <span className="font-mono text-xs text-neutral-500">
+          {POCKET_FOOD_CARBS_G[type]}g HC
+        </span>
+      </div>
+      <div className="flex items-center gap-1">
         <button
           type="button"
           onClick={() => onChange(qty - 1)}
-          className="flex size-7 items-center justify-center font-mono text-sm text-neutral-900 transition-colors hover:bg-neutral-900 hover:text-background"
+          className="flex size-7 items-center justify-center rounded-sm bg-neutral-100 text-neutral-600 transition-colors hover:bg-neutral-200 hover:text-neutral-900"
           aria-label={`Quitar ${pocketFoodLabels[type]}`}
         >
           −
         </button>
-        <span className="flex w-8 items-center justify-center border-x border-neutral-900 font-mono text-sm font-semibold tabular-nums text-neutral-900">
+        <span className="w-6 text-center font-mono text-sm font-semibold tabular-nums text-neutral-900">
           {qty}
         </span>
         <button
           type="button"
           onClick={() => onChange(qty + 1)}
-          className="flex size-7 items-center justify-center font-mono text-sm text-neutral-900 transition-colors hover:bg-neutral-900 hover:text-background"
+          className="flex size-7 items-center justify-center rounded-sm bg-neutral-100 text-neutral-600 transition-colors hover:bg-neutral-200 hover:text-neutral-900"
           aria-label={`Añadir ${pocketFoodLabels[type]}`}
         >
           +
@@ -449,7 +452,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
 
         <div className="flex flex-col gap-1.5">
           <span className={eyebrow}>Comida de bolsillo que llevarás encima</span>
-          <div className="flex flex-col divide-y divide-neutral-200 border border-neutral-900">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {ALL_POCKET_FOOD_TYPES.map((type) => (
               <PocketFoodStepperRow
                 key={type}
@@ -458,12 +461,9 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 onChange={(qty) => setPocketFoodQty(type, qty)}
               />
             ))}
-            <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-              <label
-                htmlFor="custom-carbs"
-                className="font-mono text-[11px] font-medium tracking-wide text-neutral-900"
-              >
-                [PERSONALIZADO]
+            <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-2.5">
+              <label htmlFor="custom-carbs" className="text-sm font-medium text-neutral-900">
+                Personalizado
               </label>
               <div className="flex items-center gap-1.5">
                 <input
@@ -475,9 +475,9 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   value={customCarbsG || ""}
                   onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
                   placeholder="0"
-                  className="w-16 border border-neutral-900 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none"
+                  className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900"
                 />
-                <span className="font-mono text-[11px] text-neutral-500">G HC</span>
+                <span className="font-mono text-xs text-neutral-500">g HC</span>
               </div>
             </div>
           </div>
