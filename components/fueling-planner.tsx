@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Send } from "lucide-react";
+import { Copy, Download, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,8 +17,10 @@ import {
 } from "@/lib/metabolic-engine";
 import type { StravaRoute } from "@/lib/strava-routes";
 
-const POCKET_FOOD_TYPES: PocketFoodItemType[] = ["banana", "energy_bar", "gel", "sandwich"];
+const POCKET_FOOD_TYPES: PocketFoodItemType[] = ["banana", "energy_bar", "rice_cake", "dates"];
+const GEL_DOSE_TYPES: PocketFoodItemType[] = ["gel_small", "gel_standard", "gel_high"];
 const MAX_POCKET_FOOD_QTY = 6;
+const MAX_CUSTOM_CARBS_G = 500;
 
 const eyebrow = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
 const statLabel = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
@@ -71,6 +73,7 @@ type PlanResult = {
     waterBottles: { count: number };
   };
   reloadStrategy: {
+    startingBottleCount: number;
     ziplocBagsCount: number;
     ziplocDose: { maltodextrinG: number; fructoseG: number; sodiumMg: number };
     reloadAtKm: number | null;
@@ -111,6 +114,44 @@ function defaultDepartureLocal(): string {
   return `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}`;
 }
 
+function PocketFoodStepperRow({
+  type,
+  qty,
+  onChange,
+}: {
+  type: PocketFoodItemType;
+  qty: number;
+  onChange: (qty: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 border border-neutral-300 px-3 py-2">
+      <div className="flex flex-col">
+        <span className="text-sm text-neutral-900">{pocketFoodLabels[type]}</span>
+        <span className="text-xs text-neutral-500">~{POCKET_FOOD_CARBS_G[type]}g HC</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onChange(qty - 1)}
+          className="flex size-7 items-center justify-center border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+          aria-label={`Quitar ${pocketFoodLabels[type]}`}
+        >
+          −
+        </button>
+        <span className="w-4 text-center text-sm font-medium tabular-nums text-neutral-900">{qty}</span>
+        <button
+          type="button"
+          onClick={() => onChange(qty + 1)}
+          className="flex size-7 items-center justify-center border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+          aria-label={`Añadir ${pocketFoodLabels[type]}`}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
   const [mode, setMode] = useState<"route" | "quick">(routes.length > 0 ? "route" : "quick");
   const [selectedRouteId, setSelectedRouteId] = useState(routes[0]?.id ?? "");
@@ -120,11 +161,13 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
   const [departureLocal, setDepartureLocal] = useState(defaultDepartureLocal);
   const [isTargetEvent, setIsTargetEvent] = useState(false);
   const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
+  const [customCarbsG, setCustomCarbsG] = useState(0);
   const [result, setResult] = useState<PlanResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [exportCopied, setExportCopied] = useState(false);
+  const [downloadingGpx, setDownloadingGpx] = useState(false);
 
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === selectedRouteId) ?? null,
@@ -140,6 +183,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
     setError(null);
     try {
       const departureIso = new Date(departureLocal).toISOString();
+      const pocketFoodPayload = { ...pocketFood, customCarbsG };
       const body =
         mode === "route" && selectedRoute
           ? {
@@ -151,7 +195,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               startLng: selectedRoute.startLng,
               intensity,
               isTargetEvent,
-              pocketFood,
+              pocketFood: pocketFoodPayload,
             }
           : {
               mode: "quick",
@@ -159,7 +203,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               durationHours: quickDurationHours,
               averageWatts: quickAverageWatts,
               isTargetEvent,
-              pocketFood,
+              pocketFood: pocketFoodPayload,
             };
 
       const res = await fetch("/api/fueling/plan", {
@@ -218,6 +262,39 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
       setTimeout(() => setExportCopied(false), 2000);
     } catch {
       setError("No se pudo copiar la ficha de nutrición al portapapeles.");
+    }
+  }
+
+  async function handleDownloadGpx() {
+    if (!result || !selectedRoute?.summaryPolyline) return;
+    setDownloadingGpx(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/fueling/gpx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          routeName: selectedRoute.name,
+          summaryPolyline: selectedRoute.summaryPolyline,
+          distanceKm: selectedRoute.distanceKm,
+          milestones: result.nutritionMilestones,
+          reloadStrategy: result.reloadStrategy,
+        }),
+      });
+      if (!res.ok) throw new Error("gpx_failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${selectedRoute.name.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}-nutricion.gpx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("No se pudo generar el archivo GPX.");
+    } finally {
+      setDownloadingGpx(false);
     }
   }
 
@@ -358,44 +435,53 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
           </div>
         )}
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-3">
           <span className={eyebrow}>Comida de bolsillo que llevarás encima</span>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {POCKET_FOOD_TYPES.map((type) => {
-              const qty = pocketFood[type] ?? 0;
-              return (
-                <div
+            {POCKET_FOOD_TYPES.map((type) => (
+              <PocketFoodStepperRow
+                key={type}
+                type={type}
+                qty={pocketFood[type] ?? 0}
+                onChange={(qty) => setPocketFoodQty(type, qty)}
+              />
+            ))}
+          </div>
+
+          <div className="border border-neutral-200 p-2">
+            <span className="px-1 text-[10px] font-medium tracking-widest text-neutral-500 uppercase">
+              🧃 Geles comerciales (por dosis)
+            </span>
+            <div className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {GEL_DOSE_TYPES.map((type) => (
+                <PocketFoodStepperRow
                   key={type}
-                  className="flex items-center justify-between gap-2 border border-neutral-300 px-3 py-2"
-                >
-                  <div className="flex flex-col">
-                    <span className="text-sm text-neutral-900">{pocketFoodLabels[type]}</span>
-                    <span className="text-xs text-neutral-500">~{POCKET_FOOD_CARBS_G[type]}g HC</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPocketFoodQty(type, qty - 1)}
-                      className="flex size-7 items-center justify-center border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
-                      aria-label={`Quitar ${pocketFoodLabels[type]}`}
-                    >
-                      −
-                    </button>
-                    <span className="w-4 text-center text-sm font-medium tabular-nums text-neutral-900">
-                      {qty}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setPocketFoodQty(type, qty + 1)}
-                      className="flex size-7 items-center justify-center border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
-                      aria-label={`Añadir ${pocketFoodLabels[type]}`}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                  type={type}
+                  qty={pocketFood[type] ?? 0}
+                  onChange={(qty) => setPocketFoodQty(type, qty)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-2 border border-neutral-300 px-3 py-2">
+            <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
+              🍽️ Comida personalizada
+            </label>
+            <div className="flex items-center gap-1.5">
+              <input
+                id="custom-carbs"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={MAX_CUSTOM_CARBS_G}
+                value={customCarbsG || ""}
+                onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
+                placeholder="0"
+                className="w-20 border border-neutral-300 bg-background px-2 py-1.5 text-right text-sm text-neutral-900 outline-none focus:border-neutral-900"
+              />
+              <span className="text-xs text-neutral-500">g HC</span>
+            </div>
           </div>
         </div>
 
@@ -594,7 +680,11 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   🚰 Estrategia de recarga en ruta
                 </span>
                 <ol className="mt-1.5 flex flex-col gap-1 text-sm text-neutral-700">
-                  <li>1. Inicio de ruta: 2 bidones preparados en el cuadro.</li>
+                  <li>
+                    1. Inicio de ruta: {result.reloadStrategy.startingBottleCount} bidón
+                    {result.reloadStrategy.startingBottleCount > 1 ? "es" : ""} preparado
+                    {result.reloadStrategy.startingBottleCount > 1 ? "s" : ""} en el cuadro.
+                  </li>
                   <li>
                     2. En el maillot: lleva {result.reloadStrategy.ziplocBagsCount} bolsita
                     {result.reloadStrategy.ziplocBagsCount > 1 ? "s" : ""} Ziploc con{" "}
@@ -631,20 +721,38 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               </details>
             )}
 
-            <button
-              type="button"
-              onClick={handleExportGarmin}
-              className="inline-flex w-fit items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-medium tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900"
-            >
-              {exportCopied ? (
-                "✓ Ficha copiada"
+            <div className="flex flex-col gap-2">
+              {mode === "route" && selectedRoute?.summaryPolyline ? (
+                <button
+                  type="button"
+                  onClick={handleDownloadGpx}
+                  disabled={downloadingGpx}
+                  className="inline-flex w-fit items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-medium tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900 disabled:opacity-50"
+                >
+                  <Download className="size-3.5" />
+                  {downloadingGpx ? "Generando…" : "Descargar GPX con avisos de nutrición"}
+                </button>
               ) : (
-                <>
-                  <Send className="size-3.5" />
-                  Exportar a Garmin / Wahoo / Strava
-                </>
+                <button
+                  type="button"
+                  onClick={handleExportGarmin}
+                  className="inline-flex w-fit items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-medium tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900"
+                >
+                  {exportCopied ? (
+                    "✓ Ficha copiada"
+                  ) : (
+                    <>
+                      <Send className="size-3.5" />
+                      Exportar a Garmin / Wahoo / Strava
+                    </>
+                  )}
+                </button>
               )}
-            </button>
+              <p className="text-xs text-neutral-500">
+                ⏰ Alertas nativas: en tu Garmin/Wahoo, configura Ajustes → Alertas → Comer/Beber
+                cada 15 min, además de los avisos por GPS de este archivo.
+              </p>
+            </div>
           </div>
         )}
       </CardContent>

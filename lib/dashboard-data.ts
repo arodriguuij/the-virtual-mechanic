@@ -14,6 +14,8 @@ export type AthleteProfile = {
   sweat_rate: SweatRate;
   gut_training_level: GutTrainingLevel;
   athlete_type: AthleteType;
+  bottle_count: number;
+  bottle_capacity_ml: number;
 };
 
 export type FuelingTotals = {
@@ -54,7 +56,9 @@ export const getAthleteProfile = cache(async (): Promise<AthleteProfile | null> 
 
   const { data, error } = await supabase
     .from("athlete_profiles")
-    .select("id, ftp, weight_kg, sweat_rate, gut_training_level, athlete_type")
+    .select(
+      "id, ftp, weight_kg, sweat_rate, gut_training_level, athlete_type, bottle_count, bottle_capacity_ml"
+    )
     .eq("id", userId)
     .maybeSingle();
 

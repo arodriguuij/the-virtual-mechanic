@@ -11,6 +11,8 @@ const VALID_GUT_TRAINING_LEVELS = new Set<GutTrainingLevel>([
   "pro",
 ]);
 const VALID_ATHLETE_TYPES = new Set<AthleteType>(["diesel", "balanced", "explosive"]);
+const VALID_BOTTLE_COUNTS = new Set([1, 2]);
+const VALID_BOTTLE_CAPACITIES_ML = new Set([500, 600, 750, 950]);
 
 export async function POST(request: NextRequest) {
   const redirectWithError = (code: string) =>
@@ -22,6 +24,8 @@ export async function POST(request: NextRequest) {
   const sweatRate = formData.get("sweat_rate")?.toString();
   const gutTrainingLevel = formData.get("gut_training_level")?.toString();
   const athleteType = formData.get("athlete_type")?.toString();
+  const bottleCount = Number(formData.get("bottle_count"));
+  const bottleCapacityMl = Number(formData.get("bottle_capacity_ml"));
 
   if (!Number.isFinite(weightKg) || weightKg <= 0) {
     return redirectWithError("invalid_weight");
@@ -37,6 +41,12 @@ export async function POST(request: NextRequest) {
   }
   if (!athleteType || !VALID_ATHLETE_TYPES.has(athleteType as AthleteType)) {
     return redirectWithError("invalid_athlete_type");
+  }
+  if (!VALID_BOTTLE_COUNTS.has(bottleCount)) {
+    return redirectWithError("invalid_bottle_count");
+  }
+  if (!VALID_BOTTLE_CAPACITIES_ML.has(bottleCapacityMl)) {
+    return redirectWithError("invalid_bottle_capacity_ml");
   }
 
   const supabase = await getAuthenticatedSupabaseClient();
@@ -55,6 +65,8 @@ export async function POST(request: NextRequest) {
       sweat_rate: sweatRate,
       gut_training_level: gutTrainingLevel,
       athlete_type: athleteType,
+      bottle_count: bottleCount,
+      bottle_capacity_ml: bottleCapacityMl,
     })
     .select("id")
     .maybeSingle();

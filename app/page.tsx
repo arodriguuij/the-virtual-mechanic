@@ -56,7 +56,7 @@ async function PhysiologicalProfileCard() {
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         <form action="/api/athlete-profile/update" method="POST" className="flex flex-col gap-5">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="weight_kg" className={eyebrow}>
                 Peso (kg)
@@ -122,6 +122,36 @@ async function PhysiologicalProfileCard() {
                     {gutTrainingLevelLabels[level]} ({gutTrainingLevelRanges[level]})
                   </option>
                 ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="bottle_count" className={eyebrow}>
+                Soportes de bidón
+              </label>
+              <select
+                id="bottle_count"
+                name="bottle_count"
+                defaultValue={profile?.bottle_count ?? 2}
+                className={profileInputClass}
+              >
+                <option value={1}>1 bidón</option>
+                <option value={2}>2 bidones</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="bottle_capacity_ml" className={eyebrow}>
+                Capacidad por bidón
+              </label>
+              <select
+                id="bottle_capacity_ml"
+                name="bottle_capacity_ml"
+                defaultValue={profile?.bottle_capacity_ml ?? 750}
+                className={profileInputClass}
+              >
+                <option value={500}>500 ml</option>
+                <option value={600}>600 ml</option>
+                <option value={750}>750 ml</option>
+                <option value={950}>950 ml</option>
               </select>
             </div>
           </div>
@@ -490,6 +520,9 @@ const profileErrorMessages: Record<string, string> = {
   invalid_ftp: "Introduce un FTP válido.",
   invalid_sweat_rate: "Selecciona una tasa de sudoración válida.",
   invalid_gut_training_level: "Selecciona un nivel de Gut Training válido.",
+  invalid_athlete_type: "Selecciona un fenotipo metabólico válido.",
+  invalid_bottle_count: "Selecciona un número de soportes de bidón válido.",
+  invalid_bottle_capacity_ml: "Selecciona una capacidad de bidón válida.",
   no_session: "No se pudo verificar la sesión de desarrollo.",
   update_blocked_by_rls: "No se pudo guardar el perfil: RLS bloqueó el UPDATE.",
 };

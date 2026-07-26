@@ -47,17 +47,30 @@ const VALID_INTENSITIES = new Set<IntensityLevel>([
 const VALID_POCKET_FOOD_TYPES = new Set<PocketFoodItemType>([
   "banana",
   "energy_bar",
-  "gel",
-  "sandwich",
+  "rice_cake",
+  "dates",
+  "gel_small",
+  "gel_standard",
+  "gel_high",
 ]);
 
-/** Only known item types with a positive integer quantity survive — anything
- * else in the request body is silently dropped rather than rejected, same
- * "degrade gracefully" convention as `getStravaRoutes()` returning `[]`. */
+// A single free-text "custom food" entry could otherwise be abused to smuggle
+// an absurd carb figure into the recipe — cap it at a generous but sane
+// per-ride ceiling (a full day's carb-loading target, give or take).
+const MAX_CUSTOM_CARBS_G = 500;
+
+/** Only known item types with a positive integer quantity survive, plus a
+ * capped `customCarbsG` — anything else in the request body is silently
+ * dropped rather than rejected, same "degrade gracefully" convention as
+ * `getStravaRoutes()` returning `[]`. */
 function sanitizePocketFoodSelection(input: unknown): PocketFoodSelection {
   if (!input || typeof input !== "object") return {};
   const result: PocketFoodSelection = {};
   for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    if (key === "customCarbsG" && typeof value === "number" && value > 0) {
+      result.customCarbsG = Math.min(MAX_CUSTOM_CARBS_G, Math.round(value));
+      continue;
+    }
     if (VALID_POCKET_FOOD_TYPES.has(key as PocketFoodItemType) && typeof value === "number" && value > 0) {
       result[key as PocketFoodItemType] = Math.round(value);
     }
@@ -75,7 +88,9 @@ export async function POST(request: NextRequest) {
 
   const { data: athleteProfile, error: athleteProfileError } = await supabase
     .from("athlete_profiles")
-    .select("ftp, weight_kg, sweat_rate, gut_training_level, athlete_type")
+    .select(
+      "ftp, weight_kg, sweat_rate, gut_training_level, athlete_type, bottle_count, bottle_capacity_ml"
+    )
     .eq("id", userId)
     .maybeSingle();
   if (athleteProfileError) throw athleteProfileError;
@@ -181,11 +196,12 @@ export async function POST(request: NextRequest) {
     pocketFoodCarbsG,
   });
   const moneySaved = getMoneySavedVsGels(recipe.totalCarbsG);
-  const bottlePlan = getBottlePlan(recipe);
+  const bottlePlan = getBottlePlan(recipe, athleteProfile.bottle_capacity_ml);
   const reloadStrategy = getReloadStrategy({
     bottlePlan,
     durationHours,
     distanceKm: rideDistanceKm,
+    maxBottlesOnBike: athleteProfile.bottle_count,
   });
   const nutritionMilestones = getPocketFoodMilestones({
     selection: pocketFood,

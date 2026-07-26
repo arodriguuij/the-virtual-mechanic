@@ -265,36 +265,59 @@ export function getSodiumLossMgPerHour(fluidLossMlPerHour: number): number {
 }
 
 /**
- * "Nutrición Híbrida" — solid pocket food (banana, energy bar, gel,
- * sandwich/rice cake) covers part of the ride's carb target before the
- * bottle recipe is sized, since a rider who's eating solid food doesn't
- * need the same grams dissolved in their bottles. Fixed illustrative carb
- * figures per item, not a real nutrition database (same convention as the
- * recovery meal options below).
+ * "Nutrición Híbrida" — solid pocket food covers part of the ride's carb
+ * target before the bottle recipe is sized, since a rider who's eating
+ * solid food doesn't need the same grams dissolved in their bottles.
+ * Commercial gels come in three common dose tiers rather than one fixed
+ * figure (small/standard/high-carb "hydro" gels genuinely differ by ~2x in
+ * carb content), each modeled as its own catalog entry so a rider can mix
+ * doses in the same ride (e.g. 1 standard + 1 high-carb). Fixed
+ * illustrative carb figures per item, not a real nutrition database (same
+ * convention as the recovery meal options below).
  */
-export type PocketFoodItemType = "banana" | "energy_bar" | "gel" | "sandwich";
+export type PocketFoodItemType =
+  | "banana"
+  | "energy_bar"
+  | "rice_cake"
+  | "dates"
+  | "gel_small"
+  | "gel_standard"
+  | "gel_high";
 
 export const pocketFoodLabels: Record<PocketFoodItemType, string> = {
   banana: "🍌 Plátano",
   energy_bar: "🍫 Barrita energética",
-  gel: "🧃 Gel comercial",
-  sandwich: "🥪 Sándwich / Rice cake",
+  rice_cake: "🍙 Bollo de arroz / Rice cake",
+  dates: "🌴 Dátiles (2 uds)",
+  gel_small: "🧃 Gel pequeño",
+  gel_standard: "🧃 Gel estándar",
+  gel_high: "🧃 Gel alta carga / Hydro",
 };
 
 export const pocketFoodCarbsG: Record<PocketFoodItemType, number> = {
   banana: 22,
   energy_bar: 30,
-  gel: 30,
-  sandwich: 25,
+  rice_cake: 25,
+  dates: 18,
+  gel_small: 25,
+  gel_standard: 30,
+  gel_high: 45,
 };
 
-export type PocketFoodSelection = Partial<Record<PocketFoodItemType, number>>;
+/** `customCarbsG` covers anything outside the fixed catalog — a rider's own
+ * homemade snack, a brand not listed, etc. — entered as a free grams value
+ * rather than forced through one of the preset items. */
+export type PocketFoodSelection = Partial<Record<PocketFoodItemType, number>> & {
+  customCarbsG?: number;
+};
 
 export function getPocketFoodTotalCarbsG(selection: PocketFoodSelection): number {
-  return (Object.entries(selection) as [PocketFoodItemType, number][]).reduce(
+  const { customCarbsG, ...items } = selection;
+  const catalogTotal = (Object.entries(items) as [PocketFoodItemType, number][]).reduce(
     (sum, [type, qty]) => sum + pocketFoodCarbsG[type] * Math.max(0, qty ?? 0),
     0
   );
+  return catalogTotal + Math.max(0, customCarbsG ?? 0);
 }
 
 export type NutritionMilestone = {
@@ -307,7 +330,8 @@ export type NutritionMilestone = {
  * When each pocket-food item should be eaten — spread evenly across the
  * ride (never right at the start or the finish) rather than all at once,
  * one milestone per individual item selected (2 gels → 2 separate
- * milestones at different points).
+ * milestones at different points). Any custom carb amount becomes a single
+ * additional milestone, since it has no per-unit count of its own.
  */
 export function getPocketFoodMilestones({
   selection,
@@ -318,17 +342,21 @@ export function getPocketFoodMilestones({
   durationHours: number;
   distanceKm: number | null;
 }): NutritionMilestone[] {
-  const items: PocketFoodItemType[] = [];
-  for (const [type, qty] of Object.entries(selection) as [PocketFoodItemType, number][]) {
-    for (let i = 0; i < Math.max(0, qty ?? 0); i++) items.push(type);
+  const { customCarbsG, ...selectedItems } = selection;
+  const labels: string[] = [];
+  for (const [type, qty] of Object.entries(selectedItems) as [PocketFoodItemType, number][]) {
+    for (let i = 0; i < Math.max(0, qty ?? 0); i++) labels.push(`Comer ${pocketFoodLabels[type]}`);
   }
-  const n = items.length;
+  if (customCarbsG != null && customCarbsG > 0) {
+    labels.push(`Comer ración personalizada (${Math.round(customCarbsG)}g HC)`);
+  }
+  const n = labels.length;
   if (n === 0) return [];
 
-  return items.map((type, i) => {
+  return labels.map((label, i) => {
     const fraction = (i + 1) / (n + 1);
     return {
-      label: `Comer ${pocketFoodLabels[type]}`,
+      label,
       atKm: distanceKm != null ? Math.round(distanceKm * fraction * 10) / 10 : null,
       atHours: Math.round(durationHours * fraction * 100) / 100,
     };
@@ -593,7 +621,11 @@ export type BottlePlan = {
   totalBottles: number;
 };
 
-const BOTTLE_SIZE_ML = 750;
+// Fallback bottle size when the athlete hasn't configured their real
+// equipment yet — matches `athlete_profiles.bottle_capacity_ml`'s own
+// column default, kept as a literal here so this file has no dependency on
+// the DB schema.
+const DEFAULT_BOTTLE_SIZE_ML = 750;
 // 8% carb concentration keeps a comfortable margin below the ~10-12%
 // threshold widely cited for hypertonic-solution gastric distress/delayed
 // emptying — a safety-first cap, not the maximum theoretically tolerable.
@@ -606,18 +638,23 @@ const MAX_BOTTLE_CARB_CONCENTRATION = 0.08;
  * with plain water/electrolyte bottles. On a long ride this often implies
  * refilling the same one or two bottles multiple times from a support
  * car/musette rather than literally carrying every bottle at once.
+ * `bottleSizeMl` is the athlete's own real bottle capacity (500/600/750/950ml
+ * — configured on their profile), not a fixed assumption.
  */
-export function getBottlePlan(recipe: HomeLabRecipe): BottlePlan {
-  const maxCarbsPerBottle = BOTTLE_SIZE_ML * MAX_BOTTLE_CARB_CONCENTRATION;
+export function getBottlePlan(
+  recipe: HomeLabRecipe,
+  bottleSizeMl: number = DEFAULT_BOTTLE_SIZE_ML
+): BottlePlan {
+  const maxCarbsPerBottle = bottleSizeMl * MAX_BOTTLE_CARB_CONCENTRATION;
   // Zero only when pocket food already covers the whole carb target — no
   // fuel bottle needed at all in that case, just plain water/electrolytes.
   const fuelBottleCount =
     recipe.totalCarbsG > 0 ? Math.max(1, Math.ceil(recipe.totalCarbsG / maxCarbsPerBottle)) : 0;
-  const totalBottles = Math.max(fuelBottleCount, Math.ceil(recipe.waterMl / BOTTLE_SIZE_ML));
+  const totalBottles = Math.max(fuelBottleCount, Math.ceil(recipe.waterMl / bottleSizeMl));
   const waterBottleCount = Math.max(0, totalBottles - fuelBottleCount);
 
   return {
-    bottleSizeMl: BOTTLE_SIZE_ML,
+    bottleSizeMl,
     fuelBottles: {
       count: fuelBottleCount,
       maltodextrinGPerBottle: fuelBottleCount > 0 ? Math.round(recipe.maltodextrinG / fuelBottleCount) : 0,
@@ -631,10 +668,12 @@ export function getBottlePlan(recipe: HomeLabRecipe): BottlePlan {
   };
 }
 
-// A standard road bike only carries 2 bottle cages.
-const MAX_BOTTLES_ON_BIKE = 2;
+// Fallback cage count — matches `athlete_profiles.bottle_count`'s own
+// column default (a standard road bike carries 2 bottle cages).
+const DEFAULT_MAX_BOTTLES_ON_BIKE = 2;
 
 export type ReloadStrategy = {
+  startingBottleCount: number;
   ziplocBagsCount: number;
   ziplocDose: {
     maltodextrinG: number;
@@ -647,31 +686,34 @@ export type ReloadStrategy = {
 
 /**
  * "Estrategia de Recarga en Ruta" — whenever the bottle plan needs more
- * bottles than the 2 physical cages a road bike has (`totalBottles` above
- * `MAX_BOTTLES_ON_BIKE`), the athlete needs a mid-ride stop to refill water
- * and dissolve a pre-measured powder sachet rather than literally carrying
- * every bottle from the start. The reload dose reuses the same per-bottle
- * fuel-bottle figures from `getBottlePlan` (already capped at the safe 8%
- * concentration), so the sachet mixes into a fresh bottle exactly like the
- * ones prepared at the start. The reload point is estimated as the moment
- * the 2 starting bottles would run dry, assuming roughly even consumption
- * across the ride.
+ * bottles than the athlete's real bottle-cage count (`totalBottles` above
+ * `maxBottlesOnBike`, from `athlete_profiles.bottle_count` — 1 or 2), the
+ * athlete needs a mid-ride stop to refill water and dissolve a pre-measured
+ * powder sachet rather than literally carrying every bottle from the
+ * start. The reload dose reuses the same per-bottle fuel-bottle figures
+ * from `getBottlePlan` (already capped at the safe 8% concentration), so
+ * the sachet mixes into a fresh bottle exactly like the ones prepared at
+ * the start. The reload point is estimated as the moment the starting
+ * bottles would run dry, assuming roughly even consumption across the ride.
  */
 export function getReloadStrategy({
   bottlePlan,
   durationHours,
   distanceKm,
+  maxBottlesOnBike = DEFAULT_MAX_BOTTLES_ON_BIKE,
 }: {
   bottlePlan: BottlePlan;
   durationHours: number;
   distanceKm: number | null;
+  maxBottlesOnBike?: number;
 }): ReloadStrategy | null {
-  if (bottlePlan.totalBottles <= MAX_BOTTLES_ON_BIKE) return null;
+  if (bottlePlan.totalBottles <= maxBottlesOnBike) return null;
 
-  const extraBottles = bottlePlan.totalBottles - MAX_BOTTLES_ON_BIKE;
-  const reloadAtFraction = MAX_BOTTLES_ON_BIKE / bottlePlan.totalBottles;
+  const extraBottles = bottlePlan.totalBottles - maxBottlesOnBike;
+  const reloadAtFraction = maxBottlesOnBike / bottlePlan.totalBottles;
 
   return {
+    startingBottleCount: maxBottlesOnBike,
     ziplocBagsCount: extraBottles,
     ziplocDose: {
       maltodextrinG: bottlePlan.fuelBottles.maltodextrinGPerBottle,

@@ -25,6 +25,11 @@ export type StravaRoute = {
   // it, in which case dynamic weather can't be sampled for this route.
   startLat: number | null;
   startLng: number | null;
+  // The raw encoded polyline itself, kept alongside the already-decoded
+  // start point — the GPX export needs the *whole* track, not just its
+  // first coordinate, and re-fetching it later would be a wasted API call
+  // since it's already right here in the routes-list response.
+  summaryPolyline: string | null;
 };
 
 /**
@@ -56,6 +61,7 @@ export async function fetchAthleteRoutes(accessToken: string): Promise<StravaRou
         elevationGainM: Math.round(route.elevation_gain),
         startLat: firstPoint?.[0] ?? null,
         startLng: firstPoint?.[1] ?? null,
+        summaryPolyline: polyline ?? null,
       };
     });
 }
