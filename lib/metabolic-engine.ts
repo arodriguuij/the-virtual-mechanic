@@ -218,6 +218,26 @@ export const sweatRateLabels: Record<SweatRate, string> = {
   high: "Alta",
 };
 
+// Standard environmental lapse rate — ambient temperature falls ~6.5°C per
+// 1000m of altitude gained. The pre-ride planner's dynamic weather only
+// samples the route's *start* coordinates (a saved Strava route has no
+// elapsed-time-to-point mapping the way a completed activity's polyline
+// does), which silently assumes the whole route sits at the start's
+// altitude — systematically overestimating temperature, and therefore
+// sweat rate and sodium loss, on a route that climbs into the mountains.
+// Strava's route summary doesn't expose real elev_high/elev_low the way a
+// completed activity does, so total elevation gain is used as a practical
+// proxy for how far above the start the route's high point sits.
+const LAPSE_RATE_C_PER_1000M = 6.5;
+
+export function getLapseRateAdjustedTemperature(
+  baseTemperatureC: number,
+  elevationGainM: number
+): number {
+  const adjustmentC = (Math.max(0, elevationGainM) / 1000) * LAPSE_RATE_C_PER_1000M;
+  return Math.round((baseTemperatureC - adjustmentC) * 10) / 10;
+}
+
 /** Heat and humidity both push sweat rate up from the comfortable-condition
  * baseline — +2%/°C above 18°C, +0.4%/point of humidity above 50%. */
 export function getHeatHumidityMultiplier(temperatureC: number, humidityPct: number): number {
@@ -244,6 +264,77 @@ export function getSodiumLossMgPerHour(fluidLossMlPerHour: number): number {
   return Math.round((fluidLossMlPerHour / 1000) * SODIUM_CONCENTRATION_MG_PER_L);
 }
 
+/**
+ * "Nutrición Híbrida" — solid pocket food (banana, energy bar, gel,
+ * sandwich/rice cake) covers part of the ride's carb target before the
+ * bottle recipe is sized, since a rider who's eating solid food doesn't
+ * need the same grams dissolved in their bottles. Fixed illustrative carb
+ * figures per item, not a real nutrition database (same convention as the
+ * recovery meal options below).
+ */
+export type PocketFoodItemType = "banana" | "energy_bar" | "gel" | "sandwich";
+
+export const pocketFoodLabels: Record<PocketFoodItemType, string> = {
+  banana: "🍌 Plátano",
+  energy_bar: "🍫 Barrita energética",
+  gel: "🧃 Gel comercial",
+  sandwich: "🥪 Sándwich / Rice cake",
+};
+
+export const pocketFoodCarbsG: Record<PocketFoodItemType, number> = {
+  banana: 22,
+  energy_bar: 30,
+  gel: 30,
+  sandwich: 25,
+};
+
+export type PocketFoodSelection = Partial<Record<PocketFoodItemType, number>>;
+
+export function getPocketFoodTotalCarbsG(selection: PocketFoodSelection): number {
+  return (Object.entries(selection) as [PocketFoodItemType, number][]).reduce(
+    (sum, [type, qty]) => sum + pocketFoodCarbsG[type] * Math.max(0, qty ?? 0),
+    0
+  );
+}
+
+export type NutritionMilestone = {
+  label: string;
+  atKm: number | null;
+  atHours: number;
+};
+
+/**
+ * When each pocket-food item should be eaten — spread evenly across the
+ * ride (never right at the start or the finish) rather than all at once,
+ * one milestone per individual item selected (2 gels → 2 separate
+ * milestones at different points).
+ */
+export function getPocketFoodMilestones({
+  selection,
+  durationHours,
+  distanceKm,
+}: {
+  selection: PocketFoodSelection;
+  durationHours: number;
+  distanceKm: number | null;
+}): NutritionMilestone[] {
+  const items: PocketFoodItemType[] = [];
+  for (const [type, qty] of Object.entries(selection) as [PocketFoodItemType, number][]) {
+    for (let i = 0; i < Math.max(0, qty ?? 0); i++) items.push(type);
+  }
+  const n = items.length;
+  if (n === 0) return [];
+
+  return items.map((type, i) => {
+    const fraction = (i + 1) / (n + 1);
+    return {
+      label: `Comer ${pocketFoodLabels[type]}`,
+      atKm: distanceKm != null ? Math.round(distanceKm * fraction * 10) / 10 : null,
+      atHours: Math.round(durationHours * fraction * 100) / 100,
+    };
+  });
+}
+
 export type HomeLabRecipe = {
   maltodextrinG: number;
   fructoseG: number;
@@ -257,20 +348,25 @@ export type HomeLabRecipe = {
  * weight) mix, the standard 2:1 glucose:fructose-equivalent ratio used to
  * raise the gut's total carb absorption ceiling above what either sugar
  * alone can achieve, dissolved in the rider's own fluid-loss target so one
- * bottle covers both carbs and hydration.
+ * bottle covers both carbs and hydration. `pocketFoodCarbsG` (from the
+ * hybrid nutrition module above) is subtracted from the ride's carb target
+ * first — solid food eaten from the jersey pocket means less needs to go
+ * in the bottles, not an additional carb allowance on top.
  */
 export function getHomeLabRecipe({
   carbsGPerHour,
   sodiumMgPerHour,
   fluidLossMlPerHour,
   durationHours,
+  pocketFoodCarbsG = 0,
 }: {
   carbsGPerHour: number;
   sodiumMgPerHour: number;
   fluidLossMlPerHour: number;
   durationHours: number;
+  pocketFoodCarbsG?: number;
 }): HomeLabRecipe {
-  const totalCarbsG = carbsGPerHour * durationHours;
+  const totalCarbsG = Math.max(0, carbsGPerHour * durationHours - pocketFoodCarbsG);
   const maltodextrinG = totalCarbsG / 1.8;
   const fructoseG = totalCarbsG - maltodextrinG;
 
@@ -513,7 +609,10 @@ const MAX_BOTTLE_CARB_CONCENTRATION = 0.08;
  */
 export function getBottlePlan(recipe: HomeLabRecipe): BottlePlan {
   const maxCarbsPerBottle = BOTTLE_SIZE_ML * MAX_BOTTLE_CARB_CONCENTRATION;
-  const fuelBottleCount = Math.max(1, Math.ceil(recipe.totalCarbsG / maxCarbsPerBottle));
+  // Zero only when pocket food already covers the whole carb target — no
+  // fuel bottle needed at all in that case, just plain water/electrolytes.
+  const fuelBottleCount =
+    recipe.totalCarbsG > 0 ? Math.max(1, Math.ceil(recipe.totalCarbsG / maxCarbsPerBottle)) : 0;
   const totalBottles = Math.max(fuelBottleCount, Math.ceil(recipe.waterMl / BOTTLE_SIZE_ML));
   const waterBottleCount = Math.max(0, totalBottles - fuelBottleCount);
 
@@ -521,14 +620,66 @@ export function getBottlePlan(recipe: HomeLabRecipe): BottlePlan {
     bottleSizeMl: BOTTLE_SIZE_ML,
     fuelBottles: {
       count: fuelBottleCount,
-      maltodextrinGPerBottle: Math.round(recipe.maltodextrinG / fuelBottleCount),
-      fructoseGPerBottle: Math.round(recipe.fructoseG / fuelBottleCount),
-      sodiumMgPerBottle: Math.round(recipe.sodiumMg / fuelBottleCount),
+      maltodextrinGPerBottle: fuelBottleCount > 0 ? Math.round(recipe.maltodextrinG / fuelBottleCount) : 0,
+      fructoseGPerBottle: fuelBottleCount > 0 ? Math.round(recipe.fructoseG / fuelBottleCount) : 0,
+      sodiumMgPerBottle: fuelBottleCount > 0 ? Math.round(recipe.sodiumMg / fuelBottleCount) : 0,
     },
     waterBottles: {
       count: waterBottleCount,
     },
     totalBottles,
+  };
+}
+
+// A standard road bike only carries 2 bottle cages.
+const MAX_BOTTLES_ON_BIKE = 2;
+
+export type ReloadStrategy = {
+  ziplocBagsCount: number;
+  ziplocDose: {
+    maltodextrinG: number;
+    fructoseG: number;
+    sodiumMg: number;
+  };
+  reloadAtKm: number | null;
+  reloadAtHours: number;
+};
+
+/**
+ * "Estrategia de Recarga en Ruta" — whenever the bottle plan needs more
+ * bottles than the 2 physical cages a road bike has (`totalBottles` above
+ * `MAX_BOTTLES_ON_BIKE`), the athlete needs a mid-ride stop to refill water
+ * and dissolve a pre-measured powder sachet rather than literally carrying
+ * every bottle from the start. The reload dose reuses the same per-bottle
+ * fuel-bottle figures from `getBottlePlan` (already capped at the safe 8%
+ * concentration), so the sachet mixes into a fresh bottle exactly like the
+ * ones prepared at the start. The reload point is estimated as the moment
+ * the 2 starting bottles would run dry, assuming roughly even consumption
+ * across the ride.
+ */
+export function getReloadStrategy({
+  bottlePlan,
+  durationHours,
+  distanceKm,
+}: {
+  bottlePlan: BottlePlan;
+  durationHours: number;
+  distanceKm: number | null;
+}): ReloadStrategy | null {
+  if (bottlePlan.totalBottles <= MAX_BOTTLES_ON_BIKE) return null;
+
+  const extraBottles = bottlePlan.totalBottles - MAX_BOTTLES_ON_BIKE;
+  const reloadAtFraction = MAX_BOTTLES_ON_BIKE / bottlePlan.totalBottles;
+
+  return {
+    ziplocBagsCount: extraBottles,
+    ziplocDose: {
+      maltodextrinG: bottlePlan.fuelBottles.maltodextrinGPerBottle,
+      fructoseG: bottlePlan.fuelBottles.fructoseGPerBottle,
+      sodiumMg: bottlePlan.fuelBottles.sodiumMgPerBottle,
+    },
+    reloadAtKm: distanceKm != null ? Math.round(distanceKm * reloadAtFraction * 10) / 10 : null,
+    reloadAtHours: Math.round(durationHours * reloadAtFraction * 100) / 100,
   };
 }
 
@@ -580,9 +731,13 @@ export function formatRecipeForSharing({
     "🚴 RECETA DIY — MOTOR METABÓLICO",
     `Duración: ${durationHours}h · ${carbsGPerHour}g/h HC · ${sodiumMgPerHour}mg/h sodio`,
     "",
-    `🧪 ${bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel Concentrado × ${bottlePlan.fuelBottles.count}`,
-    `   ${bottlePlan.fuelBottles.maltodextrinGPerBottle}g maltodextrina · ${bottlePlan.fuelBottles.fructoseGPerBottle}g fructosa · ${bottlePlan.fuelBottles.sodiumMgPerBottle}mg sodio / bidón`,
   ];
+  if (bottlePlan.fuelBottles.count > 0) {
+    lines.push(
+      `🧪 ${bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel Concentrado × ${bottlePlan.fuelBottles.count}`,
+      `   ${bottlePlan.fuelBottles.maltodextrinGPerBottle}g maltodextrina · ${bottlePlan.fuelBottles.fructoseGPerBottle}g fructosa · ${bottlePlan.fuelBottles.sodiumMgPerBottle}mg sodio / bidón`
+    );
+  }
   if (bottlePlan.waterBottles.count > 0) {
     lines.push(
       "",
@@ -594,5 +749,51 @@ export function formatRecipeForSharing({
     "",
     `Total: ${recipe.maltodextrinG}g maltodextrina + ${recipe.fructoseG}g fructosa + ${recipe.sodiumMg}mg sodio + ${recipe.waterMl}ml agua`
   );
+  return lines.join("\n");
+}
+
+/**
+ * "Ficha técnica" for the "Exportar a Garmin / Wahoo / Strava" button —
+ * plain text meant to be pasted into a route description or a
+ * head-unit/computer's course notes field, so the reminders stay visible
+ * mid-ride instead of only at planning time on the phone.
+ */
+export function formatGarminExportText({
+  carbsGPerHour,
+  sodiumMgPerHour,
+  milestones,
+  reloadStrategy,
+}: {
+  carbsGPerHour: number;
+  sodiumMgPerHour: number;
+  milestones: NutritionMilestone[];
+  reloadStrategy: ReloadStrategy | null;
+}): string {
+  const lines = [
+    "📟 FICHA DE NUTRICIÓN — MOTOR METABÓLICO",
+    "",
+    "⏰ ALERTA DE FRECUENCIA",
+    "Configura una alarma cada 15 min: 3 sorbos de Fuel + 1 sorbo de agua.",
+    "",
+    "🔋 OBJETIVO FISIOLÓGICO",
+    `${carbsGPerHour} g/h de carbohidratos · ${sodiumMgPerHour} mg/h de sodio.`,
+  ];
+
+  const milestoneLines = milestones.map((milestone) => {
+    const where = milestone.atKm != null ? `Km ${milestone.atKm}` : `Hora ${milestone.atHours}`;
+    return `${where}: ${milestone.label}`;
+  });
+  if (reloadStrategy) {
+    const where =
+      reloadStrategy.reloadAtKm != null
+        ? `Km ${reloadStrategy.reloadAtKm}`
+        : `Hora ${reloadStrategy.reloadAtHours}`;
+    milestoneLines.push(`${where}: Parada Ziploc / rellenar bidón`);
+  }
+
+  if (milestoneLines.length > 0) {
+    lines.push("", "📍 HITOS DE NUTRICIÓN", ...milestoneLines);
+  }
+
   return lines.join("\n");
 }

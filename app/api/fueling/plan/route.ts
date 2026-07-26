@@ -10,13 +10,19 @@ import {
   getFluidLossMlPerHour,
   getGutCappedCarbTarget,
   getHomeLabRecipe,
+  getLapseRateAdjustedTemperature,
   getMoneySavedVsGels,
   getPersonalizedCarbOxidationRateGPerHour,
+  getPocketFoodMilestones,
+  getPocketFoodTotalCarbsG,
+  getReloadStrategy,
   getRelativeIntensity,
   getRelativeIntensityFromLevel,
   getSodiumLossMgPerHour,
   simulateGlycogenBattery,
   type IntensityLevel,
+  type PocketFoodItemType,
+  type PocketFoodSelection,
 } from "@/lib/metabolic-engine";
 
 // Above this ride duration, the pre-event carb-loading module shows
@@ -37,6 +43,27 @@ const VALID_INTENSITIES = new Set<IntensityLevel>([
   "threshold",
   "vo2max",
 ]);
+
+const VALID_POCKET_FOOD_TYPES = new Set<PocketFoodItemType>([
+  "banana",
+  "energy_bar",
+  "gel",
+  "sandwich",
+]);
+
+/** Only known item types with a positive integer quantity survive — anything
+ * else in the request body is silently dropped rather than rejected, same
+ * "degrade gracefully" convention as `getStravaRoutes()` returning `[]`. */
+function sanitizePocketFoodSelection(input: unknown): PocketFoodSelection {
+  if (!input || typeof input !== "object") return {};
+  const result: PocketFoodSelection = {};
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    if (VALID_POCKET_FOOD_TYPES.has(key as PocketFoodItemType) && typeof value === "number" && value > 0) {
+      result[key as PocketFoodItemType] = Math.round(value);
+    }
+  }
+  return result;
+}
 
 export async function POST(request: NextRequest) {
   const supabase = await getAuthenticatedSupabaseClient();
@@ -64,12 +91,15 @@ export async function POST(request: NextRequest) {
   const departureIso = typeof body.departureIso === "string" ? body.departureIso : null;
   const isTargetEvent = body.isTargetEvent === true;
   const athleteType = athleteProfile.athlete_type ?? "balanced";
+  const pocketFood = sanitizePocketFoodSelection(body.pocketFood);
+  const pocketFoodCarbsG = getPocketFoodTotalCarbsG(pocketFood);
 
   let durationHours: number;
   let relativeIntensity: number;
   let startLat: number | null = null;
   let startLng: number | null = null;
   let rideDistanceKm: number | null = null;
+  let rideElevationGainM: number | null = null;
 
   if (body.mode === "route") {
     const { distanceKm, elevationGainM, intensity } = body;
@@ -90,6 +120,7 @@ export async function POST(request: NextRequest) {
     startLat = typeof body.startLat === "number" ? body.startLat : null;
     startLng = typeof body.startLng === "number" ? body.startLng : null;
     rideDistanceKm = distanceKm;
+    rideElevationGainM = elevationGainM;
   } else {
     const { durationHours: hours, averageWatts } = body;
     if (
@@ -117,6 +148,18 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // The weather above is sampled only at the route's start coordinates —
+  // fine for a flat ride, but it silently assumes the whole route sits at
+  // that altitude, overestimating temperature (and sweat/sodium loss) on a
+  // route that climbs into the mountains. Correct for that using the
+  // route's own elevation gain as a proxy for how high it climbs.
+  let lapseRateAdjustmentC = 0;
+  if (rideElevationGainM != null) {
+    const adjustedTemperatureC = getLapseRateAdjustedTemperature(temperatureC, rideElevationGainM);
+    lapseRateAdjustmentC = Math.round((adjustedTemperatureC - temperatureC) * 10) / 10;
+    temperatureC = adjustedTemperatureC;
+  }
+
   const gutTarget = getGutCappedCarbTarget(
     relativeIntensity,
     athleteProfile.gut_training_level,
@@ -129,14 +172,26 @@ export async function POST(request: NextRequest) {
     humidityPct
   );
   const sodiumMgPerHour = getSodiumLossMgPerHour(fluidLossMlPerHour);
+  const totalRideCarbsG = Math.round(carbsGPerHour * durationHours);
   const recipe = getHomeLabRecipe({
     carbsGPerHour,
     sodiumMgPerHour,
     fluidLossMlPerHour,
     durationHours,
+    pocketFoodCarbsG,
   });
   const moneySaved = getMoneySavedVsGels(recipe.totalCarbsG);
   const bottlePlan = getBottlePlan(recipe);
+  const reloadStrategy = getReloadStrategy({
+    bottlePlan,
+    durationHours,
+    distanceKm: rideDistanceKm,
+  });
+  const nutritionMilestones = getPocketFoodMilestones({
+    selection: pocketFood,
+    durationHours,
+    distanceKm: rideDistanceKm,
+  });
 
   // The battery drains at the ride's *true* metabolic demand (uncapped,
   // phenotype-adjusted) regardless of what the gut can absorb — the gut cap
@@ -168,11 +223,14 @@ export async function POST(request: NextRequest) {
     sodiumMgPerHour,
     fluidLossMlPerHour,
     recipe,
+    totalRideCarbsG,
+    pocketFoodCarbsG,
     moneySaved,
     weather: {
       temperatureC: Math.round(temperatureC * 10) / 10,
       humidityPct: Math.round(humidityPct * 10) / 10,
       source: weatherSource,
+      lapseRateAdjustmentC,
     },
     gutTraining: {
       isGutLimited: gutTarget.isGutLimited,
@@ -180,6 +238,8 @@ export async function POST(request: NextRequest) {
       uncappedGPerHour: gutTarget.uncappedGPerHour,
     },
     bottlePlan,
+    reloadStrategy,
+    nutritionMilestones,
     glycogenBattery,
     carbLoading,
   });

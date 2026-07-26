@@ -261,19 +261,76 @@ absorption lag or a real-time replenishment curve, just "tank drains at X, refil
 Rendered in `components/fueling-planner.tsx` as a compact two-column comparison
 ("⚠️ Pájara en el km X" vs. "🔋 Batería final: Y%").
 
+### Hybrid nutrition (pocket food)
+
+A rider eating solid food from their jersey pocket doesn't need those same carbs *also*
+dissolved in their bottles — recommending the full ride target in both places would
+overshoot the gut's absorption ceiling for no benefit. `pocketFoodLabels`/
+`pocketFoodCarbsG` (`lib/metabolic-engine.ts`) hold four fixed, illustrative carb figures
+(🍌 Plátano 22g, 🍫 Barrita energética 30g, 🧃 Gel comercial 30g, 🥪 Sándwich/Rice cake
+25g — not a real nutrition database, same convention as the recovery meal options).
+`getPocketFoodTotalCarbsG(selection)` sums the athlete's quantities (`{ banana: 1, gel: 2
+}`-shaped) into a total; `getHomeLabRecipe()`'s new `pocketFoodCarbsG` param subtracts
+that from the ride's carb target *before* splitting into maltodextrin/fructose, so the
+bottle recipe automatically recalculates down to only what solid food doesn't already
+cover — see `POST /api/fueling/plan` below for where the selection is sanitized and
+threaded through. `getBottlePlan()` treats a resulting `totalCarbsG` of zero (pocket food
+covers the whole ride) as needing zero fuel bottles rather than forcing a minimum of one,
+since there may be nothing left to dissolve at all. `getPocketFoodMilestones()` spreads
+each individual selected item (2 gels → 2 separate milestones) evenly across the ride's
+duration/distance, never right at the start or finish, feeding the "Hitos de Nutrición"
+in the Garmin/Wahoo export below. The Pre-Ride UI renders this as a 2×2 grid of
++/− quantity steppers labeled "Comida de bolsillo que llevarás encima," and the result
+panel shows a one-line "🍌 Comida de bolsillo cubre Xg de Yg HC — el resto va en el
+bidón" whenever any item is selected.
+
 ### Bottle architecture & osmolarity control
 
 `getBottlePlan(recipe)` splits the DIY recipe into concentrated "fuel" bottles and plain
 water/electrolyte bottles rather than reporting one lump of grams. `MAX_BOTTLE_CARB_CONCENTRATION`
 (8%, i.e. ≤60g of carbs per 750ml `BOTTLE_SIZE_ML`) keeps a safety margin below the
 ~10-12% concentration widely cited as the threshold for hypertonic-solution gastric
-distress/delayed emptying. `fuelBottleCount = ceil(totalCarbsG / 60)` determines how many
+distress/delayed emptying. `fuelBottleCount = ceil(totalCarbsG / 60)` (zero when
+`totalCarbsG` is already zero — see "Hybrid nutrition" above) determines how many
 concentrated bottles are needed to stay under that cap (each carrying an even share of the
 recipe's maltodextrin/fructose/sodium); any additional fluid target beyond what those
-bottles hold is covered by plain water/electrolyte bottles. On a long ride this often
-means refilling the same one or two bottles multiple times from a support car/musette
-rather than literally carrying every bottle at once — the UI frames counts as "× N", not
-as a literal simultaneous carry requirement.
+bottles hold is covered by plain water/electrolyte bottles.
+
+### Reload strategy (Ziploc bags)
+
+A road bike only has 2 bottle cages (`MAX_BOTTLES_ON_BIKE`) — `getBottlePlan()`'s
+`totalBottles` figure is a *nutritional* requirement, not a statement about what's
+physically mounted on the bike at once. `getReloadStrategy({ bottlePlan, durationHours,
+distanceKm })` (`lib/metabolic-engine.ts`) returns `null` whenever `totalBottles <= 2` (no
+reload needed — refill-from-a-musette framing in the section above is enough); otherwise
+it returns how many pre-measured Ziploc sachets to carry (`totalBottles - 2`, each
+reusing the exact same per-bottle malto/fructose/sodium grams `getBottlePlan()` already
+computed, so a sachet mixes into a fresh bottle at the same safe 8% concentration) and
+when to stop: `reloadAtKm`/`reloadAtHours` is the point the 2 starting bottles would run
+dry, estimated as `2 / totalBottles` of the way through the ride (assuming roughly even
+consumption) — `reloadAtKm` only set in route mode, where a real distance exists.
+Rendered in `components/fueling-planner.tsx` as a numbered "🚰 Estrategia de Recarga en
+Ruta" block (only shown when `reloadStrategy` isn't `null`): 2 bottles at the start, N
+Ziploc bags in the jersey, and the estimated stop point.
+
+### Altitude / lapse-rate temperature correction
+
+The pre-ride planner's dynamic weather (`getWeatherForDeparture()`) only samples the
+route's *start* coordinates — a saved Strava route has no elapsed-time-to-point mapping
+the way a completed activity's polyline does, so there's no way to sample further along
+it the way `getWeatherForRoute()` does post-ride. Sampling only the start silently assumes
+the whole route sits at that altitude, overestimating temperature — and therefore sweat
+rate and sodium loss (`getFluidLossMlPerHour`/`getSodiumLossMgPerHour`) — on a route that
+climbs into the mountains. `getLapseRateAdjustedTemperature(baseTemperatureC,
+elevationGainM)` (`lib/metabolic-engine.ts`) corrects for this using the standard
+environmental lapse rate (~6.5°C per 1000m of altitude gained, `LAPSE_RATE_C_PER_1000M`).
+Since Strava's route summary doesn't expose real `elev_high`/`elev_low` the way a
+completed activity does, total elevation gain is used as a practical proxy for how far
+above the start the route's high point sits — applied in `POST /api/fueling/plan` in
+route mode only (quick mode has no elevation data), *after* dynamic weather resolves and
+*before* it feeds the fluid-loss calculation. The response's `weather.lapseRateAdjustmentC`
+carries the signed correction (negative = colder) so the UI can show "🏔️ −X°C por
+altitud" next to the weather summary whenever it's non-zero.
 
 ### Carb-loading protocol (Día −1)
 
@@ -313,30 +370,53 @@ recipe for that specific ride's real forecast conditions.
   navigation — the one deliberate departure from this codebase's usual
   progressive-enhancement form convention). Body is either route mode
   (`{ mode: "route", distanceKm, elevationGainM, startLat, startLng, intensity,
-  departureIso, isTargetEvent }`, using `estimateRideDurationHours()` for the duration and
-  a named intensity level for the target %FTP) or quick mode (`{ mode: "quick",
-  durationHours, averageWatts, departureIso, isTargetEvent }`, using the real watts
-  directly via `getRelativeIntensity()`). Dynamic weather is only sampled in route mode
-  (needs start coordinates); quick mode always uses the fixed "typical training day"
-  planning default (22°C/55% humidity). Re-fetches `ftp`/`weight_kg`/`sweat_rate`/
-  `gut_training_level`/`athlete_type` from `athlete_profiles` server-side rather than
-  trusting client-supplied values, runs the intensity-driven carb target through
-  `getGutCappedCarbTarget()` before building the recipe (so the recipe itself never
-  recommends more than the athlete's gut can handle), and logs the resulting totals to
-  `fueling_logs` (`kind: 'pre_ride'`) on every successful calculation — see "Lifetime
-  fueling totals" below. The response also carries `bottlePlan`, `glycogenBattery`, and
-  `carbLoading` (see their respective sections above) alongside the original recipe/
-  weather/gut-training fields.
+  departureIso, isTargetEvent, pocketFood }`, using `estimateRideDurationHours()` for the
+  duration and a named intensity level for the target %FTP) or quick mode (`{ mode:
+  "quick", durationHours, averageWatts, departureIso, isTargetEvent, pocketFood }`, using
+  the real watts directly via `getRelativeIntensity()`) — `pocketFood` is sanitized via a
+  route-local `sanitizePocketFoodSelection()` (unknown keys/non-positive quantities
+  silently dropped, same "degrade gracefully" convention as `getStravaRoutes()` returning
+  `[]`) rather than trusted as-is. Dynamic weather is only sampled in route mode (needs
+  start coordinates); quick mode always uses the fixed "typical training day" planning
+  default (22°C/55% humidity) — route mode additionally applies the lapse-rate correction
+  (see "Altitude / lapse-rate temperature correction" above) before computing fluid/sodium
+  loss. Re-fetches `ftp`/`weight_kg`/`sweat_rate`/`gut_training_level`/`athlete_type` from
+  `athlete_profiles` server-side rather than trusting client-supplied values, runs the
+  intensity-driven carb target through `getGutCappedCarbTarget()` before building the
+  recipe (so the recipe itself never recommends more than the athlete's gut can handle),
+  subtracts the pocket-food carb total before splitting into malto/fructose (see "Hybrid
+  nutrition" above), and logs the resulting totals to `fueling_logs` (`kind: 'pre_ride'`)
+  on every successful calculation — see "Lifetime fueling totals" below. The response also
+  carries `totalRideCarbsG` (the unadjusted target, for the UI's "covers X of Y" line),
+  `pocketFoodCarbsG`, `bottlePlan`, `reloadStrategy`, `nutritionMilestones`,
+  `glycogenBattery`, and `carbLoading` (see their respective sections above) alongside the
+  original recipe/weather/gut-training fields.
 - **`components/fueling-planner.tsx`** (`"use client"`) — the interactive planner UI:
   a route/quick mode toggle, a route `<select>` (built from the routes passed down as
   props) or duration+watts inputs, a `datetime-local` departure input (defaults to
-  tomorrow 08:00 via `defaultDepartureLocal()`), an optional "Ruta objetivo / Competición"
-  checkbox (`isTargetEvent`), and a result panel rendering whatever `/api/fueling/plan`
-  returns — carb/sodium targets, the DIY recipe with its bottle architecture, the
-  glycogen battery comparison, the money-saved comparison, which weather source was used
-  (`dynamic` vs `planning_default`), a "Gut Training" warning banner whenever
-  `gutTraining.isGutLimited` is true, and the collapsible carb-loading module when
-  applicable.
+  tomorrow 08:00 via `defaultDepartureLocal()`), a 2×2 pocket-food quantity-stepper grid,
+  an optional "Ruta objetivo / Competición" checkbox (`isTargetEvent`), and a result panel
+  rendering whatever `/api/fueling/plan` returns — carb/sodium targets, the DIY recipe
+  with its bottle architecture and pocket-food coverage line, the glycogen battery
+  comparison, the reload-strategy block when applicable, the money-saved comparison, which
+  weather source was used (`dynamic` vs `planning_default`, plus the lapse-rate note when
+  non-zero), a "Gut Training" warning banner whenever `gutTraining.isGutLimited` is true,
+  the collapsible carb-loading module when applicable, and the "Exportar a Garmin / Wahoo
+  / Strava" button (see "Garmin/Wahoo/Strava export" below).
+
+### Garmin/Wahoo/Strava export
+
+`formatGarminExportText()` (`lib/metabolic-engine.ts`, pure like the rest of the engine)
+builds a plain-text "ficha técnica" meant to be pasted into a Strava route description or
+a head-unit's course-notes field, so the reminders stay visible mid-ride instead of only
+at planning time on the phone: a fixed "alarm every 15 min" frequency reminder, the g/h
+carb and sodium targets, and a "📍 Hitos de Nutrición" section built from
+`nutritionMilestones` (see "Hybrid nutrition" above) plus the reload stop point (see
+"Reload strategy" above) when either exists. The "Exportar a Garmin / Wahoo / Strava"
+button in `components/fueling-planner.tsx` copies this to the clipboard via
+`navigator.clipboard.writeText()`, flipping to "✓ Ficha copiada" for 2s — the same
+clipboard-plus-flip-label pattern as the "Copiar Receta" button, just with its own
+`exportCopied` state so the two confirmations don't interfere with each other.
 - **"Copiar Receta"** — a button next to the recipe header calls
   `navigator.clipboard.writeText()` with the output of
   `formatRecipeForSharing()` (`lib/metabolic-engine.ts`, pure/no I/O like the rest of the

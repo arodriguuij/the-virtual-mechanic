@@ -1,13 +1,24 @@
 "use client";
 
-import { Copy } from "lucide-react";
+import { Copy, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { formatRecipeForSharing, intensityLabels, type IntensityLevel } from "@/lib/metabolic-engine";
+import {
+  formatGarminExportText,
+  formatRecipeForSharing,
+  intensityLabels,
+  pocketFoodCarbsG as POCKET_FOOD_CARBS_G,
+  pocketFoodLabels,
+  type IntensityLevel,
+  type PocketFoodItemType,
+} from "@/lib/metabolic-engine";
 import type { StravaRoute } from "@/lib/strava-routes";
+
+const POCKET_FOOD_TYPES: PocketFoodItemType[] = ["banana", "energy_bar", "gel", "sandwich"];
+const MAX_POCKET_FOOD_QTY = 6;
 
 const eyebrow = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
 const statLabel = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
@@ -35,11 +46,14 @@ type PlanResult = {
     waterMl: number;
     totalCarbsG: number;
   };
+  totalRideCarbsG: number;
+  pocketFoodCarbsG: number;
   moneySaved: number;
   weather: {
     temperatureC: number;
     humidityPct: number;
     source: "dynamic" | "planning_default";
+    lapseRateAdjustmentC: number;
   };
   gutTraining: {
     isGutLimited: boolean;
@@ -56,6 +70,17 @@ type PlanResult = {
     };
     waterBottles: { count: number };
   };
+  reloadStrategy: {
+    ziplocBagsCount: number;
+    ziplocDose: { maltodextrinG: number; fructoseG: number; sodiumMg: number };
+    reloadAtKm: number | null;
+    reloadAtHours: number;
+  } | null;
+  nutritionMilestones: {
+    label: string;
+    atKm: number | null;
+    atHours: number;
+  }[];
   glycogenBattery: {
     glycogenStoresG: number;
     noFuel: {
@@ -94,15 +119,21 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
   const [quickAverageWatts, setQuickAverageWatts] = useState(180);
   const [departureLocal, setDepartureLocal] = useState(defaultDepartureLocal);
   const [isTargetEvent, setIsTargetEvent] = useState(false);
+  const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
   const [result, setResult] = useState<PlanResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [exportCopied, setExportCopied] = useState(false);
 
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === selectedRouteId) ?? null,
     [routes, selectedRouteId]
   );
+
+  function setPocketFoodQty(type: PocketFoodItemType, qty: number) {
+    setPocketFood((prev) => ({ ...prev, [type]: Math.max(0, Math.min(MAX_POCKET_FOOD_QTY, qty)) }));
+  }
 
   async function handleCalculate() {
     setLoading(true);
@@ -120,6 +151,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               startLng: selectedRoute.startLng,
               intensity,
               isTargetEvent,
+              pocketFood,
             }
           : {
               mode: "quick",
@@ -127,6 +159,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               durationHours: quickDurationHours,
               averageWatts: quickAverageWatts,
               isTargetEvent,
+              pocketFood,
             };
 
       const res = await fetch("/api/fueling/plan", {
@@ -168,6 +201,23 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setError("No se pudo copiar la receta al portapapeles.");
+    }
+  }
+
+  async function handleExportGarmin() {
+    if (!result) return;
+    const text = formatGarminExportText({
+      carbsGPerHour: result.carbsGPerHour,
+      sodiumMgPerHour: result.sodiumMgPerHour,
+      milestones: result.nutritionMilestones,
+      reloadStrategy: result.reloadStrategy,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setExportCopied(true);
+      setTimeout(() => setExportCopied(false), 2000);
+    } catch {
+      setError("No se pudo copiar la ficha de nutrición al portapapeles.");
     }
   }
 
@@ -308,6 +358,47 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
           </div>
         )}
 
+        <div className="flex flex-col gap-1.5">
+          <span className={eyebrow}>Comida de bolsillo que llevarás encima</span>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {POCKET_FOOD_TYPES.map((type) => {
+              const qty = pocketFood[type] ?? 0;
+              return (
+                <div
+                  key={type}
+                  className="flex items-center justify-between gap-2 border border-neutral-300 px-3 py-2"
+                >
+                  <div className="flex flex-col">
+                    <span className="text-sm text-neutral-900">{pocketFoodLabels[type]}</span>
+                    <span className="text-xs text-neutral-500">~{POCKET_FOOD_CARBS_G[type]}g HC</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPocketFoodQty(type, qty - 1)}
+                      className="flex size-7 items-center justify-center border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+                      aria-label={`Quitar ${pocketFoodLabels[type]}`}
+                    >
+                      −
+                    </button>
+                    <span className="w-4 text-center text-sm font-medium tabular-nums text-neutral-900">
+                      {qty}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPocketFoodQty(type, qty + 1)}
+                      className="flex size-7 items-center justify-center border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+                      aria-label={`Añadir ${pocketFoodLabels[type]}`}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="flex flex-wrap items-center gap-4">
           <button
             type="button"
@@ -339,6 +430,9 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 {result.weather.source === "dynamic"
                   ? "previsión real de Open-Meteo"
                   : "estimación genérica"}
+                {result.weather.lapseRateAdjustmentC !== 0 && (
+                  <> · 🏔️ {result.weather.lapseRateAdjustmentC}°C por altitud</>
+                )}
               </span>
             </div>
 
@@ -430,6 +524,12 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   )}
                 </button>
               </div>
+              {result.pocketFoodCarbsG > 0 && (
+                <p className="mt-1.5 text-xs text-neutral-500">
+                  🍌 Comida de bolsillo cubre {result.pocketFoodCarbsG}g de {result.totalRideCarbsG}g HC —
+                  el resto ({result.recipe.totalCarbsG}g) va en el bidón.
+                </p>
+              )}
               <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
                 <div className="flex items-center justify-between">
                   <span>Maltodextrina</span>
@@ -462,17 +562,19 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   Arquitectura de bidones ({result.bottlePlan.bottleSizeMl}ml · ≤8% concentración)
                 </span>
                 <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
-                  <div className="flex flex-wrap items-center justify-between gap-1">
-                    <span>
-                      🧪 {result.bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel
-                      Concentrado × {result.bottlePlan.fuelBottles.count}
-                    </span>
-                    <span className="text-xs text-neutral-500">
-                      {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g malto ·{" "}
-                      {result.bottlePlan.fuelBottles.fructoseGPerBottle}g fruct ·{" "}
-                      {result.bottlePlan.fuelBottles.sodiumMgPerBottle}mg Na / bidón
-                    </span>
-                  </div>
+                  {result.bottlePlan.fuelBottles.count > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-1">
+                      <span>
+                        🧪 {result.bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel
+                        Concentrado × {result.bottlePlan.fuelBottles.count}
+                      </span>
+                      <span className="text-xs text-neutral-500">
+                        {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g malto ·{" "}
+                        {result.bottlePlan.fuelBottles.fructoseGPerBottle}g fruct ·{" "}
+                        {result.bottlePlan.fuelBottles.sodiumMgPerBottle}mg Na / bidón
+                      </span>
+                    </div>
+                  )}
                   {result.bottlePlan.waterBottles.count > 0 && (
                     <div className="flex flex-wrap items-center justify-between gap-1">
                       <span>
@@ -485,6 +587,30 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 </div>
               </div>
             </div>
+
+            {result.reloadStrategy && (
+              <div className="border border-status-warning/40 bg-status-warning/10 px-3 py-2.5">
+                <span className="text-[10px] font-medium tracking-widest text-status-warning uppercase">
+                  🚰 Estrategia de recarga en ruta
+                </span>
+                <ol className="mt-1.5 flex flex-col gap-1 text-sm text-neutral-700">
+                  <li>1. Inicio de ruta: 2 bidones preparados en el cuadro.</li>
+                  <li>
+                    2. En el maillot: lleva {result.reloadStrategy.ziplocBagsCount} bolsita
+                    {result.reloadStrategy.ziplocBagsCount > 1 ? "s" : ""} Ziploc con{" "}
+                    {result.reloadStrategy.ziplocDose.maltodextrinG}g malto +{" "}
+                    {result.reloadStrategy.ziplocDose.fructoseG}g fructosa +{" "}
+                    {result.reloadStrategy.ziplocDose.sodiumMg}mg sal (dosis pre-medida por bidón).
+                  </li>
+                  <li className="font-medium text-neutral-900">
+                    📍 Parada de recarga recomendada:{" "}
+                    {result.reloadStrategy.reloadAtKm != null
+                      ? `Km ${result.reloadStrategy.reloadAtKm}`
+                      : `Hora ${result.reloadStrategy.reloadAtHours}`}
+                  </li>
+                </ol>
+              </div>
+            )}
 
             <div className="flex items-center gap-2 border border-status-good/40 bg-status-good/10 px-3 py-2 text-sm text-status-good">
               <span className="font-medium">Ahorras {result.moneySaved.toFixed(2)} €</span>
@@ -504,6 +630,21 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 </div>
               </details>
             )}
+
+            <button
+              type="button"
+              onClick={handleExportGarmin}
+              className="inline-flex w-fit items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-medium tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900"
+            >
+              {exportCopied ? (
+                "✓ Ficha copiada"
+              ) : (
+                <>
+                  <Send className="size-3.5" />
+                  Exportar a Garmin / Wahoo / Strava
+                </>
+              )}
+            </button>
           </div>
         )}
       </CardContent>
