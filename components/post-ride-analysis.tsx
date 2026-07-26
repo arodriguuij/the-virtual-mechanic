@@ -5,11 +5,13 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
-const eyebrow = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
-const statLabel = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
-const statValue = "text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
+const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
+const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
+const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
 const inputClass =
   "border border-neutral-300 bg-background px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900";
+const primaryButtonClass =
+  "inline-flex w-full items-center justify-center gap-2 border border-neutral-900 bg-neutral-900 px-6 py-3 text-xs font-bold tracking-widest text-background uppercase transition-colors hover:bg-background hover:text-neutral-900 disabled:opacity-50 disabled:hover:bg-neutral-900 disabled:hover:text-background sm:w-fit";
 
 type ActivityOption = {
   id: string;
@@ -83,7 +85,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="font-medium text-neutral-900">Análisis post-ruta</CardTitle>
+          <CardTitle>Análisis post-ruta</CardTitle>
           <CardDescription className={eyebrow}>
             Sin actividades registradas todavía
           </CardDescription>
@@ -95,7 +97,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-medium text-neutral-900">Análisis post-ruta</CardTitle>
+        <CardTitle>Análisis post-ruta</CardTitle>
         <CardDescription className={eyebrow}>
           Deuda de glucógeno y plato de recuperación
         </CardDescription>
@@ -127,7 +129,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
             type="button"
             onClick={handleAnalyze}
             disabled={loading}
-            className="inline-flex items-center justify-center border border-neutral-900 bg-neutral-900 px-4 py-2 text-[11px] font-medium tracking-widest text-background uppercase transition-colors hover:bg-neutral-700 disabled:opacity-50"
+            className={primaryButtonClass}
           >
             {loading ? "Analizando…" : "Analizar"}
           </button>
@@ -179,11 +181,11 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                     key={option.label}
                     className="flex flex-col gap-1 border border-neutral-200 px-3 py-2.5"
                   >
-                    <span className="text-[10px] font-medium tracking-widest text-neutral-500 uppercase">
+                    <span className="text-[10px] font-semibold tracking-widest text-neutral-500 uppercase">
                       {option.label}
                     </span>
                     <span className="text-sm text-neutral-900">{option.description}</span>
-                    <span className="text-xs text-neutral-500">
+                    <span className="font-mono text-xs text-neutral-500">
                       ≈ {option.approxCarbsG}g HC · {option.approxProteinG}g proteína
                     </span>
                   </div>

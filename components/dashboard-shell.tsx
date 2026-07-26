@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 function SidebarContent() {
   return (
     <div className="flex h-full flex-col gap-10 px-6 py-8">
-      <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.2em] text-neutral-900 uppercase">
+      <div className="flex items-center gap-2 border-b border-neutral-200 pb-6 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
         <Flame className="size-4" strokeWidth={1.5} />
         Motor Metabólico
       </div>
@@ -17,7 +17,7 @@ function SidebarContent() {
       <nav className="flex flex-1 flex-col gap-0.5">
         <span
           className={cn(
-            "flex items-center gap-3 border-l-2 px-3 py-2.5 text-[11px] font-medium tracking-widest uppercase",
+            "flex items-center gap-3 border-l-2 px-3 py-2.5 text-[11px] font-semibold tracking-widest uppercase",
             "border-neutral-900 text-neutral-900"
           )}
         >
@@ -81,12 +81,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           >
             <Menu className="size-5" />
           </button>
-          <span className="text-xs font-semibold tracking-[0.2em] text-neutral-900 uppercase">
+          <span className="text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
             Motor Metabólico
           </span>
         </header>
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10 sm:px-8 sm:py-14">
+        <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-10 sm:px-8 sm:py-14">
           {children}
         </main>
       </div>

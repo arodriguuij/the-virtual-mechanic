@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { stripEmoji } from "@/lib/gpx-export";
 import {
   formatGarminExportText,
   formatRecipeForSharing,
@@ -19,14 +20,24 @@ import type { StravaRoute } from "@/lib/strava-routes";
 
 const POCKET_FOOD_TYPES: PocketFoodItemType[] = ["banana", "energy_bar", "rice_cake", "dates"];
 const GEL_DOSE_TYPES: PocketFoodItemType[] = ["gel_small", "gel_standard", "gel_high"];
+const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = [...POCKET_FOOD_TYPES, ...GEL_DOSE_TYPES];
 const MAX_POCKET_FOOD_QTY = 6;
 const MAX_CUSTOM_CARBS_G = 500;
 
-const eyebrow = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
-const statLabel = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
-const statValue = "text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
+/** Plain, uppercase, no-emoji tag for the pocket-food matrix — `pocketFoodLabels`
+ * keeps its friendly emoji-prefixed copy for the clipboard/GPX exports, this
+ * derives the technical readout variant from the same source at render time. */
+function pocketFoodTag(type: PocketFoodItemType): string {
+  return `[${stripEmoji(pocketFoodLabels[type]).toUpperCase()} · ${POCKET_FOOD_CARBS_G[type]}G HC]`;
+}
+
+const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
+const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
+const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
 const inputClass =
   "border border-neutral-300 bg-background px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900";
+const primaryButtonClass =
+  "inline-flex w-full items-center justify-center gap-2 border border-neutral-900 bg-neutral-900 px-6 py-3 text-xs font-bold tracking-widest text-background uppercase transition-colors hover:bg-background hover:text-neutral-900 disabled:opacity-50 disabled:hover:bg-neutral-900 disabled:hover:text-background sm:w-fit";
 
 const INTENSITY_OPTIONS: IntensityLevel[] = [
   "recovery",
@@ -124,25 +135,26 @@ function PocketFoodStepperRow({
   onChange: (qty: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border border-neutral-300 px-3 py-2">
-      <div className="flex flex-col">
-        <span className="text-sm text-neutral-900">{pocketFoodLabels[type]}</span>
-        <span className="text-xs text-neutral-500">~{POCKET_FOOD_CARBS_G[type]}g HC</span>
-      </div>
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+      <span className="font-mono text-[11px] font-medium tracking-wide text-neutral-900">
+        {pocketFoodTag(type)}
+      </span>
+      <div className="flex items-stretch border border-neutral-900">
         <button
           type="button"
           onClick={() => onChange(qty - 1)}
-          className="flex size-7 items-center justify-center border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+          className="flex size-7 items-center justify-center font-mono text-sm text-neutral-900 transition-colors hover:bg-neutral-900 hover:text-background"
           aria-label={`Quitar ${pocketFoodLabels[type]}`}
         >
           −
         </button>
-        <span className="w-4 text-center text-sm font-medium tabular-nums text-neutral-900">{qty}</span>
+        <span className="flex w-8 items-center justify-center border-x border-neutral-900 font-mono text-sm font-semibold tabular-nums text-neutral-900">
+          {qty}
+        </span>
         <button
           type="button"
           onClick={() => onChange(qty + 1)}
-          className="flex size-7 items-center justify-center border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+          className="flex size-7 items-center justify-center font-mono text-sm text-neutral-900 transition-colors hover:bg-neutral-900 hover:text-background"
           aria-label={`Añadir ${pocketFoodLabels[type]}`}
         >
           +
@@ -301,7 +313,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-medium text-neutral-900">Planificador de fueling</CardTitle>
+        <CardTitle>Planificador de fueling</CardTitle>
         <CardDescription className={eyebrow}>
           Estrategia de bolsillo y receta DIY para tu próxima salida
         </CardDescription>
@@ -312,7 +324,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
             type="button"
             onClick={() => setMode("route")}
             className={cn(
-              "px-3 py-2 text-[11px] font-medium tracking-widest uppercase transition-colors",
+              "px-3 py-2 text-[11px] font-semibold tracking-widest uppercase transition-colors",
               mode === "route"
                 ? "border border-neutral-900 bg-neutral-900 text-background"
                 : "border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
@@ -324,7 +336,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
             type="button"
             onClick={() => setMode("quick")}
             className={cn(
-              "px-3 py-2 text-[11px] font-medium tracking-widest uppercase transition-colors",
+              "px-3 py-2 text-[11px] font-semibold tracking-widest uppercase transition-colors",
               mode === "quick"
                 ? "border border-neutral-900 bg-neutral-900 text-background"
                 : "border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
@@ -435,10 +447,10 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
           </div>
         )}
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
           <span className={eyebrow}>Comida de bolsillo que llevarás encima</span>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {POCKET_FOOD_TYPES.map((type) => (
+          <div className="flex flex-col divide-y divide-neutral-200 border border-neutral-900">
+            {ALL_POCKET_FOOD_TYPES.map((type) => (
               <PocketFoodStepperRow
                 key={type}
                 type={type}
@@ -446,41 +458,27 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 onChange={(qty) => setPocketFoodQty(type, qty)}
               />
             ))}
-          </div>
-
-          <div className="border border-neutral-200 p-2">
-            <span className="px-1 text-[10px] font-medium tracking-widest text-neutral-500 uppercase">
-              🧃 Geles comerciales (por dosis)
-            </span>
-            <div className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {GEL_DOSE_TYPES.map((type) => (
-                <PocketFoodStepperRow
-                  key={type}
-                  type={type}
-                  qty={pocketFood[type] ?? 0}
-                  onChange={(qty) => setPocketFoodQty(type, qty)}
+            <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+              <label
+                htmlFor="custom-carbs"
+                className="font-mono text-[11px] font-medium tracking-wide text-neutral-900"
+              >
+                [PERSONALIZADO]
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  id="custom-carbs"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={MAX_CUSTOM_CARBS_G}
+                  value={customCarbsG || ""}
+                  onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
+                  placeholder="0"
+                  className="w-16 border border-neutral-900 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none"
                 />
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between gap-2 border border-neutral-300 px-3 py-2">
-            <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
-              🍽️ Comida personalizada
-            </label>
-            <div className="flex items-center gap-1.5">
-              <input
-                id="custom-carbs"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                max={MAX_CUSTOM_CARBS_G}
-                value={customCarbsG || ""}
-                onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
-                placeholder="0"
-                className="w-20 border border-neutral-300 bg-background px-2 py-1.5 text-right text-sm text-neutral-900 outline-none focus:border-neutral-900"
-              />
-              <span className="text-xs text-neutral-500">g HC</span>
+                <span className="font-mono text-[11px] text-neutral-500">G HC</span>
+              </div>
             </div>
           </div>
         </div>
@@ -490,7 +488,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
             type="button"
             onClick={handleCalculate}
             disabled={loading || (mode === "route" && !selectedRoute)}
-            className="inline-flex w-fit items-center justify-center border border-neutral-900 bg-neutral-900 px-4 py-2 text-[11px] font-medium tracking-widest text-background uppercase transition-colors hover:bg-neutral-700 disabled:opacity-50"
+            className={primaryButtonClass}
           >
             {loading ? "Calculando…" : "Calcular estrategia"}
           </button>
@@ -598,7 +596,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 <button
                   type="button"
                   onClick={handleCopyRecipe}
-                  className="inline-flex shrink-0 items-center gap-1.5 border border-neutral-300 px-2.5 py-1.5 text-[10px] font-medium tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900"
+                  className="inline-flex shrink-0 items-center gap-1.5 border border-neutral-300 px-2.5 py-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900"
                 >
                   {copied ? (
                     "✓ Receta copiada"
@@ -619,25 +617,25 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
                 <div className="flex items-center justify-between">
                   <span>Maltodextrina</span>
-                  <span className="font-medium text-neutral-900 tabular-nums">
+                  <span className="font-mono font-medium text-neutral-900 tabular-nums">
                     {result.recipe.maltodextrinG} g
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Fructosa</span>
-                  <span className="font-medium text-neutral-900 tabular-nums">
+                  <span className="font-mono font-medium text-neutral-900 tabular-nums">
                     {result.recipe.fructoseG} g
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Sodio (citrato/sal)</span>
-                  <span className="font-medium text-neutral-900 tabular-nums">
+                  <span className="font-mono font-medium text-neutral-900 tabular-nums">
                     {result.recipe.sodiumMg} mg
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Agua</span>
-                  <span className="font-medium text-neutral-900 tabular-nums">
+                  <span className="font-mono font-medium text-neutral-900 tabular-nums">
                     {result.recipe.waterMl} ml
                   </span>
                 </div>
@@ -654,7 +652,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                         🧪 {result.bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel
                         Concentrado × {result.bottlePlan.fuelBottles.count}
                       </span>
-                      <span className="text-xs text-neutral-500">
+                      <span className="font-mono text-xs text-neutral-500">
                         {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g malto ·{" "}
                         {result.bottlePlan.fuelBottles.fructoseGPerBottle}g fruct ·{" "}
                         {result.bottlePlan.fuelBottles.sodiumMgPerBottle}mg Na / bidón
@@ -676,7 +674,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
 
             {result.reloadStrategy && (
               <div className="border border-status-warning/40 bg-status-warning/10 px-3 py-2.5">
-                <span className="text-[10px] font-medium tracking-widest text-status-warning uppercase">
+                <span className="text-[10px] font-semibold tracking-widest text-status-warning uppercase">
                   🚰 Estrategia de recarga en ruta
                 </span>
                 <ol className="mt-1.5 flex flex-col gap-1 text-sm text-neutral-700">
@@ -709,7 +707,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
 
             {result.carbLoading && (
               <details className="border border-neutral-200 px-3 py-2.5">
-                <summary className="cursor-pointer text-[11px] font-medium tracking-widest text-neutral-700 uppercase">
+                <summary className="cursor-pointer text-[11px] font-semibold tracking-widest text-neutral-700 uppercase">
                   📅 Estrategia de carga día −1 · {result.carbLoading.minCarbsG}-
                   {result.carbLoading.maxCarbsG}g HC
                 </summary>
@@ -727,7 +725,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   type="button"
                   onClick={handleDownloadGpx}
                   disabled={downloadingGpx}
-                  className="inline-flex w-fit items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-medium tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900 disabled:opacity-50"
+                  className="inline-flex w-fit items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900 disabled:opacity-50"
                 >
                   <Download className="size-3.5" />
                   {downloadingGpx ? "Generando…" : "Descargar GPX con avisos de nutrición"}
@@ -736,7 +734,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 <button
                   type="button"
                   onClick={handleExportGarmin}
-                  className="inline-flex w-fit items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-medium tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900"
+                  className="inline-flex w-fit items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900"
                 >
                   {exportCopied ? (
                     "✓ Ficha copiada"

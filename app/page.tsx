@@ -26,9 +26,9 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const eyebrow = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
-const statLabel = "text-[10px] font-medium tracking-widest text-neutral-600 uppercase";
-const statValue = "text-2xl font-semibold text-neutral-900 tabular-nums";
+const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
+const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
+const statValue = "font-mono text-2xl font-semibold text-neutral-900 tabular-nums";
 
 function formatRelativeDate(iso: string) {
   const date = new Date(iso);
@@ -40,6 +40,8 @@ function formatRelativeDate(iso: string) {
 
 const profileInputClass =
   "border border-neutral-300 bg-background px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900";
+const primaryButtonClass =
+  "inline-flex w-full items-center justify-center gap-2 border border-neutral-900 bg-neutral-900 px-6 py-3 text-xs font-bold tracking-widest text-background uppercase transition-colors hover:bg-background hover:text-neutral-900 disabled:opacity-50 disabled:hover:bg-neutral-900 disabled:hover:text-background sm:w-fit";
 
 async function PhysiologicalProfileCard() {
   const profile = await getAthleteProfile();
@@ -47,7 +49,7 @@ async function PhysiologicalProfileCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-medium text-neutral-900">Perfil fisiológico</CardTitle>
+        <CardTitle>Perfil fisiológico</CardTitle>
         <CardDescription className={eyebrow}>
           {profile
             ? "Tu línea base metabólica — peso sincronizado desde Strava al conectar"
@@ -186,10 +188,7 @@ async function PhysiologicalProfileCard() {
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="inline-flex w-fit items-center justify-center border border-neutral-900 bg-neutral-900 px-4 py-2 text-[11px] font-medium tracking-widest text-background uppercase transition-colors hover:bg-neutral-700"
-          >
+          <button type="submit" className={primaryButtonClass}>
             Guardar
           </button>
         </form>
@@ -244,9 +243,7 @@ async function FuelingPlannerSection() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="font-medium text-neutral-900">
-            Planificador de fueling
-          </CardTitle>
+          <CardTitle>Planificador de fueling</CardTitle>
           <CardDescription className={eyebrow}>
             Configura tu perfil fisiológico arriba para planificar tus bidones
           </CardDescription>
@@ -324,7 +321,7 @@ async function RideHistorySection() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="font-medium text-neutral-900">Historial de rutas</CardTitle>
+          <CardTitle>Historial de rutas</CardTitle>
           <CardDescription className={eyebrow}>
             Sin actividades registradas todavía
           </CardDescription>
@@ -336,7 +333,7 @@ async function RideHistorySection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-medium text-neutral-900">Historial de rutas</CardTitle>
+        <CardTitle>Historial de rutas</CardTitle>
         <CardDescription className={eyebrow}>
           Últimas salidas sincronizadas desde Strava
         </CardDescription>
@@ -351,7 +348,7 @@ async function RideHistorySection() {
             )}
           >
             <div className="flex items-baseline gap-3 sm:w-56 sm:shrink-0">
-              <span className="text-xs text-neutral-400 tabular-nums">
+              <span className="font-mono text-xs text-neutral-400 tabular-nums">
                 {String(index + 1).padStart(2, "0")}
               </span>
               <div className="flex flex-col gap-0.5">
@@ -361,7 +358,7 @@ async function RideHistorySection() {
             </div>
 
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 pl-8 text-sm sm:pl-0">
-              <span className="font-medium text-neutral-900 tabular-nums">
+              <span className="font-mono font-medium text-neutral-900 tabular-nums">
                 {(activity.distance / 1000).toFixed(1)} km
               </span>
               <span className="flex items-center gap-1.5 text-neutral-500">
@@ -369,7 +366,7 @@ async function RideHistorySection() {
                 {weatherLabel(activity.humidity_avg, activity.rain_mm)}
               </span>
               {activity.carbs_burned_g != null && (
-                <span className="flex items-center gap-1 font-medium text-status-good">
+                <span className="flex items-center gap-1 font-mono font-medium text-status-good">
                   <Flame className="size-3.5" />
                   {activity.carbs_burned_g} g HC
                 </span>
@@ -394,7 +391,7 @@ function RideHistorySkeleton() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-medium text-neutral-900">Historial de rutas</CardTitle>
+        <CardTitle>Historial de rutas</CardTitle>
         <Skeleton className="h-3 w-56" />
       </CardHeader>
       <CardContent className="flex flex-col">
@@ -469,7 +466,7 @@ function GlobalMetricsBarSkeleton() {
 }
 
 const stravaButtonClass =
-  "inline-flex items-center gap-2 px-4 py-2 text-[11px] font-medium tracking-widest uppercase transition-colors";
+  "inline-flex items-center gap-2 px-4 py-2.5 text-[11px] font-semibold tracking-widest uppercase transition-colors";
 
 async function StravaButton() {
   const profile = await getProfile();
@@ -552,7 +549,7 @@ export default async function Home({
         <header className="flex flex-col items-start gap-4 border-b border-neutral-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className={eyebrow}>Buenas tardes, Alejandro</p>
-            <h1 className="mt-1 text-2xl font-medium tracking-tight text-neutral-900">
+            <h1 className="mt-1 text-2xl font-bold tracking-wide text-neutral-900 uppercase">
               Dashboard
             </h1>
           </div>
@@ -580,10 +577,23 @@ export default async function Home({
         </Suspense>
 
         <Tabs defaultValue="pre-ride">
-          <TabsList variant="line">
-            <TabsTrigger value="pre-ride">Pre-Ride</TabsTrigger>
-            <TabsTrigger value="post-ride">Post-Ride</TabsTrigger>
-            <TabsTrigger value="profile">
+          <TabsList variant="line" className="w-full justify-start border-b border-neutral-200">
+            <TabsTrigger
+              value="pre-ride"
+              className="flex-none text-[11px] font-semibold tracking-widest uppercase"
+            >
+              Pre-Ride
+            </TabsTrigger>
+            <TabsTrigger
+              value="post-ride"
+              className="flex-none text-[11px] font-semibold tracking-widest uppercase"
+            >
+              Post-Ride
+            </TabsTrigger>
+            <TabsTrigger
+              value="profile"
+              className="flex-none text-[11px] font-semibold tracking-widest uppercase"
+            >
               Perfil<span className="hidden sm:inline"> &amp; Gut Training</span>
             </TabsTrigger>
           </TabsList>
