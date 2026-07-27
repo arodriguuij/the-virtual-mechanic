@@ -10,8 +10,9 @@ const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 up
 const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
 const inputClass =
   "border border-neutral-300 bg-background px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900";
+const selectableInputClass = `${inputClass} cursor-pointer`;
 const primaryButtonClass =
-  "inline-flex w-full items-center justify-center gap-2 border border-neutral-900 bg-neutral-900 px-6 py-3 text-xs font-bold tracking-widest text-background uppercase transition-colors hover:bg-background hover:text-neutral-900 disabled:opacity-50 disabled:hover:bg-neutral-900 disabled:hover:text-background sm:w-fit";
+  "inline-flex w-full cursor-pointer items-center justify-center gap-2 border border-neutral-900 bg-neutral-900 px-6 py-3 text-xs font-bold tracking-widest text-background uppercase transition-colors duration-150 hover:bg-background hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-neutral-900 disabled:hover:text-background sm:w-fit";
 
 type ActivityOption = {
   id: string;
@@ -110,7 +111,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
             </label>
             <select
               id="activity"
-              className={inputClass}
+              className={selectableInputClass}
               value={selectedId}
               onChange={(e) => setSelectedId(e.target.value)}
             >

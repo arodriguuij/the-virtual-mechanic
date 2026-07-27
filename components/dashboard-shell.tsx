@@ -64,7 +64,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       >
         <button
           type="button"
-          className="absolute top-7 right-4 text-neutral-500 lg:hidden"
+          className="absolute top-7 right-4 cursor-pointer text-neutral-500 transition-colors duration-150 hover:text-neutral-900 lg:hidden"
           onClick={() => setMobileOpen(false)}
         >
           <X className="size-5" />
@@ -76,7 +76,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         <header className="flex items-center gap-4 border-b border-neutral-200 px-6 py-4 lg:hidden">
           <button
             type="button"
-            className="text-neutral-500"
+            className="cursor-pointer text-neutral-500 transition-colors duration-150 hover:text-neutral-900"
             onClick={() => setMobileOpen(true)}
           >
             <Menu className="size-5" />

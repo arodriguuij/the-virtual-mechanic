@@ -50,8 +50,20 @@ const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 up
 const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
 const inputClass =
   "border border-neutral-300 bg-background px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900";
+// Selects and the datetime-local input are all "pick one" controls, unlike a
+// free-text/number field, so they get an explicit pointer cursor the plain
+// `inputClass` fields don't.
+const selectableInputClass = cn(inputClass, "cursor-pointer");
+// `datetime-local` renders its own calendar-picker icon that Tailwind can
+// only reach via the `::-webkit-calendar-picker-indicator` pseudo-element —
+// dimmed by default, full opacity on hover, so it still reads as clickable
+// without competing visually with the rest of the field.
+const dateInputClass = cn(
+  selectableInputClass,
+  "[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
+);
 const primaryButtonClass =
-  "inline-flex w-full items-center justify-center gap-2 border border-neutral-900 bg-neutral-900 px-6 py-3 text-xs font-bold tracking-widest text-background uppercase transition-colors hover:bg-background hover:text-neutral-900 disabled:opacity-50 disabled:hover:bg-neutral-900 disabled:hover:text-background sm:w-fit";
+  "inline-flex w-full cursor-pointer items-center justify-center gap-2 border border-neutral-900 bg-neutral-900 px-6 py-3 text-xs font-bold tracking-widest text-background uppercase transition-colors duration-150 hover:bg-background hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-neutral-900 disabled:hover:text-background sm:w-fit";
 
 const INTENSITY_OPTIONS: IntensityLevel[] = [
   "recovery",
@@ -149,29 +161,29 @@ function PocketFoodStepperRow({
   onChange: (qty: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-2.5">
-      <div className="flex flex-col gap-0.5">
-        <span className="text-sm font-medium text-neutral-900">{pocketFoodName(type)}</span>
-        <span className="font-mono text-xs text-neutral-500">
+    <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5">
+      <span className="text-sm text-neutral-900">
+        {pocketFoodName(type)}
+        <span className="ml-1.5 font-mono text-xs text-neutral-500">
           {POCKET_FOOD_CARBS_G[type]}g HC
         </span>
-      </div>
+      </span>
       <div className="flex items-center gap-1">
         <button
           type="button"
           onClick={() => onChange(qty - 1)}
-          className="flex size-7 items-center justify-center rounded-sm bg-neutral-100 text-neutral-600 transition-colors hover:bg-neutral-200 hover:text-neutral-900"
+          className="flex size-6 cursor-pointer items-center justify-center rounded-sm bg-neutral-100 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-200 hover:text-neutral-900"
           aria-label={`Quitar ${pocketFoodLabels[type]}`}
         >
           −
         </button>
-        <span className="w-6 text-center font-mono text-sm font-semibold tabular-nums text-neutral-900">
+        <span className="w-5 text-center font-mono text-sm font-semibold tabular-nums text-neutral-900">
           {qty}
         </span>
         <button
           type="button"
           onClick={() => onChange(qty + 1)}
-          className="flex size-7 items-center justify-center rounded-sm bg-neutral-100 text-neutral-600 transition-colors hover:bg-neutral-200 hover:text-neutral-900"
+          className="flex size-6 cursor-pointer items-center justify-center rounded-sm bg-neutral-100 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-200 hover:text-neutral-900"
           aria-label={`Añadir ${pocketFoodLabels[type]}`}
         >
           +
@@ -341,7 +353,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
             type="button"
             onClick={() => setMode("route")}
             className={cn(
-              "px-3 py-2 text-[11px] font-semibold tracking-widest uppercase transition-colors",
+              "cursor-pointer px-3 py-2 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150",
               mode === "route"
                 ? "border border-neutral-900 bg-neutral-900 text-background"
                 : "border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
@@ -353,7 +365,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
             type="button"
             onClick={() => setMode("quick")}
             className={cn(
-              "px-3 py-2 text-[11px] font-semibold tracking-widest uppercase transition-colors",
+              "cursor-pointer px-3 py-2 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150",
               mode === "quick"
                 ? "border border-neutral-900 bg-neutral-900 text-background"
                 : "border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
@@ -372,7 +384,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 </label>
                 <select
                   id="route"
-                  className={inputClass}
+                  className={selectableInputClass}
                   value={selectedRouteId}
                   onChange={(e) => setSelectedRouteId(e.target.value)}
                 >
@@ -389,7 +401,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 </label>
                 <select
                   id="intensity"
-                  className={inputClass}
+                  className={selectableInputClass}
                   value={intensity}
                   onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
                 >
@@ -407,7 +419,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 <input
                   id="departure-route"
                   type="datetime-local"
-                  className={inputClass}
+                  className={dateInputClass}
                   value={departureLocal}
                   onChange={(e) => setDepartureLocal(e.target.value)}
                 />
@@ -456,7 +468,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               <input
                 id="departure-quick"
                 type="datetime-local"
-                className={inputClass}
+                className={dateInputClass}
                 value={departureLocal}
                 onChange={(e) => setDepartureLocal(e.target.value)}
               />
@@ -475,8 +487,8 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 onChange={(qty) => setPocketFoodQty(type, qty)}
               />
             ))}
-            <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-2.5">
-              <label htmlFor="custom-carbs" className="text-sm font-medium text-neutral-900">
+            <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5">
+              <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
                 Personalizado
               </label>
               <div className="flex items-center gap-1.5">
@@ -506,12 +518,12 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
           >
             {loading ? "Calculando…" : "Calcular estrategia"}
           </button>
-          <label className="flex items-center gap-2 text-xs text-neutral-600">
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-600">
             <input
               type="checkbox"
               checked={isTargetEvent}
               onChange={(e) => setIsTargetEvent(e.target.checked)}
-              className="size-3.5 accent-neutral-900"
+              className="size-3.5 cursor-pointer accent-neutral-900"
             />
             Ruta objetivo / Competición
           </label>
@@ -617,7 +629,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 <button
                   type="button"
                   onClick={handleCopyRecipe}
-                  className="inline-flex shrink-0 items-center gap-1.5 border border-neutral-300 px-2.5 py-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900"
+                  className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 border border-neutral-300 px-2.5 py-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:border-neutral-900 hover:text-neutral-900"
                 >
                   {copied ? (
                     "✓ Receta copiada"
@@ -752,7 +764,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   type="button"
                   onClick={handleDownloadGpx}
                   disabled={downloadingGpx}
-                  className="inline-flex w-fit items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900 disabled:opacity-50"
+                  className="inline-flex w-fit cursor-pointer items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:border-neutral-900 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Download className="size-3.5" />
                   {downloadingGpx ? "Generando…" : "Descargar GPX con avisos de nutrición"}
@@ -761,7 +773,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 <button
                   type="button"
                   onClick={handleExportGarmin}
-                  className="inline-flex w-fit items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors hover:border-neutral-900 hover:text-neutral-900"
+                  className="inline-flex w-fit cursor-pointer items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:border-neutral-900 hover:text-neutral-900"
                 >
                   {exportCopied ? (
                     "✓ Ficha copiada"

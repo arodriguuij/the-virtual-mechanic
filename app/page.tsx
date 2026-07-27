@@ -40,8 +40,11 @@ function formatRelativeDate(iso: string) {
 
 const profileInputClass =
   "border border-neutral-300 bg-background px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900";
+// Selects are "pick one" controls, unlike the plain number inputs sharing
+// `profileInputClass` — an explicit pointer cursor signals that difference.
+const selectableProfileInputClass = cn(profileInputClass, "cursor-pointer");
 const primaryButtonClass =
-  "inline-flex w-full items-center justify-center gap-2 border border-neutral-900 bg-neutral-900 px-6 py-3 text-xs font-bold tracking-widest text-background uppercase transition-colors hover:bg-background hover:text-neutral-900 disabled:opacity-50 disabled:hover:bg-neutral-900 disabled:hover:text-background sm:w-fit";
+  "inline-flex w-full cursor-pointer items-center justify-center gap-2 border border-neutral-900 bg-neutral-900 px-6 py-3 text-xs font-bold tracking-widest text-background uppercase transition-colors duration-150 hover:bg-background hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-neutral-900 disabled:hover:text-background sm:w-fit";
 
 async function PhysiologicalProfileCard() {
   const profile = await getAthleteProfile();
@@ -98,7 +101,7 @@ async function PhysiologicalProfileCard() {
                 id="sweat_rate"
                 name="sweat_rate"
                 defaultValue={profile?.sweat_rate ?? "medium"}
-                className={profileInputClass}
+                className={selectableProfileInputClass}
               >
                 {(Object.keys(sweatRateLabels) as (keyof typeof sweatRateLabels)[]).map((rate) => (
                   <option key={rate} value={rate}>
@@ -115,7 +118,7 @@ async function PhysiologicalProfileCard() {
                 id="gut_training_level"
                 name="gut_training_level"
                 defaultValue={profile?.gut_training_level ?? "intermediate"}
-                className={profileInputClass}
+                className={selectableProfileInputClass}
               >
                 {(
                   Object.keys(gutTrainingLevelLabels) as (keyof typeof gutTrainingLevelLabels)[]
@@ -134,7 +137,7 @@ async function PhysiologicalProfileCard() {
                 id="bottle_count"
                 name="bottle_count"
                 defaultValue={profile?.bottle_count ?? 2}
-                className={profileInputClass}
+                className={selectableProfileInputClass}
               >
                 <option value={1}>1 bidón</option>
                 <option value={2}>2 bidones</option>
@@ -148,7 +151,7 @@ async function PhysiologicalProfileCard() {
                 id="bottle_capacity_ml"
                 name="bottle_capacity_ml"
                 defaultValue={profile?.bottle_capacity_ml ?? 750}
-                className={profileInputClass}
+                className={selectableProfileInputClass}
               >
                 <option value={500}>500 ml</option>
                 <option value={600}>600 ml</option>
@@ -165,7 +168,7 @@ async function PhysiologicalProfileCard() {
                 (type) => (
                   <label
                     key={type}
-                    className="flex cursor-pointer flex-col gap-1 rounded-sm border border-neutral-300 px-3 py-2.5 has-checked:border-neutral-900 has-checked:bg-neutral-100"
+                    className="flex cursor-pointer flex-col gap-1 rounded-sm border border-neutral-300 px-3 py-2.5 transition-colors duration-150 has-checked:border-neutral-900 has-checked:bg-neutral-100"
                   >
                     <span className="flex items-center gap-2">
                       <input
@@ -173,7 +176,7 @@ async function PhysiologicalProfileCard() {
                         name="athlete_type"
                         value={type}
                         defaultChecked={(profile?.athlete_type ?? "balanced") === type}
-                        className="size-3.5 accent-neutral-900"
+                        className="size-3.5 cursor-pointer accent-neutral-900"
                       />
                       <span className="text-sm font-medium text-neutral-900">
                         {athleteTypeLabels[type]}
@@ -375,7 +378,7 @@ async function RideHistorySection() {
                 href={`https://www.strava.com/activities/${activity.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-neutral-400 hover:text-neutral-900"
+                className="flex cursor-pointer items-center gap-1 text-neutral-400 transition-colors duration-150 hover:text-neutral-900"
               >
                 <ExternalLink className="size-3.5" />
               </a>
@@ -466,7 +469,7 @@ function GlobalMetricsBarSkeleton() {
 }
 
 const stravaButtonClass =
-  "inline-flex items-center gap-2 px-4 py-2.5 text-[11px] font-semibold tracking-widest uppercase transition-colors";
+  "inline-flex cursor-pointer items-center gap-2 px-4 py-2.5 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150";
 
 async function StravaButton() {
   const profile = await getProfile();
