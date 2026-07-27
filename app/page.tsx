@@ -247,39 +247,50 @@ async function WeeklyPerformancePanel() {
         </p>
       ) : (
         <div className="mt-3 grid grid-cols-2 gap-6 sm:grid-cols-4">
-          <div className="flex flex-col gap-1">
-            <span className={statLabel}>Cumplimiento 7D</span>
-            <span className={weeklyStatValue}>
-              {weekly.compliancePct != null ? (
-                <>
-                  {weekly.compliancePct}
-                  <span className="ml-0.5 text-sm font-normal text-neutral-500">%</span>
-                </>
-              ) : (
-                "—"
-              )}
-            </span>
-            {weekly.compliancePct == null && (
-              <span className="text-xs text-neutral-500">Sin datos de consumo aún</span>
-            )}
-          </div>
+          {weekly.compliancePct == null && weekly.avgIntakeGPerHour == null ? (
+            <div className="col-span-2 flex items-center border border-dashed border-neutral-300 bg-white/60 px-3 py-2.5">
+              <p className="text-sm text-neutral-500">
+                Calcula tu primera estrategia de nutrición para empezar a registrar tu balance
+                semanal.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1">
+                <span className={statLabel}>Cumplimiento 7D</span>
+                <span className={weeklyStatValue}>
+                  {weekly.compliancePct != null ? (
+                    <>
+                      {weekly.compliancePct}
+                      <span className="ml-0.5 text-sm font-normal text-neutral-500">%</span>
+                    </>
+                  ) : (
+                    "—"
+                  )}
+                </span>
+                {weekly.compliancePct == null && (
+                  <span className="text-xs text-neutral-500">Sin datos de consumo aún</span>
+                )}
+              </div>
 
-          <div className="flex flex-col gap-1">
-            <span className={statLabel}>Promedio ingesta</span>
-            <span className={weeklyStatValue}>
-              {weekly.avgIntakeGPerHour != null ? (
-                <>
-                  {weekly.avgIntakeGPerHour}
-                  <span className="ml-1 text-sm font-normal text-neutral-500">g/h</span>
-                </>
-              ) : (
-                "—"
-              )}
-            </span>
-            {weekly.avgIntakeGPerHour == null && (
-              <span className="text-xs text-neutral-500">Sin datos de consumo aún</span>
-            )}
-          </div>
+              <div className="flex flex-col gap-1">
+                <span className={statLabel}>Promedio ingesta</span>
+                <span className={weeklyStatValue}>
+                  {weekly.avgIntakeGPerHour != null ? (
+                    <>
+                      {weekly.avgIntakeGPerHour}
+                      <span className="ml-1 text-sm font-normal text-neutral-500">g/h</span>
+                    </>
+                  ) : (
+                    "—"
+                  )}
+                </span>
+                {weekly.avgIntakeGPerHour == null && (
+                  <span className="text-xs text-neutral-500">Sin datos de consumo aún</span>
+                )}
+              </div>
+            </>
+          )}
 
           <div className="flex flex-col gap-1">
             <span className={statLabel}>Gut training</span>
@@ -423,45 +434,57 @@ export default async function Home({
           <ProfileCheckBannerSection />
         </Suspense>
 
-        <Suspense fallback={<WeeklyPerformancePanelSkeleton />}>
-          <WeeklyPerformancePanel />
-        </Suspense>
+        {/*
+          Mobile-first priority: a new athlete's very first useful action is
+          calculating a fueling strategy, not reading last week's stats — so
+          the Tabs block (Pre-Ride's Fueling Planner is its default tab)
+          renders before the Weekly Performance Panel on small screens via
+          `order`, reverting to the original stats-then-tabs order at `sm:`
+          and up, where there's enough width to not need the reprioritization.
+        */}
+        <div className="order-2 sm:order-0">
+          <Suspense fallback={<WeeklyPerformancePanelSkeleton />}>
+            <WeeklyPerformancePanel />
+          </Suspense>
+        </div>
 
-        <Tabs defaultValue="pre-ride">
-          <TabsList variant="line" className="w-full justify-start border-b border-neutral-200">
-            <TabsTrigger
-              value="pre-ride"
-              className="flex-none text-[11px] font-semibold tracking-widest uppercase"
-            >
-              Pre-Ride
-            </TabsTrigger>
-            <TabsTrigger
-              value="post-ride"
-              className="flex-none text-[11px] font-semibold tracking-widest uppercase"
-            >
-              Post-Ride
-            </TabsTrigger>
-          </TabsList>
+        <div className="order-1 sm:order-0">
+          <Tabs defaultValue="pre-ride">
+            <TabsList variant="line" className="w-full justify-start border-b border-neutral-200">
+              <TabsTrigger
+                value="pre-ride"
+                className="flex-none text-[11px] font-semibold tracking-widest uppercase"
+              >
+                Pre-Ride
+              </TabsTrigger>
+              <TabsTrigger
+                value="post-ride"
+                className="flex-none text-[11px] font-semibold tracking-widest uppercase"
+              >
+                Post-Ride
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="pre-ride">
-            <div className="flex flex-col gap-10 pt-6">
-              <Suspense fallback={<FuelingPlannerSkeleton />}>
-                <FuelingPlannerSection />
-              </Suspense>
-            </div>
-          </TabsContent>
+            <TabsContent value="pre-ride">
+              <div className="flex flex-col gap-10 pt-6">
+                <Suspense fallback={<FuelingPlannerSkeleton />}>
+                  <FuelingPlannerSection />
+                </Suspense>
+              </div>
+            </TabsContent>
 
-          <TabsContent value="post-ride">
-            <div className="flex flex-col gap-10 pt-6">
-              <Suspense fallback={<PostRideAnalysisSkeleton />}>
-                <PostRideAnalysisSection />
-              </Suspense>
-              <Suspense fallback={<RideHistorySkeleton />}>
-                <RideHistorySection />
-              </Suspense>
-            </div>
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="post-ride">
+              <div className="flex flex-col gap-10 pt-6">
+                <Suspense fallback={<PostRideAnalysisSkeleton />}>
+                  <PostRideAnalysisSection />
+                </Suspense>
+                <Suspense fallback={<RideHistorySkeleton />}>
+                  <RideHistorySection />
+                </Suspense>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </DashboardShell>
   );

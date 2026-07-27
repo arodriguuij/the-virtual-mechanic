@@ -526,39 +526,39 @@ export function FuelingPlanner({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1 text-[11px] font-mono">
           <button
             type="button"
             onClick={() => setMode("route")}
             className={cn(
-              "cursor-pointer px-3 py-2 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150",
+              "cursor-pointer rounded-md px-2 py-2 font-semibold tracking-wide uppercase transition-colors duration-150",
               mode === "route"
-                ? "border border-neutral-900 bg-neutral-900 text-background"
-                : "border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+                ? "bg-neutral-900 text-background shadow-sm"
+                : "text-neutral-500 hover:text-neutral-900"
             )}
           >
-            Ruta guardada de Strava
+            Ruta Strava
           </button>
           <button
             type="button"
             onClick={() => setMode("quick")}
             className={cn(
-              "cursor-pointer px-3 py-2 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150",
+              "cursor-pointer rounded-md px-2 py-2 font-semibold tracking-wide uppercase transition-colors duration-150",
               mode === "quick"
-                ? "border border-neutral-900 bg-neutral-900 text-background"
-                : "border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+                ? "bg-neutral-900 text-background shadow-sm"
+                : "text-neutral-500 hover:text-neutral-900"
             )}
           >
-            Calculadora rápida
+            Calculadora
           </button>
           <button
             type="button"
             onClick={() => setMode("gpx")}
             className={cn(
-              "cursor-pointer px-3 py-2 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150",
+              "cursor-pointer rounded-md px-2 py-2 font-semibold tracking-wide uppercase transition-colors duration-150",
               mode === "gpx"
-                ? "border border-neutral-900 bg-neutral-900 text-background"
-                : "border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+                ? "bg-neutral-900 text-background shadow-sm"
+                : "text-neutral-500 hover:text-neutral-900"
             )}
           >
             Subir GPX

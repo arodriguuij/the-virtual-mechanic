@@ -1056,11 +1056,14 @@ strict about never fabricating a plausible-looking number for data that doesn't 
 
 When `ridesThisWeekCount` is `0`, the whole panel collapses to a single onboarding line
 ("0 km registrados esta semana — sincroniza tu primera salida...") instead of four empty
-stat cards — the empty-state the "Auth, Logout & Empty States" work asked for, and the
-same reasoning extends to each individual metric independently (a returning athlete with
-rides but no logged consumption yet still sees real ride data, just with "Sin datos de
-consumo aún" on the two consumption-dependent figures specifically, rather than the whole
-panel refusing to render).
+stat cards — the empty-state the "Auth, Logout & Empty States" work asked for. Independently
+of that, when there *are* rides this week but `compliancePct`/`avgIntakeGPerHour` are both
+still `null` (no `post_ride` consumption logged yet), the Cumplimiento/Promedio-ingesta
+cells collapse into one `col-span-2` friendly card ("Calcula tu primera estrategia de
+nutrición para empezar a registrar tu balance semanal.") rather than two separate "Sin
+datos de consumo aún" stat blocks — Gut Training and Balance Hídrico still render as their
+own cells regardless, since gut training is always real data independent of any week's
+rides.
 
 ### Onboarding banner (Perfil incompleto)
 
@@ -1078,10 +1081,13 @@ brand-new athlete with no physiological data yet). Checking *both* together, not
 field alone, is deliberate: a real athlete whose genuine sweat rate happens to be "medium"
 would otherwise get flagged forever. `app/page.tsx`'s `ProfileCheckBannerSection` calls
 `getAthleteProfile()` (already `cache()`-deduped, so this costs no extra query) and passes
-the result straight to `ProfileCheckBanner`, which renders a message built from whichever
-fields are missing ("Falta configurar tu FTP y tu sudoración para calibrar tu receta."), a
-link to `/perfil`, and a dismiss (`×`) button. The dismiss preference is `localStorage`-only
-(`profile_check_banner_dismissed`, same convention as the planner's offline-strategy
+the result straight to `ProfileCheckBanner`, which shows a single fixed message whenever
+that array is non-empty ("Tu estrategia actual usa valores estimados. Configura tu FTP y
+Peso en Perfil Fisiológico." — deliberately not built per-missing-field, since the
+actionable takeaway is the same regardless of which exact fields are still placeholders),
+a link to `/perfil`, and a dismiss (`×`) button. The dismiss preference is
+`localStorage`-only (`profile_check_banner_dismissed`, same convention as the planner's
+offline-strategy
 cache) — a private-browsing/quota failure just means the dismiss doesn't persist across
 sessions, never a broken banner.
 
@@ -1188,9 +1194,13 @@ The multi-column grids across the Dashboard and Perfil pages (profile form, plan
 inputs, result-panel stat rows, the glycogen battery comparison) stack to a single column
 at the default breakpoint and only go multi-column at `sm:` — mobile is the default
 layout, not an afterthought squeezed into a desktop grid. The `app/page.tsx` header
-(title + Strava button) and the "Ruta guardada de Strava"/"Calculadora rápida" mode
-toggle both wrap (`flex-col`/`flex-wrap`) instead of forcing a single row that would
-overflow a narrow viewport. Numeric inputs carry
+(title + Strava button) wraps (`flex-col`) instead of forcing a single row that would
+overflow a narrow viewport. The planner's route/quick/GPX mode toggle is a compact
+`grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1` segmented control (an inner
+`rounded-md bg-neutral-900 shadow-sm` pill marks the active mode) rather than a row of
+individually bordered, wrapping pill buttons — three columns fit in one row even on a
+narrow phone, which a wrapping flex row of longer labels didn't reliably do. Numeric inputs
+carry
 `inputMode="decimal"` (weight, duration — anything with a fractional step) or
 `inputMode="numeric"` (FTP, watts — integers only) so mobile keyboards show the right
 keypad; shared input classes across `page.tsx`/`fueling-planner.tsx`/
@@ -1198,6 +1208,16 @@ keypad; shared input classes across `page.tsx`/`fueling-planner.tsx`/
 target. `app/layout.tsx`'s `<body>` carries `overflow-x-hidden` as a defensive backstop
 against any stray horizontal overflow, on top of (not instead of) fixing the actual
 layouts above.
+
+**Mobile dashboard priority reorder.** A brand-new athlete's first useful action is
+calculating a fueling strategy, not reading a week of stats they don't have yet — so on
+small screens `app/page.tsx` renders the Tabs block (Pre-Ride's Fueling Planner is its
+default tab) *before* the Weekly Performance Panel, reverting to the original
+stats-then-tabs order at `sm:` and up. Both blocks are wrapped in their own `div` (`order-2
+sm:order-0` on the Weekly panel's wrapper, `order-1 sm:order-0` on the Tabs wrapper) inside
+the page's outer `flex flex-col` container — plain CSS `order` on two siblings, not a DOM
+restructure, so neither component needed to change and the Tabs' internal Pre-Ride/Post-Ride
+behavior is untouched.
 
 ### PWA / "Add to Home Screen"
 
