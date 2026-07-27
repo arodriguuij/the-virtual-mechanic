@@ -98,22 +98,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { error: insertError } = await supabase.from("activities").insert({
-      id: activityId,
-      profile_id: userId,
-      name: activity.name,
-      distance: activity.distance,
-      total_elevation_gain: activity.total_elevation_gain,
-      moving_time: activity.moving_time,
-      average_watts: averageWatts,
-      rain_mm: Math.round(rainMm * 10) / 10,
-      humidity_avg: Math.round(humidityAvg * 10) / 10,
-      temperature_avg: Math.round(temperatureAvgC * 10) / 10,
-      carbs_burned_g: carbsBurnedG,
-      fluid_loss_ml: fluidLossMl,
-      sodium_loss_mg: sodiumLossMg,
-      activity_date: activity.start_date,
-    });
+    // `id` *is* the Strava activity id (see `lib/dashboard-data.ts`'s
+    // `Activity` type) — upserting on it, rather than a plain insert after
+    // the `existing` check above, closes the check-then-insert race window
+    // a rapid double-click on "Sincronizar rutas" could otherwise hit
+    // (two requests both seeing `!existing` before either finishes
+    // inserting). `ignoreDuplicates` means a losing race is a silent no-op
+    // instead of a duplicate-key error, matching this route's existing
+    // "re-syncing must never double-count nutrition" guarantee.
+    const { error: insertError } = await supabase.from("activities").upsert(
+      {
+        id: activityId,
+        profile_id: userId,
+        name: activity.name,
+        distance: activity.distance,
+        total_elevation_gain: activity.total_elevation_gain,
+        moving_time: activity.moving_time,
+        average_watts: averageWatts,
+        rain_mm: Math.round(rainMm * 10) / 10,
+        humidity_avg: Math.round(humidityAvg * 10) / 10,
+        temperature_avg: Math.round(temperatureAvgC * 10) / 10,
+        carbs_burned_g: carbsBurnedG,
+        fluid_loss_ml: fluidLossMl,
+        sodium_loss_mg: sodiumLossMg,
+        activity_date: activity.start_date,
+      },
+      { onConflict: "id", ignoreDuplicates: true }
+    );
     if (insertError) throw insertError;
   }
 

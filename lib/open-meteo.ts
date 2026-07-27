@@ -18,6 +18,12 @@ const WET_THRESHOLD_MM = 0.1;
 export type RouteWeather = {
   humidityAvg: number;
   temperatureAvgC: number;
+  // The hottest single sampled point — a whole-ride average can mask a
+  // genuinely dangerous few minutes at a low valley or exposed summit;
+  // sweat-rate sizing should still be driven by the average (a peak
+  // reading only applies briefly, not for the whole ride), but the peak is
+  // worth surfacing to the rider as its own figure.
+  temperatureMaxC: number;
   rainMm: number;
   isWet: boolean;
 };
@@ -105,12 +111,14 @@ export async function getWeatherForRoute(
 
   const humidityAvg = samples.reduce((sum, s) => sum + s.humidity, 0) / samples.length;
   const temperatureAvgC = samples.reduce((sum, s) => sum + s.temperatureC, 0) / samples.length;
+  const temperatureMaxC = Math.max(...samples.map((s) => s.temperatureC));
   const maxRain = Math.max(...samples.map((s) => s.rainMm));
   const isWet = maxRain > WET_THRESHOLD_MM;
 
   return {
     humidityAvg,
     temperatureAvgC,
+    temperatureMaxC,
     rainMm: isWet ? maxRain : 0,
     isWet,
   };

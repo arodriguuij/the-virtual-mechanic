@@ -123,8 +123,14 @@ Strava sync route also uses for `activities`.
 - `POST /api/strava/sync` — refreshes the access token if it's expired (via
   `getValidStravaAccessToken()` in `lib/strava-session.ts`, shared with the routes
   listing below so the refresh-and-persist dance lives in one place), pulls the
-  athlete's latest cycling activity, and inserts it into `activities` if it isn't there
-  yet. Only for a genuinely new activity (the `!existing` branch) it also:
+  athlete's latest cycling activity, and writes it into `activities` if it isn't there
+  yet via `.upsert(..., { onConflict: "id", ignoreDuplicates: true })` (`id` *is* the
+  Strava activity id) rather than a plain insert — the `!existing` check below still
+  gates whether weather/nutrition get computed at all, but the write itself is now
+  race-safe against a rapid double-click on "Sincronizar rutas": two requests that both
+  see `!existing` before either finishes would otherwise hit a duplicate-key error on the
+  second insert; with `ignoreDuplicates`, the loser of that race is a silent no-op
+  instead. Only for a genuinely new activity (the `!existing` branch) it also:
   - Samples real weather along the ride's actual route from Open-Meteo (see "Geographic
     microclimate sampling" below) for humidity/temperature/rain — indoor rides skip this
     entirely and use a fixed warm-room assumption instead (26°C / 60% humidity — trainer
@@ -407,24 +413,59 @@ Ruta" block (a `Fuel` icon in the header, only shown when `reloadStrategy` isn't
 `startingBottleCount` bottles at the start, N Ziploc bags in the jersey, and the
 estimated stop point (marked with a `MapPin` icon).
 
-### Altitude / lapse-rate temperature correction
+### 3-point route weather sampling (start / summit / finish)
 
-The pre-ride planner's dynamic weather (`getWeatherForDeparture()`) only samples the
-route's *start* coordinates — a saved Strava route has no elapsed-time-to-point mapping
-the way a completed activity's polyline does, so there's no way to sample further along
-it the way `getWeatherForRoute()` does post-ride. Sampling only the start silently assumes
-the whole route sits at that altitude, overestimating temperature — and therefore sweat
-rate and sodium loss (`getFluidLossMlPerHour`/`getSodiumLossMgPerHour`) — on a route that
-climbs into the mountains. `getLapseRateAdjustedTemperature(baseTemperatureC,
-elevationGainM)` (`lib/metabolic-engine.ts`) corrects for this using the standard
-environmental lapse rate (~6.5°C per 1000m of altitude gained, `LAPSE_RATE_C_PER_1000M`).
-Since Strava's route summary doesn't expose real `elev_high`/`elev_low` the way a
-completed activity does, total elevation gain is used as a practical proxy for how far
-above the start the route's high point sits — applied in `POST /api/fueling/plan` in
-route mode only (quick mode has no elevation data), *after* dynamic weather resolves and
-*before* it feeds the fluid-loss calculation. The response's `weather.lapseRateAdjustmentC`
-carries the signed correction (negative = colder) so the UI can show a `Mountain` icon
-plus "−X°C por altitud" next to the weather summary whenever it's non-zero.
+A single start-coordinate weather lookup silently assumes the whole route sits at that
+altitude — overestimating temperature (and therefore sweat rate/sodium loss, see
+`getFluidLossMlPerHour`/`getSodiumLossMgPerHour`) on a route that climbs into the
+mountains, and missing whatever the actual high point's conditions are entirely.
+`POST /api/fueling/plan` samples three real points instead, whenever it can:
+
+1. **Inicio** — the route's start coordinates (`startLat`/`startLng`, already decoded from
+   the route's polyline by `getStravaRoutes()`) at the departure time.
+2. **Cota máxima / puerto** — `fetchRoutePeakPoint(accessToken, routeId)`
+   (`lib/strava-routes.ts`) calls Strava's `/routes/{id}/streams` (a *second*, on-demand
+   Strava call — only made when the athlete actually clicks "Calcular estrategia" for a
+   route, never eagerly, so it doesn't add to passive Strava call volume) for the route's
+   `altitude`/`latlng`/`distance` streams, finds the highest-altitude index, and returns
+   that point's coordinates plus its `distanceFraction` (0-1) along the route. **Strava's
+   route-streams endpoint always returns an array of `{type, data}` entries regardless of
+   a `key_by_type` query param** (verified against the live API — unlike
+   `/activities/{id}/zones`, which does honor equivalent keying), so `fetchRoutePeakPoint`
+   finds each stream by `.find(s => s.type === "...")` rather than assuming a keyed
+   object — getting this wrong silently returns `null` with no error (a 200 response with
+   array data just doesn't match a keyed-object shape), which is exactly the failure mode
+   hit and fixed while building this.
+3. **Llegada** — the route's *end* coordinates (`endLat`/`endLng`, decoded from the last
+   point of the same polyline in `fetchAthleteRoutes()`, alongside the already-existing
+   start point) at departure + estimated duration.
+
+Each point's estimated pass-through time is `departure + duration × distanceFraction`
+(0 for start, the peak's own fraction, 1 for finish) — the same "distance fraction ≈ time
+fraction" convention `getRouteSamplePoints()` already uses for post-ride sampling. The 3
+points are passed straight to the existing `getWeatherForRoute()` (`lib/open-meteo.ts`,
+shared with the post-ride sync flow), which now also returns `temperatureMaxC` (the
+hottest of the sampled points) alongside its existing `temperatureAvgC`/`humidityAvg`.
+**The average, not the max, still drives the fluid-loss calculation** — a peak reading
+represents a genuinely brief stretch of the ride, not its whole duration, so sizing the
+*entire* ride's sweat rate off the hottest single sample would systematically overshoot;
+`temperatureMaxC` is surfaced to the UI as an informational "(máx X°C)" figure alongside
+the average instead. When this 3-point sample succeeds, the response's
+`weather.multiPointSample` is `true` and the older single-point `getLapseRateAdjustedTemperature()`
+math correction is skipped entirely — a real altitude-based reading at the actual summit
+makes that elevation-gain-based approximation redundant. Falls back gracefully at every
+step (no `routeId`/end coordinates, no Strava connection, the streams call fails, or
+Open-Meteo has no data for one of the 3 points) to the original single start-point
+`getWeatherForDeparture()` reading plus the `getLapseRateAdjustedTemperature(baseTemperatureC,
+elevationGainM)` correction (~6.5°C per 1000m, `LAPSE_RATE_C_PER_1000M`, using total
+elevation gain as a proxy for how high the route's peak sits above its start, since
+Strava's route summary doesn't expose real `elev_high`/`elev_low` the way a completed
+activity does) — applied in route mode only (quick mode has no elevation data at all).
+The response's `weather.lapseRateAdjustmentC` carries the signed correction (negative =
+colder, `0` whenever the 3-point sample succeeded) so the UI can show a `Mountain` icon
+plus "−X°C por altitud" next to the weather summary whenever it's non-zero, and
+`weather.multiPointSample` drives an "inicio/puerto/llegada" note in that same summary
+line when `true`.
 
 ### Carb-loading protocol (Día −1)
 
@@ -463,18 +504,19 @@ recipe for that specific ride's real forecast conditions.
   read/compute operation whose result should render in place rather than trigger a
   navigation — the one deliberate departure from this codebase's usual
   progressive-enhancement form convention). Body is either route mode
-  (`{ mode: "route", distanceKm, elevationGainM, startLat, startLng, intensity,
-  departureIso, isTargetEvent, pocketFood }`, using `estimateRideDurationHours()` for the
-  duration and a named intensity level for the target %FTP) or quick mode (`{ mode:
-  "quick", durationHours, averageWatts, departureIso, isTargetEvent, pocketFood }`, using
-  the real watts directly via `getRelativeIntensity()`) — `pocketFood` is sanitized via a
-  route-local `sanitizePocketFoodSelection()` (unknown keys/non-positive quantities
-  silently dropped, same "degrade gracefully" convention as `getStravaRoutes()` returning
-  `[]`) rather than trusted as-is. Dynamic weather is only sampled in route mode (needs
-  start coordinates); quick mode always uses the fixed "typical training day" planning
-  default (22°C/55% humidity) — route mode additionally applies the lapse-rate correction
-  (see "Altitude / lapse-rate temperature correction" above) before computing fluid/sodium
-  loss. Re-fetches `ftp`/`weight_kg`/`sweat_rate`/`gut_training_level`/`athlete_type` from
+  (`{ mode: "route", distanceKm, elevationGainM, startLat, startLng, endLat, endLng,
+  routeId, intensity, departureIso, isTargetEvent, pocketFood }`, using
+  `estimateRideDurationHours()` for the duration and a named intensity level for the
+  target %FTP) or quick mode (`{ mode: "quick", durationHours, averageWatts, departureIso,
+  isTargetEvent, pocketFood }`, using the real watts directly via `getRelativeIntensity()`)
+  — `pocketFood` is sanitized via a route-local `sanitizePocketFoodSelection()` (unknown
+  keys/non-positive quantities silently dropped, same "degrade gracefully" convention as
+  `getStravaRoutes()` returning `[]`) rather than trusted as-is. Dynamic weather is only
+  sampled in route mode (needs start coordinates); quick mode always uses the fixed
+  "typical training day" planning default (22°C/55% humidity) — route mode additionally
+  samples the route's real summit and applies a lapse-rate fallback (see "3-point route
+  weather sampling" above) before computing fluid/sodium loss. Re-fetches
+  `ftp`/`weight_kg`/`sweat_rate`/`gut_training_level`/`athlete_type` from
   `athlete_profiles` server-side rather than trusting client-supplied values, runs the
   intensity-driven carb target through `getGutCappedCarbTarget()` before building the
   recipe (so the recipe itself never recommends more than the athlete's gut can handle),

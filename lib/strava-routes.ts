@@ -25,6 +25,13 @@ export type StravaRoute = {
   // it, in which case dynamic weather can't be sampled for this route.
   startLat: number | null;
   startLng: number | null;
+  // The route's last coordinate — together with `startLat`/`startLng`, lets
+  // the 3-point weather sample (start/summit/finish, see
+  // `fetchRoutePeakPoint` below) cover a loop or point-to-point route
+  // without a second Strava call, since it's decoded from the same
+  // already-fetched polyline.
+  endLat: number | null;
+  endLng: number | null;
   // The raw encoded polyline itself, kept alongside the already-decoded
   // start point — the GPX export needs the *whole* track, not just its
   // first coordinate, and re-fetching it later would be a wasted API call
@@ -53,7 +60,9 @@ export async function fetchAthleteRoutes(accessToken: string): Promise<StravaRou
     .filter((route) => route.type === RIDE_ROUTE_TYPE)
     .map((route) => {
       const polyline = route.map?.summary_polyline;
-      const firstPoint = polyline ? decodePolyline(polyline)[0] : undefined;
+      const coordinates = polyline ? decodePolyline(polyline) : [];
+      const firstPoint = coordinates[0];
+      const lastPoint = coordinates[coordinates.length - 1];
       return {
         id: route.id_str,
         name: route.name,
@@ -61,7 +70,82 @@ export async function fetchAthleteRoutes(accessToken: string): Promise<StravaRou
         elevationGainM: Math.round(route.elevation_gain),
         startLat: firstPoint?.[0] ?? null,
         startLng: firstPoint?.[1] ?? null,
+        endLat: lastPoint?.[0] ?? null,
+        endLng: lastPoint?.[1] ?? null,
         summaryPolyline: polyline ?? null,
       };
     });
+}
+
+export type RoutePeakPoint = {
+  lat: number;
+  lng: number;
+  // How far along the route (by distance, 0-1) this point sits — used to
+  // estimate its pass-through time the same way `getRouteSamplePoints`
+  // estimates time for its own control points.
+  distanceFraction: number;
+};
+
+// Unlike activity streams, Strava's route streams endpoint always returns
+// this array-of-typed-objects shape regardless of `key_by_type` — verified
+// live against the real API, which does not honor that param here the way
+// it does for `/activities/{id}/streams`.
+type StravaRouteStreamEntry = {
+  type: "latlng" | "altitude" | "distance" | string;
+  data: number[] | [number, number][];
+};
+
+/**
+ * Finds the highest-elevation point along a saved route — the "Cota Máxima
+ * / Puerto" a mountain route climbs to, which a single start-coordinate
+ * weather sample would completely miss. Strava's route summary (the
+ * `/athlete/routes` list) only has 2D polyline geometry, no altitude per
+ * point, so this is a second, on-demand call to `/routes/{id}/streams` —
+ * only made when the athlete actually calculates a strategy for a route
+ * (never eagerly), so it doesn't add to the passive Strava call volume
+ * "Strava API & cache defensivo" above is about. Returns `null` (never
+ * throws) on any failure — missing streams, malformed data, or a route the
+ * access token doesn't have permission for — so the caller can fall back
+ * to the existing start-point-only weather sample instead of failing the
+ * whole calculation.
+ */
+export async function fetchRoutePeakPoint(
+  accessToken: string,
+  routeId: string
+): Promise<RoutePeakPoint | null> {
+  const res = await fetch(
+    `${STRAVA_API_BASE}/routes/${routeId}/streams?keys=latlng,altitude,distance`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!res.ok) return null;
+
+  const streams: StravaRouteStreamEntry[] = await res.json();
+  const altitude = streams.find((s) => s.type === "altitude")?.data as number[] | undefined;
+  const latlng = streams.find((s) => s.type === "latlng")?.data as
+    | [number, number][]
+    | undefined;
+  const distance = streams.find((s) => s.type === "distance")?.data as number[] | undefined;
+  if (!altitude || !latlng || altitude.length === 0 || altitude.length !== latlng.length) {
+    return null;
+  }
+
+  let peakIndex = 0;
+  let peakAltitude = -Infinity;
+  altitude.forEach((alt, i) => {
+    if (alt > peakAltitude) {
+      peakAltitude = alt;
+      peakIndex = i;
+    }
+  });
+
+  const totalDistance = distance?.[distance.length - 1];
+  const distanceFraction =
+    distance && totalDistance
+      ? distance[peakIndex] / totalDistance
+      : peakIndex / (altitude.length - 1);
+
+  const point = latlng[peakIndex];
+  if (!point) return null;
+  const [lat, lng] = point;
+  return { lat, lng, distanceFraction: Math.max(0, Math.min(1, distanceFraction)) };
 }

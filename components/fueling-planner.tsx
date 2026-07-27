@@ -99,8 +99,10 @@ type PlanResult = {
   moneySaved: number;
   weather: {
     temperatureC: number;
+    temperatureMaxC: number | null;
     humidityPct: number;
     source: "dynamic" | "planning_default";
+    multiPointSample: boolean;
     lapseRateAdjustmentC: number;
   };
   gutTraining: {
@@ -267,6 +269,9 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               elevationGainM: selectedRoute.elevationGainM,
               startLat: selectedRoute.startLat,
               startLng: selectedRoute.startLng,
+              endLat: selectedRoute.endLat,
+              endLng: selectedRoute.endLng,
+              routeId: selectedRoute.id,
               intensity,
               isTargetEvent,
               pocketFood: pocketFoodPayload,
@@ -582,9 +587,16 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className={eyebrow}>Estrategia de bolsillo &amp; receta DIY</span>
               <span className="text-xs text-neutral-500">
-                {result.weather.temperatureC}°C · {result.weather.humidityPct}% humedad ·{" "}
+                {result.weather.temperatureC}°C
+                {result.weather.temperatureMaxC != null &&
+                  result.weather.temperatureMaxC !== result.weather.temperatureC && (
+                    <> (máx {result.weather.temperatureMaxC}°C)</>
+                  )}{" "}
+                · {result.weather.humidityPct}% humedad ·{" "}
                 {result.weather.source === "dynamic"
-                  ? "previsión real de Open-Meteo"
+                  ? result.weather.multiPointSample
+                    ? "previsión real de Open-Meteo · inicio/puerto/llegada"
+                    : "previsión real de Open-Meteo"
                   : "estimación genérica"}
                 {result.weather.lapseRateAdjustmentC !== 0 && (
                   <span className="inline-flex items-center gap-1">

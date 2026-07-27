@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
-import { getWeatherForDeparture } from "@/lib/open-meteo";
+import { getWeatherForDeparture, getWeatherForRoute } from "@/lib/open-meteo";
+import { fetchRoutePeakPoint } from "@/lib/strava-routes";
+import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { logFuelingPlan } from "@/lib/fueling-logs";
 import {
   estimateRideDurationHours,
@@ -113,6 +115,9 @@ export async function POST(request: NextRequest) {
   let relativeIntensity: number;
   let startLat: number | null = null;
   let startLng: number | null = null;
+  let endLat: number | null = null;
+  let endLng: number | null = null;
+  let routeId: string | null = null;
   let rideDistanceKm: number | null = null;
   let rideElevationGainM: number | null = null;
 
@@ -134,6 +139,9 @@ export async function POST(request: NextRequest) {
     relativeIntensity = getRelativeIntensityFromLevel(intensityLevel);
     startLat = typeof body.startLat === "number" ? body.startLat : null;
     startLng = typeof body.startLng === "number" ? body.startLng : null;
+    endLat = typeof body.endLat === "number" ? body.endLat : null;
+    endLng = typeof body.endLng === "number" ? body.endLng : null;
+    routeId = typeof body.routeId === "string" ? body.routeId : null;
     rideDistanceKm = distanceKm;
     rideElevationGainM = elevationGainM;
   } else {
@@ -152,24 +160,57 @@ export async function POST(request: NextRequest) {
 
   let temperatureC = PLANNING_TEMPERATURE_C;
   let humidityPct = PLANNING_HUMIDITY_PCT;
+  let temperatureMaxC: number | null = null;
   let weatherSource: "dynamic" | "planning_default" = "planning_default";
+  // True only once a real 3-point sample (start/summit/finish) succeeds —
+  // that's a genuine altitude-based reading at the actual high point, which
+  // makes the elevation-gain lapse-rate *approximation* below redundant.
+  let sampledAtRealAltitude = false;
 
   if (startLat != null && startLng != null && departureIso) {
-    const weather = await getWeatherForDeparture(startLat, startLng, departureIso, durationHours);
-    if (weather) {
-      temperatureC = weather.temperatureAvgC;
-      humidityPct = weather.humidityAvg;
-      weatherSource = "dynamic";
+    if (routeId && endLat != null && endLng != null) {
+      const accessToken = await getValidStravaAccessToken(supabase, userId);
+      const peak = accessToken ? await fetchRoutePeakPoint(accessToken, routeId) : null;
+      if (peak) {
+        const start = new Date(departureIso);
+        const durationMs = durationHours * 60 * 60 * 1000;
+        const weather = await getWeatherForRoute([
+          { lat: startLat, lng: startLng, atDate: start },
+          {
+            lat: peak.lat,
+            lng: peak.lng,
+            atDate: new Date(start.getTime() + durationMs * peak.distanceFraction),
+          },
+          { lat: endLat, lng: endLng, atDate: new Date(start.getTime() + durationMs) },
+        ]);
+        if (weather) {
+          temperatureC = weather.temperatureAvgC;
+          temperatureMaxC = weather.temperatureMaxC;
+          humidityPct = weather.humidityAvg;
+          weatherSource = "dynamic";
+          sampledAtRealAltitude = true;
+        }
+      }
+    }
+
+    if (!sampledAtRealAltitude) {
+      const weather = await getWeatherForDeparture(startLat, startLng, departureIso, durationHours);
+      if (weather) {
+        temperatureC = weather.temperatureAvgC;
+        humidityPct = weather.humidityAvg;
+        weatherSource = "dynamic";
+      }
     }
   }
 
-  // The weather above is sampled only at the route's start coordinates —
-  // fine for a flat ride, but it silently assumes the whole route sits at
-  // that altitude, overestimating temperature (and sweat/sodium loss) on a
-  // route that climbs into the mountains. Correct for that using the
-  // route's own elevation gain as a proxy for how high it climbs.
+  // Only a single start-coordinate sample silently assumes the whole route
+  // sits at that altitude, overestimating temperature (and sweat/sodium
+  // loss) on a route that climbs into the mountains — correct for that
+  // using the route's own elevation gain as a proxy for how high it climbs.
+  // Skipped when the 3-point sample above already measured the real
+  // summit's temperature directly.
   let lapseRateAdjustmentC = 0;
-  if (rideElevationGainM != null) {
+  if (!sampledAtRealAltitude && rideElevationGainM != null) {
     const adjustedTemperatureC = getLapseRateAdjustedTemperature(temperatureC, rideElevationGainM);
     lapseRateAdjustmentC = Math.round((adjustedTemperatureC - temperatureC) * 10) / 10;
     temperatureC = adjustedTemperatureC;
@@ -247,8 +288,10 @@ export async function POST(request: NextRequest) {
     moneySaved,
     weather: {
       temperatureC: Math.round(temperatureC * 10) / 10,
+      temperatureMaxC: temperatureMaxC != null ? Math.round(temperatureMaxC * 10) / 10 : null,
       humidityPct: Math.round(humidityPct * 10) / 10,
       source: weatherSource,
+      multiPointSample: sampledAtRealAltitude,
       lapseRateAdjustmentC,
     },
     gutTraining: {
