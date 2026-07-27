@@ -1,4 +1,6 @@
-import { Flame, Link2, TriangleAlert } from "lucide-react";
+import { Flame, TriangleAlert } from "lucide-react";
+
+import { StravaLoginButton } from "@/components/strava-login-button";
 
 export const dynamic = "force-dynamic";
 
@@ -24,42 +26,39 @@ export default async function LoginPage({
       : null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-6">
-      <div className="flex w-full max-w-sm flex-col items-center gap-8 text-center">
-        <div className="flex items-center gap-2 text-sm font-bold tracking-[0.2em] text-neutral-900 uppercase">
-          <Flame className="size-5" strokeWidth={1.5} />
-          Motor Metabólico
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <h1 className="text-xl font-bold tracking-wide text-neutral-900 uppercase">
-            Fueling de precisión para ciclistas
-          </h1>
-          <p className="text-sm text-neutral-500">
-            Convierte tu FTP, peso y las condiciones reales de cada ruta en un plan de
-            hidratación y carbohidratos exacto — antes y después de pedalear.
-          </p>
-        </div>
-
-        {error && (
-          <div className="flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-left text-sm text-status-warning">
-            <TriangleAlert className="size-4 shrink-0" />
-            {error}
+    <div className="flex min-h-screen w-full flex-col items-center justify-center bg-neutral-50/50 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-neutral-200/80 bg-white p-8 text-center shadow-sm sm:p-10">
+        <div className="flex flex-col items-center gap-8">
+          <div className="flex items-center gap-2 text-sm font-bold tracking-[0.2em] text-neutral-900 uppercase">
+            <Flame className="size-5" strokeWidth={1.5} />
+            Motor Metabólico
           </div>
-        )}
 
-        <a
-          href="/api/strava/connect"
-          className="inline-flex w-full cursor-pointer items-center justify-center gap-2 border border-neutral-900 bg-neutral-900 px-6 py-3 text-xs font-bold tracking-widest text-background uppercase transition-colors duration-150 hover:bg-background hover:text-neutral-900"
-        >
-          <Link2 className="size-4" />
-          Conectar con Strava
-        </a>
+          <div className="flex flex-col gap-2">
+            <h1 className="text-xl font-bold tracking-wide text-neutral-900 uppercase">
+              Fueling de precisión para ciclistas
+            </h1>
+            <p className="text-sm text-neutral-500">
+              Convierte tu FTP, peso y las condiciones reales de cada ruta en un plan de
+              hidratación y carbohidratos exacto — antes y después de pedalear.
+            </p>
+          </div>
 
-        <p className="text-xs text-neutral-400">
-          Strava es el único método de acceso — tu cuenta y tus rutas se vinculan
-          automáticamente al conectar.
-        </p>
+          {error && (
+            <div className="flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-left text-sm text-status-warning">
+              <TriangleAlert className="size-4 shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <div className="flex w-full flex-col">
+            <StravaLoginButton />
+            <p className="mt-4 font-sans text-[11px] leading-relaxed text-neutral-400">
+              Acceso seguro mediante OAuth. Solo leemos tus rutas para calcular tu nutrición
+              y jamás publicaremos nada en tu cuenta de Strava.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
