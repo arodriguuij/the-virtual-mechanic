@@ -451,19 +451,22 @@ shows a one-line "Comida de bolsillo cubre Xg de Yg HC — el resto va en el bid
 small `Utensils` icon, not an emoji) whenever any item is selected —
 that summary line isn't part of the pocket-food *catalog* UI, so it keeps its emoji.
 
-### Fueling mode selector (Óptimo / Mi Despensa / Híbrido)
+### Fueling mode selector (Óptimo / Mi Inventario / Híbrido)
 
 Three ways of arriving at the same DIY-recipe pipeline above, differing only in *where
 the pocket-food selection comes from* before `getHomeLabRecipe`'s existing
 `pocketFoodCarbsG` subtraction runs — `FuelingMode` (`lib/metabolic-engine.ts`) is
-`'optimal' | 'pantry' | 'hybrid'`, sent as `fuelingMode` in `POST /api/fueling/plan`'s
-body (validated against `VALID_FUELING_MODES`, defaulting to `'pantry'` for any
-unrecognized value):
+`'optimal' | 'inventory' | 'hybrid'`, sent as `fuelingMode` in `POST /api/fueling/plan`'s
+body (validated against `VALID_FUELING_MODES`, defaulting to `'inventory'` for any
+unrecognized value). The `'inventory'` mode/label was originally `'pantry'`/"Mi Despensa" —
+renamed app-wide for a more technical/professional tone, with zero data-migration concern
+since `fuelingMode` is a request/response field only, never persisted to `fueling_logs` or
+anywhere else in Supabase:
 
-- **📦 Mi Despensa (`'pantry'`, the default)** — the athlete's own manual catalog
+- **Mi Inventario (`'inventory'`, the default)** — the athlete's own manual catalog
   selection, used exactly as-is. This was this app's only behavior before modes existed,
   so nothing changed here except giving it an explicit name alongside the other two.
-- **🚀 Óptimo (`'optimal'`)** — the athlete makes no choice at all;
+- **Óptimo (`'optimal'`)** — the athlete makes no choice at all;
   `getOptimalPocketFoodSelection(durationHours)` picks automatically once `durationHours`
   is known server-side (the route ignores whatever `pocketFood` the client sent for this
   mode and recomputes it, same "server never trusts client-computed values" convention as
@@ -478,16 +481,16 @@ unrecognized value):
   back, reads the *server's* chosen quantities from `result.pocketFood` to display what was
   actually picked (the disabled steppers would otherwise still show the athlete's last
   manual selection, not the auto-selected one).
-- **🧩 Híbrido (`'hybrid'`)** — the athlete's manual selection is treated as a fixed base
-  (used as-is, exactly like `'pantry'`), and `getHybridGelSuggestion(remainingCarbsG)`
+- **Híbrido (`'hybrid'`)** — the athlete's manual selection is treated as a fixed base
+  (used as-is, exactly like `'inventory'`), and `getHybridGelSuggestion(remainingCarbsG)`
   additionally computes how many standard gels (30g each, a simple greedy fill with one
   gel size, not a full optimizer) would close whatever gap is left after that base
   selection — returned as `hybridGelSuggestion` in the response and rendered as a purely
   advisory line ("Alternativa: N geles estándar... cubrirían la brecha en vez del
   bidón — o deja que el bidón la absorba"). The bottle recipe itself is unaffected by this
-  suggestion either way — it always covers the true remaining gap, exactly like `'pantry'`
-  mode — this is just naming an alternative way to close the same gap, not auto-adding
-  gels to the actual recipe.
+  suggestion either way — it always covers the true remaining gap, exactly like
+  `'inventory'` mode — this is just naming an alternative way to close the same gap, not
+  auto-adding gels to the actual recipe.
 
 `components/fueling-planner.tsx` renders these as a 3-pill segmented control (`FUELING_MODE_OPTIONS`)
 directly above the pocket-food block, and a live "OBJETIVO: Xg HC | CUBIERTO: Yg HC |

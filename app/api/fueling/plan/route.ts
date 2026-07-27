@@ -32,7 +32,7 @@ import {
   type PocketFoodSelection,
 } from "@/lib/metabolic-engine";
 
-const VALID_FUELING_MODES = new Set<FuelingMode>(["optimal", "pantry", "hybrid"]);
+const VALID_FUELING_MODES = new Set<FuelingMode>(["optimal", "inventory", "hybrid"]);
 
 // Above this ride duration, the pre-event carb-loading module shows
 // automatically — below it, only if the athlete flags the ride as a
@@ -117,9 +117,9 @@ export async function POST(request: NextRequest) {
   const athleteType = athleteProfile.athlete_type ?? "balanced";
   const fuelingMode: FuelingMode = VALID_FUELING_MODES.has(body.fuelingMode)
     ? body.fuelingMode
-    : "pantry";
+    : "inventory";
   // `optimal` mode overrides this with its own auto-selection once
-  // `durationHours` is known below — `pantry`/`hybrid` both use the
+  // `durationHours` is known below — `inventory`/`hybrid` both use the
   // athlete's real manual selection as-is (they only differ in what the UI
   // suggests on top of it, see `getHybridGelSuggestion` below).
   let pocketFood = sanitizePocketFoodSelection(body.pocketFood);

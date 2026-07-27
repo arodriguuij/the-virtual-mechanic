@@ -62,14 +62,15 @@ const MAX_CUSTOM_CARBS_G = 500;
 
 const FUELING_MODE_OPTIONS: { value: FuelingMode; label: string }[] = [
   { value: "optimal", label: "Óptimo" },
-  { value: "pantry", label: "Mi despensa" },
+  { value: "inventory", label: "Mi Inventario" },
   { value: "hybrid", label: "Híbrido" },
 ];
 
 const FUELING_MODE_DESCRIPTIONS: Record<FuelingMode, string> = {
   optimal:
     "Recomendación de laboratorio — la app elige automáticamente geles, barritas y bidón según tu ruta.",
-  pantry: "Indica lo que tienes en casa — el bidón DIY ajusta su concentración para cubrir el resto.",
+  inventory:
+    "Selecciona los productos disponibles en tu inventario personal — el bidón DIY ajustará su concentración para cubrir el déficit.",
   hybrid:
     "Fija tus alimentos imprescindibles — te sugerimos geles o bidón para cubrir la brecha restante.",
 };
@@ -278,7 +279,7 @@ export function FuelingPlanner({
   const [isTargetEvent, setIsTargetEvent] = useState(false);
   const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
   const [customCarbsG, setCustomCarbsG] = useState(0);
-  const [fuelingMode, setFuelingMode] = useState<FuelingMode>("pantry");
+  const [fuelingMode, setFuelingMode] = useState<FuelingMode>("inventory");
   const [result, setResult] = useState<PlanResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

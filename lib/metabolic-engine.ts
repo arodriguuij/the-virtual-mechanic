@@ -420,15 +420,17 @@ export function getPocketFoodTotalCarbsG(selection: PocketFoodSelection): number
  * runs:
  * - `optimal` — the athlete makes no choice at all; `getOptimalPocketFoodSelection`
  *   below picks it automatically.
- * - `pantry` — the athlete's own manual catalog selection, used as-is (this
- *   was this app's only behavior before modes existed).
+ * - `inventory` — the athlete's own manual catalog selection, used as-is
+ *   (this was this app's only behavior before modes existed; the type/UI
+ *   were originally named "pantry"/"Mi Despensa", renamed to "Mi Inventario"
+ *   for a more technical/professional tone across the app).
  * - `hybrid` — the athlete's manual selection is treated as a fixed base,
  *   and `getHybridGelSuggestion` below additionally suggests how many
  *   standard gels would close whatever gap is left, as advisory
  *   information alongside the bottle recipe (which still covers the true
- *   remaining gap either way, exactly like `pantry` mode).
+ *   remaining gap either way, exactly like `inventory` mode).
  */
-export type FuelingMode = "optimal" | "pantry" | "hybrid";
+export type FuelingMode = "optimal" | "inventory" | "hybrid";
 
 /**
  * "Modo Óptimo" — below ~2.5h there's nothing to gain from solid food at
