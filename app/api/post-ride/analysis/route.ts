@@ -9,6 +9,7 @@ import {
   getGlycogenBurnedFromPowerZones,
   getGlycogenBurnedGrams,
   getMacroRecoveryTarget,
+  getRecoveryDebt,
   getRelativeIntensity,
   getSodiumLossMgPerHour,
 } from "@/lib/metabolic-engine";
@@ -92,11 +93,21 @@ export async function POST(request: NextRequest) {
   const fluidLossMl = Math.round(fluidLossMlPerHour * hours);
   const sodiumLossMg = Math.round(getSodiumLossMgPerHour(fluidLossMlPerHour) * hours);
 
+  // Initial figures assume zero in-ride intake — the client recomputes this
+  // live once the athlete fills in what they actually consumed during the
+  // ride (see `components/post-ride-analysis.tsx`), using the same pure
+  // `getRecoveryDebt`/`getMacroRecoveryTarget` functions re-imported there.
+  const recoveryDebt = getRecoveryDebt({
+    carbsBurnedG,
+    carbsConsumedG: 0,
+    fluidLossMl,
+    fluidConsumedMl: 0,
+    sodiumLossMg,
+    sodiumConsumedMg: 0,
+  });
   const recoveryTarget = getMacroRecoveryTarget({
     weightKg: athleteProfile.weight_kg,
-    carbsBurnedG,
-    fluidLossMl,
-    sodiumLossMg,
+    recoveryDebt,
   });
 
   let loggedNew = false;
@@ -125,6 +136,7 @@ export async function POST(request: NextRequest) {
     fluidLossMl,
     sodiumLossMg,
     source,
+    weightKg: athleteProfile.weight_kg,
     recoveryTarget,
     loggedNew,
   });

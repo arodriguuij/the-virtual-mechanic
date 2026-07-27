@@ -210,18 +210,19 @@ guidance rather than a clinical or individually-calibrated model:
 - **`getGlycogenBurnedGrams(relativeIntensity, movingTimeSeconds, athleteType?)`** — the
   personalized oxidation rate integrated over the ride's actual duration; this is what the
   sync route stores as `activities.carbs_burned_g`.
-- **`getMacroRecoveryTarget({ weightKg, carbsBurnedG, fluidLossMl, sodiumLossMg,
-  fluidAlreadyConsumedMl? })`** — the post-ride "Objetivo de Recuperación por
-  Macronutrientes": carbs capped at the lower of what was actually burned this ride or a
-  ~1.2g/kg ceiling (replacing more than was burned doesn't speed resynthesis, it's just
-  extra calories); protein at ~0.35g/kg clamped to the 22-35g effective-dose window; a
-  soft ~0.15g/kg fat limit (clamped 10-20g) to keep gastric emptying fast in this window
-  rather than to restrict fat generally; fluid at 120% of the ride's estimated loss
-  (ACSM-style post-exercise rehydration guidance — sweat losses are rarely fully offset
-  by in-ride drinking) minus `fluidAlreadyConsumedMl` (defaults to 0, since the app
-  doesn't track actual in-ride bottle consumption); and sodium as the full estimated
-  loss, treated as uncompensated for the same reason. See "Post-Ride Analysis" below for
-  where each input comes from.
+- **`getRecoveryDebt({ carbsBurnedG, carbsConsumedG, fluidLossMl, fluidConsumedMl,
+  sodiumLossMg, sodiumConsumedMg })`** and **`getMacroRecoveryTarget({ weightKg,
+  recoveryDebt })`** — the post-ride "Objetivo de Recuperación por Macronutrientes",
+  split into a debt step (nets each burned/lost figure against what the rider says they
+  actually consumed *during* the ride, floored at 0, with fluid scaled by a ~120%
+  ACSM-style post-exercise rehydration factor before netting) and a target step (turns
+  that net debt into carbs capped at the lower of the debt or a ~1.2g/kg ceiling —
+  replacing more than was burned doesn't speed resynthesis, it's just extra calories —
+  plus a weight-only protein target at ~0.35g/kg clamped to 22-35g and a soft fat limit
+  at ~0.15g/kg clamped 10-20g, both unaffected by in-ride intake since they're about
+  muscle repair/gastric-emptying speed rather than replacing a measured deficit; fluid
+  and sodium targets are the net debt figures directly). See "Net recovery debt" under
+  "Post-Ride Analysis" below for where each input comes from and why it's split this way.
 - **`estimateRideDurationHours({ distanceKm, elevationGainM, ftp, weightKg, intensity })`**
   — sizes the fueling window for a saved Strava route, which has no real moving-time of
   its own. A simplified two-term heuristic, not a physical simulation: a flat-road speed
@@ -543,24 +544,65 @@ diesel/balanced/explosive adjustment the pre-ride planner applies.
 4. **`no_data`** — only if none of the three produced a number (no FTP ever configured).
 
 Fluid/sodium loss for the ride reuses its *stored* `humidity_avg`/`temperature_avg`
-(the real weather sampled at sync time) with the athlete's current `sweat_rate`.
-`getMacroRecoveryTarget()` (see "Metabolic engine" above) builds the recovery target from
-this ride's own `carbsBurnedG`/`fluidLossMl`/`sodiumLossMg` plus the athlete's
-`weight_kg` — deliberately not a suggested meal or recipe, since what's actually in the
-rider's kitchen is out of this app's control; the number is the same regardless of what
-they eat to hit it. Logs to `fueling_logs` (`kind: 'post_ride'`, `activity_id` set) — but
-only the *first* time this activity is analyzed (`hasPostRideLog()` check in
-`lib/fueling-logs.ts`), so re-viewing the same past ride's analysis doesn't inflate the
-lifetime totals. `components/post-ride-analysis.tsx` (`"use client"`) is the UI: an
-activity `<select>` (defaulting to the most recent) plus an "Analizar" button (matching
-the same manual-trigger interaction pattern as the pre-ride planner rather than
-auto-fetching on mount), and — once analyzed — an "Objetivo de recuperación post-ruta"
-grid of 4 bordered cards (`grid-cols-2 sm:grid-cols-4`, `font-mono` numbers matching the
-rest of the app's telemetry styling): Carbohidratos, Proteína, Grasas límite (prefixed
-`<`, since it's a ceiling not a target), and Rehidratación (liters plus the sodium figure
-underneath) — each with a short italicized physiological rationale underneath (e.g.
-"Reconstrucción de glucógeno"), plus a fixed note that the window is the first 2-4
-post-ride hours.
+(the real weather sampled at sync time) with the athlete's current `sweat_rate`. The
+route computes an initial `recoveryTarget` assuming zero in-ride intake (see "Net
+recovery debt" below for why the client immediately recomputes this live), and returns
+`weightKg` alongside it so the client can rerun the same math locally. Logs to
+`fueling_logs` (`kind: 'post_ride'`, `activity_id` set) — but only the *first* time this
+activity is analyzed (`hasPostRideLog()` check in `lib/fueling-logs.ts`), so re-viewing
+the same past ride's analysis doesn't inflate the lifetime totals; the logged figures are
+always the ride's raw `carbsBurnedG`/`fluidLossMl`/`sodiumLossMg` (physiological burn/
+loss), never the net debt, since the debt is a volatile, user-editable, post-hoc quantity
+and the append-only log is written once, likely before the athlete has entered any
+consumption data at all. `components/post-ride-analysis.tsx` (`"use client"`) is the UI:
+an activity `<select>` (defaulting to the most recent) plus an "Analizar" button
+(matching the same manual-trigger interaction pattern as the pre-ride planner rather than
+auto-fetching on mount), and — once analyzed — the net-debt breakdown and recovery-target
+grid described next.
+
+#### Net recovery debt ("¿Qué consumiste realmente durante la ruta?")
+
+A ride's raw burn/loss figures overstate what's actually left to replace whenever the
+rider fueled *during* the ride itself (bottles, gels, electrolyte tabs) — recommending a
+full post-ride carb/fluid/sodium target on top of in-ride intake would double-count
+whatever was already consumed. `lib/metabolic-engine.ts` splits this into two pure
+functions, both safe to call from the client with zero network round-trip (this file's
+long-standing "no I/O, safe from client or server" contract, already used by
+`fueling-planner.tsx`):
+
+- **`getRecoveryDebt({ carbsBurnedG, carbsConsumedG, fluidLossMl, fluidConsumedMl,
+  sodiumLossMg, sodiumConsumedMg })`** — nets each burned/lost figure against what was
+  actually consumed, floored at 0 (a rider who drank more than they sweat out doesn't get
+  a "negative" debt, they just don't have one). Fluid is scaled by the existing
+  `POST_RIDE_FLUID_REPLACEMENT_FACTOR` (~120%, ACSM-style post-exercise rehydration
+  guidance) *before* netting against what was drunk, since the deficit itself — not the
+  raw sweat figure — is what needs replacing. Returns `{ carbsDebtG, fluidTargetMl,
+  fluidDebtMl, sodiumDebtMg }` — `fluidTargetMl` (the post-replacement-factor figure,
+  pre-subtraction) is exposed specifically so the UI can render the "GASTADO" side of the
+  equation without hardcoding the 1.2 multiplier itself.
+- **`getMacroRecoveryTarget({ weightKg, recoveryDebt })`** — restructured to take a
+  `RecoveryDebt` instead of raw burn/loss figures. Carbs are capped at the lower of
+  `recoveryDebt.carbsDebtG` or a ~1.2g/kg ceiling (replacing more than was actually burned
+  doesn't speed glycogen resynthesis, it's just extra calories); fluid and sodium targets
+  are the net debt figures directly. Protein (~0.35g/kg, clamped 22-35g) and fat limit
+  (~0.15g/kg, clamped 10-20g) are untouched by in-ride consumption — they're about muscle
+  repair and gastric-emptying speed, not about replacing a measured deficit, so consuming
+  more carbs/fluid on the bike doesn't change how much protein the post-ride window calls
+  for.
+
+`components/post-ride-analysis.tsx` renders three consumed-input rows (Carbohidratos g,
+Agua L, Sodio mg — all starting at 0, reset to 0 on every fresh `handleAnalyze()` call so
+a previous activity's entries don't leak into a new one), then feeds them through
+`useMemo`-wrapped `getRecoveryDebt`/`getMacroRecoveryTarget` calls (re-imported from
+`lib/metabolic-engine.ts` directly, reusing the server's initial numbers as the burned/
+lost inputs and `weightKg` from the API response) for instant per-keystroke recompute. A
+"Balance neto de recuperación" block spells out the arithmetic per metric — e.g.
+`GASTADO 250g − INGERIDO EN RUTA 180g = DEUDA NETA A REPONER 70g` — immediately above the
+same 4-card "Objetivo de recuperación post-ruta" grid as before (`grid-cols-2
+sm:grid-cols-4`, `font-mono` numbers: Carbohidratos, Proteína, Grasas límite prefixed `<`,
+Rehidratación with the sodium figure underneath, each with a short italicized rationale),
+now reading from the locally-recomputed `recoveryTarget` instead of the raw API response,
+with a footer note that the target is "calculado sobre la deuda neta real."
 
 ### Lifetime fueling totals
 

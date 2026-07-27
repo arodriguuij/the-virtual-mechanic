@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { getMacroRecoveryTarget, getRecoveryDebt } from "@/lib/metabolic-engine";
 
 const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
@@ -31,6 +32,7 @@ type AnalysisResult = {
   fluidLossMl: number;
   sodiumLossMg: number;
   source: "zones" | "average_watts" | "stored" | "no_data";
+  weightKg: number;
   recoveryTarget: {
     carbsG: number;
     proteinG: number;
@@ -53,6 +55,12 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // What the athlete says they actually consumed during the ride itself —
+  // starts at 0 (assume nothing) and nets against the burn/loss figures via
+  // `getRecoveryDebt` below, recomputed live with every keystroke.
+  const [carbsConsumedG, setCarbsConsumedG] = useState(0);
+  const [fluidConsumedL, setFluidConsumedL] = useState(0);
+  const [sodiumConsumedMg, setSodiumConsumedMg] = useState(0);
 
   async function handleAnalyze() {
     setLoading(true);
@@ -75,12 +83,32 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
         return;
       }
       setResult(data);
+      setCarbsConsumedG(0);
+      setFluidConsumedL(0);
+      setSodiumConsumedMg(0);
     } catch {
       setError("No se pudo analizar la ruta.");
     } finally {
       setLoading(false);
     }
   }
+
+  const recoveryDebt = useMemo(() => {
+    if (!result) return null;
+    return getRecoveryDebt({
+      carbsBurnedG: result.carbsBurnedG,
+      carbsConsumedG,
+      fluidLossMl: result.fluidLossMl,
+      fluidConsumedMl: fluidConsumedL * 1000,
+      sodiumLossMg: result.sodiumLossMg,
+      sodiumConsumedMg,
+    });
+  }, [result, carbsConsumedG, fluidConsumedL, sodiumConsumedMg]);
+
+  const recoveryTarget = useMemo(() => {
+    if (!result || !recoveryDebt) return null;
+    return getMacroRecoveryTarget({ weightKg: result.weightKg, recoveryDebt });
+  }, [result, recoveryDebt]);
 
   if (activities.length === 0) {
     return (
@@ -172,51 +200,142 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
             <Separator className="bg-neutral-200" />
 
             <div>
-              <span className={eyebrow}>Objetivo de recuperación post-ruta</span>
-              <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div className="border border-neutral-200 px-3 py-2.5">
-                  <span className={statLabel}>Carbohidratos</span>
-                  <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
-                    {result.recoveryTarget.carbsG}
-                    <span className="text-sm font-normal text-neutral-500">g</span>
+              <span className={eyebrow}>¿Qué consumiste realmente durante la ruta?</span>
+              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5">
+                  <label htmlFor="carbs-consumed" className="text-sm text-neutral-900">
+                    Carbohidratos
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      id="carbs-consumed"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      value={carbsConsumedG || ""}
+                      onChange={(e) => setCarbsConsumedG(Math.max(0, Number(e.target.value) || 0))}
+                      placeholder="0"
+                      className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                    />
+                    <span className="font-mono text-xs text-neutral-500">g</span>
                   </div>
-                  <span className="text-xs text-neutral-500 italic">
-                    Reconstrucción de glucógeno
-                  </span>
                 </div>
-                <div className="border border-neutral-200 px-3 py-2.5">
-                  <span className={statLabel}>Proteína</span>
-                  <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
-                    {result.recoveryTarget.proteinG}
-                    <span className="text-sm font-normal text-neutral-500">g</span>
+                <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5">
+                  <label htmlFor="fluid-consumed" className="text-sm text-neutral-900">
+                    Agua
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      id="fluid-consumed"
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step={0.1}
+                      value={fluidConsumedL || ""}
+                      onChange={(e) => setFluidConsumedL(Math.max(0, Number(e.target.value) || 0))}
+                      placeholder="0"
+                      className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                    />
+                    <span className="font-mono text-xs text-neutral-500">L</span>
                   </div>
-                  <span className="text-xs text-neutral-500 italic">Reparación muscular</span>
                 </div>
-                <div className="border border-neutral-200 px-3 py-2.5">
-                  <span className={statLabel}>Grasas límite</span>
-                  <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
-                    &lt;{result.recoveryTarget.fatLimitG}
-                    <span className="text-sm font-normal text-neutral-500">g</span>
+                <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5">
+                  <label htmlFor="sodium-consumed" className="text-sm text-neutral-900">
+                    Sodio
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      id="sodium-consumed"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      value={sodiumConsumedMg || ""}
+                      onChange={(e) => setSodiumConsumedMg(Math.max(0, Number(e.target.value) || 0))}
+                      placeholder="0"
+                      className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                    />
+                    <span className="font-mono text-xs text-neutral-500">mg</span>
                   </div>
-                  <span className="text-xs text-neutral-500 italic">
-                    Vaciado gástrico rápido
-                  </span>
-                </div>
-                <div className="border border-neutral-200 px-3 py-2.5">
-                  <span className={statLabel}>Rehidratación</span>
-                  <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
-                    {(result.recoveryTarget.fluidMl / 1000).toFixed(1)}
-                    <span className="text-sm font-normal text-neutral-500">L</span>
-                  </div>
-                  <span className="font-mono text-xs text-neutral-500">
-                    {result.recoveryTarget.sodiumMg} mg sodio
-                  </span>
                 </div>
               </div>
-              <p className="mt-2 text-xs text-neutral-500">
-                Objetivo nutricional recomendado para las primeras 2 a 4 horas post-entreno.
-              </p>
             </div>
+
+            {recoveryDebt && (
+              <div className="border border-neutral-200 px-3 py-2.5">
+                <span className={eyebrow}>Balance neto de recuperación</span>
+                <div className="mt-1.5 flex flex-col gap-1 font-mono text-xs text-neutral-600 sm:text-sm">
+                  <div>
+                    GASTADO {result.carbsBurnedG}g − INGERIDO EN RUTA {carbsConsumedG}g ={" "}
+                    <span className="font-semibold text-neutral-900">
+                      DEUDA NETA A REPONER {recoveryDebt.carbsDebtG}g
+                    </span>
+                  </div>
+                  <div>
+                    PÉRDIDA AJUSTADA {recoveryDebt.fluidTargetMl}ml − INGERIDO EN RUTA{" "}
+                    {Math.round(fluidConsumedL * 1000)}ml ={" "}
+                    <span className="font-semibold text-neutral-900">
+                      DEUDA NETA A REPONER {recoveryDebt.fluidDebtMl}ml
+                    </span>
+                  </div>
+                  <div>
+                    PERDIDO {result.sodiumLossMg}mg − INGERIDO EN RUTA {sodiumConsumedMg}mg ={" "}
+                    <span className="font-semibold text-neutral-900">
+                      DEUDA NETA A REPONER {recoveryDebt.sodiumDebtMg}mg
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {recoveryTarget && (
+              <div>
+                <span className={eyebrow}>Objetivo de recuperación post-ruta</span>
+                <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="border border-neutral-200 px-3 py-2.5">
+                    <span className={statLabel}>Carbohidratos</span>
+                    <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                      {recoveryTarget.carbsG}
+                      <span className="text-sm font-normal text-neutral-500">g</span>
+                    </div>
+                    <span className="text-xs text-neutral-500 italic">
+                      Reconstrucción de glucógeno
+                    </span>
+                  </div>
+                  <div className="border border-neutral-200 px-3 py-2.5">
+                    <span className={statLabel}>Proteína</span>
+                    <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                      {recoveryTarget.proteinG}
+                      <span className="text-sm font-normal text-neutral-500">g</span>
+                    </div>
+                    <span className="text-xs text-neutral-500 italic">Reparación muscular</span>
+                  </div>
+                  <div className="border border-neutral-200 px-3 py-2.5">
+                    <span className={statLabel}>Grasas límite</span>
+                    <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                      &lt;{recoveryTarget.fatLimitG}
+                      <span className="text-sm font-normal text-neutral-500">g</span>
+                    </div>
+                    <span className="text-xs text-neutral-500 italic">
+                      Vaciado gástrico rápido
+                    </span>
+                  </div>
+                  <div className="border border-neutral-200 px-3 py-2.5">
+                    <span className={statLabel}>Rehidratación</span>
+                    <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                      {(recoveryTarget.fluidMl / 1000).toFixed(1)}
+                      <span className="text-sm font-normal text-neutral-500">L</span>
+                    </div>
+                    <span className="font-mono text-xs text-neutral-500">
+                      {recoveryTarget.sodiumMg} mg sodio
+                    </span>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-neutral-500">
+                  Objetivo nutricional recomendado para las primeras 2 a 4 horas post-entreno,
+                  calculado sobre la deuda neta real.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

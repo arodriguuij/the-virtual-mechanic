@@ -455,39 +455,76 @@ const MAX_RECOVERY_FAT_LIMIT_G = 20;
 // the deficit under-hydrates.
 const POST_RIDE_FLUID_REPLACEMENT_FACTOR = 1.2;
 
+export type RecoveryDebt = {
+  carbsDebtG: number;
+  /** `fluidLossMl` scaled by the post-exercise replacement factor, before
+   * subtracting what was drunk — exposed so callers can render the "GASTADO"
+   * side of the equation without duplicating the 120% figure themselves. */
+  fluidTargetMl: number;
+  fluidDebtMl: number;
+  sodiumDebtMg: number;
+};
+
+/**
+ * "Deuda Neta de Recuperación" — nets the ride's estimated burn/loss against
+ * whatever the rider says they actually consumed *during* the ride itself
+ * (bottles, gels, electrolyte tabs), rather than assuming zero in-ride
+ * intake the way a first-pass estimate has to. Each metric is floored at 0:
+ * a rider who drank more than they sweat out doesn't have a "negative"
+ * fluid debt, they just don't have one. Fluid loss is scaled by the same
+ * ~120% post-exercise rehydration factor before netting against what was
+ * drunk, since the deficit itself (not just the raw sweat figure) is what
+ * needs replacing.
+ */
+export function getRecoveryDebt({
+  carbsBurnedG,
+  carbsConsumedG,
+  fluidLossMl,
+  fluidConsumedMl,
+  sodiumLossMg,
+  sodiumConsumedMg,
+}: {
+  carbsBurnedG: number;
+  carbsConsumedG: number;
+  fluidLossMl: number;
+  fluidConsumedMl: number;
+  sodiumLossMg: number;
+  sodiumConsumedMg: number;
+}): RecoveryDebt {
+  const fluidTargetMl = Math.round(fluidLossMl * POST_RIDE_FLUID_REPLACEMENT_FACTOR);
+  return {
+    carbsDebtG: Math.max(0, Math.round(carbsBurnedG - carbsConsumedG)),
+    fluidTargetMl,
+    fluidDebtMl: Math.max(0, Math.round(fluidTargetMl - fluidConsumedMl)),
+    sodiumDebtMg: Math.max(0, Math.round(sodiumLossMg - sodiumConsumedMg)),
+  };
+}
+
 /**
  * "Objetivo de Recuperación por Macronutrientes" — replaces a fixed
  * carbs/protein pair with the full macro picture the first 2-4 post-ride
- * hours actually call for, straight from this ride's own numbers rather
- * than generic advice:
- * - **Carbs**: capped at the lower of what was actually burned this ride
- *   (`carbsBurnedG`) or a ~1.2g/kg ceiling — replacing more than was burned
- *   doesn't speed glycogen resynthesis, it's just extra calories.
- * - **Protein**: ~0.35g/kg, clamped to the 22-35g effective dose window.
+ * hours actually call for, built exclusively from the *net* recovery debt
+ * (see `getRecoveryDebt` above) rather than the ride's raw burn/loss:
+ * - **Carbs**: capped at the lower of the net carb debt or a ~1.2g/kg
+ *   ceiling — replacing more than was actually burned doesn't speed
+ *   glycogen resynthesis, it's just extra calories, and the ceiling still
+ *   applies even when in-ride intake was zero.
+ * - **Protein**: ~0.35g/kg, clamped to the 22-35g effective dose window —
+ *   unaffected by in-ride intake, since it's about muscle repair, not
+ *   replacing a specific deficit.
  * - **Fat**: a soft ~0.15g/kg limit (clamped 10-20g), to keep gastric
  *   emptying fast for this window rather than to restrict fat generally.
- * - **Fluid**: 120% of the ride's estimated fluid loss, minus whatever's
- *   already been drunk (`fluidAlreadyConsumedMl` — defaults to 0, since the
- *   app doesn't currently track actual in-ride bottle consumption; wiring
- *   that up later would make this figure sharper, not change the formula).
- * - **Sodium**: the estimated sodium loss itself, treated as fully
- *   uncompensated for the same reason.
+ * - **Fluid** and **Sodium**: the net debt figures directly.
  */
 export function getMacroRecoveryTarget({
   weightKg,
-  carbsBurnedG,
-  fluidLossMl,
-  sodiumLossMg,
-  fluidAlreadyConsumedMl = 0,
+  recoveryDebt,
 }: {
   weightKg: number;
-  carbsBurnedG: number;
-  fluidLossMl: number;
-  sodiumLossMg: number;
-  fluidAlreadyConsumedMl?: number;
+  recoveryDebt: RecoveryDebt;
 }): MacroRecoveryTarget {
   return {
-    carbsG: Math.round(Math.min(carbsBurnedG, weightKg * 1.2)),
+    carbsG: Math.round(Math.min(recoveryDebt.carbsDebtG, weightKg * 1.2)),
     proteinG: Math.min(
       MAX_RECOVERY_PROTEIN_G,
       Math.max(MIN_RECOVERY_PROTEIN_G, Math.round(weightKg * 0.35))
@@ -496,11 +533,8 @@ export function getMacroRecoveryTarget({
       MAX_RECOVERY_FAT_LIMIT_G,
       Math.max(MIN_RECOVERY_FAT_LIMIT_G, Math.round(weightKg * 0.15))
     ),
-    fluidMl: Math.max(
-      0,
-      Math.round(fluidLossMl * POST_RIDE_FLUID_REPLACEMENT_FACTOR - fluidAlreadyConsumedMl)
-    ),
-    sodiumMg: Math.round(sodiumLossMg),
+    fluidMl: recoveryDebt.fluidDebtMl,
+    sodiumMg: recoveryDebt.sodiumDebtMg,
   };
 }
 
