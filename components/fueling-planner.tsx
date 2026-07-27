@@ -50,10 +50,12 @@ const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 up
 const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
 const inputClass =
   "border border-neutral-300 bg-background px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900";
-// Selects and the datetime-local input are all "pick one" controls, unlike a
-// free-text/number field, so they get an explicit pointer cursor the plain
-// `inputClass` fields don't.
-const selectableInputClass = cn(inputClass, "cursor-pointer");
+// RUTA/INTENSIDAD/SALIDA share this exact base — a fixed `h-10` height (rather
+// than relying on padding to coincidentally match) is what keeps the native
+// `datetime-local` control visually identical to the two `<select>`s beside
+// it, since browsers box that control's own chrome differently than a select.
+const selectableInputClass =
+  "h-10 w-full rounded-sm border border-neutral-200 bg-neutral-50/50 px-3 py-2 text-sm text-neutral-900 focus:border-black focus:bg-white focus:outline-none transition-colors duration-150 cursor-pointer appearance-none";
 // `datetime-local` renders its own calendar-picker icon that Tailwind can
 // only reach via the `::-webkit-calendar-picker-indicator` pseudo-element —
 // dimmed by default, full opacity on hover, so it still reads as clickable

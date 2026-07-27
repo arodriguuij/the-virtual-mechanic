@@ -444,6 +444,13 @@ recipe for that specific ride's real forecast conditions.
   props) or duration+watts inputs, a `datetime-local` departure input (defaults to
   tomorrow 08:00 via `defaultDepartureLocal()`), the pocket-food catalog (see "Hybrid
   nutrition" above), an optional "Ruta objetivo / Competición" checkbox (`isTargetEvent`),
+  Ruta/Intensidad/Salida share one literal `selectableInputClass` string (`h-10 w-full
+  rounded-sm border border-neutral-200 bg-neutral-50/50 ...`) rather than composing it
+  from the plain-input base — a fixed `h-10` keeps the native `datetime-local` control's
+  own browser-drawn chrome the same rendered height as the two `<select>`s beside it,
+  which padding-based sizing alone doesn't guarantee across browsers; `dateInputClass`
+  layers the `::-webkit-calendar-picker-indicator` opacity/cursor treatment on top of the
+  same base so the native calendar icon still reads as clickable without a separate style.
   and a result panel rendering whatever `/api/fueling/plan` returns — carb/sodium targets,
   the DIY recipe with its bottle architecture and pocket-food coverage line, the glycogen
   battery comparison, the reload-strategy block when applicable, the money-saved
@@ -627,8 +634,19 @@ toggle). Validates `athlete_type` against `VALID_ATHLETE_TYPES` (`'diesel' | 'ba
 redirecting the matching `invalid_*` code on anything else. Uses `.upsert({ id: userId,
 ... })` rather than a select-then-update/insert branch, since `athlete_profiles.id` is the
 primary key and Supabase's upsert already handles "create if missing, update if present"
-in one call. Redirects to `/?profile_error=<code>` on invalid input or an RLS block, same
-non-silent-failure convention as everywhere else.
+in one call. On success, redirects to `/?profile_saved=1` (same query-param convention as
+`profile_error`/`strava_error`) rather than a bare `/`, which `components/profile-saved-
+toast.tsx` (`"use client"`) reads on `app/page.tsx` to render a self-dismissing
+confirmation toast ("✓ Perfil guardado correctamente en Supabase") — fixed bottom-right,
+`--status-good` toned, auto-hides after 3s and strips the query param via
+`router.replace("/")` so a manual refresh doesn't keep re-showing a stale confirmation.
+On invalid input or an RLS block, redirects to `/?profile_error=<code>` instead, same
+non-silent-failure convention as everywhere else. `PhysiologicalProfileCard` itself is
+already a Server Component that `await getAthleteProfile()`s on every request (the page
+exports `dynamic = "force-dynamic"`, and this Next.js version's `fetch` calls are
+uncached by default — see "Route dynamic rendering" below) and pre-fills every form field
+via `defaultValue`/`defaultChecked`, so a save is immediately reflected on the next load;
+there is no separate client-side fetch-on-mount step to keep in sync.
 
 ### Dashboard (app/page.tsx)
 

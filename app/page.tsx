@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { FuelingPlanner } from "@/components/fueling-planner";
 import { PostRideAnalysis } from "@/components/post-ride-analysis";
+import { ProfileSavedToast } from "@/components/profile-saved-toast";
 import { SyncForm } from "@/components/sync-button";
 import {
   getAthleteProfile,
@@ -546,8 +547,11 @@ export default async function Home({
       ? (profileErrorMessages[profileErrorCode] ?? "No se pudo guardar el perfil fisiológico.")
       : null;
 
+  const profileSaved = params.profile_saved === "1";
+
   return (
     <DashboardShell>
+      {profileSaved && <ProfileSavedToast />}
       <div className="flex flex-col gap-10">
         <header className="flex flex-col items-start gap-4 border-b border-neutral-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>

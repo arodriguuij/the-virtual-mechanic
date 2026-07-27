@@ -77,5 +77,5 @@ export async function POST(request: NextRequest) {
     return redirectWithError("update_blocked_by_rls");
   }
 
-  return NextResponse.redirect(new URL("/", request.url), { status: 303 });
+  return NextResponse.redirect(new URL("/?profile_saved=1", request.url), { status: 303 });
 }
