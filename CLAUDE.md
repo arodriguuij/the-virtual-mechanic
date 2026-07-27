@@ -56,9 +56,11 @@ rather than real sweat-test/gut-test/lactate-curve values, `gut_training_level`/
 `athlete_type` each defaulting (`'intermediate'`/`'balanced'`) so the columns could be
 added `NOT NULL` without a separate backfill step; `bottle_count` — `1 | 2`, the athlete's
 real number of bottle cages; `bottle_capacity_ml` — `500 | 600 | 750 | 950`, their real
-per-bottle capacity, both defaulting (`2`/`750`) for the same reason — see "Metabolic
-engine", "Gut Training Scale", "Metabolic phenotype", and "Bottle architecture &
-osmolarity control" below for how each field is used), `activities`
+per-bottle capacity, both defaulting (`2`/`750`) for the same reason; `is_salty_sweater` —
+boolean, defaulting `false`, self-reported ("cercos blancos en el maillot / escozor en los
+ojos") rather than a real sweat-test value, same convention as the other self-reported
+categories above — see "Metabolic engine", "Gut Training Scale", "Metabolic phenotype", and
+"Bottle architecture & osmolarity control" below for how each field is used), `activities`
 (`profile_id` FK; `id` is `text` — either a real Strava activity id or the seed script's
 synthetic one; `average_watts`/`rain_mm`/`humidity_avg`/`temperature_avg` capture the
 ride's own conditions; `carbs_burned_g`/`fluid_loss_ml`/`sodium_loss_mg` are computed once
@@ -201,8 +203,13 @@ guidance rather than a clinical or individually-calibrated model:
   scales gradually — a flat `HIGH_HEAT_MULTIPLIER` (+20%) replaces the slope entirely
   rather than compounding on top of it, so 25.1°C jumps straight to ×1.2 instead of
   continuing from the slope's ×1.14 at 25°C. Humidity always scales gently, +0.4%/point
-  above 50%, independent of which heat regime applies. `getSodiumLossMgPerHour` multiplies
-  that fluid volume by a flat 700mg/L average sweat-sodium concentration.
+  above 50%, independent of which heat regime applies. `getSodiumLossMgPerHour(fluidLossMlPerHour,
+  isSaltySweater?)` multiplies that fluid volume by a flat sweat-sodium concentration — 700mg/L
+  for a typical athlete, or 1200mg/L when `athlete_profiles.is_salty_sweater` is set (see
+  "Athlete profile" below) — a genuine heavy sweater's real concentration sits meaningfully
+  above the app-wide average, and under-dosing sodium for one risks cramping and, on long hot
+  rides, hyponatremia. Threaded through every call site that computes sodium loss: `POST
+  /api/fueling/plan`, `POST /api/strava/sync`, and `POST /api/post-ride/analysis`.
 - **`getHomeLabRecipe()`** — the "Receta de Laboratorio Casero": splits the ride's total
   carb target into a maltodextrin:fructose mix by weight whose ratio scales with the
   ride's own carb rate via `getMaltodextrinFraction(carbsGPerHour)` — below 45g/h a single
@@ -367,6 +374,17 @@ pushes `totalBottles` above the athlete's real bottle-cage count, "Reload strate
 automatically forces the Ziploc reload plan instead of ever recommending an over-strength,
 undissolvable single bottle.
 
+`BottlePlan.fuelBottles.concentrationPct` exposes the *actual achieved* per-bottle
+concentration — computed independently of the caps above (`(maltodextrinGPerBottle +
+fructoseGPerBottle) / bottleSizeMl × 100`), a transparent readout rather than one that
+silently trusts the engine's own internal capping. `components/fueling-planner.tsx`
+compares this against `HYPERTONIC_THRESHOLD_PCT` (12%, the widely-cited gastric-emptying
+threshold) and renders a "Solución hipertónica" warning banner if it's ever exceeded. Under
+every currently-supported bottle size this can't actually happen — `MAX_BOTTLE_CARB_CONCENTRATION`
+above already keeps every generated recipe at ≤8% — so this is a defense-in-depth check, same
+"explicit and independent even if it never currently fires" convention as the solubility
+cap two paragraphs up, not a warning users are expected to routinely see.
+
 ### Reload strategy (Ziploc bags)
 
 A road bike only has a small, fixed number of bottle cages — `athlete_profiles.bottle_count`
@@ -486,6 +504,26 @@ recipe for that specific ride's real forecast conditions.
   lapse-rate note when non-zero), a "Gut Training" warning banner whenever
   `gutTraining.isGutLimited` is true, the collapsible carb-loading module when applicable,
   and the nutrition-export button (see "Nutrition export" below).
+
+### Offline strategy cache ("Modo Cobertura Limitada")
+
+A rider is often planning or re-checking their fueling strategy with poor or no signal —
+climbing into the mountains before a descent to reception, or on the exact ride the
+strategy is for. `FuelingPlanner` writes every successfully calculated result to
+`localStorage` under `last_fueling_strategy` (in `handleCalculate`'s success branch,
+immediately after `setResult`), wrapped in a try/catch since `localStorage` can throw in
+private browsing or when quota is exceeded — the whole point is graceful degradation, so a
+storage failure there must never break the just-completed calculation. On mount, and again
+on the browser's own `offline` event, a `useEffect` checks `!navigator.onLine` and — if
+true and a cached entry exists — loads it via `setResult(JSON.parse(cached))` and sets
+`isOfflineCache`, which renders a small "⚡ Estrategia guardada en caché (Modo Offline)"
+badge above the result panel. This is `localStorage`-only, not a service worker: it covers
+a tab that's already open and loses signal mid-session (the `offline` event fires
+regardless of remounting), and any fresh load where the browser still happens to have the
+JS bundle cached — but a true offline *document* reload (no service worker registered)
+can't work at all, since the browser can't fetch the HTML itself without a network
+connection. That's a deliberate scope boundary: this feature is the readable, low-effort
+`localStorage` fallback that was asked for, not a full offline-first PWA rebuild.
 
 ### Nutrition export: GPX course points & clipboard fallback
 
@@ -648,11 +686,30 @@ a previous activity's entries don't leak into a new one), then feeds them throug
 lost inputs and `weightKg` from the API response) for instant per-keystroke recompute. A
 "Balance neto de recuperación" block spells out the arithmetic per metric — e.g.
 `GASTADO 250g − INGERIDO EN RUTA 180g = DEUDA NETA A REPONER 70g` — immediately above the
-same 4-card "Objetivo de recuperación post-ruta" grid as before (`grid-cols-2
-sm:grid-cols-4`, `font-mono` numbers: Carbohidratos, Proteína, Grasas límite prefixed `<`,
-Rehidratación with the sodium figure underneath, each with a short italicized rationale),
-now reading from the locally-recomputed `recoveryTarget` instead of the raw API response,
-with a footer note that the target is "calculado sobre la deuda neta real."
+"Objetivo de recuperación post-ruta" section (see "Biphasic recovery window" below), now
+reading from the locally-recomputed `recoveryTarget` instead of the raw API response, with
+a footer note that the target is "calculado sobre la deuda neta real."
+
+#### Biphasic recovery window ("Fase 1" vs "Fase 2")
+
+A single lump carb figure hides that post-exercise glycogen replenishment isn't uniform
+over the recovery window — the first ~30-45 minutes are the only stretch where muscle
+glucose uptake happens largely through insulin-independent GLUT-4 translocation
+(exercise-induced, not diet-induced), so a fast liquid source (a shake, juice, fruit)
+capitalizes on a window that then closes, rather than waiting for a slower solid meal.
+`getBiphasicRecoveryTarget(recoveryTarget)` (`lib/metabolic-engine.ts`, pure) splits
+`recoveryTarget.carbsG` by a fixed `RECOVERY_PHASE_1_CARB_FRACTION` (35%, the midpoint of
+the commonly-cited 30-40% GLUT-4 window) into `phase1.carbsG` (immediate) and
+`phase2.carbsG = recoveryTarget.carbsG - phase1.carbsG` (the remaining ~65%, so the two
+always sum back to the original target with no rounding leakage). Protein is untouched by
+this split and rides entirely in `phase2` — same rationale as `getMacroRecoveryTarget`
+itself: it's about muscle repair, not the carb debt, so spreading it across an all-liquid
+phase 1 dose isn't standard practice. `components/post-ride-analysis.tsx` renders this as
+two side-by-side blocks ("⚡ Fase 1 · 0-45 min · inmediata" and "🍽️ Fase 2 · 1.5-2h · comida
+principal", `Zap`/`Utensils` icons) above a smaller 2-card row for Grasas límite and
+Rehidratación — `biphasicRecoveryTarget` is its own `useMemo` derived from the already-live-
+recomputed `recoveryTarget`, so editing the in-ride-consumption inputs updates the phase
+split instantly along with everything else on this card.
 
 ### Lifetime fueling totals
 
@@ -670,11 +727,14 @@ which tab is open.
 
 **`app/api/athlete-profile/update`** — the plain-form-POST route behind the
 Physiological Profile card's inline edit form (weight/FTP/sweat rate/gut training
-level/athlete type/bottle count/bottle capacity, all in one Card, no separate view/edit
-toggle). Validates `athlete_type` against `VALID_ATHLETE_TYPES` (`'diesel' | 'balanced' |
-'explosive'`), `bottle_count` against `VALID_BOTTLE_COUNTS` (`1 | 2`), and
-`bottle_capacity_ml` against `VALID_BOTTLE_CAPACITIES_ML` (`500 | 600 | 750 | 950`),
-redirecting the matching `invalid_*` code on anything else. Uses `.upsert({ id: userId,
+level/athlete type/bottle count/bottle capacity/salty-sweater flag, all in one Card, no
+separate view/edit toggle). Validates `athlete_type` against `VALID_ATHLETE_TYPES`
+(`'diesel' | 'balanced' | 'explosive'`), `bottle_count` against `VALID_BOTTLE_COUNTS`
+(`1 | 2`), and `bottle_capacity_ml` against `VALID_BOTTLE_CAPACITIES_ML` (`500 | 600 |
+750 | 950`), redirecting the matching `invalid_*` code on anything else.
+`is_salty_sweater` has no validation branch of its own — an unchecked HTML checkbox
+simply isn't present in `FormData` at all, so `formData.get("is_salty_sweater") != null`
+is the entire check (checked or not, never invalid). Uses `.upsert({ id: userId,
 ... })` rather than a select-then-update/insert branch, since `athlete_profiles.id` is the
 primary key and Supabase's upsert already handles "create if missing, update if present"
 in one call. On success, redirects to `/perfil?profile_saved=1` (same query-param
@@ -741,11 +801,13 @@ sesión") instead of a made-up bio line.
   `profile_saved`/`profile_error` query-param handling — see "Athlete profile" above)
   rather than a tab panel. `PhysiologicalProfileCard` reads `getAthleteProfile()` and
   renders an inline edit form (weight/FTP/sweat rate/gut training level/bottle
-  count/bottle capacity, pre-filled with current values) POSTing to
+  count/bottle capacity/salty-sweater checkbox, pre-filled with current values) POSTing to
   `/api/athlete-profile/update`, plus a static reference table of the four Gut Training
   levels and their g/h ranges (see "Gut Training Scale" above), plus a full-width 1-click
   metabolic phenotype selector (three `has-checked:`-styled radio cards, see "Metabolic
-  phenotype" below). The bottle count/capacity selects feed "Bottle architecture &
+  phenotype" below). The "Sudo mucha sal" checkbox (`is_salty_sweater`) feeds
+  `getSodiumLossMgPerHour`'s elevated concentration tier (see "Metabolic engine" above).
+  The bottle count/capacity selects feed "Bottle architecture &
   osmolarity control" and "Reload strategy" above — real bike equipment, not a physiology
   field, but persisted on the same row since it changes about as often as FTP does.
 

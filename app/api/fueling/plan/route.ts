@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
   const { data: athleteProfile, error: athleteProfileError } = await supabase
     .from("athlete_profiles")
     .select(
-      "ftp, weight_kg, sweat_rate, gut_training_level, athlete_type, bottle_count, bottle_capacity_ml"
+      "ftp, weight_kg, sweat_rate, gut_training_level, athlete_type, bottle_count, bottle_capacity_ml, is_salty_sweater"
     )
     .eq("id", userId)
     .maybeSingle();
@@ -186,7 +186,10 @@ export async function POST(request: NextRequest) {
     temperatureC,
     humidityPct
   );
-  const sodiumMgPerHour = getSodiumLossMgPerHour(fluidLossMlPerHour);
+  const sodiumMgPerHour = getSodiumLossMgPerHour(
+    fluidLossMlPerHour,
+    athleteProfile.is_salty_sweater ?? false
+  );
   const totalRideCarbsG = Math.round(carbsGPerHour * durationHours);
   const recipe = getHomeLabRecipe({
     carbsGPerHour,

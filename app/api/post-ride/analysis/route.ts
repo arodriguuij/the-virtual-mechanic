@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
   const { data: athleteProfile, error: athleteProfileError } = await supabase
     .from("athlete_profiles")
-    .select("ftp, weight_kg, sweat_rate, athlete_type")
+    .select("ftp, weight_kg, sweat_rate, athlete_type, is_salty_sweater")
     .eq("id", userId)
     .maybeSingle();
   if (athleteProfileError) throw athleteProfileError;
@@ -119,7 +119,9 @@ export async function POST(request: NextRequest) {
     activity.humidity_avg
   );
   const fluidLossMl = Math.round(fluidLossMlPerHour * hours);
-  const sodiumLossMg = Math.round(getSodiumLossMgPerHour(fluidLossMlPerHour) * hours);
+  const sodiumLossMg = Math.round(
+    getSodiumLossMgPerHour(fluidLossMlPerHour, athleteProfile.is_salty_sweater ?? false) * hours
+  );
 
   // Initial figures assume zero in-ride intake — the client recomputes this
   // live once the athlete fills in what they actually consumed during the

@@ -14,8 +14,9 @@ import {
   Send,
   TriangleAlert,
   Utensils,
+  Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -25,6 +26,7 @@ import {
   formatGarminExportText,
   formatRecipeForSharing,
   getTableSaltGrams,
+  HYPERTONIC_THRESHOLD_PCT,
   intensityLabels,
   pocketFoodCarbsG as POCKET_FOOD_CARBS_G,
   pocketFoodLabels,
@@ -38,6 +40,10 @@ const GEL_DOSE_TYPES: PocketFoodItemType[] = ["gel_small", "gel_standard", "gel_
 const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = [...POCKET_FOOD_TYPES, ...GEL_DOSE_TYPES];
 const MAX_POCKET_FOOD_QTY = 6;
 const MAX_CUSTOM_CARBS_G = 500;
+// Offline fallback for "en medio de un puerto sin cobertura" — the last
+// successfully calculated strategy, so the athlete still has *something*
+// actionable instead of a blank/broken screen with no signal.
+const LAST_FUELING_STRATEGY_KEY = "last_fueling_strategy";
 
 /** Plain, no-emoji name for the pocket-food matrix — `pocketFoodLabels` keeps
  * its friendly emoji-prefixed copy for the clipboard/GPX exports, this derives
@@ -109,6 +115,7 @@ type PlanResult = {
       maltodextrinGPerBottle: number;
       fructoseGPerBottle: number;
       sodiumMgPerBottle: number;
+      concentrationPct: number;
     };
     waterBottles: { count: number };
   };
@@ -212,11 +219,34 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
   const [copied, setCopied] = useState(false);
   const [exportCopied, setExportCopied] = useState(false);
   const [downloadingGpx, setDownloadingGpx] = useState(false);
+  const [isOfflineCache, setIsOfflineCache] = useState(false);
 
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === selectedRouteId) ?? null,
     [routes, selectedRouteId]
   );
+
+  // "Modo Cobertura Limitada" — if the athlete opens the app with no
+  // connection at all (mid-climb, no signal), load the last strategy that
+  // did calculate successfully rather than showing an empty planner.
+  useEffect(() => {
+    function loadCachedStrategyIfOffline() {
+      if (typeof navigator === "undefined" || navigator.onLine) return;
+      try {
+        const cached = localStorage.getItem(LAST_FUELING_STRATEGY_KEY);
+        if (!cached) return;
+        setResult(JSON.parse(cached));
+        setIsOfflineCache(true);
+      } catch {
+        // Corrupt/unavailable cache — just leave the planner empty, same as
+        // never having calculated a strategy before.
+      }
+    }
+
+    loadCachedStrategyIfOffline();
+    window.addEventListener("offline", loadCachedStrategyIfOffline);
+    return () => window.removeEventListener("offline", loadCachedStrategyIfOffline);
+  }, []);
 
   function setPocketFoodQty(type: PocketFoodItemType, qty: number) {
     setPocketFood((prev) => ({ ...prev, [type]: Math.max(0, Math.min(MAX_POCKET_FOOD_QTY, qty)) }));
@@ -267,6 +297,13 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
         return;
       }
       setResult(data);
+      setIsOfflineCache(false);
+      try {
+        localStorage.setItem(LAST_FUELING_STRATEGY_KEY, JSON.stringify(data));
+      } catch {
+        // Private browsing / quota exceeded — the offline fallback simply
+        // won't have anything to load next time, not worth failing over.
+      }
     } catch {
       setError("No se pudo calcular la estrategia de fueling.");
     } finally {
@@ -536,6 +573,12 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
 
         {result && (
           <div className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
+            {isOfflineCache && (
+              <div className="flex items-center gap-1.5 border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-700">
+                <Zap className="size-3.5 shrink-0" />
+                Estrategia guardada en caché (Modo Offline)
+              </div>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className={eyebrow}>Estrategia de bolsillo &amp; receta DIY</span>
               <span className="text-xs text-neutral-500">
@@ -714,6 +757,23 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   )}
                 </div>
               </div>
+
+              {result.bottlePlan.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
+                <div className="mt-3 flex items-start gap-2 border border-status-warning/40 bg-status-warning/10 px-3 py-2.5 text-sm text-status-warning">
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+                  <div>
+                    <p className="font-semibold">
+                      Solución hipertónica (concentración &gt; {HYPERTONIC_THRESHOLD_PCT}%)
+                    </p>
+                    <p className="mt-0.5 text-xs">
+                      Esta mezcla ({result.bottlePlan.fuelBottles.concentrationPct}%) es
+                      demasiado densa para la capacidad de tus bidones y puede ralentizar el
+                      vaciado gástrico. Añade agua o traslada parte de los HC a comida de
+                      bolsillo.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {result.reloadStrategy && (

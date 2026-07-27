@@ -173,6 +173,22 @@ async function PhysiologicalProfileCard() {
             </div>
           </div>
 
+          <label className="flex cursor-pointer items-start gap-2 text-sm text-neutral-700">
+            <input
+              type="checkbox"
+              name="is_salty_sweater"
+              defaultChecked={profile?.is_salty_sweater ?? false}
+              className="mt-0.5 size-3.5 cursor-pointer accent-neutral-900"
+            />
+            <span>
+              Sudo mucha sal (cercos blancos en el maillot / escozor en los ojos)
+              <span className="block text-xs text-neutral-500">
+                Eleva el objetivo de sodio de la receta para prevenir calambres e hiponatremia
+                en rutas largas.
+              </span>
+            </span>
+          </label>
+
           <button type="submit" className={primaryButtonClass}>
             Guardar
           </button>

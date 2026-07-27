@@ -26,6 +26,9 @@ export async function POST(request: NextRequest) {
   const athleteType = formData.get("athlete_type")?.toString();
   const bottleCount = Number(formData.get("bottle_count"));
   const bottleCapacityMl = Number(formData.get("bottle_capacity_ml"));
+  // Unchecked checkboxes simply aren't present in FormData at all — this is
+  // "checked or not", never invalid input, so there's no validation branch.
+  const isSaltySweater = formData.get("is_salty_sweater") != null;
 
   if (!Number.isFinite(weightKg) || weightKg <= 0) {
     return redirectWithError("invalid_weight");
@@ -67,6 +70,7 @@ export async function POST(request: NextRequest) {
       athlete_type: athleteType,
       bottle_count: bottleCount,
       bottle_capacity_ml: bottleCapacityMl,
+      is_salty_sweater: isSaltySweater,
     })
     .select("id")
     .maybeSingle();

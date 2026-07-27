@@ -267,12 +267,24 @@ export function getFluidLossMlPerHour(
   );
 }
 
-/** Average sweat sodium concentration for a mid-range "salty sweater" —
- * real individual values range roughly 400-1500mg/L. */
+/** Average sweat sodium concentration for a typical athlete — real
+ * individual values range roughly 400-1500mg/L. Self-identified "salty
+ * sweaters" (white crust on the jersey, stinging eyes — see
+ * `athlete_profiles.is_salty_sweater`) sit meaningfully above that average,
+ * so they get a distinct, elevated figure rather than the same baseline
+ * everyone else uses — under-dosing sodium for a genuine heavy sweater risks
+ * cramping and, on long hot rides, hyponatremia. */
 const SODIUM_CONCENTRATION_MG_PER_L = 700;
+const SALTY_SWEATER_SODIUM_CONCENTRATION_MG_PER_L = 1200;
 
-export function getSodiumLossMgPerHour(fluidLossMlPerHour: number): number {
-  return Math.round((fluidLossMlPerHour / 1000) * SODIUM_CONCENTRATION_MG_PER_L);
+export function getSodiumLossMgPerHour(
+  fluidLossMlPerHour: number,
+  isSaltySweater: boolean = false
+): number {
+  const concentration = isSaltySweater
+    ? SALTY_SWEATER_SODIUM_CONCENTRATION_MG_PER_L
+    : SODIUM_CONCENTRATION_MG_PER_L;
+  return Math.round((fluidLossMlPerHour / 1000) * concentration);
 }
 
 /** Common table salt (NaCl) is only ~39.3% pure sodium by weight — every
@@ -610,6 +622,55 @@ export function getMacroRecoveryTarget({
   };
 }
 
+// The first ~30-45 post-exercise minutes are the only window where muscle
+// glucose uptake happens largely through insulin-independent GLUT-4
+// translocation (exercise-induced, not diet-induced) — a fast liquid carb
+// source (a shake, juice, fruit) capitalizes on that window before it
+// closes, rather than waiting for a solid meal's slower digestion. The
+// remainder is deliberately left for the solid meal ~1.5-2h out, alongside
+// the protein target, since gastric comfort right after a hard effort
+// favors a smaller liquid dose first over front-loading everything at once.
+const RECOVERY_PHASE_1_CARB_FRACTION = 0.35;
+
+export type BiphasicRecoveryTarget = {
+  phase1: {
+    carbsG: number;
+    windowLabel: string;
+  };
+  phase2: {
+    carbsG: number;
+    proteinG: number;
+    windowLabel: string;
+  };
+};
+
+/**
+ * "Ventana de Recuperación Bifásica" — splits `recoveryTarget.carbsG` (the
+ * net carb debt, see `getMacroRecoveryTarget` above) across the two windows
+ * that actually matter physiologically, rather than handing over one lump
+ * figure the athlete has to decide when to eat. Protein is untouched by
+ * this split (see `getMacroRecoveryTarget`'s own rationale — it's about
+ * muscle repair, not the carb debt) and rides entirely in phase 2, since
+ * spreading protein across an all-liquid phase 1 dose isn't standard
+ * post-exercise practice the way fast carbs are.
+ */
+export function getBiphasicRecoveryTarget(
+  recoveryTarget: MacroRecoveryTarget
+): BiphasicRecoveryTarget {
+  const phase1CarbsG = Math.round(recoveryTarget.carbsG * RECOVERY_PHASE_1_CARB_FRACTION);
+  return {
+    phase1: {
+      carbsG: phase1CarbsG,
+      windowLabel: "0-45 min · inmediata",
+    },
+    phase2: {
+      carbsG: recoveryTarget.carbsG - phase1CarbsG,
+      proteinG: recoveryTarget.proteinG,
+      windowLabel: "1.5-2 h · comida principal",
+    },
+  };
+}
+
 export type PowerZoneBucket = {
   /** Watts. */
   min: number;
@@ -728,12 +789,26 @@ export type BottlePlan = {
     maltodextrinGPerBottle: number;
     fructoseGPerBottle: number;
     sodiumMgPerBottle: number;
+    // Achieved carb concentration, computed independently of the caps this
+    // function already applies above — a transparent readout an athlete (or
+    // the UI's hypertonic-solution warning) can check without trusting the
+    // engine's own internal capping silently, see `HYPERTONIC_THRESHOLD_PCT`.
+    concentrationPct: number;
   };
   waterBottles: {
     count: number;
   };
   totalBottles: number;
 };
+
+/** Widely-cited threshold above which a sports-drink concentration is
+ * considered hypertonic enough to slow gastric emptying and risk GI
+ * distress — independent of (and looser than) `MAX_BOTTLE_CARB_CONCENTRATION`
+ * above, which already keeps every generated recipe well under this in
+ * practice; this constant exists so the UI can surface the *actual* number
+ * and warn explicitly rather than relying on that cap being invisible and
+ * assumed. */
+export const HYPERTONIC_THRESHOLD_PCT = 12;
 
 // Fallback bottle size when the athlete hasn't configured their real
 // equipment yet — matches `athlete_profiles.bottle_capacity_ml`'s own
@@ -780,14 +855,24 @@ export function getBottlePlan(
     recipe.totalCarbsG > 0 ? Math.max(1, Math.ceil(recipe.totalCarbsG / maxCarbsPerBottle)) : 0;
   const totalBottles = Math.max(fuelBottleCount, Math.ceil(recipe.waterMl / bottleSizeMl));
   const waterBottleCount = Math.max(0, totalBottles - fuelBottleCount);
+  const maltodextrinGPerBottle =
+    fuelBottleCount > 0 ? Math.round(recipe.maltodextrinG / fuelBottleCount) : 0;
+  const fructoseGPerBottle =
+    fuelBottleCount > 0 ? Math.round(recipe.fructoseG / fuelBottleCount) : 0;
 
   return {
     bottleSizeMl,
     fuelBottles: {
       count: fuelBottleCount,
-      maltodextrinGPerBottle: fuelBottleCount > 0 ? Math.round(recipe.maltodextrinG / fuelBottleCount) : 0,
-      fructoseGPerBottle: fuelBottleCount > 0 ? Math.round(recipe.fructoseG / fuelBottleCount) : 0,
+      maltodextrinGPerBottle,
+      fructoseGPerBottle,
       sodiumMgPerBottle: fuelBottleCount > 0 ? Math.round(recipe.sodiumMg / fuelBottleCount) : 0,
+      concentrationPct:
+        fuelBottleCount > 0
+          ? Math.round(
+              ((maltodextrinGPerBottle + fructoseGPerBottle) / bottleSizeMl) * 100 * 10
+            ) / 10
+          : 0,
     },
     waterBottles: {
       count: waterBottleCount,

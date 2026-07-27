@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     const { data: athleteProfile, error: athleteProfileError } = await supabase
       .from("athlete_profiles")
-      .select("ftp, sweat_rate, athlete_type")
+      .select("ftp, sweat_rate, athlete_type, is_salty_sweater")
       .eq("id", userId)
       .maybeSingle();
     if (athleteProfileError) throw athleteProfileError;
@@ -93,7 +93,9 @@ export async function POST(request: NextRequest) {
       const sweatRate = athleteProfile.sweat_rate ?? "medium";
       const fluidLossMlPerHour = getFluidLossMlPerHour(sweatRate, temperatureAvgC, humidityAvg);
       fluidLossMl = Math.round(fluidLossMlPerHour * hours);
-      sodiumLossMg = Math.round(getSodiumLossMgPerHour(fluidLossMlPerHour) * hours);
+      sodiumLossMg = Math.round(
+        getSodiumLossMgPerHour(fluidLossMlPerHour, athleteProfile.is_salty_sweater ?? false) * hours
+      );
     }
 
     const { error: insertError } = await supabase.from("activities").insert({

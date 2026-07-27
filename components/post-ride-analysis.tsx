@@ -1,10 +1,15 @@
 "use client";
 
+import { Utensils, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { getMacroRecoveryTarget, getRecoveryDebt } from "@/lib/metabolic-engine";
+import {
+  getBiphasicRecoveryTarget,
+  getMacroRecoveryTarget,
+  getRecoveryDebt,
+} from "@/lib/metabolic-engine";
 
 const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
@@ -110,6 +115,11 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
     if (!result || !recoveryDebt) return null;
     return getMacroRecoveryTarget({ weightKg: result.weightKg, recoveryDebt });
   }, [result, recoveryDebt]);
+
+  const biphasicRecoveryTarget = useMemo(() => {
+    if (!recoveryTarget) return null;
+    return getBiphasicRecoveryTarget(recoveryTarget);
+  }, [recoveryTarget]);
 
   if (activities.length === 0) {
     return (
@@ -288,28 +298,48 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
               </div>
             )}
 
-            {recoveryTarget && (
+            {recoveryTarget && biphasicRecoveryTarget && (
               <div>
                 <span className={eyebrow}>Objetivo de recuperación post-ruta</span>
-                <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <span className="mt-1 block text-xs text-neutral-500">
+                  Ventana bifásica — glucógeno se repone en dos fases fisiológicas distintas,
+                  no en una sola comida
+                </span>
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="border border-neutral-200 px-3 py-2.5">
-                    <span className={statLabel}>Carbohidratos</span>
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
+                      <Zap className="size-3.5 shrink-0" />
+                      Fase 1 · {biphasicRecoveryTarget.phase1.windowLabel}
+                    </span>
                     <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
-                      {recoveryTarget.carbsG}
-                      <span className="text-sm font-normal text-neutral-500">g</span>
+                      {biphasicRecoveryTarget.phase1.carbsG}
+                      <span className="text-sm font-normal text-neutral-500">g HC</span>
                     </div>
                     <span className="text-xs text-neutral-500 italic">
-                      Reconstrucción de glucógeno
+                      Líquido/rápido (batido, fruta) — vía GLUT-4, no depende de insulina
                     </span>
                   </div>
                   <div className="border border-neutral-200 px-3 py-2.5">
-                    <span className={statLabel}>Proteína</span>
-                    <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
-                      {recoveryTarget.proteinG}
-                      <span className="text-sm font-normal text-neutral-500">g</span>
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
+                      <Utensils className="size-3.5 shrink-0" />
+                      Fase 2 · {biphasicRecoveryTarget.phase2.windowLabel}
+                    </span>
+                    <div className="mt-1 flex items-baseline gap-3">
+                      <span className="flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                        {biphasicRecoveryTarget.phase2.carbsG}
+                        <span className="text-sm font-normal text-neutral-500">g HC</span>
+                      </span>
+                      <span className="flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                        {biphasicRecoveryTarget.phase2.proteinG}
+                        <span className="text-sm font-normal text-neutral-500">g prot</span>
+                      </span>
                     </div>
-                    <span className="text-xs text-neutral-500 italic">Reparación muscular</span>
+                    <span className="text-xs text-neutral-500 italic">
+                      Comida sólida principal — reparación muscular
+                    </span>
                   </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3">
                   <div className="border border-neutral-200 px-3 py-2.5">
                     <span className={statLabel}>Grasas límite</span>
                     <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
