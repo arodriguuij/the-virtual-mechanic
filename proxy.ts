@@ -2,9 +2,17 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Reachable with no session at all — the Strava OAuth entry/callback (the
-// only login flow this app has) and the login screen itself. Everything
-// else requires a real signed-in user.
-const PUBLIC_PATH_PREFIXES = ["/login", "/api/strava/connect", "/api/auth/strava/callback"];
+// only login flow this app has) and the login screen itself. `/auth/callback`
+// is the dual-logo transition page Strava redirects back to (see
+// `getStravaRedirectUri` in `lib/strava.ts`) — there's no session yet at that
+// point either, since it's what forwards into `/api/auth/strava/callback`
+// to actually establish one. Everything else requires a real signed-in user.
+const PUBLIC_PATH_PREFIXES = [
+  "/login",
+  "/auth/callback",
+  "/api/strava/connect",
+  "/api/auth/strava/callback",
+];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix));

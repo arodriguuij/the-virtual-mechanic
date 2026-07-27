@@ -191,6 +191,20 @@ as its `strava_athlete_id` matches).
 ### Strava OAuth
 
 - `GET /api/strava/connect` — redirects to Strava's authorize URL (`lib/strava.ts`).
+- **`/auth/callback`** (`app/auth/callback/page.tsx`) — `getStravaRedirectUri()` points
+  Strava's redirect here rather than straight at the Route Handler below, so the browser
+  has a real page to render (a dual-logo "Conectando con Strava..." transition screen —
+  the app's own Flame mark, three sequenced pulsing dots, and Strava's icomark in its
+  corporate `#FC4C02` orange, via the shared `components/strava-mark.tsx`) for however
+  long the token-exchange/Supabase-bridge work below takes, instead of a blank tab.
+  Strava's "Authorization Callback Domain" setting only ever validates the *domain*, never
+  the path, so this needed no change on Strava's side. The page does no work itself: a
+  `useEffect` (guarded by a `hasStartedRef` against React Strict Mode's dev-only double
+  effect invocation, since Strava's `code` is single-use) forwards the exact same query
+  string to `/api/auth/strava/callback` via `fetch` and navigates to whatever it
+  redirects to (`window.location.href = res.url`) — the same "fetch, then follow its
+  redirect" pattern `components/sync-button.tsx` already uses, so the Route Handler below
+  and its cookie-setting are completely unchanged.
 - `GET /api/auth/strava/callback` — exchanges the returned `code` for tokens, bridges into
   a real Supabase Auth session (see "Real auth: Strava-exclusive login" above for the
   full Admin API dance), saves the tokens on that user's `profiles` row, then redirects

@@ -21,8 +21,19 @@ const CYCLING_SPORT_TYPES = new Set([
 // hardcoded literal) means this works unchanged on localhost and on
 // whatever domain it's deployed to — as long as that domain is also set as
 // the app's Authorization Callback Domain in the Strava API settings.
+//
+// Points at `/auth/callback` (a real page, not the `/api/auth/strava/callback`
+// Route Handler that actually performs the token exchange/Supabase bridge) so
+// the browser has something to render — a dual-logo "Conectando con
+// Strava..." transition screen — instead of a blank tab for however long
+// that server-side work takes. Strava's "Authorization Callback Domain"
+// setting only ever validates the *domain*, never the path, so this needed
+// no change on Strava's side. `app/auth/callback/page.tsx` immediately
+// forwards to the real endpoint via `fetch` (same "fetch then navigate to
+// res.url" pattern `components/sync-button.tsx` already uses), so the actual
+// bridge logic in the Route Handler is completely unchanged.
 export function getStravaRedirectUri(requestUrl: string): string {
-  return new URL("/api/auth/strava/callback", requestUrl).toString();
+  return new URL("/auth/callback", requestUrl).toString();
 }
 
 function getClientCredentials() {
