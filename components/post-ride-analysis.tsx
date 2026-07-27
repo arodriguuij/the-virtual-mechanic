@@ -67,6 +67,9 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
   const [carbsConsumedG, setCarbsConsumedG] = useState(0);
   const [fluidConsumedL, setFluidConsumedL] = useState(0);
   const [sodiumConsumedMg, setSodiumConsumedMg] = useState(0);
+  const [savingConsumption, setSavingConsumption] = useState(false);
+  const [consumptionSaved, setConsumptionSaved] = useState(false);
+  const [consumptionError, setConsumptionError] = useState<string | null>(null);
 
   async function handleAnalyze() {
     setLoading(true);
@@ -92,10 +95,38 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
       setCarbsConsumedG(0);
       setFluidConsumedL(0);
       setSodiumConsumedMg(0);
+      setConsumptionSaved(false);
+      setConsumptionError(null);
     } catch {
       setError("No se pudo analizar la ruta.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSaveConsumption() {
+    setSavingConsumption(true);
+    setConsumptionError(null);
+    try {
+      const res = await fetch("/api/post-ride/consumption", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          activityId: selectedId,
+          carbsConsumedG,
+          fluidConsumedMl: fluidConsumedL * 1000,
+          sodiumConsumedMg,
+        }),
+      });
+      if (!res.ok) {
+        setConsumptionError("No se pudo guardar el consumo real.");
+        return;
+      }
+      setConsumptionSaved(true);
+    } catch {
+      setConsumptionError("No se pudo guardar el consumo real.");
+    } finally {
+      setSavingConsumption(false);
     }
   }
 
@@ -224,7 +255,10 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                       inputMode="numeric"
                       min={0}
                       value={carbsConsumedG || ""}
-                      onChange={(e) => setCarbsConsumedG(Math.max(0, Number(e.target.value) || 0))}
+                      onChange={(e) => {
+                        setCarbsConsumedG(Math.max(0, Number(e.target.value) || 0));
+                        setConsumptionSaved(false);
+                      }}
                       placeholder="0"
                       className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900"
                     />
@@ -243,7 +277,10 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                       min={0}
                       step={0.1}
                       value={fluidConsumedL || ""}
-                      onChange={(e) => setFluidConsumedL(Math.max(0, Number(e.target.value) || 0))}
+                      onChange={(e) => {
+                        setFluidConsumedL(Math.max(0, Number(e.target.value) || 0));
+                        setConsumptionSaved(false);
+                      }}
                       placeholder="0"
                       className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900"
                     />
@@ -261,13 +298,32 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                       inputMode="numeric"
                       min={0}
                       value={sodiumConsumedMg || ""}
-                      onChange={(e) => setSodiumConsumedMg(Math.max(0, Number(e.target.value) || 0))}
+                      onChange={(e) => {
+                        setSodiumConsumedMg(Math.max(0, Number(e.target.value) || 0));
+                        setConsumptionSaved(false);
+                      }}
                       placeholder="0"
                       className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900"
                     />
                     <span className="font-mono text-xs text-neutral-500">mg</span>
                   </div>
                 </div>
+              </div>
+              <div className="mt-2 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleSaveConsumption}
+                  disabled={savingConsumption}
+                  className="cursor-pointer border border-neutral-900 bg-neutral-900 px-4 py-1.5 text-[11px] font-bold tracking-widest text-background uppercase transition-colors duration-150 hover:bg-background hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingConsumption ? "Guardando…" : "Guardar consumo real"}
+                </button>
+                {consumptionSaved && (
+                  <span className="text-xs text-status-good">✓ Guardado</span>
+                )}
+                {consumptionError && (
+                  <span className="text-xs text-status-warning">{consumptionError}</span>
+                )}
               </div>
             </div>
 

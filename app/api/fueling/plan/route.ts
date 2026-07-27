@@ -12,8 +12,10 @@ import {
   getFluidLossMlPerHour,
   getGutCappedCarbTarget,
   getHomeLabRecipe,
+  getHybridGelSuggestion,
   getLapseRateAdjustedTemperature,
   getMoneySavedVsGels,
+  getOptimalPocketFoodSelection,
   getPersonalizedCarbOxidationRateGPerHour,
   getPocketFoodMilestones,
   getPocketFoodTotalCarbsG,
@@ -22,10 +24,13 @@ import {
   getRelativeIntensityFromLevel,
   getSodiumLossMgPerHour,
   simulateGlycogenBattery,
+  type FuelingMode,
   type IntensityLevel,
   type PocketFoodItemType,
   type PocketFoodSelection,
 } from "@/lib/metabolic-engine";
+
+const VALID_FUELING_MODES = new Set<FuelingMode>(["optimal", "pantry", "hybrid"]);
 
 // Above this ride duration, the pre-event carb-loading module shows
 // automatically — below it, only if the athlete flags the ride as a
@@ -108,8 +113,15 @@ export async function POST(request: NextRequest) {
   const departureIso = typeof body.departureIso === "string" ? body.departureIso : null;
   const isTargetEvent = body.isTargetEvent === true;
   const athleteType = athleteProfile.athlete_type ?? "balanced";
-  const pocketFood = sanitizePocketFoodSelection(body.pocketFood);
-  const pocketFoodCarbsG = getPocketFoodTotalCarbsG(pocketFood);
+  const fuelingMode: FuelingMode = VALID_FUELING_MODES.has(body.fuelingMode)
+    ? body.fuelingMode
+    : "pantry";
+  // `optimal` mode overrides this with its own auto-selection once
+  // `durationHours` is known below — `pantry`/`hybrid` both use the
+  // athlete's real manual selection as-is (they only differ in what the UI
+  // suggests on top of it, see `getHybridGelSuggestion` below).
+  let pocketFood = sanitizePocketFoodSelection(body.pocketFood);
+  let pocketFoodCarbsG = getPocketFoodTotalCarbsG(pocketFood);
 
   let durationHours: number;
   let relativeIntensity: number;
@@ -156,6 +168,15 @@ export async function POST(request: NextRequest) {
     }
     durationHours = hours;
     relativeIntensity = getRelativeIntensity(averageWatts, athleteProfile.ftp);
+  }
+
+  // "Modo Óptimo" replaces whatever the athlete may have manually selected
+  // (the client already disables that selector when this mode is active,
+  // but the server never trusts client-computed food choices either way)
+  // with a duration-scaled auto-selection now that `durationHours` is known.
+  if (fuelingMode === "optimal") {
+    pocketFood = getOptimalPocketFoodSelection(durationHours);
+    pocketFoodCarbsG = getPocketFoodTotalCarbsG(pocketFood);
   }
 
   let temperatureC = PLANNING_TEMPERATURE_C;
@@ -268,6 +289,15 @@ export async function POST(request: NextRequest) {
   const isLongOrTargetRide = durationHours > TARGET_EVENT_DURATION_THRESHOLD_HOURS || isTargetEvent;
   const carbLoading = isLongOrTargetRide ? getCarbLoadingTarget(athleteProfile.weight_kg) : null;
 
+  // "Modo Híbrido" — purely advisory: how many standard gels would close
+  // the gap left after the athlete's own fixed staple selection, alongside
+  // (never instead of) the bottle recipe above, which already covers that
+  // same real gap regardless of this suggestion.
+  const hybridGelSuggestion =
+    fuelingMode === "hybrid"
+      ? getHybridGelSuggestion(Math.max(0, totalRideCarbsG - pocketFoodCarbsG))
+      : null;
+
   await logFuelingPlan(supabase, {
     profileId: userId,
     kind: "pre_ride",
@@ -284,7 +314,10 @@ export async function POST(request: NextRequest) {
     fluidLossMlPerHour,
     recipe,
     totalRideCarbsG,
+    pocketFood,
     pocketFoodCarbsG,
+    fuelingMode,
+    hybridGelSuggestion,
     moneySaved,
     weather: {
       temperatureC: Math.round(temperatureC * 10) / 10,

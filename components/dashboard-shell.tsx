@@ -1,10 +1,11 @@
 "use client";
 
-import { Flame, LayoutDashboard, Menu, UserRound, X } from "lucide-react";
+import { Flame, LayoutDashboard, LogOut, Menu, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
+import { logout } from "@/lib/auth-actions";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -51,6 +52,16 @@ function SidebarContent({
       </nav>
 
       {identitySlot}
+
+      <form action={logout}>
+        <button
+          type="submit"
+          className="flex w-full cursor-pointer items-center gap-2 border-t border-neutral-200 pt-4 text-[11px] font-semibold tracking-widest text-neutral-500 uppercase transition-colors duration-150 hover:text-neutral-900"
+        >
+          <LogOut className="size-3.5" strokeWidth={1.5} />
+          Cerrar sesión
+        </button>
+      </form>
     </div>
   );
 }

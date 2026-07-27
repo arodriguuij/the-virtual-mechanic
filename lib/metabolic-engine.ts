@@ -353,6 +353,53 @@ export function getPocketFoodTotalCarbsG(selection: PocketFoodSelection): number
   return catalogTotal + Math.max(0, customCarbsG ?? 0);
 }
 
+/**
+ * "Modo de Fueling" — three ways of arriving at the same DIY-recipe
+ * pipeline, differing only in *where the pocket-food selection comes
+ * from* before `getHomeLabRecipe`'s existing `pocketFoodCarbsG` subtraction
+ * runs:
+ * - `optimal` — the athlete makes no choice at all; `getOptimalPocketFoodSelection`
+ *   below picks it automatically.
+ * - `pantry` — the athlete's own manual catalog selection, used as-is (this
+ *   was this app's only behavior before modes existed).
+ * - `hybrid` — the athlete's manual selection is treated as a fixed base,
+ *   and `getHybridGelSuggestion` below additionally suggests how many
+ *   standard gels would close whatever gap is left, as advisory
+ *   information alongside the bottle recipe (which still covers the true
+ *   remaining gap either way, exactly like `pantry` mode).
+ */
+export type FuelingMode = "optimal" | "pantry" | "hybrid";
+
+/**
+ * "Modo Óptimo" — below ~2.5h there's nothing to gain from solid food at
+ * all (an all-liquid DIY bottle is cheaper and just as effective, see
+ * `getMoneySavedVsGels`); past that, a little solid variety fights flavor
+ * fatigue and gives the gut something other than liquid to work with,
+ * without meaningfully denting the bottle's cost advantage — a fixed,
+ * modest allowance that scales with duration rather than a full
+ * combinatorial optimizer (this file's "heuristic, not clinical"
+ * convention throughout).
+ */
+export function getOptimalPocketFoodSelection(durationHours: number): PocketFoodSelection {
+  if (durationHours < 2.5) return {};
+  if (durationHours < 4) return { gel_standard: 1 };
+  return { gel_standard: 1, rice_cake: 1 };
+}
+
+/**
+ * "Modo Híbrido" — a simple greedy fill with one gel size (not a full
+ * combinatorial optimizer, same convention as `getOptimalPocketFoodSelection`
+ * above): how many standard gels (30g each) would close the remaining carb
+ * gap after the athlete's own fixed staple selection. Purely advisory — the
+ * DIY bottle recipe still covers the real remaining gap regardless of
+ * whether the athlete actually carries these gels, this just names an
+ * alternative way to close the same gap.
+ */
+export function getHybridGelSuggestion(remainingCarbsG: number): number {
+  if (remainingCarbsG <= 0) return 0;
+  return Math.round(remainingCarbsG / pocketFoodCarbsG.gel_standard);
+}
+
 export type NutritionMilestone = {
   label: string;
   atKm: number | null;

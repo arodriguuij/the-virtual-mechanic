@@ -20,13 +20,6 @@ export type AthleteProfile = {
   is_salty_sweater: boolean;
 };
 
-export type FuelingTotals = {
-  totalMoneySaved: number;
-  totalGlycogenKg: number;
-  totalFluidL: number;
-  totalSodiumG: number;
-};
-
 export type Activity = {
   id: string;
   name: string;
@@ -68,37 +61,119 @@ export const getAthleteProfile = cache(async (): Promise<AthleteProfile | null> 
   return data;
 });
 
+export type WeeklyPerformance = {
+  ridesThisWeekCount: number;
+  totalKmThisWeek: number;
+  /** Average % of burned carbs actually replaced (capped at 100% per ride)
+   * across this week's post-ride analyses that have real consumption data
+   * logged — `null` when there's none yet, never a guessed/fabricated
+   * number. */
+  compliancePct: number | null;
+  /** Average consumed-carbs rate across those same rides — real intake,
+   * not the planned target. */
+  avgIntakeGPerHour: number | null;
+  gutTrainingLevel: GutTrainingLevel;
+  /** Average % of fluid+sodium loss actually replaced (capped at 100% per
+   * ride, per metric), scaled to a /10 score — same real-data-only
+   * convention as `compliancePct`. */
+  hydrationScore: number | null;
+};
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
 /**
- * Lifetime totals across every fueling plan this athlete has ever
- * generated — both pre-ride plans (`POST /api/fueling/plan`) and post-ride
- * analyses (`POST /api/post-ride/analysis`) log a row to `fueling_logs`,
- * so this is a simple SUM over their own rows.
+ * Powers the Dashboard's "Panel de Rendimiento Semanal" — every figure here
+ * is computed from real stored data (`activities` + `fueling_logs`'
+ * `*_consumed_*` columns, populated by `POST /api/post-ride/consumption`
+ * when the athlete fills in what they actually ate/drank), never a
+ * plausible-looking placeholder. Rides/logs with no consumption data yet
+ * simply don't contribute to `compliancePct`/`avgIntakeGPerHour`/
+ * `hydrationScore` — those stay `null` (not 0, not a guess) until there's
+ * at least one real data point, so the UI can show an honest "sin datos
+ * todavía" empty state instead of a fabricated score.
  */
-export const getFuelingTotals = cache(async (): Promise<FuelingTotals> => {
+export const getWeeklyPerformance = cache(async (): Promise<WeeklyPerformance> => {
   const supabase = await getAuthenticatedSupabaseClient();
 
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError) throw authError;
   const userId = authData.user?.id;
-  if (!userId) {
-    return { totalMoneySaved: 0, totalGlycogenKg: 0, totalFluidL: 0, totalSodiumG: 0 };
-  }
+  const emptyResult: WeeklyPerformance = {
+    ridesThisWeekCount: 0,
+    totalKmThisWeek: 0,
+    compliancePct: null,
+    avgIntakeGPerHour: null,
+    gutTrainingLevel: "intermediate",
+    hydrationScore: null,
+  };
+  if (!userId) return emptyResult;
 
-  const { data, error } = await supabase
+  const sinceIso = new Date(Date.now() - WEEK_MS).toISOString();
+
+  const [{ data: athleteProfile }, { data: activities, error: activitiesError }] =
+    await Promise.all([
+      supabase
+        .from("athlete_profiles")
+        .select("gut_training_level")
+        .eq("id", userId)
+        .maybeSingle(),
+      supabase
+        .from("activities")
+        .select("id, distance, moving_time")
+        .eq("profile_id", userId)
+        .gte("activity_date", sinceIso),
+    ]);
+  if (activitiesError) throw activitiesError;
+
+  const weekActivities = activities ?? [];
+  const durationByActivityId = new Map(weekActivities.map((a) => [a.id, a.moving_time]));
+
+  const { data: logs, error: logsError } = await supabase
     .from("fueling_logs")
-    .select("total_carbs_g, fluid_ml, sodium_mg, money_saved")
-    .eq("profile_id", userId);
-  if (error) throw error;
+    .select("activity_id, total_carbs_g, fluid_ml, sodium_mg, carbs_consumed_g, fluid_consumed_ml, sodium_consumed_mg")
+    .eq("profile_id", userId)
+    .eq("kind", "post_ride")
+    .gte("created_at", sinceIso)
+    .not("carbs_consumed_g", "is", null);
+  if (logsError) throw logsError;
 
-  const rows = data ?? [];
-  const sum = (pick: (row: (typeof rows)[number]) => number) =>
-    rows.reduce((total, row) => total + pick(row), 0);
+  const logsWithData = logs ?? [];
+
+  const carbRatios = logsWithData
+    .filter((l) => l.total_carbs_g > 0)
+    .map((l) => Math.min(1, (l.carbs_consumed_g ?? 0) / l.total_carbs_g));
+
+  const hydrationRatios = logsWithData.flatMap((l) => {
+    const ratios: number[] = [];
+    if (l.fluid_ml > 0) ratios.push(Math.min(1, (l.fluid_consumed_ml ?? 0) / l.fluid_ml));
+    if (l.sodium_mg > 0) ratios.push(Math.min(1, (l.sodium_consumed_mg ?? 0) / l.sodium_mg));
+    return ratios;
+  });
+
+  const intakeRatesGPerHour = logsWithData
+    .map((l) => {
+      const durationSeconds = l.activity_id ? durationByActivityId.get(l.activity_id) : null;
+      if (!durationSeconds || durationSeconds <= 0) return null;
+      return (l.carbs_consumed_g ?? 0) / (durationSeconds / 3600);
+    })
+    .filter((rate): rate is number => rate != null);
+
+  const average = (values: number[]) =>
+    values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : null;
+
+  const compliancePct = average(carbRatios);
+  const hydrationRatioAvg = average(hydrationRatios);
 
   return {
-    totalMoneySaved: Math.round(sum((r) => r.money_saved) * 100) / 100,
-    totalGlycogenKg: Math.round(sum((r) => r.total_carbs_g) / 10) / 100,
-    totalFluidL: Math.round(sum((r) => r.fluid_ml) / 10) / 100,
-    totalSodiumG: Math.round(sum((r) => r.sodium_mg) / 10) / 100,
+    ridesThisWeekCount: weekActivities.length,
+    totalKmThisWeek:
+      Math.round(weekActivities.reduce((sum, a) => sum + a.distance, 0) / 100) / 10,
+    compliancePct: compliancePct != null ? Math.round(compliancePct * 100) : null,
+    avgIntakeGPerHour: average(intakeRatesGPerHour)
+      ? Math.round(average(intakeRatesGPerHour)!)
+      : null,
+    gutTrainingLevel: athleteProfile?.gut_training_level ?? "intermediate",
+    hydrationScore: hydrationRatioAvg != null ? Math.round(hydrationRatioAvg * 100) / 10 : null,
   };
 });
 

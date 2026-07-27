@@ -1,56 +1,49 @@
 import "server-only";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Module-level singleton: sign in once per server process and let the SDK's
- * built-in token refresh keep the session alive, instead of calling
- * signInWithPassword on every request/route. Shared by every server-side
- * Supabase read/write in the app (dashboard data, Strava OAuth routes) so
- * they don't each trigger their own sign-in and blow through Supabase
- * Auth's rate limit. Swap this whole file for the real logged-in user's
- * session once Auth.js lands.
+ * Request-scoped Supabase client that reads the real signed-in user's
+ * session from cookies — real auth landed via the Strava→Supabase bridge
+ * (see `app/api/auth/strava/callback/route.ts`), so this is no longer the
+ * single hardcoded dev-user singleton it used to be. Every existing caller
+ * already derives `userId` from `supabase.auth.getUser()` rather than
+ * assuming a fixed one, so nothing downstream needed to change — only this
+ * file's internals did.
+ *
+ * Cookie writes are wrapped in a try/catch because Server Components can
+ * only *read* cookies, never set them (a Next.js restriction) — `proxy.ts`
+ * already refreshes and persists the session on every request, so a
+ * Server Component silently no-op'ing its own write attempt is safe. Route
+ * Handlers and Server Actions, which *can* set cookies, apply normally.
  */
-let clientPromise: Promise<SupabaseClient> | null = null;
-
-export function getAuthenticatedSupabaseClient(): Promise<SupabaseClient> {
-  if (!clientPromise) {
-    clientPromise = (async () => {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      const seedEmail = process.env.SEED_USER_EMAIL;
-      const seedPassword = process.env.SEED_USER_PASSWORD;
-
-      if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error(
-          "Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local"
-        );
-      }
-      if (!seedEmail || !seedPassword) {
-        throw new Error(
-          "Faltan SEED_USER_EMAIL o SEED_USER_PASSWORD en .env.local (necesarias mientras no exista login con Auth.js)"
-        );
-      }
-
-      const supabase = createClient(supabaseUrl, supabaseAnonKey);
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: seedEmail,
-        password: seedPassword,
-      });
-      if (signInError) {
-        throw new Error(
-          `No se pudo autenticar con el usuario temporal de desarrollo: ${signInError.message}`
-        );
-      }
-
-      return supabase;
-    })();
-
-    // Don't cache a failed sign-in forever — let the next call retry.
-    clientPromise.catch(() => {
-      clientPromise = null;
-    });
+export async function getAuthenticatedSupabaseClient(): Promise<SupabaseClient> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      "Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local"
+    );
   }
 
-  return clientPromise;
+  const cookieStore = await cookies();
+
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {
+          // Called from a Server Component — see doc comment above.
+        }
+      },
+    },
+  });
 }

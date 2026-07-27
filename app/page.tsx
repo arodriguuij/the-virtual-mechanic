@@ -12,18 +12,18 @@ import { PostRideAnalysis } from "@/components/post-ride-analysis";
 import { SyncForm } from "@/components/sync-button";
 import {
   getAthleteProfile,
-  getFuelingTotals,
   getProfile,
   getRecentActivities,
   getStravaRoutes,
+  getWeeklyPerformance,
 } from "@/lib/dashboard-data";
+import { gutTrainingLevelLabels, gutTrainingLevelRanges } from "@/lib/metabolic-engine";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
-const statValue = "font-mono text-2xl font-semibold text-neutral-900 tabular-nums";
 
 function formatRelativeDate(iso: string) {
   const date = new Date(iso);
@@ -216,52 +216,110 @@ function RideHistorySkeleton() {
   );
 }
 
-async function GlobalMetricsBar() {
-  const totals = await getFuelingTotals();
+function hydrationLabel(score: number): string {
+  if (score >= 9) return "Óptimo";
+  if (score >= 7) return "Bueno";
+  if (score >= 5) return "Mejorable";
+  return "Bajo";
+}
+
+const weeklyStatValue = "font-mono text-xl font-bold text-neutral-900 tabular-nums";
+
+async function WeeklyPerformancePanel() {
+  const weekly = await getWeeklyPerformance();
 
   return (
-    <div className="grid grid-cols-2 gap-6 border-b border-neutral-200 pb-6 sm:grid-cols-4">
-      <div className="flex flex-col gap-1">
-        <span className={statLabel}>€ Ahorrado</span>
-        <span className={statValue}>
-          {totals.totalMoneySaved.toFixed(2)}
-          <span className="ml-1 text-sm font-normal text-neutral-500">€</span>
-        </span>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className={statLabel}>Glucógeno rastreado</span>
-        <span className={statValue}>
-          {totals.totalGlycogenKg.toFixed(2)}
-          <span className="ml-1 text-sm font-normal text-neutral-500">kg</span>
-        </span>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className={statLabel}>Hidratación gestionada</span>
-        <span className={statValue}>
-          {totals.totalFluidL.toFixed(1)}
-          <span className="ml-1 text-sm font-normal text-neutral-500">L</span>
-        </span>
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className={statLabel}>Sodio gestionado</span>
-        <span className={statValue}>
-          {totals.totalSodiumG.toFixed(1)}
-          <span className="ml-1 text-sm font-normal text-neutral-500">g</span>
-        </span>
-      </div>
+    <div className="border border-neutral-200 bg-neutral-50/60 px-4 py-4 sm:px-6">
+      <span className={eyebrow}>Rendimiento semanal · últimos 7 días</span>
+
+      {weekly.ridesThisWeekCount === 0 ? (
+        <p className="mt-2 text-sm text-neutral-500">
+          0 km registrados esta semana — sincroniza tu primera salida para ver tu progreso aquí.
+        </p>
+      ) : (
+        <div className="mt-3 grid grid-cols-2 gap-6 sm:grid-cols-4">
+          <div className="flex flex-col gap-1">
+            <span className={statLabel}>Cumplimiento 7D</span>
+            <span className={weeklyStatValue}>
+              {weekly.compliancePct != null ? (
+                <>
+                  {weekly.compliancePct}
+                  <span className="ml-0.5 text-sm font-normal text-neutral-500">%</span>
+                </>
+              ) : (
+                "—"
+              )}
+            </span>
+            {weekly.compliancePct == null && (
+              <span className="text-xs text-neutral-500">Sin datos de consumo aún</span>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className={statLabel}>Promedio ingesta</span>
+            <span className={weeklyStatValue}>
+              {weekly.avgIntakeGPerHour != null ? (
+                <>
+                  {weekly.avgIntakeGPerHour}
+                  <span className="ml-1 text-sm font-normal text-neutral-500">g/h</span>
+                </>
+              ) : (
+                "—"
+              )}
+            </span>
+            {weekly.avgIntakeGPerHour == null && (
+              <span className="text-xs text-neutral-500">Sin datos de consumo aún</span>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className={statLabel}>Gut training</span>
+            <span className={cn(weeklyStatValue, "uppercase")}>
+              {gutTrainingLevelLabels[weekly.gutTrainingLevel]}
+            </span>
+            <span className="text-xs text-neutral-500">
+              {gutTrainingLevelRanges[weekly.gutTrainingLevel]}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className={statLabel}>Balance hídrico</span>
+            <span className={weeklyStatValue}>
+              {weekly.hydrationScore != null ? (
+                <>
+                  {weekly.hydrationScore.toFixed(1)}
+                  <span className="ml-0.5 text-sm font-normal text-neutral-500">/10</span>
+                </>
+              ) : (
+                "—"
+              )}
+            </span>
+            {weekly.hydrationScore != null ? (
+              <span className="text-xs text-neutral-500 uppercase">
+                {hydrationLabel(weekly.hydrationScore)}
+              </span>
+            ) : (
+              <span className="text-xs text-neutral-500">Sin datos de consumo aún</span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function GlobalMetricsBarSkeleton() {
+function WeeklyPerformancePanelSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-6 border-b border-neutral-200 pb-6 sm:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="flex flex-col gap-2">
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="h-7 w-16" />
-        </div>
-      ))}
+    <div className="border border-neutral-200 bg-neutral-50/60 px-4 py-4 sm:px-6">
+      <Skeleton className="h-3 w-40" />
+      <div className="mt-3 grid grid-cols-2 gap-6 sm:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex flex-col gap-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-6 w-16" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -302,13 +360,11 @@ function StravaButtonSkeleton() {
   return <Skeleton className="h-8.5 w-40" />;
 }
 
+// Login-time Strava errors (from `/api/auth/strava/callback`) now surface
+// on `/login` instead — the proxy never lets a logged-out visitor reach
+// this page, so only errors from an already-logged-in action (the
+// "Sincronizar rutas" button hitting `/api/strava/sync`) land here.
 const stravaErrorMessages: Record<string, string> = {
-  access_denied: "Cancelaste la conexión con Strava.",
-  missing_code: "Strava no envió un código de autorización válido.",
-  token_exchange_failed: "No se pudo intercambiar el código con Strava.",
-  no_session: "No se pudo verificar la sesión de desarrollo.",
-  save_failed: "No se pudieron guardar los tokens de Strava.",
-  update_blocked_by_rls: "Los tokens no se guardaron: falta la policy de UPDATE en profiles.",
   not_connected: "Conecta Strava antes de sincronizar rutas.",
   no_rides: "No se encontró ninguna actividad de ciclismo reciente en Strava.",
 };
@@ -354,8 +410,8 @@ export default async function Home({
           </div>
         )}
 
-        <Suspense fallback={<GlobalMetricsBarSkeleton />}>
-          <GlobalMetricsBar />
+        <Suspense fallback={<WeeklyPerformancePanelSkeleton />}>
+          <WeeklyPerformancePanel />
         </Suspense>
 
         <Tabs defaultValue="pre-ride">

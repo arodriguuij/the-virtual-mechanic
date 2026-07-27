@@ -34,6 +34,12 @@ shared components in `components/`. Path alias `@/*` maps to the project root.
 Copy `.env.local.example` to `.env.local` and fill in the real values:
 
 - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase project.
+- `SUPABASE_SERVICE_ROLE_KEY` — server-only, never prefix with `NEXT_PUBLIC_`, never
+  import outside `lib/supabase-admin.ts`. Bypasses RLS entirely; its only legitimate use
+  in this app is the Strava→Supabase auth bridge (see "Real auth" below) — Strava isn't a
+  supported Supabase OAuth provider, so establishing a real session for a Strava login
+  requires the Admin API. Find it at Supabase Dashboard → Project Settings → API →
+  Project API keys → `service_role` `secret`.
 - `SEED_USER_EMAIL` / `SEED_USER_PASSWORD` — dev-only test user (see below). Server-only,
   never prefix these with `NEXT_PUBLIC_`.
 - `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` — from a Strava API app
@@ -67,14 +73,18 @@ ride's own conditions; `carbs_burned_g`/`fluid_loss_ml`/`sodium_loss_mg` are com
 at sync time from those plus the athlete's profile — `null` on rides synced before an FTP
 was set, since carb oxidation can't be estimated without one), `fueling_logs` (`profile_id`
 FK; `kind` — `'pre_ride' | 'post_ride'`; `activity_id` nullable FK to `activities`, only
-set for `post_ride` rows; `total_carbs_g`/`fluid_ml`/`sodium_mg`/`money_saved` — see
-"Lifetime fueling totals" below for how this table is populated and summed). RLS is
-enabled and ownership-scoped (`auth.uid() = profile_id`/`id`) on all of them — SELECT,
-INSERT, and UPDATE on `profiles` and `athlete_profiles`, SELECT and INSERT on
+set for `post_ride` rows; `total_carbs_g`/`fluid_ml`/`sodium_mg`/`money_saved` — the raw
+physiological burn/loss figures at log time, see "Lifetime fueling totals" below;
+`carbs_consumed_g`/`fluid_consumed_ml`/`sodium_consumed_mg` — nullable, populated later by
+`POST /api/post-ride/consumption` once the athlete fills in what they actually ate/drank
+during that specific ride, see "Weekly Performance Panel" below for what this unlocks).
+RLS is enabled and ownership-scoped (`auth.uid() = profile_id`/`id`) on all of them —
+SELECT, INSERT, and UPDATE on `profiles` and `athlete_profiles`, SELECT and INSERT on
 `activities` and `fueling_logs`, plus DELETE on `activities` (needed for the Strava token
-exchange and retry flows). There is no public/anon read or write access. No generated
-types yet — if the schema stabilizes, generate them with `supabase gen types typescript`
-and type the client instead of guessing column shapes.
+exchange and retry flows) and, since real auth landed, **UPDATE on `fueling_logs`** too
+(added specifically for the consumption-save flow above). There is no public/anon read or
+write access. No generated types yet — if the schema stabilizes, generate them with
+`supabase gen types typescript` and type the client instead of guessing column shapes.
 
 Every one of those non-SELECT/INSERT policies got added reactively, mid-implementation,
 because the default (RLS on, no policy for that command) fails *silently* — the write
@@ -82,37 +92,112 @@ matches zero rows instead of erroring. If a new write starts mysteriously not st
 check for a missing policy before anything else; `app/api/strava/sync/route.ts` shows the
 pattern for surfacing that as a visible error instead of a silent no-op.
 
-### No login yet (pre-Auth.js)
+### Real auth: Strava-exclusive login via a Supabase Admin API bridge
 
-There's no Auth.js session wired up, but RLS requires an authenticated `auth.uid()` for
-every read and write. Until real login exists, `scripts/seed.ts` and every server-side
-Supabase read/write (`lib/dashboard-data.ts`, the `app/api/**/route.ts` handlers) sign in
-as one dev test user (`SEED_USER_EMAIL`/`SEED_USER_PASSWORD`) to satisfy RLS.
-`lib/supabase-server.ts` holds the single shared, `server-only` singleton that does this —
-**always import `getAuthenticatedSupabaseClient` from there** rather than calling
-`signInWithPassword` again; every extra sign-in call eats into Supabase Auth's rate limit
-(we hit it once already — see git history). Replace that whole file with the real user's
-session as soon as Auth.js lands, and delete `scripts/seed.ts`'s reliance on the same
-credentials at that point too.
+Real per-user auth landed — every page and API route now runs as whoever is actually
+signed in, not a single hardcoded dev user. Strava is deliberately the *only* login
+method (no email/password form of this app's own), which creates one hard technical
+constraint worth understanding before touching any of this: **Strava is not a supported
+Supabase Auth OAuth provider** (Supabase's provider list is a fixed enum — Google,
+GitHub, Discord, etc. — and Strava isn't on it), and it also isn't bridgeable as a
+generic custom OIDC provider either, since Strava's OAuth implementation predates and
+never adopted OpenID Connect (no signed `id_token`, no discovery document). So
+`supabase.auth.signInWithOAuth({ provider: 'strava' })` — the obvious first thing to
+reach for — simply cannot work. Instead:
+
+- **`app/api/strava/connect`** and **`app/api/auth/strava/callback`** still run Strava's
+  *own* OAuth handshake exactly as before real auth existed (unchanged: exchange the code
+  for Strava tokens, fetch the athlete's profile). The callback then bridges that into a
+  real Supabase Auth session server-side, using the **Admin API** (`lib/supabase-admin.ts`
+  — `getSupabaseAdminClient()`, a `service_role`-keyed client that bypasses RLS entirely,
+  gated behind `SUPABASE_SERVICE_ROLE_KEY` and never imported outside this one callback):
+  1. `admin.auth.admin.generateLink({ type: 'magiclink', email })` — Supabase's Admin API
+     docs note this call "handles the creation of the user for `signup`, `invite` and
+     `magiclink`," so a single call both provisions a brand-new Supabase Auth user *and*
+     locates an already-existing one, keyed by `email`.
+  2. **The `email` used is not always the synthetic placeholder.** Before generating the
+     link, the callback checks whether a `profiles` row already exists for this exact
+     Strava `athlete_id` (via the admin client, bypassing RLS) — if one does (e.g. this
+     app's original dev/seed user, connected before real auth existed), it resolves
+     *that* account's real email via `admin.auth.admin.getUserById()` and reuses it, so
+     the athlete's existing data (activities, fueling logs, physiological profile) is
+     preserved instead of silently forking into a new, empty identity. Only a genuinely
+     new Strava athlete gets the deterministic synthetic email,
+     `strava-{athleteId}@strava.users.motormetabolico.internal` — a domain that never
+     receives mail, existing purely as a stable dedup key.
+  3. **The returned `verification_type` must be read from the response, not assumed.**
+     A brand-new user's link comes back as `verification_type: "signup"`; a returning
+     user's comes back as `"magiclink"` — verified against the live API while building
+     this (a hardcoded `type: "magiclink"` throws `otp_expired` for a new user, a
+     genuinely confusing error for what's actually a type mismatch). `supabase.auth.
+     verifyOtp({ token_hash, type: linkData.properties.verification_type })`, called on
+     the *request-scoped* client from `getAuthenticatedSupabaseClient()` (so the
+     resulting session cookies land on this exact response), is what actually
+     establishes the real session.
+  4. Only then does the callback upsert `profiles` (Strava tokens) and `athlete_profiles`
+     (zero-friction weight sync) — unchanged from before, just now running with a real
+     session backing the RLS `auth.uid()` check rather than the old dev-user singleton.
+- **`middleware` is `proxy` in this Next.js version** (v16 renamed and deprecated
+  `middleware.ts`/`export function middleware` — see `node_modules/next/dist/docs/01-app/
+  03-api-reference/03-file-conventions/proxy.md`; AGENTS.md's warning about this repo's
+  Next version having training-data-breaking changes is exactly why this got checked
+  before writing any code). `proxy.ts` at the project root refreshes the Supabase session
+  on every request (`supabase.auth.getUser()`, which revalidates the JWT server-side,
+  not `getSession()`, which would trust a possibly-stale cookie) and redirects to
+  `/login` whenever there's no valid session outside the public paths (`/login`,
+  `/api/strava/connect`, `/api/auth/strava/callback`) — this is what makes "Conectar con
+  Strava" a real login gate rather than cosmetic UI.
+- **`lib/supabase-server.ts`** — `getAuthenticatedSupabaseClient()` is no longer a
+  module-level singleton signed in as one hardcoded dev user; it's a request-scoped
+  `@supabase/ssr` `createServerClient` that reads the real session from cookies via
+  `next/headers`'s `cookies()`. Every existing caller across `lib/dashboard-data.ts` and
+  every `app/api/**/route.ts` handler *already* derived `userId` from `supabase.auth.
+  getUser()` rather than assuming a fixed one, so nothing downstream needed to change —
+  only this file's internals did. Cookie writes are wrapped in a try/catch since Server
+  Components can only *read* cookies (`proxy.ts` already handles refreshing/persisting
+  the session on every request, so a Server Component's own write attempt silently
+  no-op'ing is safe); Route Handlers and Server Actions, which *can* set cookies, apply
+  normally.
+- **`lib/supabase-browser.ts`** — the only client-side Supabase client in the app
+  (`createBrowserClient`, anon key), used exclusively by the sidebar's logout button.
+- **`lib/auth-actions.ts`** — `logout()`, a `"use server"` Server Action
+  (`supabase.auth.signOut()` then `redirect("/login")`) wired directly as a `<form
+  action={logout}>` in `components/dashboard-shell.tsx`'s sidebar, below the identity
+  card.
+- **`app/login/page.tsx`** — the only entry point when `proxy.ts` finds no session: a
+  minimal centered screen (value prop + a single "Conectar con Strava" CTA linking to
+  `/api/strava/connect`) with its own `stravaLoginErrorMessages` map for login-time
+  failures (`missing_code`, `token_exchange_failed`, `missing_athlete_id`,
+  `auth_bridge_failed`, `save_failed`) — distinct from `app/page.tsx`'s own
+  `stravaErrorMessages`, which now only covers errors from the already-logged-in
+  "Sincronizar rutas" action (`not_connected`, `no_rides`), since a logged-out visitor
+  can never reach that page to see them.
 
 ### Seeding dev data
 
-`npm run seed` (`scripts/seed.ts`) signs in as the dev test user and, only if missing,
-inserts: their `profiles` row, an `athlete_profiles` row (FTP 250W, 72kg, medium sweat
-rate — a plausible amateur-racer fixture, not this specific user's real numbers), and one
-activity ("Serra de Tramuntana Loop") with hand-computed nutrition figures matching
-`lib/metabolic-engine.ts`'s formulas for that ride's watts/humidity/temperature. It's safe
-to re-run — every insert is guarded by an existence check first, matching the pattern the
-Strava sync route also uses for `activities`.
+`npm run seed` (`scripts/seed.ts`) still signs in with `SEED_USER_EMAIL`/
+`SEED_USER_PASSWORD` directly (its own client, independent of `lib/supabase-server.ts`)
+and, only if missing, inserts: a `profiles` row, an `athlete_profiles` row (FTP 250W,
+72kg, medium sweat rate — a plausible amateur-racer fixture, not this specific user's
+real numbers), and one activity ("Serra de Tramuntana Loop") with hand-computed nutrition
+figures matching `lib/metabolic-engine.ts`'s formulas for that ride's watts/humidity/
+temperature. It's safe to re-run — every insert is guarded by an existence check first,
+matching the pattern the Strava sync route also uses for `activities`. This is now purely
+a local dev-data bootstrap, disconnected from the real login flow above — the seed user
+only becomes *usable* in the browser once they also complete the real Strava OAuth login
+(which, per the account-reuse logic above, resolves back to this same seeded row as long
+as its `strava_athlete_id` matches).
 
 ### Strava OAuth
 
 - `GET /api/strava/connect` — redirects to Strava's authorize URL (`lib/strava.ts`).
-- `GET /api/auth/strava/callback` — exchanges the returned `code` for tokens and saves
-  them on the dev test user's `profiles` row, then redirects to `/`. On any failure it
-  redirects to `/?strava_error=<code>` instead of pretending it worked — see
-  `stravaErrorMessages` in `app/page.tsx` for the human-readable copy per code.
-  Also does a best-effort, zero-friction weight sync: fetches `/athlete` (`fetchAthlete()`
+- `GET /api/auth/strava/callback` — exchanges the returned `code` for tokens, bridges into
+  a real Supabase Auth session (see "Real auth: Strava-exclusive login" above for the
+  full Admin API dance), saves the tokens on that user's `profiles` row, then redirects
+  to `/`. On any failure it redirects to `/login?strava_error=<code>` instead of
+  pretending it worked — see `stravaLoginErrorMessages` in `app/login/page.tsx` for the
+  human-readable copy per code. Also does a best-effort, zero-friction weight sync:
+  fetches `/athlete` (`fetchAthlete()`
   in `lib/strava.ts`) and upserts its `weight` (kg) into `athlete_profiles.weight_kg` —
   `UPDATE` if the athlete already has a profile row (never overwrites their own `ftp`/
   `sweat_rate`), otherwise `INSERT`s a fresh row with placeholder `ftp: 200` /
@@ -352,6 +437,52 @@ shows a one-line "Comida de bolsillo cubre Xg de Yg HC — el resto va en el bid
 small `Utensils` icon, not an emoji) whenever any item is selected —
 that summary line isn't part of the pocket-food *catalog* UI, so it keeps its emoji.
 
+### Fueling mode selector (Óptimo / Mi Despensa / Híbrido)
+
+Three ways of arriving at the same DIY-recipe pipeline above, differing only in *where
+the pocket-food selection comes from* before `getHomeLabRecipe`'s existing
+`pocketFoodCarbsG` subtraction runs — `FuelingMode` (`lib/metabolic-engine.ts`) is
+`'optimal' | 'pantry' | 'hybrid'`, sent as `fuelingMode` in `POST /api/fueling/plan`'s
+body (validated against `VALID_FUELING_MODES`, defaulting to `'pantry'` for any
+unrecognized value):
+
+- **📦 Mi Despensa (`'pantry'`, the default)** — the athlete's own manual catalog
+  selection, used exactly as-is. This was this app's only behavior before modes existed,
+  so nothing changed here except giving it an explicit name alongside the other two.
+- **🚀 Óptimo (`'optimal'`)** — the athlete makes no choice at all;
+  `getOptimalPocketFoodSelection(durationHours)` picks automatically once `durationHours`
+  is known server-side (the route ignores whatever `pocketFood` the client sent for this
+  mode and recomputes it, same "server never trusts client-computed values" convention as
+  re-fetching the athlete profile). Below ~2.5h there's nothing to gain from solid food at
+  all — an all-liquid DIY bottle is cheaper and just as effective (see
+  `getMoneySavedVsGels`) — so the selection is empty; from 2.5-4h it adds one standard gel
+  for palate variety; past 4h, one standard gel plus one rice cake — a fixed, modest,
+  duration-scaled allowance, not a full combinatorial optimizer (this file's
+  "heuristic, not clinical" convention throughout). `components/fueling-planner.tsx`
+  disables (visually greys out, `disabled` prop threaded into `PocketFoodStepperRow`) every
+  pocket-food stepper and the custom-carbs input in this mode, and once a result comes
+  back, reads the *server's* chosen quantities from `result.pocketFood` to display what was
+  actually picked (the disabled steppers would otherwise still show the athlete's last
+  manual selection, not the auto-selected one).
+- **🧩 Híbrido (`'hybrid'`)** — the athlete's manual selection is treated as a fixed base
+  (used as-is, exactly like `'pantry'`), and `getHybridGelSuggestion(remainingCarbsG)`
+  additionally computes how many standard gels (30g each, a simple greedy fill with one
+  gel size, not a full optimizer) would close whatever gap is left after that base
+  selection — returned as `hybridGelSuggestion` in the response and rendered as a purely
+  advisory line ("Alternativa: N geles estándar... cubrirían la brecha en vez del
+  bidón — o deja que el bidón la absorba"). The bottle recipe itself is unaffected by this
+  suggestion either way — it always covers the true remaining gap, exactly like `'pantry'`
+  mode — this is just naming an alternative way to close the same gap, not auto-adding
+  gels to the actual recipe.
+
+`components/fueling-planner.tsx` renders these as a 3-pill segmented control (`FUELING_MODE_OPTIONS`)
+directly above the pocket-food block, and a live "OBJETIVO: Xg HC | CUBIERTO: Yg HC |
+RESTANTE: Zg HC" counter above that — populated from the last calculated `result`
+(`totalRideCarbsG`/`pocketFoodCarbsG`/their difference) rather than a client-side
+re-implementation of the duration-estimation and gut-cap logic that would otherwise be
+needed to preview it before calculating; a neutral placeholder ("Calcula tu estrategia
+para ver el desglose...") shows until the first calculation.
+
 ### Bottle architecture & osmolarity control
 
 `getBottlePlan(recipe, bottleSizeMl)` splits the DIY recipe into concentrated "fuel"
@@ -505,10 +636,11 @@ recipe for that specific ride's real forecast conditions.
   navigation — the one deliberate departure from this codebase's usual
   progressive-enhancement form convention). Body is either route mode
   (`{ mode: "route", distanceKm, elevationGainM, startLat, startLng, endLat, endLng,
-  routeId, intensity, departureIso, isTargetEvent, pocketFood }`, using
+  routeId, intensity, departureIso, isTargetEvent, pocketFood, fuelingMode }`, using
   `estimateRideDurationHours()` for the duration and a named intensity level for the
   target %FTP) or quick mode (`{ mode: "quick", durationHours, averageWatts, departureIso,
-  isTargetEvent, pocketFood }`, using the real watts directly via `getRelativeIntensity()`)
+  isTargetEvent, pocketFood, fuelingMode }`, using the real watts directly via
+  `getRelativeIntensity()`) — see "Fueling mode selector" below for what `fuelingMode` does
   — `pocketFood` is sanitized via a route-local `sanitizePocketFoodSelection()` (unknown
   keys/non-positive quantities silently dropped, same "degrade gracefully" convention as
   `getStravaRoutes()` returning `[]`) rather than trusted as-is. Dynamic weather is only
@@ -753,17 +885,57 @@ Rehidratación — `biphasicRecoveryTarget` is its own `useMemo` derived from th
 recomputed `recoveryTarget`, so editing the in-ride-consumption inputs updates the phase
 split instantly along with everything else on this card.
 
-### Lifetime fueling totals
+### Weekly Performance Panel
 
 `fueling_logs` is an append-only log — both `POST /api/fueling/plan` (every calculation,
 unconditionally — each one represents a genuinely considered ride) and
 `POST /api/post-ride/analysis` (once per activity, deduped) insert one row via
-`logFuelingPlan()` (`lib/fueling-logs.ts`). `getFuelingTotals()` (`lib/dashboard-data.ts`)
-just `SELECT`s every row for the current athlete and sums client-side in JS (no
-`aggregate`/RPC — the row count per athlete is small enough that this is simpler than
-maintaining a Postgres view). `GlobalMetricsBar` (`app/page.tsx`) renders the four totals
-(€ saved, kg glycogen, L fluid, g sodium) above the tabs, so they're visible regardless of
-which tab is open.
+`logFuelingPlan()` (`lib/fueling-logs.ts`). The Dashboard used to show a lifetime-totals
+bar summed from this table (€ saved, kg glycogen, L fluid, g sodium) — replaced by a
+gamification-oriented "Rendimiento Semanal" panel over the *last 7 days* instead, since a
+forever-accumulating total doesn't tell an athlete anything actionable about their
+current week.
+
+**`getWeeklyPerformance()`** (`lib/dashboard-data.ts`) computes four figures, and is
+strict about never fabricating a plausible-looking number for data that doesn't exist:
+
+- **Cumplimiento 7D** and **Balance hídrico** both need to know what the athlete actually
+  consumed during a ride, not just what they burned/lost — data that was, until now, only
+  ever computed live in the browser and never persisted (`components/post-ride-analysis.
+  tsx`'s "¿Qué consumiste realmente?" inputs). **`POST /api/post-ride/consumption`**
+  (→ `saveConsumedAmounts()` in `lib/fueling-logs.ts`) closes that gap: a "Guardar consumo
+  real" button next to those inputs `UPDATE`s the matching `post_ride` log's new
+  `carbs_consumed_g`/`fluid_consumed_ml`/`sodium_consumed_mg` columns (requires the
+  `fueling_logs` UPDATE RLS policy mentioned above — without it this silently matches
+  zero rows, the exact same gotcha as everywhere else in this app, so the route explicitly
+  checks the updated-row count and returns `409` rather than pretending it worked). The
+  button's "✓ Guardado" confirmation clears itself the moment any of the three inputs
+  changes again, so it can never show stale confirmation for numbers that no longer match
+  what's saved.
+- **Cumplimiento 7D** — average of `min(100%, carbs_consumed_g / total_carbs_g)` across
+  this week's `post_ride` logs that actually have consumption data logged. `null` (not
+  `0`) when there's none yet, rendered as "Sin datos de consumo aún" instead of a
+  fabricated percentage.
+- **Promedio ingesta** — average real consumed-carb rate (`carbs_consumed_g` ÷ that
+  ride's own `activities.moving_time`) across those same logs — genuine intake, not the
+  planned target.
+- **Gut training** — read straight from `athlete_profiles.gut_training_level` via
+  `gutTrainingLevelLabels`/`gutTrainingLevelRanges` (see "Gut Training Scale" above);
+  always real, never depends on any week's ride data.
+- **Balance hídrico** — average of `min(100%, fluid_consumed_ml / fluid_ml)` and
+  `min(100%, sodium_consumed_mg / sodium_mg)` (both against the *raw* stored loss, not the
+  post-exercise-replacement-factor-adjusted target, for a direct "how much of what you
+  lost did you replace" reading) across the same logs, scaled to a `/10` score with a
+  qualitative label (`hydrationLabel()` in `app/page.tsx`: ≥9 Óptimo, ≥7 Bueno, ≥5
+  Mejorable, else Bajo).
+
+When `ridesThisWeekCount` is `0`, the whole panel collapses to a single onboarding line
+("0 km registrados esta semana — sincroniza tu primera salida...") instead of four empty
+stat cards — the empty-state the "Auth, Logout & Empty States" work asked for, and the
+same reasoning extends to each individual metric independently (a returning athlete with
+rides but no logged consumption yet still sees real ride data, just with "Sin datos de
+consumo aún" on the two consumption-dependent figures specifically, rather than the whole
+panel refusing to render).
 
 ### Athlete profile
 
@@ -817,16 +989,19 @@ markup baked into `DashboardShell` — `DashboardShell` is `"use client"`, so it
 `identitySlot: ReactNode` prop instead, and both `app/page.tsx` and `app/perfil/page.tsx`
 pass the same `<Suspense fallback={<ViewerIdentitySkeleton />}><ViewerIdentity /></Suspense>`
 so the (possibly network-bound, if it hits Strava) identity fetch never blocks the rest of
-the shell from rendering. `getViewerIdentity()` (`lib/dashboard-data.ts`) is this app's
-only real identity source until Auth.js lands (see "No login yet"): if Strava is
-connected, it pulls the athlete's actual first/last name and avatar straight from
-`fetchAthlete()` (`lib/strava.ts`, extended beyond its original weight-only fields to also
-return `firstname`/`lastname`/`profileMedium`); otherwise it falls back to the auth user's
+the shell from rendering. `getViewerIdentity()` (`lib/dashboard-data.ts`) still fetches
+the display name/avatar live from Strava rather than reading them off the Supabase Auth
+user object — the real auth bridge (see "Real auth: Strava-exclusive login" above) never
+stores a firstname/lastname/avatar in Supabase's `user_metadata`, since the synthetic
+email it creates carries none of that, so Strava's own `/athlete` endpoint
+(`fetchAthlete()` in `lib/strava.ts`, extended beyond its original weight-only fields to
+also return `firstname`/`lastname`/`profileMedium`) remains the real source of truth for
+the currently-authenticated user's identity; otherwise it falls back to the auth user's
 own email local-part — never a hardcoded placeholder name — with a subtitle that states
 the real connection status ("Conectado con Strava" / "Cuenta de desarrollo" / "Sin
 sesión") instead of a made-up bio line.
 
-- **`app/page.tsx`** — `GlobalMetricsBar` (lifetime totals, see above) sits above two
+- **`app/page.tsx`** — the Weekly Performance Panel (see above) sits above two
   `components/ui/tabs.tsx` (`@base-ui/react/tabs`) panels — both panels' Server Component
   data fetches still run on every page load regardless of which tab is active (Tabs hides
   the inactive panel with CSS, it doesn't unmount/defer its Suspense boundary):

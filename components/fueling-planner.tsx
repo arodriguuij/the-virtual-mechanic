@@ -30,6 +30,7 @@ import {
   intensityLabels,
   pocketFoodCarbsG as POCKET_FOOD_CARBS_G,
   pocketFoodLabels,
+  type FuelingMode,
   type IntensityLevel,
   type PocketFoodItemType,
 } from "@/lib/metabolic-engine";
@@ -40,6 +41,20 @@ const GEL_DOSE_TYPES: PocketFoodItemType[] = ["gel_small", "gel_standard", "gel_
 const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = [...POCKET_FOOD_TYPES, ...GEL_DOSE_TYPES];
 const MAX_POCKET_FOOD_QTY = 6;
 const MAX_CUSTOM_CARBS_G = 500;
+
+const FUELING_MODE_OPTIONS: { value: FuelingMode; label: string }[] = [
+  { value: "optimal", label: "🚀 Óptimo" },
+  { value: "pantry", label: "📦 Mi despensa" },
+  { value: "hybrid", label: "🧩 Híbrido" },
+];
+
+const FUELING_MODE_DESCRIPTIONS: Record<FuelingMode, string> = {
+  optimal:
+    "Recomendación de laboratorio — la app elige automáticamente geles, barritas y bidón según tu ruta.",
+  pantry: "Indica lo que tienes en casa — el bidón DIY ajusta su concentración para cubrir el resto.",
+  hybrid:
+    "Fija tus alimentos imprescindibles — te sugerimos geles o bidón para cubrir la brecha restante.",
+};
 // Offline fallback for "en medio de un puerto sin cobertura" — the last
 // successfully calculated strategy, so the athlete still has *something*
 // actionable instead of a blank/broken screen with no signal.
@@ -95,7 +110,10 @@ type PlanResult = {
     totalCarbsG: number;
   };
   totalRideCarbsG: number;
+  pocketFood: Partial<Record<PocketFoodItemType, number>> & { customCarbsG?: number };
   pocketFoodCarbsG: number;
+  fuelingMode: FuelingMode;
+  hybridGelSuggestion: number | null;
   moneySaved: number;
   weather: {
     temperatureC: number;
@@ -167,13 +185,20 @@ function PocketFoodStepperRow({
   type,
   qty,
   onChange,
+  disabled = false,
 }: {
   type: PocketFoodItemType;
   qty: number;
   onChange: (qty: number) => void;
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5">
+    <div
+      className={cn(
+        "flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5",
+        disabled && "opacity-50"
+      )}
+    >
       <span className="text-sm text-neutral-900">
         {pocketFoodName(type)}
         <span className="ml-1.5 font-mono text-xs text-neutral-500">
@@ -184,7 +209,8 @@ function PocketFoodStepperRow({
         <button
           type="button"
           onClick={() => onChange(qty - 1)}
-          className="flex size-6 cursor-pointer items-center justify-center rounded-sm bg-neutral-100 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-200 hover:text-neutral-900"
+          disabled={disabled}
+          className="flex size-6 cursor-pointer items-center justify-center rounded-sm bg-neutral-100 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-200 hover:text-neutral-900 disabled:cursor-not-allowed disabled:hover:bg-neutral-100 disabled:hover:text-neutral-600"
           aria-label={`Quitar ${pocketFoodLabels[type]}`}
         >
           −
@@ -195,7 +221,8 @@ function PocketFoodStepperRow({
         <button
           type="button"
           onClick={() => onChange(qty + 1)}
-          className="flex size-6 cursor-pointer items-center justify-center rounded-sm bg-neutral-100 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-200 hover:text-neutral-900"
+          disabled={disabled}
+          className="flex size-6 cursor-pointer items-center justify-center rounded-sm bg-neutral-100 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-200 hover:text-neutral-900 disabled:cursor-not-allowed disabled:hover:bg-neutral-100 disabled:hover:text-neutral-600"
           aria-label={`Añadir ${pocketFoodLabels[type]}`}
         >
           +
@@ -215,6 +242,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
   const [isTargetEvent, setIsTargetEvent] = useState(false);
   const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
   const [customCarbsG, setCustomCarbsG] = useState(0);
+  const [fuelingMode, setFuelingMode] = useState<FuelingMode>("pantry");
   const [result, setResult] = useState<PlanResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -275,6 +303,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               intensity,
               isTargetEvent,
               pocketFood: pocketFoodPayload,
+              fuelingMode,
             }
           : {
               mode: "quick",
@@ -283,6 +312,7 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               averageWatts: quickAverageWatts,
               isTargetEvent,
               pocketFood: pocketFoodPayload,
+              fuelingMode,
             };
 
       const res = await fetch("/api/fueling/plan", {
@@ -522,14 +552,71 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
         )}
 
         <div className="flex flex-col gap-1.5">
+          <span className={eyebrow}>Modo de fueling</span>
+          <div className="flex flex-wrap gap-1.5">
+            {FUELING_MODE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setFuelingMode(opt.value)}
+                className={cn(
+                  "cursor-pointer rounded-sm border px-3 py-1.5 text-xs font-semibold tracking-wide transition-colors duration-150",
+                  fuelingMode === opt.value
+                    ? "border-neutral-900 bg-neutral-900 text-background"
+                    : "border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-neutral-500">{FUELING_MODE_DESCRIPTIONS[fuelingMode]}</p>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border border-neutral-200 bg-neutral-50/60 px-3 py-2 font-mono text-xs text-neutral-700">
+          {result ? (
+            <>
+              <span>
+                OBJETIVO:{" "}
+                <span className="font-semibold text-neutral-900">{result.totalRideCarbsG}g HC</span>
+              </span>
+              <span>
+                CUBIERTO:{" "}
+                <span className="font-semibold text-neutral-900">{result.pocketFoodCarbsG}g HC</span>
+              </span>
+              <span>
+                RESTANTE:{" "}
+                <span className="font-semibold text-neutral-900">
+                  {Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG)}g HC
+                </span>
+              </span>
+            </>
+          ) : (
+            <span className="text-neutral-500">
+              Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1.5">
           <span className={eyebrow}>Comida de bolsillo que llevarás encima</span>
+          {fuelingMode === "optimal" && (
+            <p className="text-xs text-neutral-500">
+              Selección automática según duración e intensidad — desactivada en modo Óptimo.
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {ALL_POCKET_FOOD_TYPES.map((type) => (
               <PocketFoodStepperRow
                 key={type}
                 type={type}
-                qty={pocketFood[type] ?? 0}
+                qty={
+                  fuelingMode === "optimal"
+                    ? (result?.pocketFood[type] ?? 0)
+                    : (pocketFood[type] ?? 0)
+                }
                 onChange={(qty) => setPocketFoodQty(type, qty)}
+                disabled={fuelingMode === "optimal"}
               />
             ))}
             <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5">
@@ -543,10 +630,13 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   inputMode="numeric"
                   min={0}
                   max={MAX_CUSTOM_CARBS_G}
-                  value={customCarbsG || ""}
+                  value={
+                    fuelingMode === "optimal" ? "" : customCarbsG || ""
+                  }
                   onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
+                  disabled={fuelingMode === "optimal"}
                   placeholder="0"
-                  className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                  className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
                 />
                 <span className="font-mono text-xs text-neutral-500">g HC</span>
               </div>
@@ -704,6 +794,14 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   <Utensils className="mt-0.5 size-3 shrink-0" />
                   Comida de bolsillo cubre {result.pocketFoodCarbsG}g de {result.totalRideCarbsG}g HC —
                   el resto ({result.recipe.totalCarbsG}g) va en el bidón.
+                </p>
+              )}
+              {result.fuelingMode === "hybrid" && (result.hybridGelSuggestion ?? 0) > 0 && (
+                <p className="mt-1.5 flex items-start gap-1.5 text-xs text-neutral-500">
+                  <FlaskConical className="mt-0.5 size-3 shrink-0" />
+                  Alternativa: {result.hybridGelSuggestion} gel{result.hybridGelSuggestion === 1 ? "" : "es"}{" "}
+                  estándar (30g c/u) cubrirían la brecha en vez del bidón — o deja que el bidón la
+                  absorba, como ya hace la receta de abajo.
                 </p>
               )}
               <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
