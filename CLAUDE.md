@@ -213,8 +213,17 @@ guidance rather than a clinical or individually-calibrated model:
   oxidation — plus the sodium and water targets for the same duration, one bottle recipe
   covering both carbs and hydration.
 - **`getMoneySavedVsGels(totalCarbsG)`** — compares a flat €2.50/30g-of-carbs commercial
-  gel price against a €0.35/30g homemade equivalent — a rough illustrative comparison, not
-  a live price feed.
+  gel price (~€0.083/g) against a €0.21/30g bulk-bought DIY equivalent (~€0.007/g,
+  maltodextrin + fructose + table salt bought in bulk rather than single-dose packaging) —
+  a rough illustrative comparison, not a live price feed, working out to ~€0.076 saved per
+  gram of carbs managed.
+- **`getTableSaltGrams(sodiumMg)`** — every sodium figure elsewhere in this file is a
+  *pure sodium* target, but a kitchen scale weighs salt, not sodium, and common table salt
+  (NaCl) is only ~39.3% sodium by weight — this converts to the actual number of grams to
+  weigh out (`sodiumG × 2.54`). Used everywhere the DIY recipe's sodium is displayed or
+  exported (the recipe card, per-bottle figures, the Ziploc reload dose, and
+  `formatRecipeForSharing()`'s clipboard text) so nothing shows a sodium milligram figure
+  with no way to actually measure it out at home.
 - **`getGlycogenBurnedGrams(relativeIntensity, movingTimeSeconds, athleteType?)`** — the
   personalized oxidation rate integrated over the ride's actual duration; this is what the
   sync route stores as `activities.carbs_burned_g`.
@@ -340,12 +349,23 @@ bottles and plain water/electrolyte bottles rather than reporting one lump of gr
 600ml bottles correctly needs more of them for the same carb target.
 `MAX_BOTTLE_CARB_CONCENTRATION` (8% of whatever that real bottle size is) keeps a safety
 margin below the ~10-12% concentration widely cited as the threshold for
-hypertonic-solution gastric distress/delayed emptying. `fuelBottleCount =
-ceil(totalCarbsG / (bottleSizeMl * 0.08))` (zero when `totalCarbsG` is already zero — see
-"Hybrid nutrition" above) determines how many concentrated bottles are needed to stay
-under that cap (each carrying an even share of the recipe's maltodextrin/fructose/sodium);
-any additional fluid target beyond what those bottles hold is covered by plain
-water/electrolyte bottles.
+hypertonic-solution gastric distress/delayed emptying. Independently of that GI-comfort
+cap, `MAX_SOLUBILITY_G_PER_L` (140g/L) encodes the hard physical ceiling above which
+maltodextrin/fructose powder simply stops fully dissolving in cold water — `getBottlePlan`
+sizes each fuel bottle to whichever of the two caps is stricter (`Math.min` of both,
+expressed per-bottle), rather than assuming the GI cap alone will always be the binding
+one. At every currently-supported bottle size (500-950ml) the 8% GI cap is in fact always
+the stricter of the two, so today's fuel-bottle counts are unchanged by this — the
+solubility check exists as an explicit, independent safety floor so a future change to the
+GI-comfort cap alone couldn't silently recommend a bottle that wouldn't physically
+dissolve. `fuelBottleCount = ceil(totalCarbsG / maxCarbsPerBottle)` (zero when
+`totalCarbsG` is already zero — see "Hybrid nutrition" above) determines how many
+concentrated bottles are needed to stay under that effective cap (each carrying an even
+share of the recipe's maltodextrin/fructose/sodium); any additional fluid target beyond
+what those bottles hold is covered by plain water/electrolyte bottles. Whenever either cap
+pushes `totalBottles` above the athlete's real bottle-cage count, "Reload strategy" below
+automatically forces the Ziploc reload plan instead of ever recommending an over-strength,
+undissolvable single bottle.
 
 ### Reload strategy (Ziploc bags)
 
@@ -545,18 +565,33 @@ falling back gracefully:
    calls Strava's `/activities/{id}/zones`, returning `null` (not throwing) on a 404/no-
    scope/not-configured response. If present, `getGlycogenBurnedFromPowerZones()` gives
    the most accurate glycogen figure (`source: 'zones'`).
-2. **Ride-average watts** — if zones aren't available but the activity has
-   `average_watts` and the athlete has an FTP, falls back to the same
+2. **Heart-rate estimate ("Plan A")** — if zones aren't available, `fetchActivityDetail()`
+   (`lib/strava.ts`) pulls the activity's `device_watts`/`has_heartrate`/
+   `average_heartrate`/`max_heartrate` straight from Strava's `/activities/{id}` (again
+   `null`-on-failure, never throwing). When the ride genuinely has no power meter
+   (`device_watts` false) but does have heart-rate data, `getGlycogenBurnedFromHeartRate()`
+   estimates intensity from %HRmax (`averageHeartrate / maxHeartrate`, using the ride's own
+   `max_heartrate` as a same-ride proxy for true HRmax) and feeds it through the same
+   oxidation-rate bands as every other estimate in this file (`source: 'heartrate'`) —
+   preferred over trusting Strava's own *estimated* wattage, since real HR reflects actual
+   physiological effort. `getRelativeIntensityFromHeartRate()` guards against a zero/
+   missing `maxHeartrate` so this can never divide by zero and return `NaN`.
+3. **Ride-average watts ("Plan B")** — if there's no zones data and either the ride does
+   have a real power meter or there's no HR data either, falls back to the same
    `getRelativeIntensity` + `getGlycogenBurnedGrams` path the sync route already uses
-   (`source: 'average_watts'`).
+   (`source: 'average_watts'`) — `average_watts` here may be real or Strava's own
+   speed/grade-estimated figure, whichever Strava actually returned.
 
-Both of these paths thread the athlete's `athlete_type` (see "Metabolic phenotype"
-below) through to `getGlycogenBurnedFromPowerZones`/`getGlycogenBurnedGrams`, defaulting
-to `"balanced"` if unset, so the "Deuda de Glucógeno" figure reflects the same
-diesel/balanced/explosive adjustment the pre-ride planner applies.
-3. **Stored sync-time figure** — if neither of the above works, falls back to whatever
+All three paths thread the athlete's `athlete_type` (see "Metabolic phenotype"
+below) through to `getGlycogenBurnedFromPowerZones`/`getGlycogenBurnedFromHeartRate`/
+`getGlycogenBurnedGrams`, defaulting to `"balanced"` if unset, so the "Deuda de Glucógeno"
+figure reflects the same diesel/balanced/explosive adjustment the pre-ride planner
+applies.
+4. **Stored sync-time figure** — if none of the above work, falls back to whatever
    `activities.carbs_burned_g` was already computed at sync time (`source: 'stored'`).
-4. **`no_data`** — only if none of the three produced a number (no FTP ever configured).
+5. **`no_data`** — only if none of the above produced a finite number (no FTP ever
+   configured) — the route explicitly checks `Number.isFinite(carbsBurnedG)` before
+   returning a result, so a malformed upstream value can never reach the client as `NaN`.
 
 Fluid/sodium loss for the ride reuses its *stored* `humidity_avg`/`temperature_avg`
 (the real weather sampled at sync time) with the athlete's current `sweat_rate`. The

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
+import { fetchActivityDetail } from "@/lib/strava";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { fetchActivityPowerZones } from "@/lib/strava-zones";
 import { hasPostRideLog, logFuelingPlan } from "@/lib/fueling-logs";
 import {
   getFluidLossMlPerHour,
+  getGlycogenBurnedFromHeartRate,
   getGlycogenBurnedFromPowerZones,
   getGlycogenBurnedGrams,
   getMacroRecoveryTarget,
@@ -53,23 +55,49 @@ export async function POST(request: NextRequest) {
 
   const hours = activity.moving_time / 3600;
 
-  // Prefer real time-in-power-zone data over a single ride-average watts
-  // figure — falls back gracefully (no power meter, no zones configured,
-  // or a seed/synthetic activity id Strava has never heard of).
+  // Prefers, in order: real time-in-power-zone data; a heart-rate-based
+  // estimate when there's no power meter at all (device_watts false/absent —
+  // real HR beats trusting Strava's own estimated wattage); a plain
+  // ride-average-watts estimate (real or Strava-estimated, whichever it is)
+  // when there's no HR either; the sync-time stored figure; and finally
+  // "no data" rather than ever computing/returning NaN.
   let carbsBurnedG: number | null = null;
-  let source: "zones" | "average_watts" | "stored" | "no_data" = "no_data";
+  let source: "zones" | "heartrate" | "average_watts" | "stored" | "no_data" = "no_data";
 
   const athleteType = athleteProfile.athlete_type ?? "balanced";
 
   const accessToken = await getValidStravaAccessToken(supabase, userId);
+  let activityDetail: Awaited<ReturnType<typeof fetchActivityDetail>> = null;
   if (accessToken) {
     const buckets = await fetchActivityPowerZones(accessToken, activityId);
     if (buckets && athleteProfile.ftp) {
       carbsBurnedG = getGlycogenBurnedFromPowerZones(buckets, athleteProfile.ftp, athleteType);
       source = "zones";
+    } else {
+      activityDetail = await fetchActivityDetail(accessToken, activityId);
     }
   }
 
+  // Plan A: no real power meter on this ride, but it has heart-rate data.
+  if (
+    carbsBurnedG == null &&
+    activityDetail &&
+    !activityDetail.deviceWatts &&
+    activityDetail.hasHeartrate &&
+    activityDetail.averageHeartrate &&
+    activityDetail.maxHeartrate
+  ) {
+    carbsBurnedG = getGlycogenBurnedFromHeartRate(
+      activityDetail.averageHeartrate,
+      activityDetail.maxHeartrate,
+      activity.moving_time,
+      athleteType
+    );
+    source = "heartrate";
+  }
+
+  // Plan B: ride-average watts — real or Strava-estimated, whichever it is
+  // — when there's nothing more precise to go on.
   if (carbsBurnedG == null && athleteProfile.ftp && activity.average_watts != null) {
     const relativeIntensity = getRelativeIntensity(activity.average_watts, athleteProfile.ftp);
     carbsBurnedG = getGlycogenBurnedGrams(relativeIntensity, activity.moving_time, athleteType);
@@ -81,7 +109,7 @@ export async function POST(request: NextRequest) {
     source = "stored";
   }
 
-  if (carbsBurnedG == null) {
+  if (carbsBurnedG == null || !Number.isFinite(carbsBurnedG)) {
     return NextResponse.json({ error: "no_data" }, { status: 400 });
   }
 

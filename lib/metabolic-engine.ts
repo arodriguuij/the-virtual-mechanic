@@ -275,6 +275,16 @@ export function getSodiumLossMgPerHour(fluidLossMlPerHour: number): number {
   return Math.round((fluidLossMlPerHour / 1000) * SODIUM_CONCENTRATION_MG_PER_L);
 }
 
+/** Common table salt (NaCl) is only ~39.3% pure sodium by weight — every
+ * sodium figure in the DIY recipe is a *pure sodium* target, but a kitchen
+ * scale weighs salt, not sodium, so this is the actual number to weigh out
+ * (1 / 0.393 ≈ 2.54g of salt per gram of pure sodium). */
+const SODIUM_TO_TABLE_SALT_MULTIPLIER = 2.54;
+
+export function getTableSaltGrams(sodiumMg: number): number {
+  return Math.round((sodiumMg / 1000) * SODIUM_TO_TABLE_SALT_MULTIPLIER * 10) / 10;
+}
+
 /**
  * "Nutrición Híbrida" — solid pocket food covers part of the ride's carb
  * target before the bottle recipe is sized, since a rider who's eating
@@ -435,11 +445,13 @@ export function getHomeLabRecipe({
   };
 }
 
-/** Price per 30g-of-carbs "unit" — a commercial gel vs. the equivalent
- * bulk-bought DIY maltodextrin/fructose/sodium mix — used only for the
- * "money saved" comparison, not a real price feed. */
+/** Price per 30g-of-carbs "unit" — a commercial gel (~€2.50, ~€0.083/g) vs.
+ * the equivalent bulk-bought DIY maltodextrin/fructose/salt mix (~€0.21,
+ * ~€0.007/g — bulk bagged carbs run far cheaper per gram than a single-dose
+ * commercial gel's packaging/branding overhead) — used only for the "money
+ * saved" comparison, not a real price feed. */
 const COMMERCIAL_PRICE_EUR_PER_30G = 2.5;
-const HOMEMADE_PRICE_EUR_PER_30G = 0.35;
+const HOMEMADE_PRICE_EUR_PER_30G = 0.21;
 const GEL_EQUIVALENT_CARBS_G = 30;
 
 export function getMoneySavedVsGels(totalCarbsG: number): number {
@@ -457,6 +469,38 @@ export function getGlycogenBurnedGrams(
 ): number {
   const hours = movingTimeSeconds / 3600;
   return Math.round(getPersonalizedCarbOxidationRateGPerHour(relativeIntensity, athleteType) * hours);
+}
+
+/**
+ * Rides with no power meter at all (Strava's `device_watts: false`) still
+ * often have a heart-rate strap — %HRmax doesn't map onto %FTP one-to-one
+ * (a threshold effort tends to sit a few points lower on %HRmax than on
+ * %FTP), but as a same-order-of-magnitude fallback it's far better than
+ * guessing, and reusing it as a direct proxy for `relativeIntensity` lets
+ * this feed the exact same oxidation-rate bands every other estimate in
+ * this file is built from — no separate HR-specific table to keep in sync.
+ * Guards against a zero/missing `maxHeartrate` so this can never divide by
+ * zero and return `NaN` up into the Post-Ride Analysis view.
+ */
+export function getRelativeIntensityFromHeartRate(
+  averageHeartrate: number,
+  maxHeartrate: number
+): number {
+  if (!(maxHeartrate > 0) || !Number.isFinite(averageHeartrate)) return 0;
+  return Math.max(0, Math.min(1.2, averageHeartrate / maxHeartrate));
+}
+
+/** Heart-rate-based fallback for `getGlycogenBurnedGrams` — see
+ * `getRelativeIntensityFromHeartRate` above for the %HRmax proxy this is
+ * built on. */
+export function getGlycogenBurnedFromHeartRate(
+  averageHeartrate: number,
+  maxHeartrate: number,
+  movingTimeSeconds: number,
+  athleteType: AthleteType = "balanced"
+): number {
+  const relativeIntensity = getRelativeIntensityFromHeartRate(averageHeartrate, maxHeartrate);
+  return getGlycogenBurnedGrams(relativeIntensity, movingTimeSeconds, athleteType);
 }
 
 export type MacroRecoveryTarget = {
@@ -700,22 +744,36 @@ const DEFAULT_BOTTLE_SIZE_ML = 750;
 // threshold widely cited for hypertonic-solution gastric distress/delayed
 // emptying — a safety-first cap, not the maximum theoretically tolerable.
 const MAX_BOTTLE_CARB_CONCENTRATION = 0.08;
+// Independent of gut comfort, plain maltodextrin/fructose powder simply
+// stops fully dissolving in cold water above roughly this concentration —
+// a hard physical ceiling, not a preference. Always less restrictive than
+// the GI-comfort cap above at every supported bottle size, but enforced as
+// its own explicit check anyway: a future change to the GI cap alone
+// shouldn't be able to silently produce an undissolvable bottle.
+const MAX_SOLUBILITY_G_PER_L = 140;
 
 /**
  * "Arquitectura de Bidones" — splits the recipe's total carbs across as
  * many concentrated "fuel" bottles as needed to keep each one at or below
- * `MAX_BOTTLE_CARB_CONCENTRATION`, then covers any remaining fluid target
- * with plain water/electrolyte bottles. On a long ride this often implies
- * refilling the same one or two bottles multiple times from a support
- * car/musette rather than literally carrying every bottle at once.
+ * both `MAX_BOTTLE_CARB_CONCENTRATION` and the physical `MAX_SOLUBILITY_G_PER_L`
+ * dissolution ceiling (whichever is stricter), then covers any remaining
+ * fluid target with plain water/electrolyte bottles. On a long ride this
+ * often implies refilling the same one or two bottles multiple times from a
+ * support car/musette rather than literally carrying every bottle at once.
  * `bottleSizeMl` is the athlete's own real bottle capacity (500/600/750/950ml
- * — configured on their profile), not a fixed assumption.
+ * — configured on their profile), not a fixed assumption. Whenever this
+ * pushes `totalBottles` above the athlete's real bottle-cage count,
+ * `getReloadStrategy` below automatically forces the Ziploc reload plan —
+ * so a recipe that wouldn't fully dissolve in what's actually on the bike
+ * never gets recommended at full concentration.
  */
 export function getBottlePlan(
   recipe: HomeLabRecipe,
   bottleSizeMl: number = DEFAULT_BOTTLE_SIZE_ML
 ): BottlePlan {
-  const maxCarbsPerBottle = bottleSizeMl * MAX_BOTTLE_CARB_CONCENTRATION;
+  const giComfortCapG = bottleSizeMl * MAX_BOTTLE_CARB_CONCENTRATION;
+  const solubilityCapG = (bottleSizeMl / 1000) * MAX_SOLUBILITY_G_PER_L;
+  const maxCarbsPerBottle = Math.min(giComfortCapG, solubilityCapG);
   // Zero only when pocket food already covers the whole carb target — no
   // fuel bottle needed at all in that case, just plain water/electrolytes.
   const fuelBottleCount =
@@ -847,7 +905,7 @@ export function formatRecipeForSharing({
   if (bottlePlan.fuelBottles.count > 0) {
     lines.push(
       `🧪 ${bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel Concentrado × ${bottlePlan.fuelBottles.count}`,
-      `   ${bottlePlan.fuelBottles.maltodextrinGPerBottle}g maltodextrina · ${bottlePlan.fuelBottles.fructoseGPerBottle}g fructosa · ${bottlePlan.fuelBottles.sodiumMgPerBottle}mg sodio / bidón`
+      `   ${bottlePlan.fuelBottles.maltodextrinGPerBottle}g maltodextrina · ${bottlePlan.fuelBottles.fructoseGPerBottle}g fructosa · ${getTableSaltGrams(bottlePlan.fuelBottles.sodiumMgPerBottle)}g sal común (${bottlePlan.fuelBottles.sodiumMgPerBottle}mg sodio) / bidón`
     );
   }
   if (bottlePlan.waterBottles.count > 0) {
@@ -859,7 +917,7 @@ export function formatRecipeForSharing({
   }
   lines.push(
     "",
-    `Total: ${recipe.maltodextrinG}g maltodextrina + ${recipe.fructoseG}g fructosa + ${recipe.sodiumMg}mg sodio + ${recipe.waterMl}ml agua`
+    `Total: ${recipe.maltodextrinG}g maltodextrina + ${recipe.fructoseG}g fructosa + ${getTableSaltGrams(recipe.sodiumMg)}g sal común (aporta ${recipe.sodiumMg}mg sodio puro) + ${recipe.waterMl}ml agua`
   );
   return lines.join("\n");
 }

@@ -24,6 +24,7 @@ import { stripEmoji } from "@/lib/gpx-export";
 import {
   formatGarminExportText,
   formatRecipeForSharing,
+  getTableSaltGrams,
   intensityLabels,
   pocketFoodCarbsG as POCKET_FOOD_CARBS_G,
   pocketFoodLabels,
@@ -664,11 +665,15 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Sodio (citrato/sal)</span>
+                  <span>Sal común</span>
                   <span className="font-mono font-medium text-neutral-900 tabular-nums">
-                    {result.recipe.sodiumMg} mg
+                    {getTableSaltGrams(result.recipe.sodiumMg)} g
                   </span>
                 </div>
+                <p className="text-xs text-neutral-500">
+                  Aporta {result.recipe.sodiumMg}mg de sodio puro — la sal común solo es ~39.3%
+                  sodio, así que se pesa en sal, no en sodio.
+                </p>
                 <div className="flex items-center justify-between">
                   <span>Agua</span>
                   <span className="font-mono font-medium text-neutral-900 tabular-nums">
@@ -692,7 +697,8 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                       <span className="font-mono text-xs text-neutral-500">
                         {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g malto ·{" "}
                         {result.bottlePlan.fuelBottles.fructoseGPerBottle}g fruct ·{" "}
-                        {result.bottlePlan.fuelBottles.sodiumMgPerBottle}mg Na / bidón
+                        {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g sal
+                        común / bidón
                       </span>
                     </div>
                   )}
@@ -727,7 +733,8 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                     {result.reloadStrategy.ziplocBagsCount > 1 ? "s" : ""} Ziploc con{" "}
                     {result.reloadStrategy.ziplocDose.maltodextrinG}g malto +{" "}
                     {result.reloadStrategy.ziplocDose.fructoseG}g fructosa +{" "}
-                    {result.reloadStrategy.ziplocDose.sodiumMg}mg sal (dosis pre-medida por bidón).
+                    {getTableSaltGrams(result.reloadStrategy.ziplocDose.sodiumMg)}g sal común
+                    (dosis pre-medida por bidón).
                   </li>
                   <li className="flex items-center gap-1.5 font-medium text-neutral-900">
                     <MapPin className="size-3.5 shrink-0" />

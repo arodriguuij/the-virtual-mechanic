@@ -31,7 +31,7 @@ type AnalysisResult = {
   carbsBurnedG: number;
   fluidLossMl: number;
   sodiumLossMg: number;
-  source: "zones" | "average_watts" | "stored" | "no_data";
+  source: "zones" | "heartrate" | "average_watts" | "stored" | "no_data";
   weightKg: number;
   recoveryTarget: {
     carbsG: number;
@@ -45,6 +45,7 @@ type AnalysisResult = {
 
 const sourceLabels: Record<AnalysisResult["source"], string> = {
   zones: "calculado a partir de tus zonas de potencia reales",
+  heartrate: "sin potenciómetro — calculado a partir de tu frecuencia cardíaca",
   average_watts: "calculado a partir de tus vatios medios",
   stored: "calculado en el momento de la sincronización",
   no_data: "sin datos suficientes",

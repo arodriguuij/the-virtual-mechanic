@@ -155,6 +155,44 @@ export async function fetchLatestRideActivity(
   return activities.find((a) => CYCLING_SPORT_TYPES.has(a.sport_type ?? a.type)) ?? null;
 }
 
+export type StravaActivityDetail = {
+  averageHeartrate: number | null;
+  maxHeartrate: number | null;
+  hasHeartrate: boolean;
+  // True only when `average_watts` came from a real power meter — Strava
+  // still returns an *estimated* `average_watts` (from speed/grade/weight)
+  // for riders without one, with this flag set to `false`/absent.
+  deviceWatts: boolean;
+};
+
+/**
+ * One activity's heart-rate/power-source detail, straight from Strava's
+ * `/activities/{id}` — used by the Post-Ride Analysis to decide whether
+ * `average_watts` is trustworthy (`deviceWatts`) or just Strava's own
+ * estimate, and to source a heart-rate-based fallback estimate when there's
+ * no power data at all. Returns `null` (never throws) on any failure, same
+ * "degrade gracefully" convention as `fetchActivityPowerZones`.
+ */
+export async function fetchActivityDetail(
+  accessToken: string,
+  activityId: string
+): Promise<StravaActivityDetail | null> {
+  const res = await fetch(`${STRAVA_API_BASE}/activities/${activityId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    return null;
+  }
+
+  const activity = await res.json();
+  return {
+    averageHeartrate: activity.average_heartrate ?? null,
+    maxHeartrate: activity.max_heartrate ?? null,
+    hasHeartrate: Boolean(activity.has_heartrate),
+    deviceWatts: Boolean(activity.device_watts),
+  };
+}
+
 /** True for an indoor/virtual ride — Zwift, Rouvy, a smart trainer, etc. —
  * where there's no real outdoor weather to sample for the fueling model. */
 export function isIndoorRide(activity: Pick<StravaActivity, "trainer" | "sport_type" | "type">): boolean {
