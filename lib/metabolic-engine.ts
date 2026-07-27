@@ -267,6 +267,28 @@ export function getFluidLossMlPerHour(
   );
 }
 
+/** Below this, evapo-transpiration is low enough that fluid needs drop and
+ * carbs are better tolerated as solid food (slower gastric emptying isn't a
+ * liability in the cold the way it is in the heat). */
+const LOW_TEMPERATURE_THRESHOLD_C = 12;
+
+/**
+ * "Impacto Térmico" — a one-line dynamic explanation of how ambient
+ * temperature is actually altering the plan, rather than just showing a raw
+ * °C figure and leaving the athlete to infer what it means. `null` in the
+ * comfortable 12-25°C band, where no adjustment note is warranted.
+ */
+export function getThermalImpactNote(temperatureC: number, humidityPct: number): string | null {
+  if (temperatureC > HIGH_HEAT_THRESHOLD_C) {
+    const increasePct = Math.round((getHeatHumidityMultiplier(temperatureC, humidityPct) - 1) * 100);
+    return `Tasa de sudoración incrementada un +${increasePct}% por estrés térmico.`;
+  }
+  if (temperatureC < LOW_TEMPERATURE_THRESHOLD_C) {
+    return "Hidratación ajustada a baja evapo-transpiración; carbohidratos derivados a comida sólida.";
+  }
+  return null;
+}
+
 /** Average sweat sodium concentration for a typical athlete — real
  * individual values range roughly 400-1500mg/L. Self-identified "salty
  * sweaters" (white crust on the jersey, stinging eyes — see
@@ -295,6 +317,44 @@ const SODIUM_TO_TABLE_SALT_MULTIPLIER = 2.54;
 
 export function getTableSaltGrams(sodiumMg: number): number {
   return Math.round((sodiumMg / 1000) * SODIUM_TO_TABLE_SALT_MULTIPLIER * 10) / 10;
+}
+
+/** Reference equivalences for converting a kitchen-scale gram figure into
+ * something measurable without a scale at all — a rider mixing a bottle at
+ * 6am rarely has one to hand. Approximate (real teaspoon/scoop volumes vary
+ * by brand/density), which is exactly why the UI must always show the gram
+ * figure alongside the equivalence, never the equivalence alone. */
+export const SALT_G_PER_TEASPOON = 5;
+export const POWDER_G_PER_SCOOP = 30;
+
+export type HouseholdMeasures = {
+  saltTeaspoons: number;
+  maltodextrinScoops: number;
+  fructoseScoops: number;
+};
+
+/**
+ * "Conversión a Medidas Caseras" — turns the recipe's gram figures into
+ * practical kitchen-counter measures (table-salt teaspoons, powder scoops)
+ * so the DIY recipe is actually followable without a gram scale. Takes
+ * *table salt* grams (see `getTableSaltGrams` above), not pure sodium mg —
+ * callers must convert first, same convention as everywhere else this file
+ * displays sodium.
+ */
+export function calculateHouseholdMeasures({
+  saltG,
+  maltodextrinG,
+  fructoseG,
+}: {
+  saltG: number;
+  maltodextrinG: number;
+  fructoseG: number;
+}): HouseholdMeasures {
+  return {
+    saltTeaspoons: Math.round((saltG / SALT_G_PER_TEASPOON) * 10) / 10,
+    maltodextrinScoops: Math.round((maltodextrinG / POWDER_G_PER_SCOOP) * 10) / 10,
+    fructoseScoops: Math.round((fructoseG / POWDER_G_PER_SCOOP) * 10) / 10,
+  };
 }
 
 /**
@@ -443,6 +503,143 @@ export function getPocketFoodMilestones({
   });
 }
 
+/** Minimum/maximum sip reminder interval — even a very low sweat rate still
+ * gets reminded at least every 20 minutes (a bottle left untouched for
+ * longer is easy to forget entirely), and even a very high one is capped at
+ * 10 minutes (more frequent than that stops being a distinct "reminder" and
+ * just becomes constant sipping). */
+const HYDRATION_INTERVAL_MIN_MINUTES = 10;
+const HYDRATION_INTERVAL_MAX_MINUTES = 20;
+
+/**
+ * "Frecuencia Hídrica" — how often (in minutes) to remind the athlete to
+ * drink, scaled inversely to their actual fluid-loss rate: a higher sweat
+ * rate needs more frequent, smaller sips rather than the same interval with
+ * bigger gulps (which risks gastric sloshing at high intensity).
+ */
+export function getHydrationIntervalMinutes(fluidLossMlPerHour: number): number {
+  const litersPerHour = fluidLossMlPerHour / 1000;
+  if (litersPerHour <= 0) return HYDRATION_INTERVAL_MAX_MINUTES;
+  return Math.max(
+    HYDRATION_INTERVAL_MIN_MINUTES,
+    Math.min(HYDRATION_INTERVAL_MAX_MINUTES, Math.round(180 / (litersPerHour * 10)))
+  );
+}
+
+// Solid food (slow to digest) only makes sense early, before intensity rises
+// and gastric blood flow drops — placed somewhere in the ride's first third.
+const SOLID_FOOD_MAX_FRACTION = 0.3;
+// Caffeine only meaningfully helps a ride long enough to still have a hard
+// effort left in it once it kicks in — below this there's nothing to time it
+// against.
+const CAFFEINE_MIN_DURATION_HOURS = 1.5;
+const CAFFEINE_LEAD_MINUTES = 45;
+// Used only when there's no real GPX/route peak-elevation point to time
+// against (quick-calculator mode) — the last quarter of a ride is a common
+// generic placement for a caffeine boost regardless of terrain.
+const DEFAULT_CAFFEINE_FRACTION = 0.75;
+
+export type TimingTimelineEntry = {
+  type: "solid" | "gel" | "caffeine";
+  label: string;
+  atFractionOfRide: number;
+  atMinutes: number;
+  atKm: number | null;
+};
+
+export type TimingTimeline = {
+  hydrationIntervalMinutes: number;
+  entries: TimingTimelineEntry[];
+};
+
+function makeTimingEntry(
+  type: TimingTimelineEntry["type"],
+  label: string,
+  fraction: number,
+  durationHours: number,
+  distanceKm: number | null
+): TimingTimelineEntry {
+  const clamped = Math.max(0, Math.min(1, fraction));
+  return {
+    type,
+    label,
+    atFractionOfRide: Math.round(clamped * 100) / 100,
+    atMinutes: Math.round(clamped * durationHours * 60),
+    atKm: distanceKm != null ? Math.round(distanceKm * clamped * 10) / 10 : null,
+  };
+}
+
+/**
+ * "Cronograma Dinámico de Ingesta" — unlike `getPocketFoodMilestones` (which
+ * just spreads every selected item evenly across the ride), this places each
+ * *kind* of food where it's physiologically most useful: slow-digesting
+ * solids early (first third), fast-absorption gels from the second half
+ * through the finish, and a caffeine hit timed to peak ~45 minutes before the
+ * ride's hardest moment — the route's real elevation peak when known (a
+ * saved Strava route's summit or a parsed GPX's own high point), or a
+ * fixed 75%-of-ride fallback otherwise (quick-calculator mode has no
+ * elevation profile to target). Also returns the sip-reminder frequency
+ * (`getHydrationIntervalMinutes`) as a standalone recurring interval, since
+ * "drink every N minutes" isn't a single point in time the way solid/gel/
+ * caffeine milestones are.
+ */
+export function generateTimingTimeline({
+  selection,
+  durationHours,
+  distanceKm,
+  fluidLossMlPerHour,
+  peakFraction = null,
+}: {
+  selection: PocketFoodSelection;
+  durationHours: number;
+  distanceKm: number | null;
+  fluidLossMlPerHour: number;
+  peakFraction?: number | null;
+}): TimingTimeline {
+  const { customCarbsG, ...items } = selection;
+  const solidTypes = new Set<PocketFoodItemType>(["banana", "energy_bar", "rice_cake", "dates"]);
+  const gelTypes = new Set<PocketFoodItemType>(["gel_small", "gel_standard", "gel_high"]);
+
+  const solidLabels: string[] = [];
+  const gelLabels: string[] = [];
+  for (const [type, qty] of Object.entries(items) as [PocketFoodItemType, number][]) {
+    const bucket = solidTypes.has(type) ? solidLabels : gelTypes.has(type) ? gelLabels : null;
+    if (!bucket) continue;
+    for (let i = 0; i < Math.max(0, qty ?? 0); i++) bucket.push(`Comer ${pocketFoodLabels[type]}`);
+  }
+  if (customCarbsG != null && customCarbsG > 0) {
+    solidLabels.push(`Comer ración personalizada (${Math.round(customCarbsG)}g HC)`);
+  }
+
+  const entries: TimingTimelineEntry[] = [];
+
+  solidLabels.forEach((label, i) => {
+    const fraction = (SOLID_FOOD_MAX_FRACTION * (i + 1)) / (solidLabels.length + 1);
+    entries.push(makeTimingEntry("solid", label, fraction, durationHours, distanceKm));
+  });
+
+  gelLabels.forEach((label, i) => {
+    const fraction = 0.5 + (0.45 * (i + 1)) / (gelLabels.length + 1);
+    entries.push(makeTimingEntry("gel", label, fraction, durationHours, distanceKm));
+  });
+
+  if (durationHours >= CAFFEINE_MIN_DURATION_HOURS) {
+    const targetFraction = peakFraction ?? DEFAULT_CAFFEINE_FRACTION;
+    const leadFraction = CAFFEINE_LEAD_MINUTES / 60 / durationHours;
+    const fraction = Math.max(0.05, targetFraction - leadFraction);
+    entries.push(
+      makeTimingEntry("caffeine", "Toma de cafeína (~100-200mg)", fraction, durationHours, distanceKm)
+    );
+  }
+
+  entries.sort((a, b) => a.atMinutes - b.atMinutes);
+
+  return {
+    hydrationIntervalMinutes: getHydrationIntervalMinutes(fluidLossMlPerHour),
+    entries,
+  };
+}
+
 export type HomeLabRecipe = {
   maltodextrinG: number;
   fructoseG: number;
@@ -460,13 +657,29 @@ export type HomeLabRecipe = {
  * the ratio shifts to 1:0.8, the split most dual-transporter research
  * settles on for near-maximal (~90g/h+) combined oxidation rates.
  */
-const HIGH_CARB_RATE_THRESHOLD_G_PER_HOUR = 75;
-const MODERATE_CARB_RATE_THRESHOLD_G_PER_HOUR = 45;
+export const HIGH_CARB_RATE_THRESHOLD_G_PER_HOUR = 75;
+export const MODERATE_CARB_RATE_THRESHOLD_G_PER_HOUR = 45;
 
 function getMaltodextrinFraction(carbsGPerHour: number): number {
   if (carbsGPerHour < MODERATE_CARB_RATE_THRESHOLD_G_PER_HOUR) return 1;
   if (carbsGPerHour <= HIGH_CARB_RATE_THRESHOLD_G_PER_HOUR) return 2 / 3;
   return 1 / 1.8;
+}
+
+/**
+ * "Contextualización Científica" — the plain-language *why* behind the
+ * maltodextrin:fructose ratio `getMaltodextrinFraction` just picked, for a
+ * tooltip next to the g/h readout rather than expecting the athlete to know
+ * the SGLT1/GLUT5 transporter research behind the numbers.
+ */
+export function getCarbRatioContextNote(carbsGPerHour: number): string {
+  if (carbsGPerHour > HIGH_CARB_RATE_THRESHOLD_G_PER_HOUR) {
+    return "Ratio 1:0.8 aplicado para activar los transportadores GLUT5 y SGLT1 simultáneamente.";
+  }
+  if (carbsGPerHour < MODERATE_CARB_RATE_THRESHOLD_G_PER_HOUR) {
+    return "Ratio 100% maltodextrina aplicado; no requiere fructosa para esta tasa de oxidación.";
+  }
+  return "Ratio 2:1 maltodextrina:fructosa aplicado para empezar a reclutar el transportador GLUT5.";
 }
 
 /**

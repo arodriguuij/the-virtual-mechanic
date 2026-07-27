@@ -4,7 +4,7 @@ import { cache } from "react";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import type { AthleteType, GutTrainingLevel, SweatRate } from "@/lib/metabolic-engine";
-import { fetchAthlete } from "@/lib/strava";
+import { fetchAthlete, fetchAthleteStats } from "@/lib/strava";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { fetchAthleteRoutes, type StravaRoute } from "@/lib/strava-routes";
 
@@ -40,6 +40,39 @@ export type Profile = {
   id: string;
   strava_athlete_id: string | null;
 };
+
+export type MissingProfileField = "ftp" | "sweat_rate" | "weight";
+
+// The Strava→Supabase auth bridge inserts a fresh `athlete_profiles` row with
+// this exact placeholder pair (`ftp: 200`, `sweat_rate: 'medium'`) whenever it
+// syncs a new athlete's weight with no prior physiological data — see
+// `app/api/auth/strava/callback/route.ts`'s `DEFAULT_FTP`/`DEFAULT_SWEAT_RATE`.
+// Checking *both* together (rather than either alone) avoids flagging a real
+// athlete whose genuine sweat rate happens to be "medium" — only the exact
+// untouched pair is a reliable "never configured" signal.
+const PLACEHOLDER_FTP = 200;
+const PLACEHOLDER_SWEAT_RATE = "medium";
+
+/**
+ * "Banner de Onboarding Dinámico" — which critical fields still look like
+ * the zero-friction Strava-sync placeholder rather than a real, athlete-
+ * entered value. `null` (no `athlete_profiles` row at all yet) flags
+ * everything. Pure (no I/O) despite living in this otherwise all-I/O file —
+ * kept alongside `AthleteProfile` since it's the type this operates on, and
+ * plain enough that `components/profile-check-banner.tsx` (a client
+ * component) can't host it directly: calling a function exported from a
+ * `"use client"` module from a Server Component throws at runtime, so this
+ * lives here and the client component only imports its return *type*.
+ */
+export function getMissingProfileFields(
+  profile: Pick<AthleteProfile, "ftp" | "sweat_rate"> | null
+): MissingProfileField[] {
+  if (!profile) return ["ftp", "sweat_rate", "weight"];
+  if (profile.ftp === PLACEHOLDER_FTP && profile.sweat_rate === PLACEHOLDER_SWEAT_RATE) {
+    return ["ftp", "sweat_rate"];
+  }
+  return [];
+}
 
 export const getAthleteProfile = cache(async (): Promise<AthleteProfile | null> => {
   const supabase = await getAuthenticatedSupabaseClient();
@@ -217,6 +250,37 @@ export const getStravaRoutes = cache(async (): Promise<StravaRoute[]> => {
   if (!accessToken) return [];
 
   return fetchAthleteRoutes(accessToken);
+});
+
+/**
+ * The athlete's historical average speed (km/h), for the GPX Híbrido
+ * uploader's time estimate — prefers the rolling last-4-weeks pace over the
+ * all-time one (see `fetchAthleteStats`), and returns `null` (never a
+ * fabricated number) when Strava isn't connected or has no ride history to
+ * derive a pace from; the uploader falls back to a fixed generic assumption
+ * in that case, with a note that it's not personalized.
+ */
+export const getAthleteAverageSpeedKmh = cache(async (): Promise<number | null> => {
+  const supabase = await getAuthenticatedSupabaseClient();
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  const userId = authData.user?.id;
+  if (!userId) return null;
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("strava_athlete_id")
+    .eq("id", userId)
+    .maybeSingle();
+  if (profileError) throw profileError;
+  if (!profile?.strava_athlete_id) return null;
+
+  const accessToken = await getValidStravaAccessToken(supabase, userId);
+  if (!accessToken) return null;
+
+  const stats = await fetchAthleteStats(accessToken, profile.strava_athlete_id);
+  return stats.recentAvgSpeedKmh ?? stats.allTimeAvgSpeedKmh;
 });
 
 export const getProfile = cache(async (): Promise<Profile | null> => {

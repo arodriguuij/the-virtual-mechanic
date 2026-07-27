@@ -74,7 +74,7 @@ at sync time from those plus the athlete's profile — `null` on rides synced be
 was set, since carb oxidation can't be estimated without one), `fueling_logs` (`profile_id`
 FK; `kind` — `'pre_ride' | 'post_ride'`; `activity_id` nullable FK to `activities`, only
 set for `post_ride` rows; `total_carbs_g`/`fluid_ml`/`sodium_mg`/`money_saved` — the raw
-physiological burn/loss figures at log time, see "Lifetime fueling totals" below;
+physiological burn/loss figures at log time, see "Weekly Performance Panel" below;
 `carbs_consumed_g`/`fluid_consumed_ml`/`sodium_consumed_mg` — nullable, populated later by
 `POST /api/post-ride/consumption` once the athlete fills in what they actually ate/drank
 during that specific ride, see "Weekly Performance Panel" below for what this unlocks).
@@ -598,6 +598,65 @@ plus "−X°C por altitud" next to the weather summary whenever it's non-zero, a
 `weather.multiPointSample` drives an "inicio/puerto/llegada" note in that same summary
 line when `true`.
 
+### Weather Impact Card & dynamic thermal note
+
+`components/weather-impact-card.tsx` (`WeatherImpactCard`) replaces the pre-ride planner's
+old one-line weather summary with a small dedicated block: Temp/Viento/Humedad as three
+`font-mono` stat readouts, plus a plain-language note on how that temperature is actually
+altering the plan. Wind is new: `lib/open-meteo.ts`'s `getWeatherAtPoint`/
+`getWeatherForDeparture` both now also request Open-Meteo's `wind_speed_10m` field
+(`RouteWeather.windSpeedKmhAvg`/`DepartureWeather.windSpeedKmhAvg`, averaged across
+whichever points were sampled — the 3-point start/summit/finish sample or the single
+departure-window average) and `POST /api/fueling/plan` threads it through as
+`weather.windSpeedKmh`. Wind is informational only — it doesn't feed
+`getFluidLossMlPerHour`/`getSodiumLossMgPerHour`, which stay driven by temperature and
+humidity exactly as before.
+
+`getThermalImpactNote(temperatureC, humidityPct)` (`lib/metabolic-engine.ts`) returns the
+note itself, `null` in the comfortable 12-25°C band where no adjustment is worth calling
+out: above 25°C it reports the exact heat-stress increase already computed by
+`getHeatHumidityMultiplier` ("Tasa de sudoración incrementada un +X% por estrés
+térmico."), below 12°C a fixed low-evapo-transpiration note. Computed server-side (it
+only needs `temperatureC`/`humidityPct`, both already resolved by the time the response is
+built) and returned as `weather.thermalImpactNote`.
+
+### Household measures, dynamic ingestion timeline & scientific tooltips
+
+Three more pure, no-I/O additions to `lib/metabolic-engine.ts`, all consumed directly by
+`components/fueling-planner.tsx` from data `POST /api/fueling/plan` already returns — none
+of them needed their own API round-trip:
+
+- **`calculateHouseholdMeasures({ saltG, maltodextrinG, fructoseG })`** — converts the
+  recipe's gram figures into kitchen-counter measures (`SALT_G_PER_TEASPOON` 5,
+  `POWDER_G_PER_SCOOP` 30) for a rider mixing a bottle with no scale to hand. Always
+  rendered *alongside* the gram figure, never instead of it (e.g. "29 g (~1 cazos)*"), with
+  a fixed footnote ("*Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café
+  = 5 g de sal.") — applied to the total recipe, the per-bottle fuel-bottle breakdown, and
+  the Ziploc reload dose, each computed independently from that block's own grams (a
+  bottle's per-bottle scoop count isn't the total recipe's count divided evenly, since
+  `getBottlePlan`/`getReloadStrategy` may round each bottle's share differently).
+- **`generateTimingTimeline({ selection, durationHours, distanceKm, fluidLossMlPerHour,
+  peakFraction })`** — unlike `getPocketFoodMilestones` (which just spreads every selected
+  item evenly across the ride), this places each *kind* of food where it's actually most
+  useful: `getHydrationIntervalMinutes(fluidLossMlPerHour)` (`max(10, min(20, round(180 /
+  (L/h × 10))))`) as a standalone recurring sip-reminder frequency (not a point in time),
+  slow-digesting solids (banana/energy bar/rice cake/dates + any custom entry) somewhere in
+  the first third of the ride, fast-absorption gels from the halfway point through the
+  finish, and one caffeine milestone (only on rides ≥1.5h) timed 45 minutes before the
+  ride's real elevation peak — `peakFraction` comes from the same `fetchRoutePeakPoint`
+  distance fraction the 3-point weather sample above already resolves (or a parsed GPX's
+  own peak, see below), falling back to a fixed 75%-of-ride placement when neither is
+  available (quick-calculator mode). Returned as `timingTimeline` and rendered as a
+  "Cronograma Dinámico de Ingesta" block: the hydration frequency line plus a chronological
+  list of solid/gel/caffeine entries, each with a `lucide-react` icon and its km/min marker.
+- **`getCarbRatioContextNote(carbsGPerHour)`** — the plain-language *why* behind whichever
+  maltodextrin:fructose ratio `getMaltodextrinFraction` picked (reusing that function's own
+  `HIGH_CARB_RATE_THRESHOLD_G_PER_HOUR`/`MODERATE_CARB_RATE_THRESHOLD_G_PER_HOUR`
+  thresholds, now exported so both stay in sync), rendered via
+  `components/fueling-context-tooltip.tsx`'s `FuelingContextTooltips` — a small `Info` icon
+  next to the "Carbohidratos" stat with a hover/focus-revealed tooltip (pure Tailwind
+  `group-hover`/`group-focus-within`, no tooltip primitive exists in `components/ui` yet).
+
 ### Carb-loading protocol (Día −1)
 
 `getCarbLoadingTarget(weightKg)` returns the classic 8-10g/kg carb-loading target for the
@@ -654,16 +713,22 @@ recipe for that specific ride's real forecast conditions.
   recipe (so the recipe itself never recommends more than the athlete's gut can handle),
   subtracts the pocket-food carb total before splitting into malto/fructose (see "Hybrid
   nutrition" above), and logs the resulting totals to `fueling_logs` (`kind: 'pre_ride'`)
-  on every successful calculation — see "Lifetime fueling totals" below. The response also
+  on every successful calculation — see "Weekly Performance Panel" below. The response also
   carries `totalRideCarbsG` (the unadjusted target, for the UI's "covers X of Y" line),
   `pocketFoodCarbsG`, `bottlePlan`, `reloadStrategy`, `nutritionMilestones`,
-  `glycogenBattery`, and `carbLoading` (see their respective sections above) alongside the
-  original recipe/weather/gut-training fields.
+  `timingTimeline`, `glycogenBattery`, and `carbLoading` (see their respective sections
+  above) alongside the original recipe/weather/gut-training fields. Route mode also accepts
+  an optional `durationHoursOverride` (skips `estimateRideDurationHours()` entirely when
+  present) and optional `peakLat`/`peakLng`/`peakDistanceFraction` (used instead of calling
+  `fetchRoutePeakPoint()` when present) — both exist for the GPX Híbrido uploader below,
+  which has neither a Strava `routeId` nor an FTP-based duration to estimate from, but
+  reuses every other piece of route-mode's pipeline unchanged.
 - **`components/fueling-planner.tsx`** (`"use client"`) — the interactive planner UI:
-  a route/quick mode toggle, a route `<select>` (built from the routes passed down as
-  props) or duration+watts inputs, a `datetime-local` departure input (defaults to
-  tomorrow 08:00 via `defaultDepartureLocal()`), the pocket-food catalog (see "Hybrid
-  nutrition" above), an optional "Ruta objetivo / Competición" checkbox (`isTargetEvent`),
+  a route/quick/GPX mode toggle (see "GPX Híbrido parser" below for the third), a route
+  `<select>` (built from the routes passed down as props) or duration+watts inputs, a
+  `datetime-local` departure input (defaults to tomorrow 08:00 via
+  `defaultDepartureLocal()`), the pocket-food catalog (see "Hybrid nutrition" above), an
+  optional "Ruta objetivo / Competición" checkbox (`isTargetEvent`),
   Ruta/Intensidad/Salida share one literal `selectableInputClass` string (`h-10 w-full
   rounded-sm border border-neutral-200 bg-neutral-50/50 ...`) rather than composing it
   from the plain-input base — a fixed `h-10` keeps the native `datetime-local` control's
@@ -678,6 +743,52 @@ recipe for that specific ride's real forecast conditions.
   lapse-rate note when non-zero), a "Gut Training" warning banner whenever
   `gutTraining.isGutLimited` is true, the collapsible carb-loading module when applicable,
   and the nutrition-export button (see "Nutrition export" below).
+
+### GPX Híbrido parser (auto-cálculo + tiempo editable)
+
+A third planner mode for a route with no Strava presence at all — somewhere the athlete's
+never ridden, or a route file shared by someone else — sitting alongside "Ruta guardada de
+Strava"/"Calculadora rápida" as "Subir GPX":
+
+- **`lib/gpx-import.ts`** — `parseGpxFile(xmlText, fileName)`, pure client-side parsing via
+  the browser's own `DOMParser` (no server round-trip needed for the geometry itself).
+  Extracts `trkpt` coordinates (falling back to `rtept` for a planned-route-only file with
+  no track), sums consecutive-point haversine distances for `distanceKm`, sums positive
+  elevation deltas for `elevationGainM`, and — critically, unlike a Strava route's summary
+  polyline, which has no per-point altitude and needs a second Strava API call
+  (`fetchRoutePeakPoint`) to locate the summit — finds the track's own highest-elevation
+  point locally, returning it plus its distance fraction along the route
+  (`peakLat`/`peakLng`/`peakDistanceFraction`) with zero extra network calls. Returns
+  `null` (never throws) for a file with fewer than 2 usable coordinates or malformed XML.
+- **`fetchAthleteStats(accessToken, athleteId)`** (`lib/strava.ts`) calls Strava's
+  `/athletes/{id}/stats`, and **`getAthleteAverageSpeedKmh()`** (`lib/dashboard-data.ts`,
+  cached, auth-aware like `getStravaRoutes()`) turns its `recent_ride_totals`
+  (preferred — the athlete's *current* pace, last 4 weeks) or `all_ride_totals`
+  (fallback) into a plain km/h figure (`distance / moving_time × 3.6`). `null` (never a
+  fabricated number) when Strava isn't connected or the athlete has no ride history yet —
+  `FuelingPlannerSection` (`app/page.tsx`) fetches this alongside `getStravaRoutes()` and
+  passes it into `<FuelingPlanner avgSpeedKmh={...} />`.
+- A GPX upload's estimated duration is `distanceKm / avgSpeedKmh` (a fixed
+  `FALLBACK_AVG_SPEED_KMH` of 25km/h when `avgSpeedKmh` is `null`, with an explicit "sin
+  historial de Strava suficiente" note so the athlete knows it's generic) rather than
+  `estimateRideDurationHours()`'s FTP/W-per-kg heuristic — a GPX file has real distance but
+  no power-target relationship the way a saved Strava route + intensity level does.
+  Rendered as an editable "Tiempo Estimado" number input (`Pencil` icon, a live `formatHoursMinutes()`
+  caption alongside it), pre-filled with the estimate but freely overridable — whatever
+  value is in that field at "Calcular estrategia" time is sent as `durationHoursOverride`
+  in the request body (see "Fueling planner" above), so an edit takes effect on the next
+  calculation exactly like every other planner input (this codebase's established
+  button-triggered-recompute convention, not a live per-keystroke recalculation).
+- The uploaded file's own `peakLat`/`peakLng`/`peakDistanceFraction` are sent alongside
+  `distanceKm`/`elevationGainM`/`startLat`/`startLng`/`endLat`/`endLng` as `mode: "route"`
+  (no `routeId`) — `POST /api/fueling/plan` prefers a client-supplied peak point over
+  calling `fetchRoutePeakPoint()`, so the 3-point start/summit/finish weather sample (see
+  above) works identically for a GPX upload as for a real saved Strava route.
+- Deliberate scope boundary: a GPX upload has no Strava route id, so
+  `handleDownloadGpx()`'s condition (`mode === "route" && selectedRoute?.summaryPolyline`)
+  is never true for this mode — nutrition export falls back to the clipboard/Garmin-text
+  path (see "Nutrition export" below) rather than regenerating a course GPX from the
+  athlete's own uploaded track, which was out of scope for this pass.
 
 ### Offline strategy cache ("Modo Cobertura Limitada")
 
@@ -936,6 +1047,29 @@ same reasoning extends to each individual metric independently (a returning athl
 rides but no logged consumption yet still sees real ride data, just with "Sin datos de
 consumo aún" on the two consumption-dependent figures specifically, rather than the whole
 panel refusing to render).
+
+### Onboarding banner (Perfil incompleto)
+
+`components/profile-check-banner.tsx`'s `ProfileCheckBanner` is a dismissible top-of-
+Dashboard nudge whenever `athlete_profiles` still looks untouched, so a new athlete
+understands *why* their fueling numbers might look generic before they've ever opened the
+Physiological Profile form. `getMissingProfileFields(profile)` (`lib/dashboard-data.ts` —
+not the banner component itself, since it's a `"use client"` file and a Server Component
+can't call a function exported from one) returns `["ftp", "sweat_rate", "weight"]`
+outright when there's no `athlete_profiles` row at all yet, or `["ftp", "sweat_rate"]`
+when the row exists but still carries the *exact* zero-friction Strava-sync placeholder
+pair (`ftp === 200 && sweat_rate === "medium"` — the literal values
+`app/api/auth/strava/callback/route.ts`'s `DEFAULT_FTP`/`DEFAULT_SWEAT_RATE` insert for a
+brand-new athlete with no physiological data yet). Checking *both* together, not either
+field alone, is deliberate: a real athlete whose genuine sweat rate happens to be "medium"
+would otherwise get flagged forever. `app/page.tsx`'s `ProfileCheckBannerSection` calls
+`getAthleteProfile()` (already `cache()`-deduped, so this costs no extra query) and passes
+the result straight to `ProfileCheckBanner`, which renders a message built from whichever
+fields are missing ("Falta configurar tu FTP y tu sudoración para calibrar tu receta."), a
+link to `/perfil`, and a dismiss (`×`) button. The dismiss preference is `localStorage`-only
+(`profile_check_banner_dismissed`, same convention as the planner's offline-strategy
+cache) — a private-browsing/quota failure just means the dismiss doesn't persist across
+sessions, never a broken banner.
 
 ### Athlete profile
 

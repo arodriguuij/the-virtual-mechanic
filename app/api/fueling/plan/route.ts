@@ -7,6 +7,7 @@ import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { logFuelingPlan } from "@/lib/fueling-logs";
 import {
   estimateRideDurationHours,
+  generateTimingTimeline,
   getBottlePlan,
   getCarbLoadingTarget,
   getFluidLossMlPerHour,
@@ -23,6 +24,7 @@ import {
   getRelativeIntensity,
   getRelativeIntensityFromLevel,
   getSodiumLossMgPerHour,
+  getThermalImpactNote,
   simulateGlycogenBattery,
   type FuelingMode,
   type IntensityLevel,
@@ -134,20 +136,27 @@ export async function POST(request: NextRequest) {
   let rideElevationGainM: number | null = null;
 
   if (body.mode === "route") {
-    const { distanceKm, elevationGainM, intensity } = body;
+    const { distanceKm, elevationGainM, intensity, durationHoursOverride } = body;
     if (typeof distanceKm !== "number" || typeof elevationGainM !== "number") {
       return NextResponse.json({ error: "invalid_route" }, { status: 400 });
     }
     const intensityLevel: IntensityLevel = VALID_INTENSITIES.has(intensity)
       ? intensity
       : "endurance";
-    durationHours = estimateRideDurationHours({
-      distanceKm,
-      elevationGainM,
-      ftp: athleteProfile.ftp,
-      weightKg: athleteProfile.weight_kg,
-      intensity: intensityLevel,
-    });
+    // The GPX Híbrido uploader estimates duration from the athlete's own
+    // historical Strava pace (distance / avg speed) rather than this FTP/
+    // W-per-kg heuristic, and lets the athlete edit that estimate directly —
+    // when supplied, it always wins over the computed figure.
+    durationHours =
+      typeof durationHoursOverride === "number" && durationHoursOverride > 0
+        ? durationHoursOverride
+        : estimateRideDurationHours({
+            distanceKm,
+            elevationGainM,
+            ftp: athleteProfile.ftp,
+            weightKg: athleteProfile.weight_kg,
+            intensity: intensityLevel,
+          });
     relativeIntensity = getRelativeIntensityFromLevel(intensityLevel);
     startLat = typeof body.startLat === "number" ? body.startLat : null;
     startLng = typeof body.startLng === "number" ? body.startLng : null;
@@ -182,16 +191,37 @@ export async function POST(request: NextRequest) {
   let temperatureC = PLANNING_TEMPERATURE_C;
   let humidityPct = PLANNING_HUMIDITY_PCT;
   let temperatureMaxC: number | null = null;
+  let windSpeedKmh = 0;
   let weatherSource: "dynamic" | "planning_default" = "planning_default";
   // True only once a real 3-point sample (start/summit/finish) succeeds —
   // that's a genuine altitude-based reading at the actual high point, which
   // makes the elevation-gain lapse-rate *approximation* below redundant.
   let sampledAtRealAltitude = false;
+  // How far along the ride (0-1) its real elevation peak sits — feeds the
+  // caffeine milestone in `generateTimingTimeline` below. Only set when a
+  // real peak point was found (Strava route streams, or a client-supplied
+  // GPX peak), never for the elevation-gain lapse-rate approximation.
+  let peakFractionForTimeline: number | null = null;
+
+  // A GPX Híbrido upload already found its own elevation peak client-side
+  // (it has per-point altitude, unlike a Strava route's summary polyline) and
+  // sends it directly — preferred over a Strava streams call when present,
+  // and the only option at all for a route with no Strava `routeId`.
+  const clientPeakLat = typeof body.peakLat === "number" ? body.peakLat : null;
+  const clientPeakLng = typeof body.peakLng === "number" ? body.peakLng : null;
+  const clientPeakFraction =
+    typeof body.peakDistanceFraction === "number" ? body.peakDistanceFraction : null;
 
   if (startLat != null && startLng != null && departureIso) {
-    if (routeId && endLat != null && endLng != null) {
-      const accessToken = await getValidStravaAccessToken(supabase, userId);
-      const peak = accessToken ? await fetchRoutePeakPoint(accessToken, routeId) : null;
+    if (endLat != null && endLng != null) {
+      let peak: { lat: number; lng: number; distanceFraction: number } | null =
+        clientPeakLat != null && clientPeakLng != null && clientPeakFraction != null
+          ? { lat: clientPeakLat, lng: clientPeakLng, distanceFraction: clientPeakFraction }
+          : null;
+      if (!peak && routeId) {
+        const accessToken = await getValidStravaAccessToken(supabase, userId);
+        peak = accessToken ? await fetchRoutePeakPoint(accessToken, routeId) : null;
+      }
       if (peak) {
         const start = new Date(departureIso);
         const durationMs = durationHours * 60 * 60 * 1000;
@@ -208,8 +238,10 @@ export async function POST(request: NextRequest) {
           temperatureC = weather.temperatureAvgC;
           temperatureMaxC = weather.temperatureMaxC;
           humidityPct = weather.humidityAvg;
+          windSpeedKmh = weather.windSpeedKmhAvg;
           weatherSource = "dynamic";
           sampledAtRealAltitude = true;
+          peakFractionForTimeline = peak.distanceFraction;
         }
       }
     }
@@ -219,6 +251,7 @@ export async function POST(request: NextRequest) {
       if (weather) {
         temperatureC = weather.temperatureAvgC;
         humidityPct = weather.humidityAvg;
+        windSpeedKmh = weather.windSpeedKmhAvg;
         weatherSource = "dynamic";
       }
     }
@@ -273,6 +306,14 @@ export async function POST(request: NextRequest) {
     durationHours,
     distanceKm: rideDistanceKm,
   });
+  const timingTimeline = generateTimingTimeline({
+    selection: pocketFood,
+    durationHours,
+    distanceKm: rideDistanceKm,
+    fluidLossMlPerHour,
+    peakFraction: peakFractionForTimeline,
+  });
+  const thermalImpactNote = getThermalImpactNote(temperatureC, humidityPct);
 
   // The battery drains at the ride's *true* metabolic demand (uncapped,
   // phenotype-adjusted) regardless of what the gut can absorb — the gut cap
@@ -323,9 +364,11 @@ export async function POST(request: NextRequest) {
       temperatureC: Math.round(temperatureC * 10) / 10,
       temperatureMaxC: temperatureMaxC != null ? Math.round(temperatureMaxC * 10) / 10 : null,
       humidityPct: Math.round(humidityPct * 10) / 10,
+      windSpeedKmh: Math.round(windSpeedKmh * 10) / 10,
       source: weatherSource,
       multiPointSample: sampledAtRealAltitude,
       lapseRateAdjustmentC,
+      thermalImpactNote,
     },
     gutTraining: {
       isGutLimited: gutTarget.isGutLimited,
@@ -335,6 +378,7 @@ export async function POST(request: NextRequest) {
     bottlePlan,
     reloadStrategy,
     nutritionMilestones,
+    timingTimeline,
     glycogenBattery,
     carbLoading,
   });

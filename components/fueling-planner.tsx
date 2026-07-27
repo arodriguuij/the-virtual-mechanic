@@ -10,9 +10,10 @@ import {
   FlaskConical,
   Fuel,
   MapPin,
-  Mountain,
+  Pencil,
   Send,
   TriangleAlert,
+  Upload,
   Utensils,
   Zap,
 } from "lucide-react";
@@ -22,7 +23,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { stripEmoji } from "@/lib/gpx-export";
+import { parseGpxFile, type ParsedGpxRoute } from "@/lib/gpx-import";
+import { WeatherImpactCard } from "@/components/weather-impact-card";
+import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
 import {
+  calculateHouseholdMeasures,
   formatGarminExportText,
   formatRecipeForSharing,
   getTableSaltGrams,
@@ -35,6 +40,19 @@ import {
   type PocketFoodItemType,
 } from "@/lib/metabolic-engine";
 import type { StravaRoute } from "@/lib/strava-routes";
+
+// Assumed pace when the athlete has no Strava ride history to derive a real
+// average speed from (brand-new account, or Strava never connected) — a
+// plausible "typical road ride" pace, not a personalized figure; the UI
+// flags this explicitly so the athlete knows to double-check the estimate.
+const FALLBACK_AVG_SPEED_KMH = 25;
+
+function formatHoursMinutes(hours: number): string {
+  const totalMinutes = Math.round(Math.max(0, hours) * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, "0")} h ${String(m).padStart(2, "0")} min`;
+}
 
 const POCKET_FOOD_TYPES: PocketFoodItemType[] = ["banana", "energy_bar", "rice_cake", "dates"];
 const GEL_DOSE_TYPES: PocketFoodItemType[] = ["gel_small", "gel_standard", "gel_high"];
@@ -119,9 +137,11 @@ type PlanResult = {
     temperatureC: number;
     temperatureMaxC: number | null;
     humidityPct: number;
+    windSpeedKmh: number;
     source: "dynamic" | "planning_default";
     multiPointSample: boolean;
     lapseRateAdjustmentC: number;
+    thermalImpactNote: string | null;
   };
   gutTraining: {
     isGutLimited: boolean;
@@ -151,6 +171,16 @@ type PlanResult = {
     atKm: number | null;
     atHours: number;
   }[];
+  timingTimeline: {
+    hydrationIntervalMinutes: number;
+    entries: {
+      type: "solid" | "gel" | "caffeine";
+      label: string;
+      atFractionOfRide: number;
+      atMinutes: number;
+      atKm: number | null;
+    }[];
+  };
   glycogenBattery: {
     glycogenStoresG: number;
     noFuel: {
@@ -232,8 +262,14 @@ function PocketFoodStepperRow({
   );
 }
 
-export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
-  const [mode, setMode] = useState<"route" | "quick">(routes.length > 0 ? "route" : "quick");
+export function FuelingPlanner({
+  routes,
+  avgSpeedKmh,
+}: {
+  routes: StravaRoute[];
+  avgSpeedKmh: number | null;
+}) {
+  const [mode, setMode] = useState<"route" | "quick" | "gpx">(routes.length > 0 ? "route" : "quick");
   const [selectedRouteId, setSelectedRouteId] = useState(routes[0]?.id ?? "");
   const [intensity, setIntensity] = useState<IntensityLevel>("endurance");
   const [quickDurationHours, setQuickDurationHours] = useState(2);
@@ -250,11 +286,40 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
   const [exportCopied, setExportCopied] = useState(false);
   const [downloadingGpx, setDownloadingGpx] = useState(false);
   const [isOfflineCache, setIsOfflineCache] = useState(false);
+  const [parsedGpx, setParsedGpx] = useState<ParsedGpxRoute | null>(null);
+  const [gpxDurationHours, setGpxDurationHours] = useState(2);
+  const [gpxError, setGpxError] = useState<string | null>(null);
+  const [isDraggingGpx, setIsDraggingGpx] = useState(false);
 
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === selectedRouteId) ?? null,
     [routes, selectedRouteId]
   );
+
+  // "Conversión Dinámica a Medidas Caseras" — recomputed from the last
+  // calculated result whenever it changes; cheap pure arithmetic, no memo
+  // needed.
+  const recipeMeasures = result
+    ? calculateHouseholdMeasures({
+        saltG: getTableSaltGrams(result.recipe.sodiumMg),
+        maltodextrinG: result.recipe.maltodextrinG,
+        fructoseG: result.recipe.fructoseG,
+      })
+    : null;
+  const fuelBottleMeasures = result
+    ? calculateHouseholdMeasures({
+        saltG: getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle),
+        maltodextrinG: result.bottlePlan.fuelBottles.maltodextrinGPerBottle,
+        fructoseG: result.bottlePlan.fuelBottles.fructoseGPerBottle,
+      })
+    : null;
+  const ziplocMeasures = result?.reloadStrategy
+    ? calculateHouseholdMeasures({
+        saltG: getTableSaltGrams(result.reloadStrategy.ziplocDose.sodiumMg),
+        maltodextrinG: result.reloadStrategy.ziplocDose.maltodextrinG,
+        fructoseG: result.reloadStrategy.ziplocDose.fructoseG,
+      })
+    : null;
 
   // "Modo Cobertura Limitada" — if the athlete opens the app with no
   // connection at all (mid-climb, no signal), load the last strategy that
@@ -282,6 +347,25 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
     setPocketFood((prev) => ({ ...prev, [type]: Math.max(0, Math.min(MAX_POCKET_FOOD_QTY, qty)) }));
   }
 
+  async function handleGpxFile(file: File) {
+    setGpxError(null);
+    try {
+      const text = await file.text();
+      const parsed = parseGpxFile(text, file.name);
+      if (!parsed) {
+        setParsedGpx(null);
+        setGpxError("No se pudo leer el archivo — comprueba que sea un .gpx válido.");
+        return;
+      }
+      setParsedGpx(parsed);
+      const speed = avgSpeedKmh && avgSpeedKmh > 0 ? avgSpeedKmh : FALLBACK_AVG_SPEED_KMH;
+      setGpxDurationHours(Math.round((parsed.distanceKm / speed) * 100) / 100);
+    } catch {
+      setParsedGpx(null);
+      setGpxError("No se pudo leer el archivo — comprueba que sea un .gpx válido.");
+    }
+  }
+
   async function handleCalculate() {
     setLoading(true);
     setError(null);
@@ -305,15 +389,34 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               pocketFood: pocketFoodPayload,
               fuelingMode,
             }
-          : {
-              mode: "quick",
-              departureIso,
-              durationHours: quickDurationHours,
-              averageWatts: quickAverageWatts,
-              isTargetEvent,
-              pocketFood: pocketFoodPayload,
-              fuelingMode,
-            };
+          : mode === "gpx" && parsedGpx
+            ? {
+                mode: "route",
+                departureIso,
+                distanceKm: parsedGpx.distanceKm,
+                elevationGainM: parsedGpx.elevationGainM,
+                startLat: parsedGpx.startLat,
+                startLng: parsedGpx.startLng,
+                endLat: parsedGpx.endLat,
+                endLng: parsedGpx.endLng,
+                durationHoursOverride: gpxDurationHours,
+                peakLat: parsedGpx.peakLat,
+                peakLng: parsedGpx.peakLng,
+                peakDistanceFraction: parsedGpx.peakDistanceFraction,
+                intensity,
+                isTargetEvent,
+                pocketFood: pocketFoodPayload,
+                fuelingMode,
+              }
+            : {
+                mode: "quick",
+                departureIso,
+                durationHours: quickDurationHours,
+                averageWatts: quickAverageWatts,
+                isTargetEvent,
+                pocketFood: pocketFoodPayload,
+                fuelingMode,
+              };
 
       const res = await fetch("/api/fueling/plan", {
         method: "POST",
@@ -448,6 +551,18 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
           >
             Calculadora rápida
           </button>
+          <button
+            type="button"
+            onClick={() => setMode("gpx")}
+            className={cn(
+              "cursor-pointer px-3 py-2 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150",
+              mode === "gpx"
+                ? "border border-neutral-900 bg-neutral-900 text-background"
+                : "border border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+            )}
+          >
+            Subir GPX
+          </button>
         </div>
 
         {mode === "route" ? (
@@ -551,6 +666,118 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
           </div>
         )}
 
+        {mode === "gpx" && (
+          <div className="flex flex-col gap-4">
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDraggingGpx(true);
+              }}
+              onDragLeave={() => setIsDraggingGpx(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingGpx(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) handleGpxFile(file);
+              }}
+              className={cn(
+                "flex flex-col items-center justify-center gap-2 border-2 border-dashed px-4 py-8 text-center transition-colors duration-150",
+                isDraggingGpx ? "border-neutral-900 bg-neutral-50" : "border-neutral-300"
+              )}
+            >
+              <Upload className="size-5 text-neutral-400" />
+              <p className="text-sm text-neutral-600">
+                Arrastra tu archivo .gpx aquí, o{" "}
+                <label
+                  htmlFor="gpx-upload"
+                  className="cursor-pointer font-semibold text-neutral-900 underline underline-offset-2"
+                >
+                  selecciona un archivo
+                </label>
+              </p>
+              <input
+                id="gpx-upload"
+                type="file"
+                accept=".gpx"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleGpxFile(file);
+                }}
+              />
+              {parsedGpx && (
+                <p className="mt-1 font-mono text-xs text-neutral-500">
+                  {parsedGpx.name} · {parsedGpx.distanceKm}km · {parsedGpx.elevationGainM}m D+
+                </p>
+              )}
+            </div>
+
+            {gpxError && <p className="text-sm text-status-warning">{gpxError}</p>}
+
+            {parsedGpx && (
+              <>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="intensity-gpx" className={eyebrow}>
+                      Intensidad objetivo
+                    </label>
+                    <select
+                      id="intensity-gpx"
+                      className={selectableInputClass}
+                      value={intensity}
+                      onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
+                    >
+                      {INTENSITY_OPTIONS.map((level) => (
+                        <option key={level} value={level}>
+                          {intensityLabels[level]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="departure-gpx" className={eyebrow}>
+                      Salida
+                    </label>
+                    <input
+                      id="departure-gpx"
+                      type="datetime-local"
+                      className={dateInputClass}
+                      value={departureLocal}
+                      onChange={(e) => setDepartureLocal(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="gpx-duration" className={eyebrow}>
+                      <Pencil className="mr-1 inline size-3" />
+                      Tiempo estimado (editar)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="gpx-duration"
+                        type="number"
+                        inputMode="decimal"
+                        min={0.25}
+                        step={0.25}
+                        className={inputClass}
+                        value={gpxDurationHours}
+                        onChange={(e) => setGpxDurationHours(Math.max(0.25, Number(e.target.value) || 0))}
+                      />
+                      <span className="font-mono text-xs whitespace-nowrap text-neutral-500">
+                        {formatHoursMinutes(gpxDurationHours)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-neutral-500">
+                  {avgSpeedKmh
+                    ? `Estimado a tu ritmo medio real de Strava (${Math.round(avgSpeedKmh)}km/h) — edítalo si lo necesitas.`
+                    : `Sin historial de Strava suficiente — estimación genérica a ${FALLBACK_AVG_SPEED_KMH}km/h, ajusta el tiempo manualmente.`}
+                </p>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="flex flex-col gap-1.5">
           <span className={eyebrow}>Modo de fueling</span>
           <div className="flex flex-wrap gap-1.5">
@@ -648,7 +875,11 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
           <button
             type="button"
             onClick={handleCalculate}
-            disabled={loading || (mode === "route" && !selectedRoute)}
+            disabled={
+              loading ||
+              (mode === "route" && !selectedRoute) ||
+              (mode === "gpx" && !parsedGpx)
+            }
             className={primaryButtonClass}
           >
             {loading ? "Calculando…" : "Calcular estrategia"}
@@ -676,27 +907,18 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
             )}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className={eyebrow}>Estrategia de bolsillo &amp; receta DIY</span>
-              <span className="text-xs text-neutral-500">
-                {result.weather.temperatureC}°C
-                {result.weather.temperatureMaxC != null &&
-                  result.weather.temperatureMaxC !== result.weather.temperatureC && (
-                    <> (máx {result.weather.temperatureMaxC}°C)</>
-                  )}{" "}
-                · {result.weather.humidityPct}% humedad ·{" "}
-                {result.weather.source === "dynamic"
-                  ? result.weather.multiPointSample
-                    ? "previsión real de Open-Meteo · inicio/puerto/llegada"
-                    : "previsión real de Open-Meteo"
-                  : "estimación genérica"}
-                {result.weather.lapseRateAdjustmentC !== 0 && (
-                  <span className="inline-flex items-center gap-1">
-                    {" "}
-                    · <Mountain className="size-3" />
-                    {result.weather.lapseRateAdjustmentC}°C por altitud
-                  </span>
-                )}
-              </span>
             </div>
+
+            <WeatherImpactCard
+              temperatureC={result.weather.temperatureC}
+              temperatureMaxC={result.weather.temperatureMaxC}
+              humidityPct={result.weather.humidityPct}
+              windSpeedKmh={result.weather.windSpeedKmh}
+              source={result.weather.source}
+              multiPointSample={result.weather.multiPointSample}
+              lapseRateAdjustmentC={result.weather.lapseRateAdjustmentC}
+              thermalImpactNote={result.weather.thermalImpactNote}
+            />
 
             <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <div className="flex flex-col gap-1">
@@ -707,7 +929,10 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 </span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className={statLabel}>Carbohidratos</span>
+                <span className="flex items-center gap-1">
+                  <span className={statLabel}>Carbohidratos</span>
+                  <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
+                </span>
                 <span className={statValue}>
                   {result.carbsGPerHour}
                   <span className="ml-1 text-sm font-normal text-neutral-500">g/h</span>
@@ -808,19 +1033,28 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 <div className="flex items-center justify-between">
                   <span>Maltodextrina</span>
                   <span className="font-mono font-medium text-neutral-900 tabular-nums">
-                    {result.recipe.maltodextrinG} g
+                    {result.recipe.maltodextrinG} g{" "}
+                    <span className="text-xs font-normal text-neutral-500">
+                      (~{recipeMeasures!.maltodextrinScoops} cazos)*
+                    </span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Fructosa</span>
                   <span className="font-mono font-medium text-neutral-900 tabular-nums">
-                    {result.recipe.fructoseG} g
+                    {result.recipe.fructoseG} g{" "}
+                    <span className="text-xs font-normal text-neutral-500">
+                      (~{recipeMeasures!.fructoseScoops} cazos)*
+                    </span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Sal común</span>
                   <span className="font-mono font-medium text-neutral-900 tabular-nums">
-                    {getTableSaltGrams(result.recipe.sodiumMg)} g
+                    {getTableSaltGrams(result.recipe.sodiumMg)} g{" "}
+                    <span className="text-xs font-normal text-neutral-500">
+                      (~{recipeMeasures!.saltTeaspoons} cdta. café)*
+                    </span>
                   </span>
                 </div>
                 <p className="text-xs text-neutral-500">
@@ -833,6 +1067,10 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                     {result.recipe.waterMl} ml
                   </span>
                 </div>
+                <p className="mt-1 text-[10px] text-neutral-400">
+                  *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g de
+                  sal.
+                </p>
               </div>
 
               <div className="mt-3 border-t border-neutral-200 pt-3">
@@ -848,10 +1086,12 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                         Concentrado × {result.bottlePlan.fuelBottles.count}
                       </span>
                       <span className="font-mono text-xs text-neutral-500">
-                        {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g malto ·{" "}
-                        {result.bottlePlan.fuelBottles.fructoseGPerBottle}g fruct ·{" "}
+                        {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g malto (~
+                        {fuelBottleMeasures!.maltodextrinScoops} cazos) ·{" "}
+                        {result.bottlePlan.fuelBottles.fructoseGPerBottle}g fruct (~
+                        {fuelBottleMeasures!.fructoseScoops} cazos) ·{" "}
                         {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g sal
-                        común / bidón
+                        común (~{fuelBottleMeasures!.saltTeaspoons} cdta.) / bidón
                       </span>
                     </div>
                   )}
@@ -886,6 +1126,38 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               )}
             </div>
 
+            <div className="border border-neutral-200 px-3 py-3">
+              <span className={eyebrow}>Cronograma dinámico de ingesta</span>
+              <p className="mt-2 flex items-center gap-1.5 text-sm text-neutral-700">
+                <Droplet className="size-3.5 shrink-0 text-neutral-500" />
+                Bebe un trago cada{" "}
+                <span className="font-mono font-semibold text-neutral-900">
+                  {result.timingTimeline.hydrationIntervalMinutes} min
+                </span>
+              </p>
+              {result.timingTimeline.entries.length > 0 && (
+                <ol className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
+                  {result.timingTimeline.entries.map((entry, i) => (
+                    <li key={i} className="flex items-center gap-1.5">
+                      {entry.type === "solid" && (
+                        <Utensils className="size-3.5 shrink-0 text-neutral-500" />
+                      )}
+                      {entry.type === "gel" && (
+                        <Zap className="size-3.5 shrink-0 text-neutral-500" />
+                      )}
+                      {entry.type === "caffeine" && (
+                        <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
+                      )}
+                      <span className="font-mono text-xs text-neutral-500">
+                        {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
+                      </span>
+                      {entry.label}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+
             {result.reloadStrategy && (
               <div className="border border-status-warning/40 bg-status-warning/10 px-3 py-2.5">
                 <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-status-warning uppercase">
@@ -901,10 +1173,12 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   <li>
                     2. En el maillot: lleva {result.reloadStrategy.ziplocBagsCount} bolsita
                     {result.reloadStrategy.ziplocBagsCount > 1 ? "s" : ""} Ziploc con{" "}
-                    {result.reloadStrategy.ziplocDose.maltodextrinG}g malto +{" "}
-                    {result.reloadStrategy.ziplocDose.fructoseG}g fructosa +{" "}
-                    {getTableSaltGrams(result.reloadStrategy.ziplocDose.sodiumMg)}g sal común
-                    (dosis pre-medida por bidón).
+                    {result.reloadStrategy.ziplocDose.maltodextrinG}g malto (~
+                    {ziplocMeasures!.maltodextrinScoops} cazos) +{" "}
+                    {result.reloadStrategy.ziplocDose.fructoseG}g fructosa (~
+                    {ziplocMeasures!.fructoseScoops} cazos) +{" "}
+                    {getTableSaltGrams(result.reloadStrategy.ziplocDose.sodiumMg)}g sal común (~
+                    {ziplocMeasures!.saltTeaspoons} cdta.) (dosis pre-medida por bidón).
                   </li>
                   <li className="flex items-center gap-1.5 font-medium text-neutral-900">
                     <MapPin className="size-3.5 shrink-0" />

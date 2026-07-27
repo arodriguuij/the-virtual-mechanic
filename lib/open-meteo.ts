@@ -26,6 +26,11 @@ export type RouteWeather = {
   temperatureMaxC: number;
   rainMm: number;
   isWet: boolean;
+  // Mean wind speed (km/h, Open-Meteo's default unit) across the sampled
+  // points — informational only, doesn't feed the fluid/sodium loss model,
+  // but is a real factor in perceived effort/thermal comfort the rider sees
+  // in the weather badge.
+  windSpeedKmhAvg: number;
 };
 
 type OpenMeteoHourlyResponse = {
@@ -34,6 +39,7 @@ type OpenMeteoHourlyResponse = {
     relative_humidity_2m: (number | null)[];
     temperature_2m: (number | null)[];
     rain: (number | null)[];
+    wind_speed_10m?: (number | null)[];
   };
 };
 
@@ -41,6 +47,7 @@ type PointSample = {
   humidity: number;
   temperatureC: number;
   rainMm: number;
+  windSpeedKmh: number;
 };
 
 /** Single-hour reading at one geographic point — the nearest hourly entry
@@ -55,7 +62,7 @@ async function getWeatherAtPoint(point: RouteSamplePoint): Promise<PointSample |
   url.searchParams.set("longitude", String(point.lng));
   url.searchParams.set("start_date", dateStr);
   url.searchParams.set("end_date", dateStr);
-  url.searchParams.set("hourly", "relative_humidity_2m,temperature_2m,rain");
+  url.searchParams.set("hourly", "relative_humidity_2m,temperature_2m,rain,wind_speed_10m");
   url.searchParams.set("timezone", "UTC");
 
   const res = await fetch(url);
@@ -83,9 +90,15 @@ async function getWeatherAtPoint(point: RouteSamplePoint): Promise<PointSample |
   const humidity = hourly.relative_humidity_2m[closestIndex];
   const temperature = hourly.temperature_2m[closestIndex];
   const rain = hourly.rain[closestIndex];
+  const windSpeed = hourly.wind_speed_10m?.[closestIndex];
   if (humidity == null && temperature == null && rain == null) return null;
 
-  return { humidity: humidity ?? 50, temperatureC: temperature ?? 18, rainMm: rain ?? 0 };
+  return {
+    humidity: humidity ?? 50,
+    temperatureC: temperature ?? 18,
+    rainMm: rain ?? 0,
+    windSpeedKmh: windSpeed ?? 0,
+  };
 }
 
 /**
@@ -114,6 +127,7 @@ export async function getWeatherForRoute(
   const temperatureMaxC = Math.max(...samples.map((s) => s.temperatureC));
   const maxRain = Math.max(...samples.map((s) => s.rainMm));
   const isWet = maxRain > WET_THRESHOLD_MM;
+  const windSpeedKmhAvg = samples.reduce((sum, s) => sum + s.windSpeedKmh, 0) / samples.length;
 
   return {
     humidityAvg,
@@ -121,12 +135,14 @@ export async function getWeatherForRoute(
     temperatureMaxC,
     rainMm: isWet ? maxRain : 0,
     isWet,
+    windSpeedKmhAvg,
   };
 }
 
 export type DepartureWeather = {
   temperatureAvgC: number;
   humidityAvg: number;
+  windSpeedKmhAvg: number;
 };
 
 /**
@@ -152,7 +168,7 @@ export async function getWeatherForDeparture(
   url.searchParams.set("longitude", String(lng));
   url.searchParams.set("start_date", start.toISOString().slice(0, 10));
   url.searchParams.set("end_date", end.toISOString().slice(0, 10));
-  url.searchParams.set("hourly", "temperature_2m,relative_humidity_2m");
+  url.searchParams.set("hourly", "temperature_2m,relative_humidity_2m,wind_speed_10m");
   url.searchParams.set("timezone", "UTC");
 
   const res = await fetch(url);
@@ -167,13 +183,16 @@ export async function getWeatherForDeparture(
 
   const temps: number[] = [];
   const humidities: number[] = [];
+  const windSpeeds: number[] = [];
   hourly.time.forEach((isoHour, i) => {
     const hourDate = new Date(`${isoHour}:00Z`);
     if (hourDate >= start && hourDate < end) {
       const t = hourly.temperature_2m[i];
       const h = hourly.relative_humidity_2m[i];
+      const w = hourly.wind_speed_10m?.[i];
       if (t != null) temps.push(t);
       if (h != null) humidities.push(h);
+      if (w != null) windSpeeds.push(w);
     }
   });
   if (temps.length === 0 && humidities.length === 0) return null;
@@ -181,5 +200,7 @@ export async function getWeatherForDeparture(
   return {
     temperatureAvgC: temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : 18,
     humidityAvg: humidities.length > 0 ? humidities.reduce((a, b) => a + b, 0) / humidities.length : 50,
+    windSpeedKmhAvg:
+      windSpeeds.length > 0 ? windSpeeds.reduce((a, b) => a + b, 0) / windSpeeds.length : 0,
   };
 }

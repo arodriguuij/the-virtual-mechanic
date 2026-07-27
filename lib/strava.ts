@@ -142,6 +142,47 @@ export async function fetchAthlete(accessToken: string): Promise<StravaAthlete> 
   };
 }
 
+export type StravaAthleteStats = {
+  /** km/h, from `recent_ride_totals` (rolling last 4 weeks) — the athlete's
+   * *current* pace, preferred over the all-time figure since fitness/pace
+   * changes across a season. `null` if they have no rides in that window. */
+  recentAvgSpeedKmh: number | null;
+  /** km/h, from `all_ride_totals` — a fallback for an athlete with no rides
+   * in the last 4 weeks (off-season, injury, etc.). `null` if they have no
+   * ride history at all. */
+  allTimeAvgSpeedKmh: number | null;
+};
+
+function averageSpeedKmh(totals: { distance?: number; moving_time?: number } | undefined): number | null {
+  if (!totals || !totals.distance || !totals.moving_time) return null;
+  return (totals.distance / totals.moving_time) * 3.6;
+}
+
+/**
+ * The athlete's own historical average speed — used to turn a GPX upload's
+ * raw distance into an estimated ride duration (`durée = distance /
+ * strava_avg_speed`), since an uploaded GPX file has geometry but no time
+ * data of its own the way a completed Strava activity does. Returns both
+ * figures `null` (never throws) if the athlete has no Strava ride history
+ * yet, so the caller can fall back to a generic assumed pace.
+ */
+export async function fetchAthleteStats(
+  accessToken: string,
+  athleteId: string
+): Promise<StravaAthleteStats> {
+  const res = await fetch(`${STRAVA_API_BASE}/athletes/${athleteId}/stats`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    return { recentAvgSpeedKmh: null, allTimeAvgSpeedKmh: null };
+  }
+  const stats = await res.json();
+  return {
+    recentAvgSpeedKmh: averageSpeedKmh(stats.recent_ride_totals),
+    allTimeAvgSpeedKmh: averageSpeedKmh(stats.all_ride_totals),
+  };
+}
+
 export async function fetchLatestRideActivity(
   accessToken: string
 ): Promise<StravaActivity | null> {

@@ -9,9 +9,12 @@ import { DashboardShell } from "@/components/dashboard-shell";
 import { ViewerIdentity, ViewerIdentitySkeleton } from "@/components/viewer-identity";
 import { FuelingPlanner } from "@/components/fueling-planner";
 import { PostRideAnalysis } from "@/components/post-ride-analysis";
+import { ProfileCheckBanner } from "@/components/profile-check-banner";
 import { SyncForm } from "@/components/sync-button";
 import {
+  getAthleteAverageSpeedKmh,
   getAthleteProfile,
+  getMissingProfileFields,
   getProfile,
   getRecentActivities,
   getStravaRoutes,
@@ -53,8 +56,14 @@ async function FuelingPlannerSection() {
     );
   }
 
-  const routes = await getStravaRoutes();
-  return <FuelingPlanner routes={routes} />;
+  const [routes, avgSpeedKmh] = await Promise.all([getStravaRoutes(), getAthleteAverageSpeedKmh()]);
+  return <FuelingPlanner routes={routes} avgSpeedKmh={avgSpeedKmh} />;
+}
+
+async function ProfileCheckBannerSection() {
+  const profile = await getAthleteProfile();
+  const missingFields = getMissingProfileFields(profile);
+  return <ProfileCheckBanner missingFields={missingFields} />;
 }
 
 function FuelingPlannerSkeleton() {
@@ -409,6 +418,10 @@ export default async function Home({
             {stravaError}
           </div>
         )}
+
+        <Suspense fallback={null}>
+          <ProfileCheckBannerSection />
+        </Suspense>
 
         <Suspense fallback={<WeeklyPerformancePanelSkeleton />}>
           <WeeklyPerformancePanel />
