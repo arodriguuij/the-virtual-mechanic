@@ -61,9 +61,9 @@ const MAX_POCKET_FOOD_QTY = 6;
 const MAX_CUSTOM_CARBS_G = 500;
 
 const FUELING_MODE_OPTIONS: { value: FuelingMode; label: string }[] = [
-  { value: "optimal", label: "🚀 Óptimo" },
-  { value: "pantry", label: "📦 Mi despensa" },
-  { value: "hybrid", label: "🧩 Híbrido" },
+  { value: "optimal", label: "Óptimo" },
+  { value: "pantry", label: "Mi despensa" },
+  { value: "hybrid", label: "Híbrido" },
 ];
 
 const FUELING_MODE_DESCRIPTIONS: Record<FuelingMode, string> = {
@@ -787,7 +787,7 @@ export function FuelingPlanner({
                 type="button"
                 onClick={() => setFuelingMode(opt.value)}
                 className={cn(
-                  "cursor-pointer rounded-sm border px-3 py-1.5 text-xs font-semibold tracking-wide transition-colors duration-150",
+                  "cursor-pointer rounded-sm border px-3 py-1.5 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150",
                   fuelingMode === opt.value
                     ? "border-neutral-900 bg-neutral-900 text-background"
                     : "border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
