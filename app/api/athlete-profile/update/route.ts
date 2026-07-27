@@ -16,7 +16,7 @@ const VALID_BOTTLE_CAPACITIES_ML = new Set([500, 600, 750, 950]);
 
 export async function POST(request: NextRequest) {
   const redirectWithError = (code: string) =>
-    NextResponse.redirect(new URL(`/?profile_error=${code}`, request.url), { status: 303 });
+    NextResponse.redirect(new URL(`/perfil?profile_error=${code}`, request.url), { status: 303 });
 
   const formData = await request.formData();
   const weightKg = Number(formData.get("weight_kg"));
@@ -77,5 +77,5 @@ export async function POST(request: NextRequest) {
     return redirectWithError("update_blocked_by_rls");
   }
 
-  return NextResponse.redirect(new URL("/?profile_saved=1", request.url), { status: 303 });
+  return NextResponse.redirect(new URL("/perfil?profile_saved=1", request.url), { status: 303 });
 }

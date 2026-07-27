@@ -634,65 +634,78 @@ toggle). Validates `athlete_type` against `VALID_ATHLETE_TYPES` (`'diesel' | 'ba
 redirecting the matching `invalid_*` code on anything else. Uses `.upsert({ id: userId,
 ... })` rather than a select-then-update/insert branch, since `athlete_profiles.id` is the
 primary key and Supabase's upsert already handles "create if missing, update if present"
-in one call. On success, redirects to `/?profile_saved=1` (same query-param convention as
-`profile_error`/`strava_error`) rather than a bare `/`, which `components/profile-saved-
-toast.tsx` (`"use client"`) reads on `app/page.tsx` to render a self-dismissing
-confirmation toast ("✓ Perfil guardado correctamente en Supabase") — fixed bottom-right,
+in one call. On success, redirects to `/perfil?profile_saved=1` (same query-param
+convention as `profile_error`/`strava_error`) rather than a bare `/perfil`, which
+`components/profile-saved-toast.tsx` (`"use client"`) reads to render a self-dismissing
+confirmation toast ("✓ Perfil fisiológico actualizado en Supabase") — fixed bottom-right,
 `--status-good` toned, auto-hides after 3s and strips the query param via
-`router.replace("/")` so a manual refresh doesn't keep re-showing a stale confirmation.
-On invalid input or an RLS block, redirects to `/?profile_error=<code>` instead, same
-non-silent-failure convention as everywhere else. `PhysiologicalProfileCard` itself is
-already a Server Component that `await getAthleteProfile()`s on every request (the page
-exports `dynamic = "force-dynamic"`, and this Next.js version's `fetch` calls are
-uncached by default — see "Route dynamic rendering" below) and pre-fills every form field
-via `defaultValue`/`defaultChecked`, so a save is immediately reflected on the next load;
-there is no separate client-side fetch-on-mount step to keep in sync.
+`router.replace(pathname)` (the *current* path via `usePathname()`, not a hardcoded one,
+so the same component stays correct if it's ever reused from another page) so a manual
+refresh doesn't keep re-showing a stale confirmation. On invalid input or an RLS block,
+redirects to `/perfil?profile_error=<code>` instead, same non-silent-failure convention as
+everywhere else. `PhysiologicalProfileCard` itself is already a Server Component that
+`await getAthleteProfile()`s on every request (`app/perfil/page.tsx` exports `dynamic =
+"force-dynamic"`, and this Next.js version's `fetch` calls are uncached by default — see
+"Route dynamic rendering" below) and pre-fills every form field via `defaultValue`/
+`defaultChecked`, so a save is immediately reflected on the next load; there is no
+separate client-side fetch-on-mount step to keep in sync.
 
-### Dashboard (app/page.tsx)
+### Sidebar navigation vs. Dashboard tabs (app/page.tsx, app/perfil/page.tsx)
 
-`GlobalMetricsBar` (lifetime totals, see above) sits above three `components/ui/tabs.tsx`
-(`@base-ui/react/tabs`) panels — all three panels' Server Component data fetches still run
-on every page load regardless of which tab is active (Tabs hides inactive panels with
-CSS, it doesn't unmount/defer their Suspense boundaries), same total fetch cost as the
-single stacked-card layout this replaced:
+The Dashboard's tabs are daily-action surfaces (something a rider does before/after every
+ride); the Physiological Profile is a setup-once-then-rarely-touched surface, so it lives
+on its own route (`/perfil`) reached from the sidebar rather than as a third tab —
+mixing "things I do every ride" with "things I configure occasionally" in the same
+`TabsList` was the wrong information architecture once there were only two genuine daily
+tabs left. `components/dashboard-shell.tsx`'s `SidebarContent` renders `NAV_ITEMS`
+(`Dashboard` → `/`, `Perfil fisiológico` → `/perfil`) as real `next/link` `Link`s, using
+`usePathname()` to bold/border the active item (`border-neutral-900 text-neutral-900`)
+and dim the rest (`text-neutral-500`) — a client component already (it owns the mobile
+drawer's `mobileOpen` state), so this needed no new `"use client"` boundary. Each `Link`
+takes an `onNavigate` callback that closes the mobile drawer (`setMobileOpen(false)`) on
+click, since without it a mobile visitor tapping "Perfil fisiológico" would navigate
+underneath a still-open overlay.
 
-- **Pre-Ride tab** — `FuelingPlannerSection` fetches the athlete profile and
-  `getStravaRoutes()`, handing the route list to the client `FuelingPlanner` (see
-  "Fueling planner" above). Shows a "configure your profile first" prompt instead if
-  there's no `athlete_profiles` row yet, since the plan endpoint requires one.
-- **Post-Ride tab** — `PostRideAnalysisSection` fetches `getRecentActivities(8)` and hands
-  the list to the client `PostRideAnalysis` (see "Post-Ride Analysis" above), followed by
-  `RideHistorySection` — the ride lookbook (numbered rows, hairline dividers, no per-row
-  card chrome), each row showing distance, a humidity/rain weather label, and carbs burned
-  when available.
-- **Perfil & Gut Training tab** — `PhysiologicalProfileCard` reads `getAthleteProfile()`
-  and renders an inline edit form (weight/FTP/sweat rate/gut training level/bottle
+- **`app/page.tsx`** — `GlobalMetricsBar` (lifetime totals, see above) sits above two
+  `components/ui/tabs.tsx` (`@base-ui/react/tabs`) panels — both panels' Server Component
+  data fetches still run on every page load regardless of which tab is active (Tabs hides
+  the inactive panel with CSS, it doesn't unmount/defer its Suspense boundary):
+  - **Pre-Ride tab** — `FuelingPlannerSection` fetches the athlete profile and
+    `getStravaRoutes()`, handing the route list to the client `FuelingPlanner` (see
+    "Fueling planner" above). Shows a prompt linking to `/perfil` instead if there's no
+    `athlete_profiles` row yet, since the plan endpoint requires one.
+  - **Post-Ride tab** — `PostRideAnalysisSection` fetches `getRecentActivities(8)` and
+    hands the list to the client `PostRideAnalysis` (see "Post-Ride Analysis" above),
+    followed by `RideHistorySection` — the ride lookbook (numbered rows, hairline
+    dividers, no per-row card chrome), each row showing distance, a humidity/rain weather
+    label, and carbs burned when available.
+- **`app/perfil/page.tsx`** — its own `DashboardShell`-wrapped page (own header, own
+  `profile_saved`/`profile_error` query-param handling — see "Athlete profile" above)
+  rather than a tab panel. `PhysiologicalProfileCard` reads `getAthleteProfile()` and
+  renders an inline edit form (weight/FTP/sweat rate/gut training level/bottle
   count/bottle capacity, pre-filled with current values) POSTing to
-  `/api/athlete-profile/update` (see "Athlete profile" above), plus a static reference
-  table of the four Gut Training levels and their g/h ranges (see "Gut Training Scale"
-  above), plus a full-width 1-click metabolic phenotype selector (three
-  `has-checked:`-styled radio cards, see "Metabolic phenotype" below). The bottle
-  count/capacity selects feed "Bottle architecture & osmolarity control" and "Reload
-  strategy" above — real bike equipment, not a physiology field, but persisted on the same
-  row since it changes about as often as FTP does.
+  `/api/athlete-profile/update`, plus a static reference table of the four Gut Training
+  levels and their g/h ranges (see "Gut Training Scale" above), plus a full-width 1-click
+  metabolic phenotype selector (three `has-checked:`-styled radio cards, see "Metabolic
+  phenotype" below). The bottle count/capacity selects feed "Bottle architecture &
+  osmolarity control" and "Reload strategy" above — real bike equipment, not a physiology
+  field, but persisted on the same row since it changes about as often as FTP does.
 
 ### Route dynamic rendering
 
-`app/page.tsx` exports `dynamic = "force-dynamic"` because it reads live Supabase data —
-without it Next prerenders the dashboard at build time and the figures would be frozen
-from whenever `next build` last ran.
+Both `app/page.tsx` and `app/perfil/page.tsx` export `dynamic = "force-dynamic"` because
+each reads live Supabase data — without it Next prerenders the route at build time and
+the figures would be frozen from whenever `next build` last ran.
 
 ### Mobile-first layout
 
-The multi-column grids across the Dashboard (profile form, planner inputs, result-panel
-stat rows, the glycogen battery comparison) stack to a single column at the default
-breakpoint and only go multi-column at `sm:` — mobile is the default layout, not an
-afterthought squeezed into a desktop grid. The `app/page.tsx` header (title + Strava
-button) and the "Ruta guardada de Strava"/"Calculadora rápida" mode toggle both wrap
-(`flex-col`/`flex-wrap`) instead of forcing a single row that would overflow a narrow
-viewport. The "Perfil & Gut Training" tab label shortens to just "Perfil" below `sm:` (the
-`&amp; Gut Training` suffix is in a `hidden sm:inline` span) since three tab labels at
-full length don't all fit on a phone-width `TabsList`. Numeric inputs carry
+The multi-column grids across the Dashboard and Perfil pages (profile form, planner
+inputs, result-panel stat rows, the glycogen battery comparison) stack to a single column
+at the default breakpoint and only go multi-column at `sm:` — mobile is the default
+layout, not an afterthought squeezed into a desktop grid. The `app/page.tsx` header
+(title + Strava button) and the "Ruta guardada de Strava"/"Calculadora rápida" mode
+toggle both wrap (`flex-col`/`flex-wrap`) instead of forcing a single row that would
+overflow a narrow viewport. Numeric inputs carry
 `inputMode="decimal"` (weight, duration — anything with a fractional step) or
 `inputMode="numeric"` (FTP, watts — integers only) so mobile keyboards show the right
 keypad; shared input classes across `page.tsx`/`fueling-planner.tsx`/

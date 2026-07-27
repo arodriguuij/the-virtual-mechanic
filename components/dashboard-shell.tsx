@@ -1,12 +1,21 @@
 "use client";
 
-import { Flame, LayoutDashboard, Menu, X } from "lucide-react";
+import { Flame, LayoutDashboard, Menu, UserRound, X } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
-function SidebarContent() {
+const NAV_ITEMS = [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/perfil", label: "Perfil fisiológico", icon: UserRound },
+];
+
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  const pathname = usePathname();
+
   return (
     <div className="flex h-full flex-col gap-10 px-6 py-8">
       <div className="flex items-center gap-2 border-b border-neutral-200 pb-6 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
@@ -15,15 +24,25 @@ function SidebarContent() {
       </div>
 
       <nav className="flex flex-1 flex-col gap-0.5">
-        <span
-          className={cn(
-            "flex items-center gap-3 border-l-2 px-3 py-2.5 text-[11px] font-semibold tracking-widest uppercase",
-            "border-neutral-900 text-neutral-900"
-          )}
-        >
-          <LayoutDashboard className="size-4" strokeWidth={1.5} />
-          Dashboard
-        </span>
+        {NAV_ITEMS.map((item) => {
+          const active = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                "flex cursor-pointer items-center gap-3 border-l-2 px-3 py-2.5 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150",
+                active
+                  ? "border-neutral-900 text-neutral-900"
+                  : "border-transparent text-neutral-500 hover:text-neutral-900"
+              )}
+            >
+              <item.icon className="size-4" strokeWidth={1.5} />
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="flex items-center gap-3 border-t border-neutral-200 pt-6">
@@ -69,7 +88,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         >
           <X className="size-5" />
         </button>
-        <SidebarContent />
+        <SidebarContent onNavigate={() => setMobileOpen(false)} />
       </aside>
 
       <div className="flex flex-1 flex-col lg:pl-64">
