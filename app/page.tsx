@@ -165,7 +165,7 @@ async function PhysiologicalProfileCard() {
                 (type) => (
                   <label
                     key={type}
-                    className="flex cursor-pointer flex-col gap-1 border border-neutral-300 px-3 py-2.5 has-checked:border-neutral-900 has-checked:bg-neutral-900/5"
+                    className="flex cursor-pointer flex-col gap-1 rounded-sm border border-neutral-300 px-3 py-2.5 has-checked:border-neutral-900 has-checked:bg-neutral-100"
                   >
                     <span className="flex items-center gap-2">
                       <input

@@ -103,9 +103,9 @@ export function getCarbOxidationRateGPerHour(relativeIntensity: number): number 
 export type AthleteType = "diesel" | "balanced" | "explosive";
 
 export const athleteTypeLabels: Record<AthleteType, string> = {
-  diesel: "🚵 Diésel / Escalador de Fondo",
-  balanced: "🚴 Balanced / Todoterreno",
-  explosive: "⚡ Explosivo / Esprinter / BTT",
+  diesel: "Diésel / Escalador de Fondo",
+  balanced: "Balanced / Todoterreno",
+  explosive: "Explosivo / Esprinter / BTT",
 };
 
 export const athleteTypeDescriptions: Record<AthleteType, string> = {

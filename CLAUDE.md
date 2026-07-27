@@ -240,9 +240,12 @@ glycolytically regardless of phenotype, so `getPersonalizedCarbOxidationRateGPer
 only applies the multiplier (diesel ×0.85, balanced ×1.0, explosive ×1.15) while
 `relativeIntensity` is below the same 0.8 aerobic-zone threshold `getCarbOxidationRateGPerHour`
 already uses internally for its own bands — at/above it, every phenotype converges to the
-unadjusted rate. `athleteTypeLabels`/`athleteTypeDescriptions` hold the emoji-prefixed
-display copy for the Physiological Profile tab's one-click selector (3 radio-styled
-cards using Tailwind's `has-checked:` variant, no JS needed).
+unadjusted rate. `athleteTypeLabels`/`athleteTypeDescriptions` hold the plain-text
+display copy (no emoji — the interface is monochrome throughout) for the Physiological
+Profile tab's one-click selector (3 radio-styled cards using Tailwind's `has-checked:`
+variant, no JS needed; the selected card's `has-checked:border-neutral-900
+has-checked:bg-neutral-100` gives a fine dark border plus a subtle fill rather than a
+heavy block color).
 
 ### Glycogen battery simulator
 
@@ -262,7 +265,12 @@ athlete) — not an individually measured value. Two scenarios, both against tha
 This is a simplified constant-net-burn-rate model — it doesn't separately simulate gut
 absorption lag or a real-time replenishment curve, just "tank drains at X, refills at Y."
 Rendered in `components/fueling-planner.tsx` as a compact two-column comparison
-("⚠️ Pájara en el km X" vs. "🔋 Batería final: Y%").
+("Pájara en el km X" vs. "Batería final: Y%"), each paired with a monochrome
+`lucide-react` icon (`TriangleAlert`/`BatteryCharging`) rather than a color emoji — every
+status/section marker in this component (reload strategy, bottle types, carb-loading,
+native-alerts note) follows the same convention: a `lucide-react` icon sized to match
+the surrounding text (`size-3` to `size-3.5`) that inherits the text's own color, never a
+literal emoji character.
 
 ### Hybrid nutrition (pocket food)
 
@@ -303,8 +311,8 @@ this one UI surface strips it), with its carb figure directly underneath in `fon
 "Bollo de arroz" stays unambiguous instead of rendering in a terminal-style face where
 similar letterforms (o/u) are easy to misread. The stepper buttons themselves are a
 soft `bg-neutral-100` pair, not a stark black-bordered block. The result panel still
-shows a one-line "🍌 Comida de bolsillo cubre Xg de Yg HC — el resto va en el bidón"
-whenever any item is selected —
+shows a one-line "Comida de bolsillo cubre Xg de Yg HC — el resto va en el bidón" (with a
+small `Utensils` icon, not an emoji) whenever any item is selected —
 that summary line isn't part of the pocket-food *catalog* UI, so it keeps its emoji.
 
 ### Bottle architecture & osmolarity control
@@ -341,9 +349,10 @@ fresh bottle at the same safe 8% concentration), and when to stop: `reloadAtKm`/
 `reloadAtHours` is the point the starting bottles would run dry, estimated as
 `maxBottlesOnBike / totalBottles` of the way through the ride (assuming roughly even
 consumption) — `reloadAtKm` only set in route mode, where a real distance exists.
-Rendered in `components/fueling-planner.tsx` as a numbered "🚰 Estrategia de Recarga en
-Ruta" block (only shown when `reloadStrategy` isn't `null`): `startingBottleCount` bottles
-at the start, N Ziploc bags in the jersey, and the estimated stop point.
+Rendered in `components/fueling-planner.tsx` as a numbered "Estrategia de Recarga en
+Ruta" block (a `Fuel` icon in the header, only shown when `reloadStrategy` isn't `null`):
+`startingBottleCount` bottles at the start, N Ziploc bags in the jersey, and the
+estimated stop point (marked with a `MapPin` icon).
 
 ### Altitude / lapse-rate temperature correction
 
@@ -361,8 +370,8 @@ completed activity does, total elevation gain is used as a practical proxy for h
 above the start the route's high point sits — applied in `POST /api/fueling/plan` in
 route mode only (quick mode has no elevation data), *after* dynamic weather resolves and
 *before* it feeds the fluid-loss calculation. The response's `weather.lapseRateAdjustmentC`
-carries the signed correction (negative = colder) so the UI can show "🏔️ −X°C por
-altitud" next to the weather summary whenever it's non-zero.
+carries the signed correction (negative = colder) so the UI can show a `Mountain` icon
+plus "−X°C por altitud" next to the weather summary whenever it's non-zero.
 
 ### Carb-loading protocol (Día −1)
 
@@ -470,10 +479,10 @@ the same:
   `navigator.clipboard.writeText()`, flipping to "✓ Ficha copiada" for 2s — the same
   clipboard-plus-flip-label pattern as "Copiar Receta," with its own `exportCopied` state.
 
-A fixed guidance line ("⏰ Alertas nativas: en tu Garmin/Wahoo, configura Ajustes → Alertas
-→ Comer/Beber cada 15 min…") always renders under the export button regardless of mode,
-since the head unit's own native interval alerts and the GPX/clipboard export are
-complementary, not either/or.
+A fixed guidance line ("Alertas nativas: en tu Garmin/Wahoo, configura Ajustes → Alertas
+→ Comer/Beber cada 15 min…", with an `AlarmClock` icon) always renders under the export
+button regardless of mode, since the head unit's own native interval alerts and the
+GPX/clipboard export are complementary, not either/or.
 
 - **"Copiar Receta"** — a button next to the recipe header calls
   `navigator.clipboard.writeText()` with the output of

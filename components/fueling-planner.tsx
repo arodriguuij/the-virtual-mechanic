@@ -1,6 +1,20 @@
 "use client";
 
-import { Copy, Download, Send } from "lucide-react";
+import {
+  AlarmClock,
+  BatteryCharging,
+  CalendarDays,
+  Copy,
+  Download,
+  Droplet,
+  FlaskConical,
+  Fuel,
+  MapPin,
+  Mountain,
+  Send,
+  TriangleAlert,
+  Utensils,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -515,7 +529,11 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   ? "previsión real de Open-Meteo"
                   : "estimación genérica"}
                 {result.weather.lapseRateAdjustmentC !== 0 && (
-                  <> · 🏔️ {result.weather.lapseRateAdjustmentC}°C por altitud</>
+                  <span className="inline-flex items-center gap-1">
+                    {" "}
+                    · <Mountain className="size-3" />
+                    {result.weather.lapseRateAdjustmentC}°C por altitud
+                  </span>
                 )}
               </span>
             </div>
@@ -556,8 +574,9 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
               <div className="flex flex-col gap-1">
                 <span className={eyebrow}>Sin nutrir</span>
                 {result.glycogenBattery.noFuel.bonkOccurs ? (
-                  <span className="text-sm font-medium text-status-critical">
-                    ⚠️ Pájara
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-status-critical">
+                    <TriangleAlert className="size-3.5 shrink-0" />
+                    Pájara
                     {result.glycogenBattery.noFuel.bonkAtKm != null
                       ? ` en el km ${result.glycogenBattery.noFuel.bonkAtKm}`
                       : ""}
@@ -566,8 +585,9 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                       : ""}
                   </span>
                 ) : (
-                  <span className="text-sm font-medium text-neutral-900">
-                    🔋 Sin pájara — {result.glycogenBattery.noFuel.remainingBatteryPct}% al llegar
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-neutral-900">
+                    <BatteryCharging className="size-3.5 shrink-0" />
+                    Sin pájara — {result.glycogenBattery.noFuel.remainingBatteryPct}% al llegar
                   </span>
                 )}
               </div>
@@ -575,13 +595,14 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 <span className={eyebrow}>Con receta DIY</span>
                 <span
                   className={cn(
-                    "text-sm font-medium",
+                    "flex items-center gap-1.5 text-sm font-medium",
                     result.glycogenBattery.withRecipe.bonkOccurs
                       ? "text-status-critical"
                       : "text-status-good"
                   )}
                 >
-                  🔋 Batería final: {result.glycogenBattery.withRecipe.remainingBatteryPct}%
+                  <BatteryCharging className="size-3.5 shrink-0" />
+                  Batería final: {result.glycogenBattery.withRecipe.remainingBatteryPct}%
                 </span>
               </div>
             </div>
@@ -609,8 +630,9 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 </button>
               </div>
               {result.pocketFoodCarbsG > 0 && (
-                <p className="mt-1.5 text-xs text-neutral-500">
-                  🍌 Comida de bolsillo cubre {result.pocketFoodCarbsG}g de {result.totalRideCarbsG}g HC —
+                <p className="mt-1.5 flex items-start gap-1.5 text-xs text-neutral-500">
+                  <Utensils className="mt-0.5 size-3 shrink-0" />
+                  Comida de bolsillo cubre {result.pocketFoodCarbsG}g de {result.totalRideCarbsG}g HC —
                   el resto ({result.recipe.totalCarbsG}g) va en el bidón.
                 </p>
               )}
@@ -648,8 +670,9 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                 <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
                   {result.bottlePlan.fuelBottles.count > 0 && (
                     <div className="flex flex-wrap items-center justify-between gap-1">
-                      <span>
-                        🧪 {result.bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel
+                      <span className="flex items-center gap-1.5">
+                        <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
+                        {result.bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel
                         Concentrado × {result.bottlePlan.fuelBottles.count}
                       </span>
                       <span className="font-mono text-xs text-neutral-500">
@@ -661,8 +684,9 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   )}
                   {result.bottlePlan.waterBottles.count > 0 && (
                     <div className="flex flex-wrap items-center justify-between gap-1">
-                      <span>
-                        💧 {result.bottlePlan.waterBottles.count > 1 ? "Bidones" : "Bidón"} Agua /
+                      <span className="flex items-center gap-1.5">
+                        <Droplet className="size-3.5 shrink-0 text-neutral-500" />
+                        {result.bottlePlan.waterBottles.count > 1 ? "Bidones" : "Bidón"} Agua /
                         Electrolitos × {result.bottlePlan.waterBottles.count}
                       </span>
                       <span className="text-xs text-neutral-500">a demanda</span>
@@ -674,8 +698,9 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
 
             {result.reloadStrategy && (
               <div className="border border-status-warning/40 bg-status-warning/10 px-3 py-2.5">
-                <span className="text-[10px] font-semibold tracking-widest text-status-warning uppercase">
-                  🚰 Estrategia de recarga en ruta
+                <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-status-warning uppercase">
+                  <Fuel className="size-3.5 shrink-0" />
+                  Estrategia de recarga en ruta
                 </span>
                 <ol className="mt-1.5 flex flex-col gap-1 text-sm text-neutral-700">
                   <li>
@@ -690,8 +715,9 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                     {result.reloadStrategy.ziplocDose.fructoseG}g fructosa +{" "}
                     {result.reloadStrategy.ziplocDose.sodiumMg}mg sal (dosis pre-medida por bidón).
                   </li>
-                  <li className="font-medium text-neutral-900">
-                    📍 Parada de recarga recomendada:{" "}
+                  <li className="flex items-center gap-1.5 font-medium text-neutral-900">
+                    <MapPin className="size-3.5 shrink-0" />
+                    Parada de recarga recomendada:{" "}
                     {result.reloadStrategy.reloadAtKm != null
                       ? `Km ${result.reloadStrategy.reloadAtKm}`
                       : `Hora ${result.reloadStrategy.reloadAtHours}`}
@@ -707,8 +733,9 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
 
             {result.carbLoading && (
               <details className="border border-neutral-200 px-3 py-2.5">
-                <summary className="cursor-pointer text-[11px] font-semibold tracking-widest text-neutral-700 uppercase">
-                  📅 Estrategia de carga día −1 · {result.carbLoading.minCarbsG}-
+                <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-700 uppercase">
+                  <CalendarDays className="size-3.5 shrink-0" />
+                  Estrategia de carga día −1 · {result.carbLoading.minCarbsG}-
                   {result.carbLoading.maxCarbsG}g HC
                 </summary>
                 <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-600">
@@ -746,8 +773,9 @@ export function FuelingPlanner({ routes }: { routes: StravaRoute[] }) {
                   )}
                 </button>
               )}
-              <p className="text-xs text-neutral-500">
-                ⏰ Alertas nativas: en tu Garmin/Wahoo, configura Ajustes → Alertas → Comer/Beber
+              <p className="flex items-start gap-1.5 text-xs text-neutral-500">
+                <AlarmClock className="mt-0.5 size-3 shrink-0" />
+                Alertas nativas: en tu Garmin/Wahoo, configura Ajustes → Alertas → Comer/Beber
                 cada 15 min, además de los avisos por GPS de este archivo.
               </p>
             </div>
