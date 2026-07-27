@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -13,7 +12,13 @@ const NAV_ITEMS = [
   { href: "/perfil", label: "Perfil fisiológico", icon: UserRound },
 ];
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({
+  onNavigate,
+  identitySlot,
+}: {
+  onNavigate?: () => void;
+  identitySlot: ReactNode;
+}) {
   const pathname = usePathname();
 
   return (
@@ -45,24 +50,18 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      <div className="flex items-center gap-3 border-t border-neutral-200 pt-6">
-        <Avatar>
-          <AvatarFallback>AR</AvatarFallback>
-        </Avatar>
-        <div className="flex flex-col overflow-hidden">
-          <span className="truncate text-sm font-medium text-neutral-900">
-            Alejandro Rodríguez
-          </span>
-          <span className="truncate text-[10px] tracking-widest text-neutral-500 uppercase">
-            Ciclista de resistencia
-          </span>
-        </div>
-      </div>
+      {identitySlot}
     </div>
   );
 }
 
-export function DashboardShell({ children }: { children: ReactNode }) {
+export function DashboardShell({
+  children,
+  identitySlot,
+}: {
+  children: ReactNode;
+  identitySlot: ReactNode;
+}) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -88,7 +87,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         >
           <X className="size-5" />
         </button>
-        <SidebarContent onNavigate={() => setMobileOpen(false)} />
+        <SidebarContent onNavigate={() => setMobileOpen(false)} identitySlot={identitySlot} />
       </aside>
 
       <div className="flex flex-1 flex-col lg:pl-64">

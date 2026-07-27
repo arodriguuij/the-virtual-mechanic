@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ProfileSavedToast } from "@/components/profile-saved-toast";
+import { ViewerIdentity, ViewerIdentitySkeleton } from "@/components/viewer-identity";
 import { getAthleteProfile } from "@/lib/dashboard-data";
 import {
   athleteTypeDescriptions,
@@ -248,7 +249,13 @@ export default async function PerfilPage({
   const profileSaved = params.profile_saved === "1";
 
   return (
-    <DashboardShell>
+    <DashboardShell
+      identitySlot={
+        <Suspense fallback={<ViewerIdentitySkeleton />}>
+          <ViewerIdentity />
+        </Suspense>
+      }
+    >
       {profileSaved && <ProfileSavedToast />}
       <div className="flex flex-col gap-10">
         <header className="border-b border-neutral-200 pb-6">

@@ -113,10 +113,18 @@ export type StravaAthlete = {
   // Kilograms, as set in the athlete's own Strava profile — 0/undefined if
   // they've never entered it there.
   weight: number | null;
+  firstname: string | null;
+  lastname: string | null;
+  // 62x62 avatar URL — small enough for a sidebar avatar without pulling
+  // Strava's full-size `profile` image.
+  profileMedium: string | null;
 };
 
-/** The authenticated athlete's own Strava profile — currently only used to
- * pull their body weight as a zero-friction default for `athlete_profiles`. */
+/** The authenticated athlete's own Strava profile — pulls their body weight
+ * as a zero-friction default for `athlete_profiles`, and their name/avatar
+ * for the sidebar identity card (see `getViewerIdentity` in
+ * `lib/dashboard-data.ts`), since Strava is this app's only real identity
+ * source until Auth.js lands. */
 export async function fetchAthlete(accessToken: string): Promise<StravaAthlete> {
   const res = await fetch(`${STRAVA_API_BASE}/athlete`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -125,7 +133,13 @@ export async function fetchAthlete(accessToken: string): Promise<StravaAthlete> 
     throw new Error(`Strava athlete request failed: ${res.status} ${await res.text()}`);
   }
   const athlete = await res.json();
-  return { id: athlete.id, weight: athlete.weight || null };
+  return {
+    id: athlete.id,
+    weight: athlete.weight || null,
+    firstname: athlete.firstname || null,
+    lastname: athlete.lastname || null,
+    profileMedium: athlete.profile_medium || null,
+  };
 }
 
 export async function fetchLatestRideActivity(

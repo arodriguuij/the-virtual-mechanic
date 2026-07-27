@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import type { AthleteType, GutTrainingLevel, SweatRate } from "@/lib/metabolic-engine";
+import { fetchAthlete } from "@/lib/strava";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { fetchAthleteRoutes, type StravaRoute } from "@/lib/strava-routes";
 
@@ -158,4 +159,62 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
 
   if (error) throw error;
   return data;
+});
+
+export type ViewerIdentity = {
+  name: string;
+  subtitle: string;
+  initials: string;
+  avatarUrl: string | null;
+};
+
+function initialsFrom(name: string): string {
+  return name.slice(0, 2).toUpperCase();
+}
+
+/**
+ * The sidebar's "who's logged in" card. There's no real login yet (see
+ * "No login yet" in CLAUDE.md — every request is the same dev seed user),
+ * so Strava is the only real identity source this app has: if connected,
+ * pulls the athlete's actual first/last name and avatar straight from
+ * Strava's `/athlete` endpoint. Falls back to the auth user's own email
+ * local-part (never a made-up name) when Strava isn't connected or the
+ * request fails — same "degrade gracefully, never fabricate" convention as
+ * `getStravaRoutes()` returning `[]`.
+ */
+export const getViewerIdentity = cache(async (): Promise<ViewerIdentity> => {
+  const supabase = await getAuthenticatedSupabaseClient();
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  const user = authData.user;
+
+  const emailName = user?.email?.split("@")[0] ?? "Atleta";
+
+  if (user) {
+    const accessToken = await getValidStravaAccessToken(supabase, user.id);
+    if (accessToken) {
+      try {
+        const athlete = await fetchAthlete(accessToken);
+        const fullName = [athlete.firstname, athlete.lastname].filter(Boolean).join(" ").trim();
+        if (fullName) {
+          return {
+            name: fullName,
+            subtitle: "Conectado con Strava",
+            initials: initialsFrom(fullName),
+            avatarUrl: athlete.profileMedium,
+          };
+        }
+      } catch (error) {
+        console.error("No se pudo obtener el atleta de Strava para la tarjeta de perfil:", error);
+      }
+    }
+  }
+
+  return {
+    name: emailName,
+    subtitle: user ? "Cuenta de desarrollo" : "Sin sesión",
+    initials: initialsFrom(emailName),
+    avatarUrl: null,
+  };
 });

@@ -196,14 +196,22 @@ guidance rather than a clinical or individually-calibrated model:
   athlete's gut can actually absorb.
 - **`getFluidLossMlPerHour(sweatRate, temperatureC, humidityPct)`** — a baseline ml/h by
   sweat-rate category (low 500 / medium 750 / high 1000, at a comfortable ~18°C/50%
-  humidity) scaled up by `getHeatHumidityMultiplier` (+2%/°C above 18°C, +0.4%/point of
-  humidity above 50%). `getSodiumLossMgPerHour` multiplies that fluid volume by a flat
-  700mg/L average sweat-sodium concentration.
+  humidity) scaled up by `getHeatHumidityMultiplier`: a gentle +2%/°C slope between 18°C
+  and `HIGH_HEAT_THRESHOLD_C` (25°C), above which the body's cooling demand no longer
+  scales gradually — a flat `HIGH_HEAT_MULTIPLIER` (+20%) replaces the slope entirely
+  rather than compounding on top of it, so 25.1°C jumps straight to ×1.2 instead of
+  continuing from the slope's ×1.14 at 25°C. Humidity always scales gently, +0.4%/point
+  above 50%, independent of which heat regime applies. `getSodiumLossMgPerHour` multiplies
+  that fluid volume by a flat 700mg/L average sweat-sodium concentration.
 - **`getHomeLabRecipe()`** — the "Receta de Laboratorio Casero": splits the ride's total
-  carb target into a 1:0.8 maltodextrin:fructose mix by weight (the standard
-  2:1-equivalent glucose:fructose ratio that raises the gut's total absorption ceiling
-  above what either sugar alone achieves), plus the sodium and water targets for the same
-  duration — one bottle recipe covering both carbs and hydration.
+  carb target into a maltodextrin:fructose mix by weight whose ratio scales with the
+  ride's own carb rate via `getMaltodextrinFraction(carbsGPerHour)` — below 45g/h a single
+  glucose-polymer transporter (SGLT1) isn't saturated yet, so pure maltodextrin (100:0);
+  45-75g/h uses a 2:1 split to start recruiting the fructose-specific GLUT5 transporter;
+  above 75g/h — where SGLT1 alone is genuinely maxed out — the ratio shifts to 1:0.8, the
+  split most dual-transporter research settles on for near-maximal (~90g/h+) combined
+  oxidation — plus the sodium and water targets for the same duration, one bottle recipe
+  covering both carbs and hydration.
 - **`getMoneySavedVsGels(totalCarbsG)`** — compares a flat €2.50/30g-of-carbs commercial
   gel price against a €0.35/30g homemade equivalent — a rough illustrative comparison, not
   a live price feed.
@@ -665,6 +673,21 @@ drawer's `mobileOpen` state), so this needed no new `"use client"` boundary. Eac
 takes an `onNavigate` callback that closes the mobile drawer (`setMobileOpen(false)`) on
 click, since without it a mobile visitor tapping "Perfil fisiológico" would navigate
 underneath a still-open overlay.
+
+The sidebar's bottom identity card (`components/viewer-identity.tsx`) is a separate,
+Suspense-streamed Server Component (`ViewerIdentity`/`ViewerIdentitySkeleton`) rather than
+markup baked into `DashboardShell` — `DashboardShell` is `"use client"`, so it takes an
+`identitySlot: ReactNode` prop instead, and both `app/page.tsx` and `app/perfil/page.tsx`
+pass the same `<Suspense fallback={<ViewerIdentitySkeleton />}><ViewerIdentity /></Suspense>`
+so the (possibly network-bound, if it hits Strava) identity fetch never blocks the rest of
+the shell from rendering. `getViewerIdentity()` (`lib/dashboard-data.ts`) is this app's
+only real identity source until Auth.js lands (see "No login yet"): if Strava is
+connected, it pulls the athlete's actual first/last name and avatar straight from
+`fetchAthlete()` (`lib/strava.ts`, extended beyond its original weight-only fields to also
+return `firstname`/`lastname`/`profileMedium`); otherwise it falls back to the auth user's
+own email local-part — never a hardcoded placeholder name — with a subtitle that states
+the real connection status ("Conectado con Strava" / "Cuenta de desarrollo" / "Sin
+sesión") instead of a made-up bio line.
 
 - **`app/page.tsx`** — `GlobalMetricsBar` (lifetime totals, see above) sits above two
   `components/ui/tabs.tsx` (`@base-ui/react/tabs`) panels — both panels' Server Component

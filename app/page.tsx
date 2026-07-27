@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { ViewerIdentity, ViewerIdentitySkeleton } from "@/components/viewer-identity";
 import { FuelingPlanner } from "@/components/fueling-planner";
 import { PostRideAnalysis } from "@/components/post-ride-analysis";
 import { SyncForm } from "@/components/sync-button";
@@ -326,7 +327,13 @@ export default async function Home({
       : null;
 
   return (
-    <DashboardShell>
+    <DashboardShell
+      identitySlot={
+        <Suspense fallback={<ViewerIdentitySkeleton />}>
+          <ViewerIdentity />
+        </Suspense>
+      }
+    >
       <div className="flex flex-col gap-10">
         <header className="flex flex-col items-start gap-4 border-b border-neutral-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>

@@ -238,10 +238,21 @@ export function getLapseRateAdjustedTemperature(
   return Math.round((baseTemperatureC - adjustmentC) * 10) / 10;
 }
 
+/** Above this, sweat rate no longer scales gently — a hard +20% heat-stress
+ * bump replaces the gradual per-degree slope below it. */
+const HIGH_HEAT_THRESHOLD_C = 25;
+const HIGH_HEAT_MULTIPLIER = 1.2;
+
 /** Heat and humidity both push sweat rate up from the comfortable-condition
- * baseline — +2%/°C above 18°C, +0.4%/point of humidity above 50%. */
+ * baseline. Below `HIGH_HEAT_THRESHOLD_C`, heat scales gently at +2%/°C
+ * above 18°C; above it, the body's cooling demand jumps rather than
+ * climbing linearly, so a flat +20% applies instead of continuing the
+ * per-degree slope. Humidity always scales gently, +0.4%/point above 50%. */
 export function getHeatHumidityMultiplier(temperatureC: number, humidityPct: number): number {
-  const heatFactor = 1 + Math.max(0, temperatureC - 18) * 0.02;
+  const heatFactor =
+    temperatureC > HIGH_HEAT_THRESHOLD_C
+      ? HIGH_HEAT_MULTIPLIER
+      : 1 + Math.max(0, temperatureC - 18) * 0.02;
   const humidityFactor = 1 + Math.max(0, humidityPct - 50) * 0.004;
   return heatFactor * humidityFactor;
 }
@@ -372,14 +383,31 @@ export type HomeLabRecipe = {
 };
 
 /**
- * "Receta de Laboratorio Casero" — a maltodextrin:fructose 1:0.8 (by
- * weight) mix, the standard 2:1 glucose:fructose-equivalent ratio used to
- * raise the gut's total carb absorption ceiling above what either sugar
- * alone can achieve, dissolved in the rider's own fluid-loss target so one
- * bottle covers both carbs and hydration. `pocketFoodCarbsG` (from the
- * hybrid nutrition module above) is subtracted from the ride's carb target
- * first — solid food eaten from the jersey pocket means less needs to go
- * in the bottles, not an additional carb allowance on top.
+ * Below ~45g/h, a single glucose-polymer transporter (SGLT1) isn't
+ * saturated yet, so there's no absorption-ceiling benefit to adding
+ * fructose — pure maltodextrin. From 45-75g/h a 2:1 maltodextrin:fructose
+ * split starts recruiting the fructose-specific GLUT5 transporter to lift
+ * that ceiling. Above 75g/h — where SGLT1 alone is genuinely maxed out —
+ * the ratio shifts to 1:0.8, the split most dual-transporter research
+ * settles on for near-maximal (~90g/h+) combined oxidation rates.
+ */
+const HIGH_CARB_RATE_THRESHOLD_G_PER_HOUR = 75;
+const MODERATE_CARB_RATE_THRESHOLD_G_PER_HOUR = 45;
+
+function getMaltodextrinFraction(carbsGPerHour: number): number {
+  if (carbsGPerHour < MODERATE_CARB_RATE_THRESHOLD_G_PER_HOUR) return 1;
+  if (carbsGPerHour <= HIGH_CARB_RATE_THRESHOLD_G_PER_HOUR) return 2 / 3;
+  return 1 / 1.8;
+}
+
+/**
+ * "Receta de Laboratorio Casero" — a maltodextrin:fructose mix whose ratio
+ * scales with the ride's own carb rate (see `getMaltodextrinFraction`
+ * above), dissolved in the rider's own fluid-loss target so one bottle
+ * covers both carbs and hydration. `pocketFoodCarbsG` (from the hybrid
+ * nutrition module above) is subtracted from the ride's carb target first —
+ * solid food eaten from the jersey pocket means less needs to go in the
+ * bottles, not an additional carb allowance on top.
  */
 export function getHomeLabRecipe({
   carbsGPerHour,
@@ -395,7 +423,7 @@ export function getHomeLabRecipe({
   pocketFoodCarbsG?: number;
 }): HomeLabRecipe {
   const totalCarbsG = Math.max(0, carbsGPerHour * durationHours - pocketFoodCarbsG);
-  const maltodextrinG = totalCarbsG / 1.8;
+  const maltodextrinG = totalCarbsG * getMaltodextrinFraction(carbsGPerHour);
   const fructoseG = totalCarbsG - maltodextrinG;
 
   return {
