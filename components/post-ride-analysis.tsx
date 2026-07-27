@@ -30,13 +30,13 @@ type AnalysisResult = {
   fluidLossMl: number;
   sodiumLossMg: number;
   source: "zones" | "average_watts" | "stored" | "no_data";
-  recoveryTarget: { carbsG: number; proteinG: number };
-  mealOptions: {
-    label: string;
-    description: string;
-    approxCarbsG: number;
-    approxProteinG: number;
-  }[];
+  recoveryTarget: {
+    carbsG: number;
+    proteinG: number;
+    fatLimitG: number;
+    fluidMl: number;
+    sodiumMg: number;
+  };
   loggedNew: boolean;
 };
 
@@ -99,7 +99,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
       <CardHeader>
         <CardTitle>Análisis post-ruta</CardTitle>
         <CardDescription className={eyebrow}>
-          Deuda de glucógeno y plato de recuperación
+          Deuda de glucógeno y objetivo de recuperación por macros
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
@@ -171,26 +171,50 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
             <Separator className="bg-neutral-200" />
 
             <div>
-              <span className={eyebrow}>
-                Plato de recuperación objetivo · {result.recoveryTarget.carbsG}g HC ·{" "}
-                {result.recoveryTarget.proteinG}g proteína
-              </span>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {result.mealOptions.map((option) => (
-                  <div
-                    key={option.label}
-                    className="flex flex-col gap-1 border border-neutral-200 px-3 py-2.5"
-                  >
-                    <span className="text-[10px] font-semibold tracking-widest text-neutral-500 uppercase">
-                      {option.label}
-                    </span>
-                    <span className="text-sm text-neutral-900">{option.description}</span>
-                    <span className="font-mono text-xs text-neutral-500">
-                      ≈ {option.approxCarbsG}g HC · {option.approxProteinG}g proteína
-                    </span>
+              <span className={eyebrow}>Objetivo de recuperación post-ruta</span>
+              <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="border border-neutral-200 px-3 py-2.5">
+                  <span className={statLabel}>Carbohidratos</span>
+                  <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                    {result.recoveryTarget.carbsG}
+                    <span className="text-sm font-normal text-neutral-500">g</span>
                   </div>
-                ))}
+                  <span className="text-xs text-neutral-500 italic">
+                    Reconstrucción de glucógeno
+                  </span>
+                </div>
+                <div className="border border-neutral-200 px-3 py-2.5">
+                  <span className={statLabel}>Proteína</span>
+                  <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                    {result.recoveryTarget.proteinG}
+                    <span className="text-sm font-normal text-neutral-500">g</span>
+                  </div>
+                  <span className="text-xs text-neutral-500 italic">Reparación muscular</span>
+                </div>
+                <div className="border border-neutral-200 px-3 py-2.5">
+                  <span className={statLabel}>Grasas límite</span>
+                  <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                    &lt;{result.recoveryTarget.fatLimitG}
+                    <span className="text-sm font-normal text-neutral-500">g</span>
+                  </div>
+                  <span className="text-xs text-neutral-500 italic">
+                    Vaciado gástrico rápido
+                  </span>
+                </div>
+                <div className="border border-neutral-200 px-3 py-2.5">
+                  <span className={statLabel}>Rehidratación</span>
+                  <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                    {(result.recoveryTarget.fluidMl / 1000).toFixed(1)}
+                    <span className="text-sm font-normal text-neutral-500">L</span>
+                  </div>
+                  <span className="font-mono text-xs text-neutral-500">
+                    {result.recoveryTarget.sodiumMg} mg sodio
+                  </span>
+                </div>
               </div>
+              <p className="mt-2 text-xs text-neutral-500">
+                Objetivo nutricional recomendado para las primeras 2 a 4 horas post-entreno.
+              </p>
             </div>
           </div>
         )}

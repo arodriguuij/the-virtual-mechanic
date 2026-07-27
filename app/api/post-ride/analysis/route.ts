@@ -8,8 +8,7 @@ import {
   getFluidLossMlPerHour,
   getGlycogenBurnedFromPowerZones,
   getGlycogenBurnedGrams,
-  getPostRideRecoveryTarget,
-  getRecoveryMealOptions,
+  getMacroRecoveryTarget,
   getRelativeIntensity,
   getSodiumLossMgPerHour,
 } from "@/lib/metabolic-engine";
@@ -93,8 +92,12 @@ export async function POST(request: NextRequest) {
   const fluidLossMl = Math.round(fluidLossMlPerHour * hours);
   const sodiumLossMg = Math.round(getSodiumLossMgPerHour(fluidLossMlPerHour) * hours);
 
-  const recoveryTarget = getPostRideRecoveryTarget(athleteProfile.weight_kg);
-  const mealOptions = getRecoveryMealOptions(recoveryTarget);
+  const recoveryTarget = getMacroRecoveryTarget({
+    weightKg: athleteProfile.weight_kg,
+    carbsBurnedG,
+    fluidLossMl,
+    sodiumLossMg,
+  });
 
   let loggedNew = false;
   const alreadyLogged = await hasPostRideLog(supabase, userId, activityId);
@@ -123,7 +126,6 @@ export async function POST(request: NextRequest) {
     sodiumLossMg,
     source,
     recoveryTarget,
-    mealOptions,
     loggedNew,
   });
 }

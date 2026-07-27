@@ -431,17 +431,76 @@ export function getGlycogenBurnedGrams(
   return Math.round(getPersonalizedCarbOxidationRateGPerHour(relativeIntensity, athleteType) * hours);
 }
 
-export type RecoveryTarget = {
+export type MacroRecoveryTarget = {
   carbsG: number;
   proteinG: number;
+  fatLimitG: number;
+  fluidMl: number;
+  sodiumMg: number;
 };
 
-/** Standard post-exercise recovery window guidance: ~1.1g carbs/kg and
- * ~0.3g protein/kg to kickstart glycogen resynthesis and muscle repair. */
-export function getPostRideRecoveryTarget(weightKg: number): RecoveryTarget {
+// Protein dose past which extra muscle protein synthesis stimulation
+// plateaus, and below which a genuine anabolic dose isn't reached — the
+// scaled figure is clamped into this window regardless of body weight.
+const MIN_RECOVERY_PROTEIN_G = 22;
+const MAX_RECOVERY_PROTEIN_G = 35;
+// A moderate fat ceiling, not zero — fat itself isn't harmful post-ride, but
+// a high-fat meal slows gastric emptying and delays the carbs/fluid that
+// actually matter in this window from reaching the gut.
+const MIN_RECOVERY_FAT_LIMIT_G = 10;
+const MAX_RECOVERY_FAT_LIMIT_G = 20;
+// Post-exercise rehydration guidance (ACSM et al.) targets ~125-150% of the
+// estimated fluid deficit, not a 1:1 replacement — sweat losses during
+// exercise are rarely fully offset by in-ride drinking, so simply matching
+// the deficit under-hydrates.
+const POST_RIDE_FLUID_REPLACEMENT_FACTOR = 1.2;
+
+/**
+ * "Objetivo de Recuperación por Macronutrientes" — replaces a fixed
+ * carbs/protein pair with the full macro picture the first 2-4 post-ride
+ * hours actually call for, straight from this ride's own numbers rather
+ * than generic advice:
+ * - **Carbs**: capped at the lower of what was actually burned this ride
+ *   (`carbsBurnedG`) or a ~1.2g/kg ceiling — replacing more than was burned
+ *   doesn't speed glycogen resynthesis, it's just extra calories.
+ * - **Protein**: ~0.35g/kg, clamped to the 22-35g effective dose window.
+ * - **Fat**: a soft ~0.15g/kg limit (clamped 10-20g), to keep gastric
+ *   emptying fast for this window rather than to restrict fat generally.
+ * - **Fluid**: 120% of the ride's estimated fluid loss, minus whatever's
+ *   already been drunk (`fluidAlreadyConsumedMl` — defaults to 0, since the
+ *   app doesn't currently track actual in-ride bottle consumption; wiring
+ *   that up later would make this figure sharper, not change the formula).
+ * - **Sodium**: the estimated sodium loss itself, treated as fully
+ *   uncompensated for the same reason.
+ */
+export function getMacroRecoveryTarget({
+  weightKg,
+  carbsBurnedG,
+  fluidLossMl,
+  sodiumLossMg,
+  fluidAlreadyConsumedMl = 0,
+}: {
+  weightKg: number;
+  carbsBurnedG: number;
+  fluidLossMl: number;
+  sodiumLossMg: number;
+  fluidAlreadyConsumedMl?: number;
+}): MacroRecoveryTarget {
   return {
-    carbsG: Math.round(weightKg * 1.1),
-    proteinG: Math.round(weightKg * 0.3),
+    carbsG: Math.round(Math.min(carbsBurnedG, weightKg * 1.2)),
+    proteinG: Math.min(
+      MAX_RECOVERY_PROTEIN_G,
+      Math.max(MIN_RECOVERY_PROTEIN_G, Math.round(weightKg * 0.35))
+    ),
+    fatLimitG: Math.min(
+      MAX_RECOVERY_FAT_LIMIT_G,
+      Math.max(MIN_RECOVERY_FAT_LIMIT_G, Math.round(weightKg * 0.15))
+    ),
+    fluidMl: Math.max(
+      0,
+      Math.round(fluidLossMl * POST_RIDE_FLUID_REPLACEMENT_FACTOR - fluidAlreadyConsumedMl)
+    ),
+    sodiumMg: Math.round(sodiumLossMg),
   };
 }
 
@@ -482,57 +541,6 @@ export function getGlycogenBurnedFromPowerZones(
   return Math.round(totalGrams);
 }
 
-export type RecoveryMealOption = {
-  label: string;
-  description: string;
-  approxCarbsG: number;
-  approxProteinG: number;
-};
-
-/** Household-measure reference macros (illustrative fixtures, not a real
- * nutrition database) used to scale two simple, no-scale-needed recovery
- * meal templates to the athlete's actual recovery target. */
-const RICE_CARBS_G_PER_CUP = 45;
-const RICE_PROTEIN_G_PER_CUP = 4;
-const CHICKEN_PROTEIN_G_PER_100G = 31;
-const CHICKPEA_CAN_CARBS_G = 35;
-const CHICKPEA_CAN_PROTEIN_G = 20;
-const TUNA_CAN_PROTEIN_G = 26;
-const BANANA_CARBS_G = 27;
-const BANANA_PROTEIN_G = 1;
-
-/**
- * "Plato de Recuperación Objetivo" — two real, scale-free meal proposals
- * sized (in whole/half household units) to approximately hit the target
- * carbs/protein, rather than a precise gram-for-gram recipe.
- */
-export function getRecoveryMealOptions(target: RecoveryTarget): RecoveryMealOption[] {
-  const riceCups = Math.max(0.5, Math.round((target.carbsG / RICE_CARBS_G_PER_CUP) * 2) / 2);
-  const rawChickenG = (target.proteinG / CHICKEN_PROTEIN_G_PER_100G) * 100;
-  const chickenG = Math.max(50, Math.round(rawChickenG / 10) * 10);
-
-  const chickpeaCans = Math.max(1, Math.round((target.carbsG - BANANA_CARBS_G) / CHICKPEA_CAN_CARBS_G));
-  const tunaCans = Math.max(1, Math.round(target.proteinG / TUNA_CAN_PROTEIN_G));
-
-  return [
-    {
-      label: "Opción A",
-      description: `${riceCups} tazas de arroz blanco cocido + ${chickenG}g de pechuga de pollo`,
-      approxCarbsG: Math.round(riceCups * RICE_CARBS_G_PER_CUP),
-      approxProteinG: Math.round(
-        riceCups * RICE_PROTEIN_G_PER_CUP + (chickenG / 100) * CHICKEN_PROTEIN_G_PER_100G
-      ),
-    },
-    {
-      label: "Opción B",
-      description: `${chickpeaCans} bote(s) de garbanzos + ${tunaCans} lata(s) de atún + 1 plátano`,
-      approxCarbsG: Math.round(chickpeaCans * CHICKPEA_CAN_CARBS_G + BANANA_CARBS_G),
-      approxProteinG: Math.round(
-        chickpeaCans * CHICKPEA_CAN_PROTEIN_G + tunaCans * TUNA_CAN_PROTEIN_G + BANANA_PROTEIN_G
-      ),
-    },
-  ];
-}
 
 /** Combined liver + muscle glycogen storage, a standard sports-science
  * approximation (~560g for a 70kg athlete) — not an individually measured

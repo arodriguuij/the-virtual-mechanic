@@ -210,8 +210,18 @@ guidance rather than a clinical or individually-calibrated model:
 - **`getGlycogenBurnedGrams(relativeIntensity, movingTimeSeconds, athleteType?)`** — the
   personalized oxidation rate integrated over the ride's actual duration; this is what the
   sync route stores as `activities.carbs_burned_g`.
-- **`getPostRideRecoveryTarget(weightKg)`** — standard post-exercise window guidance:
-  ~1.1g carbs/kg and ~0.3g protein/kg to kickstart glycogen resynthesis and muscle repair.
+- **`getMacroRecoveryTarget({ weightKg, carbsBurnedG, fluidLossMl, sodiumLossMg,
+  fluidAlreadyConsumedMl? })`** — the post-ride "Objetivo de Recuperación por
+  Macronutrientes": carbs capped at the lower of what was actually burned this ride or a
+  ~1.2g/kg ceiling (replacing more than was burned doesn't speed resynthesis, it's just
+  extra calories); protein at ~0.35g/kg clamped to the 22-35g effective-dose window; a
+  soft ~0.15g/kg fat limit (clamped 10-20g) to keep gastric emptying fast in this window
+  rather than to restrict fat generally; fluid at 120% of the ride's estimated loss
+  (ACSM-style post-exercise rehydration guidance — sweat losses are rarely fully offset
+  by in-ride drinking) minus `fluidAlreadyConsumedMl` (defaults to 0, since the app
+  doesn't track actual in-ride bottle consumption); and sodium as the full estimated
+  loss, treated as uncompensated for the same reason. See "Post-Ride Analysis" below for
+  where each input comes from.
 - **`estimateRideDurationHours({ distanceKm, elevationGainM, ftp, weightKg, intensity })`**
   — sizes the fueling window for a saved Strava route, which has no real moving-time of
   its own. A simplified two-term heuristic, not a physical simulation: a flat-road speed
@@ -226,10 +236,6 @@ guidance rather than a clinical or individually-calibrated model:
   bucket's own midpoint watts picks its rate via `getPersonalizedCarbOxidationRateGPerHour`
   — no fixed Z1-Z5 relabeling, since Strava's bucket boundaries are whatever the athlete
   configured, not a standard 5-zone split. Feeds the Post-Ride Analysis (see below).
-- **`getRecoveryMealOptions(target)`** — two real, scale-free "Opción A"/"Opción B" meal
-  proposals (rice+chicken, chickpeas+tuna+banana) sized in whole/half household units
-  (cups, cans) from fixed reference macros (illustrative fixtures, not a real nutrition
-  database) to approximately hit the post-ride recovery target.
 
 ### Metabolic phenotype
 
@@ -516,8 +522,8 @@ without extracting more usable energy. `athlete_profiles.gut_training_level` cap
 
 **`POST /api/post-ride/analysis`** — given an `activityId` (the athlete's own, ownership
 checked via `activities.profile_id`), computes that specific ride's "Deuda de Glucógeno"
-and a recovery meal plan, preferring the most precise data source available and falling
-back gracefully:
+and a macro recovery target, preferring the most precise data source available and
+falling back gracefully:
 
 1. **Real time-in-power-zone data** — `fetchActivityPowerZones()` (`lib/strava-zones.ts`)
    calls Strava's `/activities/{id}/zones`, returning `null` (not throwing) on a 404/no-
@@ -538,14 +544,23 @@ diesel/balanced/explosive adjustment the pre-ride planner applies.
 
 Fluid/sodium loss for the ride reuses its *stored* `humidity_avg`/`temperature_avg`
 (the real weather sampled at sync time) with the athlete's current `sweat_rate`.
-`getPostRideRecoveryTarget()` + `getRecoveryMealOptions()` build the recovery plan. Logs
-to `fueling_logs` (`kind: 'post_ride'`, `activity_id` set) — but only the *first* time
-this activity is analyzed (`hasPostRideLog()` check in `lib/fueling-logs.ts`), so
-re-viewing the same past ride's analysis doesn't inflate the lifetime totals.
-`components/post-ride-analysis.tsx` (`"use client"`) is the UI: an activity `<select>`
-(defaulting to the most recent) plus an "Analizar" button, matching the same
-manual-trigger interaction pattern as the pre-ride planner rather than auto-fetching on
-mount.
+`getMacroRecoveryTarget()` (see "Metabolic engine" above) builds the recovery target from
+this ride's own `carbsBurnedG`/`fluidLossMl`/`sodiumLossMg` plus the athlete's
+`weight_kg` — deliberately not a suggested meal or recipe, since what's actually in the
+rider's kitchen is out of this app's control; the number is the same regardless of what
+they eat to hit it. Logs to `fueling_logs` (`kind: 'post_ride'`, `activity_id` set) — but
+only the *first* time this activity is analyzed (`hasPostRideLog()` check in
+`lib/fueling-logs.ts`), so re-viewing the same past ride's analysis doesn't inflate the
+lifetime totals. `components/post-ride-analysis.tsx` (`"use client"`) is the UI: an
+activity `<select>` (defaulting to the most recent) plus an "Analizar" button (matching
+the same manual-trigger interaction pattern as the pre-ride planner rather than
+auto-fetching on mount), and — once analyzed — an "Objetivo de recuperación post-ruta"
+grid of 4 bordered cards (`grid-cols-2 sm:grid-cols-4`, `font-mono` numbers matching the
+rest of the app's telemetry styling): Carbohidratos, Proteína, Grasas límite (prefixed
+`<`, since it's a ceiling not a target), and Rehidratación (liters plus the sodium figure
+underneath) — each with a short italicized physiological rationale underneath (e.g.
+"Reconstrucción de glucógeno"), plus a fixed note that the window is the first 2-4
+post-ride hours.
 
 ### Lifetime fueling totals
 
