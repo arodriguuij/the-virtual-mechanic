@@ -32,6 +32,43 @@ function FitBoundsToRoute({ points }: { points: [number, number][] }) {
 }
 
 /**
+ * A Tailwind-styled stand-in for Leaflet's own `zoomControl` — rendered with
+ * `zoomControl={false}` on `MapContainer` below and these buttons in its
+ * place, since Leaflet's default `+`/`−` control only takes inline sizing
+ * from its own bundled CSS (no Tailwind class of ours can reach it) and read
+ * as disproportionately large/heavy next to this app's otherwise compact,
+ * sober chrome — especially on desktop, where the map itself is much larger
+ * now but the controls shouldn't grow with it. `size-7` on mobile keeps
+ * roughly Leaflet's own default footprint; `lg:size-6` with a smaller glyph
+ * shrinks it further once there's a cursor precise enough not to need the
+ * extra touch target.
+ */
+function MapZoomControls() {
+  const map = useMap();
+
+  return (
+    <div className="absolute top-2 left-2 z-1000 flex flex-col overflow-hidden rounded-md border border-neutral-300 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={() => map.zoomIn()}
+        aria-label="Acercar mapa"
+        className="flex size-7 cursor-pointer items-center justify-center border-b border-neutral-300 text-sm leading-none font-bold text-neutral-700 transition-colors hover:bg-neutral-50 lg:size-6 lg:text-xs"
+      >
+        +
+      </button>
+      <button
+        type="button"
+        onClick={() => map.zoomOut()}
+        aria-label="Alejar mapa"
+        className="flex size-7 cursor-pointer items-center justify-center text-sm leading-none font-bold text-neutral-700 transition-colors hover:bg-neutral-50 lg:size-6 lg:text-xs"
+      >
+        −
+      </button>
+    </div>
+  );
+}
+
+/**
  * "Mapa de Vista Previa de Ruta" — a compact, non-interactive-feeling
  * (still pannable/zoomable, but purely informational) preview of the
  * selected Strava route or uploaded GPX track, so the athlete can see the
@@ -94,10 +131,12 @@ export function RouteMapPreview({
         zoom={12}
         scrollWheelZoom={false}
         attributionControl={false}
+        zoomControl={false}
       >
         <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
         <Polyline positions={points} pathOptions={{ color: ROUTE_LINE_COLOR, weight: 3, opacity: 0.9 }} />
         <FitBoundsToRoute points={points} />
+        <MapZoomControls />
       </MapContainer>
       {badgeParts.length > 0 && (
         <div className="absolute bottom-2 left-2 z-[1000] rounded-md border border-neutral-200 bg-white/90 px-3 py-1.5 font-mono text-xs text-neutral-800 shadow-sm backdrop-blur-sm">

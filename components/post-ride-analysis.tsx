@@ -15,27 +15,26 @@ import {
   type IntensityLevel,
 } from "@/lib/metabolic-engine";
 import { cn } from "@/lib/utils";
-import { primaryButtonClass, selectableFieldClass } from "@/lib/ui-classes";
+import { primaryButtonClass } from "@/lib/ui-classes";
 
 // Leaflet reads `window`/`document` at module scope — same `ssr: false`
 // requirement as `components/fueling-planner.tsx`'s own dynamic import of
 // this component, never a static one.
 const RouteMapPreview = dynamic(
   () => import("@/components/route-map-preview").then((mod) => mod.RouteMapPreview),
-  { ssr: false, loading: () => <Skeleton className="h-36 w-full rounded-lg lg:h-full" /> }
+  { ssr: false, loading: () => <Skeleton className="h-36 w-full rounded-lg lg:aspect-video lg:h-auto" /> }
 );
 
 // How many of the athlete's most recent synced rides the in-card "Cambiar
-// salida" switcher offers — a quick way to hop to a different recent
-// audit without scrolling back up to the "Actividad" selector above the
-// fold, capped at 5 so the dropdown itself stays short and scannable.
+// salida" switcher offers — the sole way to pick which ride this analysis
+// audits (the standalone "Actividad" selector + "Analizar" button above the
+// card were removed once this switcher existed, to stop showing the same
+// choice twice), capped at 5 so the dropdown itself stays short and scannable.
 const ACTIVITY_SWITCHER_LIMIT = 5;
 
 const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
-// Shared with every other select/date field across the app (`lib/ui-classes.ts`).
-const selectableInputClass = selectableFieldClass;
 
 // A rider self-reporting effort after the fact thinks in "easy/moderate/
 // hard," not the 5 finely graded levels the pre-ride planner's own target-
@@ -147,13 +146,31 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
   const resultRef = useRef<HTMLDivElement>(null);
 
   // A freshly computed "Deuda de Glucógeno" renders below the fold on most
-  // phones — without this, "Analizar" appears to do nothing until the
-  // athlete notices they need to scroll down themselves.
+  // phones — without this, a fresh analysis appears to do nothing until the
+  // athlete notices they need to scroll down themselves. Skipped on the very
+  // first auto-load below (`result` still `null` at that point anyway), so
+  // opening this tab never yanks the viewport before the athlete has
+  // scrolled to it themselves.
   useEffect(() => {
     if (result) {
       resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [result]);
+
+  // Auto-loads the athlete's most recent synced ride the moment this
+  // component mounts — "Cambiar salida" (inside the telemetry card below) is
+  // now the *only* way to pick a different ride, so the very first analysis
+  // has to kick off on its own rather than waiting on a manual "Analizar"
+  // click that no longer exists.
+  useEffect(() => {
+    if (selectedId) {
+      handleAnalyze();
+    }
+    // Deliberately runs once on mount only — `handleSwitchActivity` already
+    // re-triggers analysis for every subsequent selection change; depending
+    // on `selectedId` here would double-fire it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // `activityIdOverride` exists for the telemetry card's own "Cambiar
   // salida" switcher (see below): switching activities there both updates
@@ -205,10 +222,10 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
     }
   }
 
-  // The telemetry card's "Cambiar salida" quick switcher — picking a
-  // different recent ride both updates the top "Actividad" selector (kept in
-  // sync via the same `selectedId` state) and re-runs the analysis in place,
-  // without the athlete needing to scroll back up and click "Analizar" again.
+  // The telemetry card's "Cambiar salida" quick switcher — the only control
+  // for picking which ride gets analyzed. Updates `selectedId` and
+  // immediately re-runs the analysis in place; there's no separate
+  // "Analizar" button to click anymore.
   function handleSwitchActivity(activityId: string) {
     setSelectedId(activityId);
     setNeedsRpe(false);
@@ -293,42 +310,9 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-1 flex-col gap-1.5">
-            <label htmlFor="activity" className={eyebrow}>
-              Actividad
-            </label>
-            <select
-              id="activity"
-              className={selectableInputClass}
-              value={selectedId}
-              onChange={(e) => {
-                setSelectedId(e.target.value);
-                setResult(null);
-                setError(null);
-                setNeedsRpe(false);
-              }}
-            >
-              {activities.map((activity) => (
-                <option key={activity.id} value={activity.id}>
-                  {activity.name} ·{" "}
-                  {new Date(activity.activity_date).toLocaleDateString("es-ES", {
-                    day: "numeric",
-                    month: "short",
-                  })}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            type="button"
-            onClick={() => handleAnalyze()}
-            disabled={loading}
-            className={cn(primaryButtonClass, "w-full sm:w-fit")}
-          >
-            {loading ? "Analizando…" : "Analizar"}
-          </button>
-        </div>
+        {loading && !result && (
+          <p className="text-sm text-neutral-500">Analizando tu última salida…</p>
+        )}
 
         {error && <p className="text-sm text-status-warning">{error}</p>}
 
@@ -402,12 +386,17 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 border-t border-neutral-200 pt-3 lg:grid-cols-[16rem_1fr]">
+              <div className="flex flex-col gap-4 border-t border-neutral-200 pt-3">
+                {/* Compact square-ish preview on mobile (`h-36`, unchanged);
+                    a much larger 16:9 rectangle once there's real desktop
+                    width to give it, rather than a fixed narrow side column
+                    — a map confined to a small square left too much of the
+                    card's own width empty next to it. */}
                 <RouteMapPreview
                   points={result.activity.points}
                   distanceKm={result.activity.distanceKm}
                   elevationGainM={result.activity.elevationGainM}
-                  className="mt-0 h-36 lg:h-full"
+                  className="mt-0 h-36 w-full lg:aspect-video lg:h-auto"
                   emptyMessage="Sin datos de trazado GPS para esta actividad."
                 />
 

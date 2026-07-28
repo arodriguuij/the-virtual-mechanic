@@ -1418,51 +1418,69 @@ formula below, just not previously returned to the client).
 top of that same card — a title alone isn't enough to confirm *which* ride is being
 audited when several rides share a generic/duplicate name (e.g. a club's usual weekday
 loop), so the card now shows the ride's actual GPS shape and its exact start time, plus a
-fast way to jump to a different recent ride without scrolling back up:
+fast way to jump to a different recent ride. This went through two passes: the map first
+landed as a small fixed `16rem` side column, then was widened significantly once it read
+as too small/square relative to the rest of the card — and the same pass removed the
+standalone "Actividad" selector + "Analizar" button entirely, making "Cambiar salida"
+inside the card the *sole* control for picking which ride gets analyzed:
 
 - **Map** — `fetchActivityDetail()` (`lib/strava.ts`) now also returns `summaryPolyline`
   (Strava's `map.summary_polyline` on the `/activities/{id}` detail response, the same
   field `StravaActivity.map` already carries on the list/sync side); the route decodes it
   via the existing `decodePolyline()` (`lib/polyline.ts`) and returns the resulting
   `points: [number, number][] | null` on `activity`. `components/post-ride-analysis.tsx`
-  reuses `components/route-map-preview.tsx`'s `RouteMapPreview` unchanged (dynamically
-  imported with `ssr: false`, same as the Fueling Planner's own usage) rather than a
-  second map component. `RouteMapPreview` gained two new optional props to support this
-  second call site: `className` (merged via `cn()`/Tailwind-merge, so this card can drop
-  the planner's default `mt-3 h-48` and use its own `mt-0 h-36 lg:h-full` instead — `h-36`
-  fixed on mobile per spec, stretching to match the stats column's own height once the
-  layout goes 2-column at `lg:`) and `emptyMessage` (this card's own "Sin datos de
-  trazado GPS para esta actividad." copy for an indoor/GPS-less ride, replacing the
-  planner-specific default string that made no sense outside that context).
-- **Layout** — the card's map + 5-stat grid sit in a `grid grid-cols-1 lg:grid-cols-[16rem_1fr]`
-  wrapper: stacked (map above stats) below `lg:`, side-by-side above it. The inner stats
-  grid stays `grid-cols-2 sm:grid-cols-4` at every width rather than also shrinking at
-  `lg:` — verified live that a narrower `lg:grid-cols-2` variant left the stats spread
-  across a lot of dead horizontal space once the map's fixed `16rem` column left the
-  remaining space wider than expected; the full 4-column stat row fits comfortably next
-  to the map at any width this app targets.
+  reuses `components/route-map-preview.tsx`'s `RouteMapPreview` (dynamically imported
+  with `ssr: false`, same as the Fueling Planner's own usage) rather than a second map
+  component. `RouteMapPreview` gained two optional props to support this second call
+  site: `className` (merged via `cn()`/Tailwind-merge) and `emptyMessage` (this card's own
+  "Sin datos de trazado GPS para esta actividad." copy for an indoor/GPS-less ride,
+  replacing the planner-specific default string that made no sense outside that context).
+- **Layout** — map and the 5-stat grid are stacked (`flex flex-col`), not side-by-side.
+  The map stays a compact `h-36` (mobile-critical vertical space) below `lg:`, then
+  switches to `lg:aspect-video lg:h-auto` — a real 16:9 rectangle at whatever the card's
+  full width happens to be, verified live at a 1280px viewport as a `1178×662px` box
+  (ratio ≈1.78, i.e. genuinely 16:9). A side-by-side `map | stats` column layout was
+  tried first (map fixed at `16rem`) but read as too small no matter what aspect ratio it
+  used, since a narrow fixed column can't ever look like "a significant rectangular area"
+  — letting the map take the *entire* card width and grow tall via `aspect-video` was the
+  fix, with the stats grid (`grid-cols-2 sm:grid-cols-4`, unchanged) simply flowing below
+  it at full width like it already did on mobile.
+- **Zoom controls** — Leaflet's own default `+`/`−` control is disabled
+  (`zoomControl={false}` on `MapContainer`) and replaced with `MapZoomControls`, a small
+  `useMap()`-based component rendering two plain Tailwind buttons in its place: no
+  Tailwind class can reach into Leaflet's own bundled CSS to restyle its default control,
+  and that default read as disproportionately large once the map itself grew this much
+  larger. `size-7` (roughly Leaflet's own default footprint) on mobile, shrinking to
+  `lg:size-6` with a smaller glyph on desktop, where a mouse cursor doesn't need as
+  generous a touch target as a finger does.
 - **Date/time stamp** — `formatActivityDateTime()` builds "Martes 28 de Julio · Inicio a
   las 17:30h" from three separate `Intl`/`toLocaleDateString` calls (weekday, day, month,
   time) rather than one combined format string, since `es-ES`'s own long-date output
   ("martes, 28 de julio") lowercases every word and this app's convention capitalizes the
   weekday/month (not "de") for a cleaner, more legible stamp.
-- **"Cambiar salida" switcher** — a native `<select>` (no custom dropdown primitive exists
-  in this codebase) inside a persistent `<label>` reading "Cambiar salida," listing the
-  athlete's `ACTIVITY_SWITCHER_LIMIT` (5) most recent activities, positioned opposite the
-  "Ruta sincronizada..." badge in the card's header row. Picking one calls
-  `handleSwitchActivity()`, which updates `selectedId` (keeping the top "Actividad"
-  selector in sync) and immediately re-runs `handleAnalyze()` against the newly picked id
-  — `handleAnalyze()` gained an optional third `activityIdOverride` parameter specifically
-  for this, since `setSelectedId` doesn't take effect until the next render and the
-  analysis call needs the *new* id immediately, not whatever `selectedId` still held in
-  the current closure. This is a convenience layered on top of the existing "Actividad"
-  selector above the fold, not a replacement for it — the top selector is still what
-  triggers the *first* analysis of a session.
+- **"Cambiar salida" — the only activity picker.** A native `<select>` (no custom dropdown
+  primitive exists in this codebase) inside a persistent `<label>` reading "Cambiar
+  salida," listing the athlete's `ACTIVITY_SWITCHER_LIMIT` (5) most recent activities,
+  positioned opposite the "Ruta sincronizada..." badge in the card's header row. Picking
+  one calls `handleSwitchActivity()`, which updates `selectedId` and immediately re-runs
+  `handleAnalyze()` against the newly picked id — `handleAnalyze()` has an optional third
+  `activityIdOverride` parameter specifically for this, since `setSelectedId` doesn't take
+  effect until the next render and the analysis call needs the *new* id immediately, not
+  whatever `selectedId` still held in the current closure. The standalone "Actividad"
+  `<select>` + "Analizar" button that used to sit above this card were removed outright —
+  showing the same "which ride?" choice twice (once above the fold, once inside the card)
+  was pure duplication once this switcher existed. In their place, a `useEffect` that runs
+  once on mount calls `handleAnalyze()` for whichever activity `selectedId` already
+  defaults to (`activities[0]?.id`, the most recent one) — the very first analysis of a
+  session now happens automatically rather than waiting on a manual trigger that no longer
+  exists. A plain "Analizando tu última salida…" line covers that initial loading window
+  (`loading && !result`), distinct from the RPE picker/error states that can still follow it.
 
-Verified end-to-end (map decode → render → switcher → re-analyze) via a temporary,
-unauthenticated route rendering `PostRideAnalysis` directly with a mocked
-`/api/post-ride/analysis` response (Playwright route interception, not real Strava data
-— there's no live Strava session available in this environment) — removed again before
+Verified end-to-end (map decode → render → switcher → re-analyze, auto-load on mount, the
+old selector's absence, and both the mobile-compact/desktop-16:9 map sizes) via a
+temporary, unauthenticated route rendering `PostRideAnalysis` directly with a mocked
+`/api/post-ride/analysis` response (Playwright route interception, not real Strava data —
+there's no live Strava session available in this environment) — removed again before
 committing, same verification pattern used for the Strava route-caching work earlier.
 
 The same response also carries a `telemetry` object — the *raw* sensor readings
