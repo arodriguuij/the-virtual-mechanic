@@ -165,13 +165,36 @@ reach for — simply cannot work. Instead:
   action={logout}>` in `components/dashboard-shell.tsx`'s sidebar, below the identity
   card.
 - **`app/login/page.tsx`** — the only entry point when `proxy.ts` finds no session: a
-  minimal centered screen (value prop + a single "Conectar con Strava" CTA linking to
+  centered screen (value prop + a single "Conectar con Strava" CTA linking to
   `/api/strava/connect`) with its own `stravaLoginErrorMessages` map for login-time
   failures (`missing_code`, `token_exchange_failed`, `missing_athlete_id`,
   `auth_bridge_failed`, `save_failed`) — distinct from `app/page.tsx`'s own
   `stravaErrorMessages`, which now only covers errors from the already-logged-in
   "Sincronizar rutas" action (`not_connected`, `no_rides`), since a logged-out visitor
   can never reach that page to see them.
+  A Pas Normal Studios-inspired redesign gave the page an actual atmosphere instead of a
+  flat cream background: `public/login-road-bg.svg` (a purpose-drawn, monochrome road-
+  perspective illustration — not a stock/product photo, so there's no licensing concern
+  and no external network dependency) sits full-bleed behind a `bg-[#FDFCF9]/90
+  backdrop-blur-sm` overlay, which keeps the page reading as this app's usual light/cream
+  palette while still letting a faint road-and-horizon texture show through at the edges
+  (verified live at both mobile and desktop viewports — barely visible on a narrow phone,
+  clearly a receding road on a wider screen, same overlay both times). The card itself is
+  sharp-edged by this app's usual standard (`rounded-lg`, not the `rounded-2xl` auth-flow
+  cards used elsewhere) with a thin `border-neutral-200/90` and only `shadow-sm`. The old
+  paragraph-style value prop was replaced with a 3-line checkmark list (`✓ Recetas exactas
+  de glucosa y fructosa` / `✓ Ajuste por meteorología en tiempo real` / `✓ Pautas listas
+  para tu mezcla casera`) in `font-mono text-xs` — terser and more scannable, matching the
+  PNS convention of short declarative benefit lines over descriptive prose.
+  `components/strava-login-button.tsx` changed from a filled Strava-orange button to a
+  solid `bg-neutral-900`/`hover:bg-black` technical button, with `StravaMark` left at its
+  default corporate-orange fill (`#FC4C02`) rather than the white override it used
+  on the old orange background — the icon is now the only spot of color on an otherwise
+  monochrome button, same "one accent color, used deliberately" restraint as the rest of
+  this app's palette. The footer privacy note was shortened to a single line ("Acceso
+  seguro mediante OAuth. Solo leemos tus rutas.") as part of the same pass — verified this
+  and the rest of the card fit one screen with zero scroll at a 390×844 mobile viewport,
+  both with and without the error banner visible.
 
 ### Seeding dev data
 

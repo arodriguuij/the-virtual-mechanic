@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4a4d52"/>
+      <stop offset="55%" stop-color="#8b8d90"/>
+      <stop offset="100%" stop-color="#c4c5c7"/>
+    </linearGradient>
+    <linearGradient id="road" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3a3a3c"/>
+      <stop offset="100%" stop-color="#1c1c1e"/>
+    </linearGradient>
+    <linearGradient id="hillFar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6b6d70"/>
+      <stop offset="100%" stop-color="#5a5c5f"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="1000" fill="url(#sky)"/>
+
+  <path d="M0,470 L400,410 L900,440 L1300,400 L1600,430 L1600,560 L0,560 Z" fill="url(#hillFar)" opacity="0.55"/>
+  <path d="M0,520 L500,470 L1000,500 L1600,460 L1600,600 L0,600 Z" fill="#4f5154" opacity="0.6"/>
+
+  <path d="M700,560 L900,560 L1250,1000 L350,1000 Z" fill="url(#road)"/>
+
+  <path d="M760,560 L780,560 L620,1000 L560,1000 Z" fill="#2c2c2e" opacity="0.7"/>
+  <path d="M820,560 L840,560 L1040,1000 L980,1000 Z" fill="#2c2c2e" opacity="0.7"/>
+
+  <g fill="#d8d6cf" opacity="0.85">
+    <path d="M793,600 L807,600 L802,650 L798,650 Z"/>
+    <path d="M786,680 L814,680 L806,745 L794,745 Z"/>
+    <path d="M776,780 L824,780 L812,860 L788,860 Z"/>
+    <path d="M760,900 L840,900 L822,1000 L778,1000 Z"/>
+  </g>
+
+  <rect x="0" y="0" width="1600" height="1000" fill="#232326" opacity="0.12"/>
+</svg>

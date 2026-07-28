@@ -31,8 +31,8 @@ export function StravaLoginButton() {
         setConnecting(true);
       }}
       className={cn(
-        "inline-flex w-full items-center justify-center gap-2.5 rounded-lg bg-[#FC4C02] px-6 py-3.5 text-xs font-semibold tracking-wider text-white uppercase transition-all duration-150",
-        connecting ? "pointer-events-none opacity-80" : "cursor-pointer hover:shadow-md hover:brightness-105"
+        "flex w-full items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 py-3 font-mono text-xs font-bold text-white uppercase transition-all duration-150",
+        connecting ? "pointer-events-none opacity-80" : "cursor-pointer hover:bg-black"
       )}
     >
       {connecting ? (
@@ -45,7 +45,7 @@ export function StravaLoginButton() {
         </>
       ) : (
         <>
-          <StravaMark className="size-4 shrink-0" color="#FFFFFF" />
+          <StravaMark className="size-4 shrink-0" />
           Conectar con Strava
         </>
       )}

@@ -1,8 +1,8 @@
 /** Official Strava icomark — a single fill path (Simple Icons' `siStrava`
  * glyph). Takes an explicit `color` (default Strava's corporate orange)
  * rather than `currentColor`, since every usage so far needs a fixed color
- * regardless of surrounding text color (white on the login button's orange
- * background, orange on the auth-callback screen's white background). */
+ * regardless of surrounding text color (Strava-orange on both the login
+ * button's black background and the auth-callback screen's white one). */
 export function StravaMark({
   className,
   color = "#FC4C02",

@@ -14,6 +14,12 @@ const stravaLoginErrorMessages: Record<string, string> = {
   save_failed: "No se pudieron guardar los tokens de Strava.",
 };
 
+const benefits = [
+  "Recetas exactas de glucosa y fructosa",
+  "Ajuste por meteorología en tiempo real",
+  "Pautas listas para tu mezcla casera",
+];
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -27,41 +33,44 @@ export default async function LoginPage({
       : null;
 
   return (
-    <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md rounded-2xl border border-neutral-200/80 bg-white p-8 text-center shadow-sm sm:p-10">
-        <div className="flex flex-col items-center gap-8">
-          <div className="flex flex-col items-center">
-            <AppLogo className="mx-auto mb-4 size-16" />
-            <span className="text-sm font-bold tracking-[0.2em] text-neutral-900 uppercase">
-              Motor Metabólico
-            </span>
-          </div>
+    <div
+      className="relative flex min-h-screen w-full flex-col items-center justify-center bg-cover bg-center p-4"
+      style={{ backgroundImage: "url('/login-road-bg.svg')" }}
+    >
+      <div className="absolute inset-0 bg-[#FDFCF9]/90 backdrop-blur-sm" />
 
-          <div className="flex flex-col gap-2">
-            <h1 className="text-xl font-bold tracking-wide text-neutral-900 uppercase">
-              Nutrición de precisión para ciclistas
-            </h1>
-            <p className="text-sm text-neutral-500">
-              Convierte tu FTP, peso y las condiciones reales de cada ruta en un plan de
-              hidratación y carbohidratos exacto — antes y después de pedalear.
-            </p>
-          </div>
-
-          {error && (
-            <div className="flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-left text-sm text-status-warning">
-              <TriangleAlert className="size-4 shrink-0" />
-              {error}
-            </div>
-          )}
-
-          <div className="flex w-full flex-col">
-            <StravaLoginButton />
-            <p className="mt-4 font-sans text-[11px] leading-relaxed text-neutral-400">
-              Acceso seguro mediante OAuth. Solo leemos tus rutas para calcular tu nutrición
-              y jamás publicaremos nada en tu cuenta de Strava.
-            </p>
-          </div>
+      <div className="relative w-full max-w-md rounded-lg border border-neutral-200/90 bg-white p-6 shadow-sm sm:p-8">
+        <div className="flex flex-col items-center">
+          <AppLogo className="size-10 shrink-0" />
+          <span className="mt-2 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
+            Motor Metabólico
+          </span>
+          <h1 className="mt-2 text-center font-mono text-xl font-bold tracking-tight text-neutral-900 uppercase">
+            Nutrición de precisión
+          </h1>
         </div>
+
+        <ul className="my-6 space-y-2.5 font-mono text-xs text-neutral-700">
+          {benefits.map((benefit) => (
+            <li key={benefit} className="flex items-start gap-2">
+              <span className="text-terracotta">&#10003;</span>
+              {benefit}
+            </li>
+          ))}
+        </ul>
+
+        {error && (
+          <div className="mb-4 flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-left text-sm text-status-warning">
+            <TriangleAlert className="size-4 shrink-0" />
+            {error}
+          </div>
+        )}
+
+        <StravaLoginButton />
+
+        <p className="mt-3 text-center font-mono text-[11px] text-neutral-400">
+          Acceso seguro mediante OAuth. Solo leemos tus rutas.
+        </p>
       </div>
     </div>
   );
