@@ -1,7 +1,7 @@
 "use client";
 
 import { Utensils, Zap } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -70,6 +70,16 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
   const [savingConsumption, setSavingConsumption] = useState(false);
   const [consumptionSaved, setConsumptionSaved] = useState(false);
   const [consumptionError, setConsumptionError] = useState<string | null>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  // A freshly computed "Deuda de Glucógeno" renders below the fold on most
+  // phones — without this, "Analizar" appears to do nothing until the
+  // athlete notices they need to scroll down themselves.
+  useEffect(() => {
+    if (result) {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [result]);
 
   async function handleAnalyze() {
     setLoading(true);
@@ -209,7 +219,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
         {error && <p className="text-sm text-status-warning">{error}</p>}
 
         {result && (
-          <div className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
+          <div ref={resultRef} className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className={eyebrow}>Deuda de glucógeno · &ldquo;{result.activity.name}&rdquo;</span>
               <span className="text-xs text-neutral-500">{sourceLabels[result.source]}</span>

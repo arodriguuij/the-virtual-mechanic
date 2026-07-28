@@ -17,7 +17,7 @@ import {
   Utensils,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -291,6 +291,7 @@ export function FuelingPlanner({
   const [gpxDurationHours, setGpxDurationHours] = useState(2);
   const [gpxError, setGpxError] = useState<string | null>(null);
   const [isDraggingGpx, setIsDraggingGpx] = useState(false);
+  const resultRef = useRef<HTMLDivElement>(null);
 
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === selectedRouteId) ?? null,
@@ -343,6 +344,15 @@ export function FuelingPlanner({
     window.addEventListener("offline", loadCachedStrategyIfOffline);
     return () => window.removeEventListener("offline", loadCachedStrategyIfOffline);
   }, []);
+
+  // A freshly calculated strategy renders below the fold on most phones —
+  // without this, "Calcular estrategia" appears to do nothing until the
+  // athlete notices they need to scroll down themselves.
+  useEffect(() => {
+    if (result) {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [result]);
 
   function setPocketFoodQty(type: PocketFoodItemType, qty: number) {
     setPocketFood((prev) => ({ ...prev, [type]: Math.max(0, Math.min(MAX_POCKET_FOOD_QTY, qty)) }));
@@ -898,7 +908,7 @@ export function FuelingPlanner({
         {error && <p className="text-sm text-status-warning">{error}</p>}
 
         {result && (
-          <div className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
+          <div ref={resultRef} className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
             {isOfflineCache && (
               <div className="flex items-center gap-1.5 border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-700">
                 <Zap className="size-3.5 shrink-0" />
