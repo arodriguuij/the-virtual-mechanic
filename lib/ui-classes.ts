@@ -47,20 +47,23 @@ export const badgeClass =
   "inline-flex items-center gap-1 rounded-md border border-badge-border bg-badge px-2.5 py-1 font-mono text-badge-foreground";
 
 /**
- * Segmented "pill toggle" control — an Apple/Fuelin-style tinted rounded
- * container holding equal-weight buttons, where the active option lifts on
- * its own white card (`shadow-sm`) rather than filling with the accent
- * color. Replaces the app's older `<select>`-for-a-short-list and
- * terracotta-filled-pill conventions for any exclusive choice with a
- * handful of options: fueling mode, route/quick/GPX mode, departure day,
- * ride intensity, sweat rate, bottle count/capacity. `flex-wrap` on the
- * container lets a longer option set (ride intensity, 5 options) wrap to a
- * second row on a narrow phone instead of cramming/truncating.
+ * Technical button row — a Pas Normal Studios-style editorial replacement
+ * for the app's earlier Apple/Fuelin-style tinted "pill toggle" segmented
+ * control (a `bg-[#EAE7DF]` rounded track holding equal-weight buttons).
+ * That tinted track read as too soft/consumer-app for this app's sober,
+ * technical identity — this is a transparent row of independent bordered
+ * buttons instead, each its own discrete control rather than a shared
+ * pill lifting off a common background. Used for every exclusive choice
+ * with a handful of options: fueling mode, route/quick/GPX mode, departure
+ * day, ride intensity, sweat rate, bottle count/capacity. `flex-wrap` on
+ * the container lets a longer option set (ride intensity, 5 options) wrap
+ * to a second row on a narrow phone instead of cramming/truncating.
  */
-export const segmentedControlClass = "flex flex-wrap gap-1 rounded-xl bg-[#EAE7DF] p-1";
+export const segmentedControlClass = "flex w-full flex-wrap gap-2";
 export const segmentedControlButtonClass =
-  "min-h-11 flex-1 cursor-pointer rounded-lg px-3 py-2 font-mono text-xs text-neutral-600 transition-all duration-150 hover:text-neutral-900";
-export const segmentedControlButtonActiveClass = "bg-white font-semibold text-neutral-900 shadow-sm";
+  "min-h-11 flex-1 cursor-pointer rounded-md border border-neutral-300 bg-white px-3.5 py-2 font-mono text-xs font-semibold text-neutral-700 transition-colors duration-150 hover:border-neutral-900";
+export const segmentedControlButtonActiveClass =
+  "border-neutral-900 bg-neutral-900 font-bold text-white shadow-none hover:border-neutral-900";
 /** Same active look as `segmentedControlButtonActiveClass`, expressed as
  * `has-checked:` variants for a segmented control built from plain radio
  * `<label>`s (an `sr-only` native `<input type="radio">` inside each label)
@@ -68,7 +71,7 @@ export const segmentedControlButtonActiveClass = "bg-white font-semibold text-ne
  * no JS (Physiological Profile's sweat rate/bottle count/capacity) where the
  * "active" pill still has to be a real, submittable form control. */
 export const segmentedControlButtonActiveHasCheckedClass =
-  "flex items-center justify-center text-center has-checked:bg-white has-checked:font-semibold has-checked:text-neutral-900 has-checked:shadow-sm";
+  "flex items-center justify-center text-center has-checked:border-neutral-900 has-checked:bg-neutral-900 has-checked:font-bold has-checked:text-white has-checked:shadow-none";
 
 /**
  * Multi-card selector (Fenotipo metabólico, Gut Training level) — every

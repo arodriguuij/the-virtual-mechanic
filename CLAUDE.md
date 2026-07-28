@@ -1626,11 +1626,18 @@ class strings in `lib/ui-classes.ts` (same "compose with `cn()` at the call site
 convention as every other shared class):
 
 - **Segmented control** (`segmentedControlClass`/`segmentedControlButtonClass`/
-  `segmentedControlButtonActiveClass`) — a tinted `bg-[#EAE7DF]` rounded container holding
-  equal-weight buttons, where the active option lifts on its own `bg-white shadow-sm` card
-  rather than filling with the accent color (the older convention). Used for every
-  exclusive choice with a handful of options that used to be either a `<select>` or a
-  terracotta-filled pill row: the Fueling Planner's route/quick/GPX mode toggle, fueling
+  `segmentedControlButtonActiveClass`) — despite the name (kept for historical/import
+  continuity), this is no longer an Apple/Fuelin-style tinted `bg-[#EAE7DF]` rounded
+  container with pills lifting off it — that read as too soft/consumer-app for this app's
+  sober, technical identity. Replaced with a Pas Normal Studios-style editorial pattern: a
+  transparent `flex flex-wrap gap-2` row of fully independent bordered buttons
+  (`border-neutral-300 bg-white`, `rounded-md`), each its own discrete control rather than
+  sharing a common tinted track. The active option is a solid `bg-neutral-900 text-white`
+  fill (`font-bold`, no shadow) — deliberately monochrome, not terracotta, so the accent
+  color stays reserved for primary actions (CALCULAR ESTRATEGIA, etc.) rather than being
+  spent on every selected toggle state too. Used for every exclusive choice with a handful
+  of options that used to be either a `<select>` or a terracotta-filled pill row: the
+  Fueling Planner's route/quick/GPX mode toggle, fueling
   mode (Óptimo/Mi Inventario/Híbrido), departure day (`DeparturePicker`), ride intensity
   (`IntensityControl`, 5 options — `flex-wrap` on the container lets it wrap to a second
   row on a narrow phone, and its buttons add `whitespace-normal` so a longer label like
