@@ -92,7 +92,7 @@ async function SummaryCard() {
             )}
 
             <div className="flex flex-col gap-1">
-              <span className={statLabel}>Gut training</span>
+              <span className={statLabel}>Capacidad digestiva</span>
               <span className={weeklyStatValue}>
                 {gutTrainingRangeValue}
                 <span className="ml-1 text-sm font-normal text-neutral-500">

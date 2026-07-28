@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, LayoutDashboard, LogOut, Menu, UserRound, X } from "lucide-react";
+import { BarChart3, History, LayoutDashboard, LogOut, Menu, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/estadisticas", label: "Estadísticas", icon: BarChart3 },
+  { href: "/historial", label: "Historial", icon: History },
   { href: "/perfil", label: "Perfil fisiológico", icon: UserRound },
 ];
 
@@ -87,7 +88,7 @@ function SidebarContent({
       </div>
 
       <div className="mt-4 pt-3 text-center font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
-        Motor Metabólico v1.0 · Precision Fueling
+        Motor Metabólico v1.0 · Nutrición de precisión
       </div>
     </div>
   );

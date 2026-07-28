@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * hitting the exact same `POST /api/strava/sync` route), which is what
  * makes this component's pending state real.
  *
- * Collapses to an icon + short "Sync" label on mobile — the full
+ * Collapses to an icon + short "Sincronizar" label on mobile — the full
  * "Sincronizar Strava" text next to the Dashboard's own greeting/title
  * overflowed a narrow phone and clipped the greeting text.
  */
@@ -34,7 +34,7 @@ function SyncButton() {
         {pending ? "Sincronizando..." : "Sincronizar Strava"}
       </span>
       <span className="font-mono text-[10px] font-semibold tracking-wider text-neutral-600 uppercase sm:hidden">
-        {pending ? "..." : "Sync"}
+        {pending ? "..." : "Sincronizar"}
       </span>
     </button>
   );

@@ -94,7 +94,7 @@ const FUELING_MODE_DESCRIPTIONS: Record<FuelingMode, string> = {
   optimal:
     "Estrategia de alta eficiencia digestiva recomendada para rendimiento: formulada únicamente con bidón de hidratación y geles de rápida absorción.",
   inventory:
-    "Selecciona los productos disponibles en tu inventario personal — el bidón DIY ajustará su concentración para cubrir el déficit.",
+    "Selecciona los productos disponibles en tu inventario personal — el bidón casero ajustará su concentración para cubrir el déficit.",
   hybrid:
     "Fija tus alimentos imprescindibles — te sugerimos geles o bidón para cubrir la brecha restante.",
 };
@@ -272,7 +272,7 @@ function DeparturePicker({
             type="button"
             onClick={() => onDayModeChange(opt.value)}
             className={cn(
-              "cursor-pointer rounded-lg border px-2 py-2 text-[11px] font-semibold tracking-wide uppercase transition-colors duration-150 sm:text-xs",
+              "h-10 cursor-pointer rounded-lg border px-2 text-[10px] font-mono font-semibold whitespace-nowrap uppercase transition-colors duration-150 sm:text-xs",
               dayMode === opt.value
                 ? "border-terracotta bg-terracotta text-white"
                 : "border-neutral-300 bg-white text-neutral-600 hover:border-neutral-400"
@@ -648,9 +648,9 @@ export function FuelingPlanner({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Planificador de fueling</CardTitle>
+        <CardTitle>Planificador de nutrición</CardTitle>
         <CardDescription className={eyebrow}>
-          Estrategia de bolsillo y receta DIY para tu próxima salida
+          Estrategia de bolsillo y receta casera para tu próxima salida
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
@@ -906,7 +906,7 @@ export function FuelingPlanner({
         )}
 
         <div className="flex flex-col gap-1.5">
-          <span className={eyebrow}>Modo de fueling</span>
+          <span className={eyebrow}>Estrategia nutricional</span>
           <div className="flex flex-wrap gap-1.5">
             {FUELING_MODE_OPTIONS.map((opt) => (
               <button
@@ -1060,13 +1060,13 @@ export function FuelingPlanner({
               </div>
             )}
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className={eyebrow}>Estrategia de bolsillo &amp; receta DIY</span>
+              <span className={eyebrow}>Estrategia de bolsillo &amp; receta casera</span>
             </div>
 
             <div className="mb-2 flex flex-col gap-3 rounded-xl bg-[#343334] p-5 text-white shadow-sm">
               <div>
                 <span className="font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
-                  Dosis DIY por bidón
+                  Dosis casera por bidón
                 </span>
                 <p className="mt-1.5 font-mono text-xl font-bold text-[#FD5A08]">
                   {result.bottlePlan.fuelBottles.count > 0
@@ -1175,7 +1175,7 @@ export function FuelingPlanner({
                 <span className="flex min-w-0 items-center gap-1.5">
                   <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
                   <span className={eyebrow}>
-                    Receta de laboratorio casero (DIY) · {result.durationHours} h
+                    Receta de laboratorio casero · {result.durationHours} h
                   </span>
                 </span>
                 <button

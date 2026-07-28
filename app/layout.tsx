@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Motor Metabólico — Nutrición Ciclista de Precisión",
   description:
-    "Planificación de fueling, estrategias de bolsillo y recetas DIY para ciclismo.",
+    "Planificación nutricional, estrategias de bolsillo y recetas caseras para ciclismo.",
   appleWebApp: {
     title: "Motor Metabólico",
     statusBarStyle: "default",

@@ -227,7 +227,7 @@ export function getIntakeRecommendationNote(
     return "Todavía no hay suficientes datos de consumo real — registra tu ingesta tras cada salida para desbloquear una recomendación personalizada.";
   }
   if (avgIntakeGPerHour > capGPerHour) {
-    return `Tu ingesta real (${avgIntakeGPerHour} g/h) ya supera el techo de tu nivel actual (${capGPerHour} g/h) — es una señal de que tu intestino podría estar listo para subir de nivel en Gut Training.`;
+    return `Tu ingesta real (${avgIntakeGPerHour} g/h) ya supera el techo de tu nivel actual (${capGPerHour} g/h) — es una señal de que tu intestino podría estar listo para subir de nivel de capacidad digestiva.`;
   }
   if (avgIntakeGPerHour >= capGPerHour * INTAKE_HEADROOM_FRACTION) {
     return `Tu promedio de ${avgIntakeGPerHour} g/h ya está cerca de tu capacidad actual (${capGPerHour} g/h) — mantén esta rutina y considera avanzar de nivel cuando te sientas cómodo.`;
@@ -1251,7 +1251,7 @@ export function formatRecipeForSharing({
   bottlePlan: Pick<BottlePlan, "fuelBottles" | "waterBottles">;
 }): string {
   const lines = [
-    "🚴 RECETA DIY — MOTOR METABÓLICO",
+    "🚴 RECETA CASERA — MOTOR METABÓLICO",
     `Duración: ${durationHours}h · ${carbsGPerHour}g/h HC · ${sodiumMgPerHour}mg/h sodio`,
     "",
   ];

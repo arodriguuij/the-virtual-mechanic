@@ -39,7 +39,7 @@ export default async function LoginPage({
 
           <div className="flex flex-col gap-2">
             <h1 className="text-xl font-bold tracking-wide text-neutral-900 uppercase">
-              Fueling de precisión para ciclistas
+              Nutrición de precisión para ciclistas
             </h1>
             <p className="text-sm text-neutral-500">
               Convierte tu FTP, peso y las condiciones reales de cada ruta en un plan de

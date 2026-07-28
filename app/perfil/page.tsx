@@ -177,7 +177,7 @@ async function PhysiologicalProfileCard() {
 
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <span className={cardNumberHeading}>03 · Adaptación digestiva (gut training)</span>
+          <span className={cardNumberHeading}>03 · Adaptación digestiva</span>
           <p className="text-sm text-neutral-500">
             El intestino se entrena igual que las piernas — tolerar más carbohidratos por hora
             en ruta es una capacidad que se gana progresivamente. Tu nivel actual limita el
@@ -223,7 +223,7 @@ const profileErrorMessages: Record<string, string> = {
   invalid_weight: "Introduce un peso válido.",
   invalid_ftp: "Introduce un FTP válido.",
   invalid_sweat_rate: "Selecciona una tasa de sudoración válida.",
-  invalid_gut_training_level: "Selecciona un nivel de Gut Training válido.",
+  invalid_gut_training_level: "Selecciona un nivel de capacidad digestiva válido.",
   invalid_athlete_type: "Selecciona un fenotipo metabólico válido.",
   invalid_bottle_count: "Selecciona un número de soportes de bidón válido.",
   invalid_bottle_capacity_ml: "Selecciona una capacidad de bidón válida.",

@@ -1394,17 +1394,21 @@ version has no client state to read from for that. This also absorbed the old st
 page below the form — every level's own g/h range is already shown on its own selector
 card now, so a second static list repeating the same 4 ranges was pure duplication.
 
-### Sidebar navigation vs. Dashboard tabs (app/page.tsx, app/perfil/page.tsx, app/estadisticas/page.tsx)
+### Sidebar navigation vs. Dashboard tabs (app/page.tsx, app/perfil/page.tsx, app/estadisticas/page.tsx, app/historial/page.tsx)
 
 The Dashboard's tabs are daily-action surfaces (something a rider does before/after every
-ride); the Physiological Profile and Estadísticas are both setup-once/glance-back-weekly
-surfaces, so they live on their own routes (`/perfil`, `/estadisticas`) reached from the
-sidebar rather than as Dashboard tabs — mixing "things I do every ride" with "things I
-configure or review occasionally" in the same `TabsList` was the wrong information
-architecture once there were only two genuine daily tabs left.
+ride); the Physiological Profile, Estadísticas, and Historial are all setup-once/glance-
+back surfaces, so they live on their own routes (`/perfil`, `/estadisticas`, `/historial`)
+reached from the sidebar rather than as Dashboard tabs — mixing "things I do every ride"
+with "things I configure or review occasionally" in the same `TabsList` was the wrong
+information architecture once there were only two genuine daily tabs left. Ride history
+used to be the second half of the Dashboard's "Al llegar" tab (see below) — moved out to
+its own route for the same reason Estadísticas got its own route: a backward-looking log
+isn't a pre/post-ride action, so it was competing for space in a tab that should stay
+focused on the just-finished ride's analysis.
 `components/dashboard-shell.tsx`'s `SidebarContent` renders `NAV_ITEMS` (`Dashboard` →
-`/`, `Estadísticas` → `/estadisticas`, `Perfil fisiológico` → `/perfil`) as real
-`next/link` `Link`s, using `usePathname()` to give the active item a filled pill
+`/`, `Estadísticas` → `/estadisticas`, `Historial` → `/historial`, `Perfil fisiológico` →
+`/perfil`) as real `next/link` `Link`s, using `usePathname()` to give the active item a filled pill
 (`bg-surface text-terracotta`) and the rest a subtle hover fill — a client component
 already (it owns the mobile drawer's `mobileOpen` state), so this needed no new
 `"use client"` boundary. Each `Link` takes an `onNavigate` callback that closes the mobile
@@ -1449,18 +1453,28 @@ the real connection status ("Conectado con Strava" / "Cuenta de desarrollo" / "S
 sesión") instead of a made-up bio line.
 
 - **`app/page.tsx`** — the Weekly Performance Panel (see above) sits above two
-  `components/ui/tabs.tsx` (`@base-ui/react/tabs`) panels — both panels' Server Component
-  data fetches still run on every page load regardless of which tab is active (Tabs hides
-  the inactive panel with CSS, it doesn't unmount/defer its Suspense boundary):
-  - **Pre-Ride tab** — `FuelingPlannerSection` fetches the athlete profile and
+  `components/ui/tabs.tsx` (`@base-ui/react/tabs`) panels, labeled "Antes de salir"/"Al
+  llegar" (the `value`s stay the internal `"pre-ride"`/`"post-ride"` identifiers — only
+  the visible label text changed, as part of the app's full Spanish-only pass, see
+  "Spanish-only UI text" below) — both panels' Server Component data fetches still run on
+  every page load regardless of which tab is active (Tabs hides the inactive panel with
+  CSS, it doesn't unmount/defer its Suspense boundary):
+  - **Antes de salir tab** — `FuelingPlannerSection` fetches the athlete profile and
     `getStravaRoutes()`, handing the route list to the client `FuelingPlanner` (see
     "Fueling planner" above). Shows a prompt linking to `/perfil` instead if there's no
     `athlete_profiles` row yet, since the plan endpoint requires one.
-  - **Post-Ride tab** — `PostRideAnalysisSection` fetches `getRecentActivities(8)` and
-    hands the list to the client `PostRideAnalysis` (see "Post-Ride Analysis" above),
-    followed by `RideHistorySection` — the ride lookbook (numbered rows, hairline
-    dividers, no per-row card chrome), each row showing distance, a humidity/rain weather
-    label, and carbs burned when available.
+  - **Al llegar tab** — `PostRideAnalysisSection` fetches `getRecentActivities(8)` and
+    hands the list to the client `PostRideAnalysis` (see "Post-Ride Analysis" above).
+    Ride history used to also live here (`RideHistorySection`) — moved to its own
+    `/historial` route (see below), so this tab now holds only the just-finished ride's
+    analysis.
+- **`app/historial/page.tsx`** — its own `DashboardShell`-wrapped page (own header,
+  reached from the sidebar's `Historial` nav item, `History` `lucide-react` icon). Fetches
+  `getRecentActivities(20)` — a larger limit than the old in-tab card (8), since this
+  view has no other content competing for space — and renders the same ride-lookbook card
+  (numbered rows, hairline dividers, no per-row card chrome) that used to sit at the
+  bottom of the Dashboard's "Al llegar" tab: each row shows distance, a humidity/rain
+  weather label, and carbs burned when available.
 - **`app/perfil/page.tsx`** — its own `DashboardShell`-wrapped page (own header, own
   `profile_saved`/`profile_error` query-param handling — see "Athlete profile" above)
   rather than a tab panel. `PhysiologicalProfileCard` reads `getAthleteProfile()` and
@@ -1509,6 +1523,57 @@ the rest of the Dashboard from rendering. Computed and rendered entirely server-
 no client component involved, so there's no hydration mismatch risk — the server-rendered
 markup is the only markup, never re-computed client-side against a possibly different
 `Date()`.
+
+### Spanish-only UI text
+
+A pass removed the remaining "Spanglish" — English words left over in otherwise-Spanish
+copy, mostly from this project's original English feature names bleeding into
+user-visible strings. Only actual UI text/copy changed (headers, card titles, badges,
+error messages, the clipboard/export text, PWA manifest/meta descriptions); internal
+TypeScript identifiers, types, and code comments (`FuelingMode`, `fuelingMode` state,
+`logFuelingPlan`, `recoveryDebt`, the `"pre-ride"`/`"post-ride"` `Tabs` `value`s, etc.)
+were deliberately left alone — renaming those has no user-visible effect and would be a
+large, risk-only mechanical refactor across API routes/DB-adjacent code. Changes:
+
+- Dashboard tabs: "Pre-Ride"/"Post-Ride" → "Antes de salir"/"Al llegar".
+- "Planificador de fueling" → "Planificador de nutrición" (both the Fueling Planner's own
+  `CardTitle` and the no-profile-yet fallback card in `app/page.tsx`).
+- "Receta DIY"/"Dosis DIY"/"(DIY)" → "receta casera"/"Dosis casera" (`fueling-planner.tsx`
+  UI text, the DIY-recipe accordion header, and the clipboard-exported recipe's own
+  `"🚴 RECETA DIY..."` header line in `lib/metabolic-engine.ts`'s
+  `formatRecipeForSharing()`) — "DIY" was the one loanword with no natural one-word
+  Spanish equivalent already in use elsewhere in the app, so "casero/a" (already used
+  throughout, e.g. "Receta de laboratorio casero") replaces it everywhere instead of
+  leaving two names for the same concept.
+- "Modo de fueling" → "Estrategia nutricional" (the label above the Óptimo/Mi
+  Inventario/Híbrido pills — the pill names themselves were already Spanish).
+- "Gut Training" → "capacidad digestiva" everywhere it appeared as an English parenthetical
+  or standalone label (`/perfil`'s section 03 header — the parenthetical was simply
+  dropped rather than translated 1:1, since "Adaptación digestiva (capacidad digestiva)"
+  is redundant with itself; the profile-save error message; `/estadisticas`'s stat label;
+  and the recommendation note in `getIntakeRecommendationNote()`). The level names
+  themselves (Principiante/Intermedio/Avanzado/Pro) were already Spanish.
+- `SyncButton`'s mobile-collapsed label: "Sync" → "Sincronizar" (the loading state,
+  "Sincronizando...", was already Spanish and unchanged).
+- The sidebar footer's "Precision Fueling" tagline → "Nutrición de precisión"; the PWA
+  manifest/meta descriptions (`app/manifest.ts`, `app/layout.tsx`) and `/login`'s value-
+  prop heading also had their own "fueling"/"DIY" mentions translated the same way.
+
+### Dashboard header spacing & date-pill height
+
+Two small layout fixes bundled with the translation pass above:
+
+- **Header-to-tabs whitespace** — `app/page.tsx`'s outer page wrapper was `gap-10` with an
+  additional `mb-6` on the header itself, stacking to a large gap before the "Antes de
+  salir"/"Al llegar" tabs even though the header already ends in its own `border-b pb-4`.
+  Reduced to a single `gap-4` on the wrapper with the header's redundant `mb-6` removed.
+- **`DeparturePicker`'s Hoy/Mañana/Elegir fecha buttons** — sized taller than the hour
+  `<select>` directly below them, but not because of their own padding: "Elegir fecha" is
+  long enough to wrap onto two lines inside its `grid-cols-3` column, and since CSS grid
+  rows share height, that wrap stretched all three buttons taller than the field beside
+  them (verified live: 49px vs. the field's 42px). Fixed with a fixed `h-10`, a smaller
+  `text-[10px]` (`sm:text-xs`), and `whitespace-nowrap` so no label can ever wrap and
+  re-trigger the same row-height stretch.
 
 ### Route dynamic rendering
 
