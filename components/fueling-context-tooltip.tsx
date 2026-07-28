@@ -20,7 +20,7 @@ export function FuelingContextTooltips({ carbsGPerHour }: { carbsGPerHour: numbe
       <Info
         tabIndex={0}
         aria-label="Contexto científico del ratio de carbohidratos"
-        className="size-3.5 cursor-help text-neutral-400 outline-none transition-colors duration-150 hover:text-neutral-700 focus:text-neutral-700"
+        className="ml-1 inline-block size-3 shrink-0 cursor-help text-neutral-400 outline-none transition-colors duration-150 hover:text-neutral-700 focus:text-neutral-700"
       />
       <span
         role="tooltip"

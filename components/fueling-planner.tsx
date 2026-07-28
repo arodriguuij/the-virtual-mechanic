@@ -110,7 +110,7 @@ function pocketFoodName(type: PocketFoodItemType): string {
 }
 
 const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
-const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
+const statLabel = "text-[10px] sm:text-xs font-mono tracking-wider text-neutral-500 uppercase truncate";
 const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
 // Shared with every other field/button across the app (`lib/ui-classes.ts`) —
 // aliased to these file-local names since they're already used at every
@@ -982,17 +982,20 @@ export function FuelingPlanner({
               thermalImpactNote={result.weather.thermalImpactNote}
             />
 
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              <div className="flex flex-col gap-1">
-                <span className={statLabel}>Duración estimada</span>
+            <div className="my-4 grid w-full grid-cols-3 gap-1 text-center sm:gap-4 sm:text-left">
+              <div className="flex min-w-0 flex-col items-center gap-1 sm:items-start">
+                <span className={statLabel}>Duración</span>
                 <span className={statValue}>
                   {result.durationHours}
                   <span className="ml-1 text-sm font-normal text-neutral-500">h</span>
                 </span>
               </div>
-              <div className="flex flex-col gap-1">
-                <span className="flex items-center gap-1">
-                  <span className={statLabel}>Carbohidratos</span>
+              <div className="flex min-w-0 flex-col items-center gap-1 sm:items-start">
+                <span className="flex min-w-0 items-center justify-center sm:justify-start">
+                  <span className={statLabel}>
+                    <span className="sm:hidden">Carbos</span>
+                    <span className="hidden sm:inline">Carbohidratos</span>
+                  </span>
                   <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
                 </span>
                 <span className={statValue}>
@@ -1000,7 +1003,7 @@ export function FuelingPlanner({
                   <span className="ml-1 text-sm font-normal text-neutral-500">g/h</span>
                 </span>
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex min-w-0 flex-col items-center gap-1 sm:items-start">
                 <span className={statLabel}>Sodio</span>
                 <span className={statValue}>
                   {result.sodiumMgPerHour}
