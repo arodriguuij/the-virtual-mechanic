@@ -117,12 +117,22 @@ const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums
 // input/select/date call site below.
 const inputClass = fieldClass;
 const selectableInputClass = selectableFieldClass;
-// `datetime-local` renders its own calendar-picker icon that Tailwind can
-// only reach via the `::-webkit-calendar-picker-indicator` pseudo-element —
-// dimmed by default, full opacity on hover, so it still reads as clickable
-// without competing visually with the rest of the field.
+// `datetime-local` gets its own class list rather than sharing
+// `selectableFieldClass` — iOS Safari renders this control as several
+// internal segments (month/day/year/hour/minute/AM-PM) with their own
+// intrinsic minimum width, which can force the field wider than its grid
+// column and overflow the card's right edge on a narrow phone.
+// `min-w-0`/`max-w-full`/`box-border`/`truncate` on both the input and its
+// wrapper (see the three call sites below) are what actually stop that —
+// `w-full` alone doesn't help, since a flex/grid item's default
+// `min-width: auto` still lets its content force the item wider anyway.
 const dateInputClass = cn(
-  selectableInputClass,
+  "w-full max-w-full box-border appearance-none truncate rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-xs font-sans text-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900 sm:text-sm",
+  "cursor-pointer",
+  // `datetime-local` renders its own calendar-picker icon that Tailwind can
+  // only reach via the `::-webkit-calendar-picker-indicator` pseudo-element —
+  // dimmed by default, full opacity on hover, so it still reads as clickable
+  // without competing visually with the rest of the field.
   "[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
 );
 
@@ -643,7 +653,7 @@ export function FuelingPlanner({
                   ))}
                 </select>
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex w-full min-w-0 max-w-full flex-col gap-1.5 overflow-hidden">
                 <label htmlFor="departure-route" className={eyebrow}>
                   Salida
                 </label>
@@ -692,7 +702,7 @@ export function FuelingPlanner({
                 onChange={(e) => setQuickAverageWatts(Number(e.target.value))}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex w-full min-w-0 max-w-full flex-col gap-1.5 overflow-hidden">
               <label htmlFor="departure-quick" className={eyebrow}>
                 Salida
               </label>
@@ -781,7 +791,7 @@ export function FuelingPlanner({
                       ))}
                     </select>
                   </div>
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex w-full min-w-0 max-w-full flex-col gap-1.5 overflow-hidden">
                     <label htmlFor="departure-gpx" className={eyebrow}>
                       Salida
                     </label>
