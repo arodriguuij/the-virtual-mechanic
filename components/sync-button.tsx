@@ -14,14 +14,28 @@ import { cn } from "@/lib/utils";
  * forever. `SyncForm` below passes a client action function instead (still
  * hitting the exact same `POST /api/strava/sync` route), which is what
  * makes this component's pending state real.
+ *
+ * Collapses to an icon + short "Sync" label on mobile — the full
+ * "Sincronizar Strava" text next to the Dashboard's own greeting/title
+ * overflowed a narrow phone and clipped the greeting text.
  */
-function SyncButton({ className }: { className?: string }) {
+function SyncButton() {
   const { pending } = useFormStatus();
 
   return (
-    <button type="submit" disabled={pending} className={cn(className, pending && "opacity-70")}>
-      <RefreshCw className={cn("mr-1.5 size-3.5 shrink-0", pending && "animate-spin")} />
-      {pending ? "SINCRONIZANDO..." : "SINCRONIZAR STRAVA"}
+    <button
+      type="submit"
+      disabled={pending}
+      title="Sincronizar rutas con Strava"
+      className="flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-2 text-neutral-700 shadow-sm transition-all duration-150 hover:border-neutral-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 sm:py-2"
+    >
+      <RefreshCw className={cn("size-4 text-[#FC4C02]", pending && "animate-spin")} />
+      <span className="hidden font-mono text-xs font-semibold tracking-wider uppercase sm:inline">
+        {pending ? "Sincronizando..." : "Sincronizar Strava"}
+      </span>
+      <span className="font-mono text-[10px] font-semibold tracking-wider text-neutral-600 uppercase sm:hidden">
+        {pending ? "..." : "Sync"}
+      </span>
     </button>
   );
 }
@@ -46,9 +60,11 @@ const syncErrorMessages: Record<string, string> = {
  * `ProfileSavedToast`) reports success or failure without needing a
  * query-param round-trip through a page navigation.
  */
-export function SyncForm({ className }: { className?: string }) {
+type Toast = { kind: "success" | "error"; title: string; message: string };
+
+export function SyncForm() {
   const router = useRouter();
-  const [toast, setToast] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
 
   async function syncAction() {
     try {
@@ -57,14 +73,23 @@ export function SyncForm({ className }: { className?: string }) {
       if (!res.ok) {
         setToast({
           kind: "error",
+          title: "Error de sincronización",
           message: syncErrorMessages[data.error] ?? "No se pudo sincronizar con Strava.",
         });
         return;
       }
-      setToast({ kind: "success", message: "Rutas y datos de Strava actualizados correctamente" });
+      setToast({
+        kind: "success",
+        title: "Sincronización completada",
+        message: "Rutas y datos de Strava actualizados",
+      });
       router.refresh();
     } catch {
-      setToast({ kind: "error", message: "No se pudo sincronizar con Strava." });
+      setToast({
+        kind: "error",
+        title: "Error de sincronización",
+        message: "No se pudo sincronizar con Strava.",
+      });
     } finally {
       setTimeout(() => setToast(null), 3000);
     }
@@ -73,23 +98,28 @@ export function SyncForm({ className }: { className?: string }) {
   return (
     <>
       <form action={syncAction}>
-        <SyncButton className={className} />
+        <SyncButton />
       </form>
       {toast && (
-        <div
-          className={cn(
-            "fixed right-6 bottom-6 z-50 flex items-center gap-2 border px-4 py-3 text-sm shadow-sm",
-            toast.kind === "success"
-              ? "border-status-good/30 bg-status-good/10 text-status-good"
-              : "border-status-warning/30 bg-status-warning/10 text-status-warning"
-          )}
-        >
-          {toast.kind === "success" ? (
-            <Check className="size-4 shrink-0" />
-          ) : (
-            <TriangleAlert className="size-4 shrink-0" />
-          )}
-          {toast.message}
+        <div className="animate-in fade-in slide-in-from-bottom-4 fixed bottom-6 left-1/2 z-10000 flex w-[90%] max-w-md -translate-x-1/2 items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-white shadow-2xl duration-200">
+          <div
+            className={cn(
+              "flex size-6 shrink-0 items-center justify-center rounded-full",
+              toast.kind === "success" ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+            )}
+          >
+            {toast.kind === "success" ? (
+              <Check className="size-3.5 stroke-3" />
+            ) : (
+              <TriangleAlert className="size-3.5 stroke-3" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-mono text-xs font-semibold tracking-wider text-white uppercase">
+              {toast.title}
+            </p>
+            <p className="mt-0.5 truncate font-sans text-xs text-neutral-300">{toast.message}</p>
+          </div>
         </div>
       )}
     </>

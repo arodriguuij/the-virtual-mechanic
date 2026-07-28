@@ -19,7 +19,7 @@ import {
   getRecentActivities,
   getStravaRoutes,
 } from "@/lib/dashboard-data";
-import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui-classes";
+import { primaryButtonClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -223,26 +223,20 @@ function RideHistorySkeleton() {
   );
 }
 
-// A compact, subdued treatment for the routine "sync" action — distinct from
-// the bolder connect CTA below, since re-syncing rides is something an
-// already-connected athlete does often and shouldn't compete visually with
-// the page title for space, especially on a narrow phone.
-const syncButtonClass = cn(secondaryButtonClass, "w-fit shrink-0 px-2.5 py-1.5 text-[11px]");
-
 async function StravaButton() {
   const profile = await getProfile();
   const connected = Boolean(profile?.strava_athlete_id);
 
   if (!connected) {
     return (
-      <a href="/api/strava/connect" className={cn(primaryButtonClass, "w-fit")}>
+      <a href="/api/strava/connect" className={cn(primaryButtonClass, "w-fit shrink-0")}>
         <Link2 className="size-3.5" />
         Conectar Strava
       </a>
     );
   }
 
-  return <SyncForm className={syncButtonClass} />;
+  return <SyncForm />;
 }
 
 function StravaButtonSkeleton() {
@@ -264,10 +258,12 @@ export default async function Home() {
       }
     >
       <div className="flex flex-col gap-10">
-        <header className="flex items-center justify-between gap-2 border-b border-neutral-200 pb-6 sm:gap-3">
-          <div className="min-w-0">
-            <p className={cn(eyebrow, "truncate")}>Buenas tardes, Alejandro</p>
-            <h1 className="mt-1 text-xl font-bold tracking-wide text-neutral-900 uppercase sm:text-2xl">
+        <header className="mb-6 flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
+          <div className="mr-2 flex min-w-0 flex-col">
+            <p className="truncate font-mono text-[10px] tracking-wider text-neutral-500 uppercase sm:text-xs">
+              Buenas tardes, Alejandro
+            </p>
+            <h1 className="truncate font-mono text-xl font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
               Dashboard
             </h1>
           </div>

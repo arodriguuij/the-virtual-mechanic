@@ -150,7 +150,6 @@ export async function POST(request: NextRequest) {
       totalCarbsG: carbsBurnedG,
       fluidMl: fluidLossMl,
       sodiumMg: sodiumLossMg,
-      moneySaved: 0,
     });
     loggedNew = true;
   }

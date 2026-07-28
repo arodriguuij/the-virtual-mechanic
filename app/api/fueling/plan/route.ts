@@ -15,7 +15,6 @@ import {
   getHomeLabRecipe,
   getHybridGelSuggestion,
   getLapseRateAdjustedTemperature,
-  getMoneySavedVsGels,
   getOptimalPocketFoodSelection,
   getPersonalizedCarbOxidationRateGPerHour,
   getPocketFoodMilestones,
@@ -293,7 +292,6 @@ export async function POST(request: NextRequest) {
     durationHours,
     pocketFoodCarbsG,
   });
-  const moneySaved = getMoneySavedVsGels(recipe.totalCarbsG);
   const bottlePlan = getBottlePlan(recipe, athleteProfile.bottle_capacity_ml);
   const reloadStrategy = getReloadStrategy({
     bottlePlan,
@@ -345,7 +343,6 @@ export async function POST(request: NextRequest) {
     totalCarbsG: recipe.totalCarbsG,
     fluidMl: recipe.waterMl,
     sodiumMg: recipe.sodiumMg,
-    moneySaved,
   });
 
   return NextResponse.json({
@@ -359,7 +356,6 @@ export async function POST(request: NextRequest) {
     pocketFoodCarbsG,
     fuelingMode,
     hybridGelSuggestion,
-    moneySaved,
     weather: {
       temperatureC: Math.round(temperatureC * 10) / 10,
       temperatureMaxC: temperatureMaxC != null ? Math.round(temperatureMaxC * 10) / 10 : null,

@@ -469,8 +469,8 @@ export type FuelingMode = "optimal" | "inventory" | "hybrid";
  * (banana, energy bar, rice cake, dates) slow gastric emptying relative to a
  * gel or liquid carb source, which matters more the harder/longer the ride
  * gets — exactly the rides this mode targets. Below ~2.5h there's nothing to
- * gain from any pocket food at all (an all-liquid DIY bottle is cheaper and
- * just as effective, see `getMoneySavedVsGels`); past that, gel count/tier
+ * gain from any pocket food at all (an all-liquid DIY bottle is simpler and
+ * just as effective); past that, gel count/tier
  * scales with duration as a proxy for total carb demand — a fixed, modest
  * allowance, not a full combinatorial optimizer (this file's "heuristic, not
  * clinical" convention throughout).
@@ -751,21 +751,6 @@ export function getHomeLabRecipe({
     waterMl: Math.round(fluidLossMlPerHour * durationHours),
     totalCarbsG: Math.round(totalCarbsG),
   };
-}
-
-/** Price per 30g-of-carbs "unit" — a commercial gel (~€2.50, ~€0.083/g) vs.
- * the equivalent bulk-bought DIY maltodextrin/fructose/salt mix (~€0.21,
- * ~€0.007/g — bulk bagged carbs run far cheaper per gram than a single-dose
- * commercial gel's packaging/branding overhead) — used only for the "money
- * saved" comparison, not a real price feed. */
-const COMMERCIAL_PRICE_EUR_PER_30G = 2.5;
-const HOMEMADE_PRICE_EUR_PER_30G = 0.21;
-const GEL_EQUIVALENT_CARBS_G = 30;
-
-export function getMoneySavedVsGels(totalCarbsG: number): number {
-  const units = totalCarbsG / GEL_EQUIVALENT_CARBS_G;
-  const saved = units * (COMMERCIAL_PRICE_EUR_PER_30G - HOMEMADE_PRICE_EUR_PER_30G);
-  return Math.round(saved * 100) / 100;
 }
 
 /** Total carbs burned across a whole ride — the oxidation rate integrated

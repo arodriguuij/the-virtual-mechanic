@@ -259,11 +259,21 @@ as its `strava_athlete_id` matches).
   primitive, so `getRecentActivities()`/the Weekly Performance Panel re-fetch the freshly
   synced data while every client component below (`FuelingPlanner` chief among them) keeps
   its own React state completely untouched, since `router.refresh()` never remounts them.
-  A self-dismissing toast (same visual pattern as `ProfileSavedToast`) reports success or
-  a per-error-code message, replacing the old `?strava_error=` query-param banner on this
-  page entirely (that mechanism, and `app/page.tsx`'s own `stravaErrorMessages` map, existed
-  *only* to surface this route's redirect errors — now dead code once the route stopped
-  redirecting, so both were removed rather than left stubbed out).
+  A self-dismissing toast reports success or a per-error-code message, replacing the old
+  `?strava_error=` query-param banner on this page entirely (that mechanism, and
+  `app/page.tsx`'s own `stravaErrorMessages` map, existed *only* to surface this route's
+  redirect errors — now dead code once the route stopped redirecting, so both were removed
+  rather than left stubbed out). The toast itself is a solid `bg-neutral-900` pill
+  (`rounded-xl`, `shadow-2xl`, `z-10000`) fixed to the bottom-center of the viewport — an
+  earlier semi-transparent version let the Leaflet map show through behind it and looked
+  unfinished, and a stray page-center position, rather than the bottom-anchored one, read as
+  disconnected from the sync button that triggered it. A small emerald/red icon chip plus a
+  two-line title/message (e.g. "Sincronización completada" / "Rutas y datos de Strava
+  actualizados") auto-dismisses after 3s, same timing as before.
+  On mobile, the button itself collapses from the full "Sincronizar Strava" label to just a
+  `RefreshCw` icon (Strava-orange, `#FC4C02`) plus a short "Sync" label — the full label
+  next to the Dashboard header's own greeting ("Buenas tardes, Alejandro") was wide enough
+  to clip the greeting text on a narrow phone; `sm:` and up show the full label again.
 
 #### Geographic microclimate sampling
 
@@ -337,11 +347,6 @@ guidance rather than a clinical or individually-calibrated model:
   split most dual-transporter research settles on for near-maximal (~90g/h+) combined
   oxidation — plus the sodium and water targets for the same duration, one bottle recipe
   covering both carbs and hydration.
-- **`getMoneySavedVsGels(totalCarbsG)`** — compares a flat €2.50/30g-of-carbs commercial
-  gel price (~€0.083/g) against a €0.21/30g bulk-bought DIY equivalent (~€0.007/g,
-  maltodextrin + fructose + table salt bought in bulk rather than single-dose packaging) —
-  a rough illustrative comparison, not a live price feed, working out to ~€0.076 saved per
-  gram of carbs managed.
 - **`getTableSaltGrams(sodiumMg)`** — every sodium figure elsewhere in this file is a
   *pure sodium* target, but a kitchen scale weighs salt, not sodium, and common table salt
   (NaCl) is only ~39.3% sodium by weight — this converts to the actual number of grams to
@@ -487,8 +492,8 @@ anywhere else in Supabase:
   is known server-side (the route ignores whatever `pocketFood` the client sent for this
   mode and recomputes it, same "server never trusts client-computed values" convention as
   re-fetching the athlete profile). Below ~2.5h there's nothing to gain from any pocket food
-  at all — an all-liquid DIY bottle is cheaper and just as effective (see
-  `getMoneySavedVsGels`) — so the selection is empty; 2.5-4h adds one standard gel, 4-6h two
+  at all — an all-liquid DIY bottle is simpler and just as effective — so the selection is
+  empty; 2.5-4h adds one standard gel, 4-6h two
   standard gels, past 6h one standard + one high-carb "hydro" gel — gel count/tier scaling
   with duration as a proxy for total carb demand, a fixed, modest allowance, not a full
   combinatorial optimizer (this file's "heuristic, not clinical" convention throughout).
@@ -967,6 +972,23 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   chrome uses in the future. Belt-and-suspenders: either fix alone would have solved the
   immediate bug, but only the `isolate` containment is robust against a *future* z-index
   regression elsewhere in the app.
+
+### No cost/savings framing
+
+The app deliberately carries no euro/price comparison anywhere — an earlier pass had a
+"Ahorras X € frente a geles comerciales" figure (`getMoneySavedVsGels()` in
+`lib/metabolic-engine.ts`, a Hero Card line, and a `fueling_logs.money_saved` column fed
+by every pre/post-ride log write) that was removed outright: the product is meant to read
+as precision nutrition/performance science, not marketing/savings framing, and a
+cost-comparison figure competing for attention with the actual physiological numbers
+undercut that. The Hero Card at the top of a calculated result now shows exactly three
+figures — the DIY per-bottle dose (malto/fructose/salt), the intake cadence (trago
+frequency plus g/h carbs · mg/h sodium), and the glycogen-battery forecast — nothing else.
+`fueling_logs.money_saved` is still a real (`NOT NULL`) Supabase column with no migration
+tooling in this codebase to drop it cleanly, so `logFuelingPlan()` (`lib/fueling-logs.ts`)
+still writes a literal `0` to it on every insert — a vestigial column, not a live feature;
+if that column is ever formally dropped via a Supabase migration, this write can go with
+it.
 
 ### Offline strategy cache ("Modo Cobertura Limitada")
 

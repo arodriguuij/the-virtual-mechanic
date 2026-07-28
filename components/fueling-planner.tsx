@@ -8,7 +8,6 @@ import {
   Copy,
   Download,
   Droplet,
-  Euro,
   FlaskConical,
   Fuel,
   MapPin,
@@ -163,7 +162,6 @@ type PlanResult = {
   pocketFoodCarbsG: number;
   fuelingMode: FuelingMode;
   hybridGelSuggestion: number | null;
-  moneySaved: number;
   weather: {
     temperatureC: number;
     temperatureMaxC: number | null;
@@ -998,27 +996,26 @@ export function FuelingPlanner({
               <span className={eyebrow}>Estrategia de bolsillo &amp; receta DIY</span>
             </div>
 
-            <div className="mb-2 rounded-xl bg-[#343334] p-5 text-white shadow-sm">
-              <span className="font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
-                Estrategia ejecutiva de fueling
-              </span>
-              <p className="mt-1.5 font-mono text-xl font-bold text-[#FD5A08]">
-                {result.bottlePlan.fuelBottles.count > 0
-                  ? `${result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g Malto + ${result.bottlePlan.fuelBottles.fructoseGPerBottle}g Fructosa`
-                  : "Cobertura completa vía comida de bolsillo"}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-neutral-300">
+            <div className="mb-2 flex flex-col gap-3 rounded-xl bg-[#343334] p-5 text-white shadow-sm">
+              <div>
+                <span className="font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
+                  Dosis DIY por bidón
+                </span>
+                <p className="mt-1.5 font-mono text-xl font-bold text-[#FD5A08]">
+                  {result.bottlePlan.fuelBottles.count > 0
+                    ? `${result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g Malto + ${result.bottlePlan.fuelBottles.fructoseGPerBottle}g Fructosa + ${getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g Sal`
+                    : "Cobertura completa vía comida de bolsillo"}
+                </p>
+              </div>
+              <div className="flex flex-col gap-1.5 border-t border-white/10 pt-3 text-xs text-neutral-300">
                 <span className="flex items-center gap-1.5">
                   <Droplet className="size-3.5 shrink-0 text-neutral-400" />
-                  1 trago / {result.timingTimeline.hydrationIntervalMinutes} min
+                  1 trago cada {result.timingTimeline.hydrationIntervalMinutes} min ({result.carbsGPerHour} g/h HC · {result.sodiumMgPerHour} mg/h Sodio)
                 </span>
                 <span className="flex items-center gap-1.5">
                   <BatteryCharging className="size-3.5 shrink-0 text-neutral-400" />
                   Batería final: {result.glycogenBattery.withRecipe.remainingBatteryPct}%
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Euro className="size-3.5 shrink-0 text-neutral-400" />
-                  Ahorro: {result.moneySaved.toFixed(2)} €
+                  {!result.glycogenBattery.withRecipe.bonkOccurs && " (Sin pájara)"}
                 </span>
               </div>
             </div>
