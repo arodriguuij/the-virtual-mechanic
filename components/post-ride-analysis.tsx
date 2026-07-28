@@ -9,6 +9,7 @@ import {
   getBiphasicRecoveryTarget,
   getMacroRecoveryTarget,
   getRecoveryDebt,
+  type IntensityLevel,
 } from "@/lib/metabolic-engine";
 import { cn } from "@/lib/utils";
 import { primaryButtonClass, selectableFieldClass } from "@/lib/ui-classes";
@@ -19,10 +20,29 @@ const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums
 // Shared with every other select/date field across the app (`lib/ui-classes.ts`).
 const selectableInputClass = selectableFieldClass;
 
+// A rider self-reporting effort after the fact thinks in "easy/moderate/
+// hard," not the 5 finely graded levels the pre-ride planner's own target-
+// power selector uses — so this RPE picker gets its own short copy even
+// though it reuses the same underlying `IntensityLevel`/%FTP mapping.
+const RPE_OPTIONS: { value: IntensityLevel; label: string }[] = [
+  { value: "endurance", label: "Suave" },
+  { value: "tempo", label: "Moderado" },
+  { value: "threshold", label: "Duro" },
+];
+
 type ActivityOption = {
   id: string;
   name: string;
   activity_date: string;
+};
+
+type Telemetry = {
+  energyKcal: number;
+  energySource: "kilojoules" | "calories" | "estimated";
+  powerWatts: number | null;
+  normalizedPowerWatts: number | null;
+  powerSource: "device" | "estimated" | "none";
+  heartrateAvg: number | null;
 };
 
 type AnalysisResult = {
@@ -35,7 +55,8 @@ type AnalysisResult = {
   carbsBurnedG: number;
   fluidLossMl: number;
   sodiumLossMg: number;
-  source: "zones" | "heartrate" | "average_watts" | "stored" | "no_data";
+  source: "zones" | "heartrate" | "average_watts" | "stored" | "rpe";
+  telemetry: Telemetry;
   weightKg: number;
   recoveryTarget: {
     carbsG: number;
@@ -52,7 +73,7 @@ const sourceLabels: Record<AnalysisResult["source"], string> = {
   heartrate: "sin potenciómetro — calculado a partir de tu frecuencia cardíaca",
   average_watts: "calculado a partir de tus vatios medios",
   stored: "calculado en el momento de la sincronización",
-  no_data: "sin datos suficientes",
+  rpe: "sin potenciómetro ni pulsómetro — calculado a partir de tu esfuerzo percibido",
 };
 
 export function PostRideAnalysis({ activities }: { activities: ActivityOption[] }) {
@@ -60,6 +81,13 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // True when the server found no power/heart-rate data of any kind (not
+  // even a Strava-estimated wattage) and needs a self-reported effort level
+  // to compute anything at all — renders the RPE picker instead of a dead-end
+  // error message. `lastRpeLabel` is display-only (which button the athlete
+  // actually pressed), since the real calculation already happened server-side.
+  const [needsRpe, setNeedsRpe] = useState(false);
+  const [lastRpeLabel, setLastRpeLabel] = useState<string | null>(null);
   // What the athlete says they actually consumed during the ride itself —
   // starts at 0 (assume nothing) and nets against the burn/loss figures via
   // `getRecoveryDebt` below, recomputed live with every keystroke.
@@ -80,18 +108,24 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
     }
   }, [result]);
 
-  async function handleAnalyze() {
+  async function handleAnalyze(rpeLevel?: IntensityLevel, rpeLabel?: string) {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/post-ride/analysis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activityId: selectedId }),
+        body: JSON.stringify({ activityId: selectedId, ...(rpeLevel ? { rpeLevel } : {}) }),
       });
       const data = await res.json();
 
       if (!res.ok) {
+        if (data.error === "needs_rpe") {
+          setNeedsRpe(true);
+          setResult(null);
+          return;
+        }
+        setNeedsRpe(false);
         setError(
           data.error === "no_data"
             ? "No hay datos suficientes para analizar esta ruta — configura tu FTP en el perfil."
@@ -100,6 +134,8 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
         setResult(null);
         return;
       }
+      setNeedsRpe(false);
+      setLastRpeLabel(rpeLabel ?? null);
       setResult(data);
       setCarbsConsumedG(0);
       setFluidConsumedL(0);
@@ -107,6 +143,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
       setConsumptionSaved(false);
       setConsumptionError(null);
     } catch {
+      setNeedsRpe(false);
       setError("No se pudo analizar la ruta.");
     } finally {
       setLoading(false);
@@ -192,7 +229,12 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
               id="activity"
               className={selectableInputClass}
               value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
+              onChange={(e) => {
+                setSelectedId(e.target.value);
+                setResult(null);
+                setError(null);
+                setNeedsRpe(false);
+              }}
             >
               {activities.map((activity) => (
                 <option key={activity.id} value={activity.id}>
@@ -207,7 +249,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
           </div>
           <button
             type="button"
-            onClick={handleAnalyze}
+            onClick={() => handleAnalyze()}
             disabled={loading}
             className={cn(primaryButtonClass, "w-full sm:w-fit")}
           >
@@ -216,6 +258,28 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
         </div>
 
         {error && <p className="text-sm text-status-warning">{error}</p>}
+
+        {needsRpe && (
+          <div className="flex flex-col gap-2 border border-neutral-200 bg-surface px-4 py-3">
+            <p className="text-sm text-neutral-700">
+              Esta ruta no tiene datos de potenciómetro ni pulsómetro — ¿cómo sentiste el
+              esfuerzo?
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {RPE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleAnalyze(opt.value, opt.label)}
+                  className="cursor-pointer rounded-sm border border-neutral-300 px-3 py-1.5 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:border-terracotta hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {result && (
           <div ref={resultRef} className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
@@ -245,6 +309,67 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                   {result.sodiumLossMg}
                   <span className="ml-1 text-sm font-normal text-neutral-500">mg</span>
                 </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t border-neutral-100 pt-3">
+              <span className={eyebrow}>Telemetría</span>
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <div className="flex flex-col gap-1">
+                  <span className={statLabel}>Energía</span>
+                  <span className="font-mono text-base font-semibold text-neutral-900 tabular-nums sm:text-lg">
+                    {result.telemetry.energyKcal}
+                    <span className="ml-1 text-xs font-normal text-neutral-500">kcal</span>
+                  </span>
+                  <span className="text-[10px] text-neutral-400">
+                    {result.telemetry.energySource === "estimated" ? "Estimado" : "Strava"}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={statLabel}>Potencia</span>
+                  {result.telemetry.powerSource === "none" ? (
+                    <>
+                      <span className="font-mono text-base font-semibold text-neutral-400 tabular-nums sm:text-lg">
+                        N/A
+                      </span>
+                      <span className="text-[10px] text-neutral-400">
+                        {lastRpeLabel ? `RPE: ${lastRpeLabel}` : "Sin sensor"}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-mono text-base font-semibold text-neutral-900 tabular-nums sm:text-lg">
+                        {result.telemetry.powerWatts}
+                        <span className="ml-1 text-xs font-normal text-neutral-500">W</span>
+                      </span>
+                      <span className="text-[10px] text-neutral-400">
+                        {result.telemetry.powerSource === "estimated"
+                          ? "Estimado"
+                          : result.telemetry.normalizedPowerWatts != null
+                            ? `NP ${result.telemetry.normalizedPowerWatts}W`
+                            : "Real"}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={statLabel}>FC media</span>
+                  <span
+                    className={cn(
+                      "font-mono text-base font-semibold tabular-nums sm:text-lg",
+                      result.telemetry.heartrateAvg != null ? "text-neutral-900" : "text-neutral-400"
+                    )}
+                  >
+                    {result.telemetry.heartrateAvg != null ? (
+                      <>
+                        {result.telemetry.heartrateAvg}
+                        <span className="ml-1 text-xs font-normal text-neutral-500">ppm</span>
+                      </>
+                    ) : (
+                      "-- ppm"
+                    )}
+                  </span>
+                </div>
               </div>
             </div>
 

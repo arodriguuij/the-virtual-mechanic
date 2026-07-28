@@ -13,8 +13,26 @@ import {
   getMacroRecoveryTarget,
   getRecoveryDebt,
   getRelativeIntensity,
+  getRelativeIntensityFromLevel,
   getSodiumLossMgPerHour,
+  type IntensityLevel,
 } from "@/lib/metabolic-engine";
+
+// The post-ride RPE picker only offers 3 of the 5 named intensities — a
+// rider self-reporting effort after the fact thinks in "easy/moderate/hard,"
+// not 5 finely graded levels the pre-ride planner uses when a real target
+// power is being set in advance.
+const VALID_RPE_LEVELS: readonly IntensityLevel[] = ["endurance", "tempo", "threshold"];
+
+function isValidRpeLevel(value: unknown): value is IntensityLevel {
+  return typeof value === "string" && (VALID_RPE_LEVELS as readonly string[]).includes(value);
+}
+
+// A safe fallback for a genuinely bodyweight-less edge case — should never
+// actually fire, since `athlete_profiles.weight_kg` is NOT NULL, but this
+// keeps the energy-estimate formula below from ever dividing/multiplying
+// against `null`/`undefined` and producing a NaN on screen.
+const FALLBACK_WEIGHT_KG = 70;
 
 export async function POST(request: NextRequest) {
   const supabase = await getAuthenticatedSupabaseClient();
@@ -29,6 +47,7 @@ export async function POST(request: NextRequest) {
   if (!activityId) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
+  const rpeLevel = isValidRpeLevel(body?.rpeLevel) ? body.rpeLevel : null;
 
   const { data: athleteProfile, error: athleteProfileError } = await supabase
     .from("athlete_profiles")
@@ -43,7 +62,7 @@ export async function POST(request: NextRequest) {
   const { data: activity, error: activityError } = await supabase
     .from("activities")
     .select(
-      "id, name, distance, moving_time, average_watts, humidity_avg, temperature_avg, carbs_burned_g, fluid_loss_ml, sodium_loss_mg, activity_date"
+      "id, name, distance, moving_time, average_watts, total_elevation_gain, humidity_avg, temperature_avg, carbs_burned_g, fluid_loss_ml, sodium_loss_mg, activity_date"
     )
     .eq("id", activityId)
     .eq("profile_id", userId)
@@ -54,27 +73,38 @@ export async function POST(request: NextRequest) {
   }
 
   const hours = activity.moving_time / 3600;
+  const weightKg = athleteProfile.weight_kg ?? FALLBACK_WEIGHT_KG;
 
   // Prefers, in order: real time-in-power-zone data; a heart-rate-based
   // estimate when there's no power meter at all (device_watts false/absent —
   // real HR beats trusting Strava's own estimated wattage); a plain
   // ride-average-watts estimate (real or Strava-estimated, whichever it is)
-  // when there's no HR either; the sync-time stored figure; and finally
-  // "no data" rather than ever computing/returning NaN.
+  // when there's no HR either; the sync-time stored figure; a self-reported
+  // RPE level for a rider with literally no sensors of any kind (no power,
+  // no HR, and Strava itself has no estimate); and only then "needs_rpe" (not
+  // yet "no data" — there's still a path forward) or, if RPE was somehow
+  // also unusable, "no_data" — never a computed/returned NaN.
   let carbsBurnedG: number | null = null;
-  let source: "zones" | "heartrate" | "average_watts" | "stored" | "no_data" = "no_data";
+  // "no_data" here is only ever an unused initial value — every branch below
+  // that sets `carbsBurnedG` also sets `source`, and the one path where none
+  // of them fire returns early (`needs_rpe`/`no_data` as the error code)
+  // before this field is ever serialized into a real response.
+  let source: "zones" | "heartrate" | "average_watts" | "stored" | "rpe" | "no_data" = "no_data";
 
   const athleteType = athleteProfile.athlete_type ?? "balanced";
 
   const accessToken = await getValidStravaAccessToken(supabase, userId);
-  let activityDetail: Awaited<ReturnType<typeof fetchActivityDetail>> = null;
+  // Fetched unconditionally (not just when the zones/FTP path is unavailable)
+  // — this now also powers the telemetry card's energy/power/heart-rate
+  // display below, which is a separate concern from which fallback tier
+  // actually produced `carbsBurnedG`.
+  const activityDetail = accessToken ? await fetchActivityDetail(accessToken, activityId) : null;
+
   if (accessToken) {
     const buckets = await fetchActivityPowerZones(accessToken, activityId);
     if (buckets && athleteProfile.ftp) {
       carbsBurnedG = getGlycogenBurnedFromPowerZones(buckets, athleteProfile.ftp, athleteType);
       source = "zones";
-    } else {
-      activityDetail = await fetchActivityDetail(accessToken, activityId);
     }
   }
 
@@ -109,7 +139,21 @@ export async function POST(request: NextRequest) {
     source = "stored";
   }
 
-  if (carbsBurnedG == null || !Number.isFinite(carbsBurnedG)) {
+  // Plan C: a genuinely sensor-less ride (no power meter, no heart-rate
+  // strap, and Strava itself had nothing stored at sync time either) — the
+  // one case a real number is only possible if the rider tells us how hard
+  // it felt. Doesn't need FTP, unlike zones/Plan B, since the intensity
+  // comes directly from the self-reported level rather than a %FTP figure.
+  if (carbsBurnedG == null && rpeLevel) {
+    const relativeIntensity = getRelativeIntensityFromLevel(rpeLevel);
+    carbsBurnedG = getGlycogenBurnedGrams(relativeIntensity, activity.moving_time, athleteType);
+    source = "rpe";
+  }
+
+  if (carbsBurnedG == null) {
+    return NextResponse.json({ error: "needs_rpe" }, { status: 400 });
+  }
+  if (!Number.isFinite(carbsBurnedG)) {
     return NextResponse.json({ error: "no_data" }, { status: 400 });
   }
 
@@ -122,6 +166,38 @@ export async function POST(request: NextRequest) {
   const sodiumLossMg = Math.round(
     getSodiumLossMgPerHour(fluidLossMlPerHour, athleteProfile.is_salty_sweater ?? false) * hours
   );
+
+  // Telemetry card data — the raw sensor readings themselves (energy, power,
+  // heart rate), always computed with a safe fallback/default regardless of
+  // which tier above actually produced `carbsBurnedG`, so a rider with no
+  // power meter still sees a real (if less precise) energy figure and a
+  // clean "N/A" rather than a blank or a NaN for whatever sensor they don't
+  // have. Roughly, kilojoules of mechanical work ≈ kcal burned for a cyclist
+  // (a widely-used coaching approximation, not a clinical conversion) — same
+  // "heuristic, not clinical" convention as the rest of this file.
+  const kilojoules = activityDetail?.kilojoules ?? null;
+  const calories = activityDetail?.calories ?? null;
+  const elevationGainM = activity.total_elevation_gain ?? 0;
+  const energyKcal = kilojoules
+    ? Math.round(kilojoules)
+    : calories
+      ? Math.round(calories)
+      : Math.round(hours * (weightKg * 10) + elevationGainM * 0.75);
+  const energySource: "kilojoules" | "calories" | "estimated" = kilojoules
+    ? "kilojoules"
+    : calories
+      ? "calories"
+      : "estimated";
+
+  const hasDevicePower = activityDetail?.deviceWatts === true;
+  const powerWatts = activityDetail?.averageWatts ?? activity.average_watts ?? null;
+  const powerSource: "device" | "estimated" | "none" = hasDevicePower
+    ? "device"
+    : powerWatts != null
+      ? "estimated"
+      : "none";
+  const normalizedPowerWatts = hasDevicePower ? (activityDetail?.weightedAverageWatts ?? null) : null;
+  const heartrateAvg = activityDetail?.averageHeartrate ?? null;
 
   // Initial figures assume zero in-ride intake — the client recomputes this
   // live once the athlete fills in what they actually consumed during the
@@ -165,6 +241,14 @@ export async function POST(request: NextRequest) {
     fluidLossMl,
     sodiumLossMg,
     source,
+    telemetry: {
+      energyKcal,
+      energySource,
+      powerWatts,
+      normalizedPowerWatts,
+      powerSource,
+      heartrateAvg,
+    },
     weightKg: athleteProfile.weight_kg,
     recoveryTarget,
     loggedNew,

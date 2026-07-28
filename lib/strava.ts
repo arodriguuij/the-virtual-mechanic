@@ -217,15 +217,32 @@ export type StravaActivityDetail = {
   // still returns an *estimated* `average_watts` (from speed/grade/weight)
   // for riders without one, with this flag set to `false`/absent.
   deviceWatts: boolean;
+  // Ride-average watts, real or Strava-estimated depending on `deviceWatts`.
+  averageWatts: number | null;
+  // Normalized Power — only ever meaningful (and only ever returned by
+  // Strava) for a ride with a real power meter, never for an estimated one.
+  weightedAverageWatts: number | null;
+  // Mechanical work done, in kilojoules — Strava's own figure for a
+  // power-meter ride, absent otherwise.
+  kilojoules: number | null;
+  // Strava's own metabolic energy estimate, present far more often than
+  // `kilojoules` since it doesn't require a power meter (derived from HR/
+  // speed/grade instead) — the first fallback tier for a rider with no
+  // power data at all.
+  calories: number | null;
 };
 
 /**
- * One activity's heart-rate/power-source detail, straight from Strava's
- * `/activities/{id}` — used by the Post-Ride Analysis to decide whether
- * `average_watts` is trustworthy (`deviceWatts`) or just Strava's own
- * estimate, and to source a heart-rate-based fallback estimate when there's
- * no power data at all. Returns `null` (never throws) on any failure, same
- * "degrade gracefully" convention as `fetchActivityPowerZones`.
+ * One activity's full telemetry detail, straight from Strava's
+ * `/activities/{id}` — used by the Post-Ride Analysis both to decide
+ * whether `average_watts` is trustworthy (`deviceWatts`) or just Strava's
+ * own estimate (sourcing a heart-rate-based fallback estimate when there's
+ * no power data at all), and to power the telemetry card's own display of
+ * energy/power/heart-rate with graceful degradation for a rider with no
+ * power meter, no heart-rate strap, or neither. Returns `null` (never
+ * throws) on any failure, same "degrade gracefully" convention as
+ * `fetchActivityPowerZones` — every caller already treats a `null` detail
+ * as "no extra telemetry available," not a hard error.
  */
 export async function fetchActivityDetail(
   accessToken: string,
@@ -244,6 +261,10 @@ export async function fetchActivityDetail(
     maxHeartrate: activity.max_heartrate ?? null,
     hasHeartrate: Boolean(activity.has_heartrate),
     deviceWatts: Boolean(activity.device_watts),
+    averageWatts: activity.average_watts ?? null,
+    weightedAverageWatts: activity.weighted_average_watts ?? null,
+    kilojoules: activity.kilojoules ?? null,
+    calories: activity.calories ?? null,
   };
 }
 

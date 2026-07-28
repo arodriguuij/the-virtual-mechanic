@@ -1257,9 +1257,61 @@ figure reflects the same diesel/balanced/explosive adjustment the pre-ride plann
 applies.
 4. **Stored sync-time figure** — if none of the above work, falls back to whatever
    `activities.carbs_burned_g` was already computed at sync time (`source: 'stored'`).
-5. **`no_data`** — only if none of the above produced a finite number (no FTP ever
-   configured) — the route explicitly checks `Number.isFinite(carbsBurnedG)` before
-   returning a result, so a malformed upstream value can never reach the client as `NaN`.
+5. **Self-reported RPE ("Plan C")** — a genuinely sensor-less ride (no power meter, no
+   heart-rate strap, and nothing usable was even stored at sync time) has no real data
+   left to fall back to — the one remaining source of a real number is the rider telling
+   the app how hard the ride felt. If the request body includes an `rpeLevel` (one of
+   `"endurance" | "tempo" | "threshold"` — deliberately only 3 of the 5 `IntensityLevel`
+   values the pre-ride planner offers, since a post-hoc "how did that feel" reads as
+   Suave/Moderado/Duro, not 5 finely graded target-power zones chosen in advance),
+   `getRelativeIntensityFromLevel(rpeLevel)` feeds the same `getGlycogenBurnedGrams` path
+   every other tier uses (`source: 'rpe'`) — needs no FTP at all, unlike zones/Plan B,
+   since the intensity comes directly from the self-reported level rather than a %FTP
+   figure derived from real watts.
+6. **`needs_rpe`** — if none of tiers 1-5 produced a number and no `rpeLevel` was given
+   yet, the route returns this (not `no_data`) specifically so the client renders the RPE
+   picker instead of a dead-end error message — there's still a path to a real number, it
+   just needs one more piece of input from the rider. `components/post-ride-analysis.tsx`
+   resubmits the exact same request with `rpeLevel` added the moment a picker button is
+   clicked. **`no_data`** is now reserved for the one case even RPE can't save: the
+   resulting figure somehow isn't finite (the route explicitly checks
+   `Number.isFinite(carbsBurnedG)` before ever returning a result), which given the RPE
+   math's inputs should never actually happen in practice.
+
+### Telemetry card: graceful degradation for missing sensors
+
+The same response also carries a `telemetry` object — the *raw* sensor readings
+themselves (energy, power, heart rate), a separate concern from which tier above actually
+produced `carbsBurnedG`. `fetchActivityDetail()` (`lib/strava.ts`) is now always called
+when there's a valid Strava token, not only when the zones/FTP path is unavailable, since
+a rider whose glycogen figure came from real power-zone data might still want to see
+their actual average heart rate from that same ride:
+
+- **Energía** — `kilojoules` (Strava's own figure for a power-meter ride) if present,
+  else `calories` (Strava's metabolic-energy estimate, present far more often since it
+  doesn't need a power meter), else a last-resort formula
+  (`hours × (weightKg × 10) + elevationGainM × 0.75`) when Strava has genuinely nothing —
+  `energySource` (`"kilojoules" | "calories" | "estimated"`) tells the UI whether to show
+  the "Estimado" tag. Roughly, kilojoules of mechanical work ≈ kcal burned for a cyclist
+  is a widely-used coaching approximation, not a clinical conversion — same
+  "heuristic, not clinical" convention as the rest of `lib/metabolic-engine.ts`.
+- **Potencia** — `deviceWatts === true` shows the real ride-average watts plus Normalized
+  Power (`weightedAverageWatts`, only ever meaningful for a real power-meter ride) when
+  Strava returned one; `deviceWatts === false` with a non-null `average_watts` shows that
+  same figure tagged "Estimado" (Strava's own speed/grade/weight-derived guess, not a real
+  power meter); no wattage at all renders a clean "N/A" — plus the RPE level the rider
+  picked, when that's what actually produced the glycogen figure (`powerSource: "device" |
+  "estimated" | "none"`).
+- **FC media** — the ride's real `average_heartrate` if Strava has it, else a clean
+  "-- ppm" rather than a blank cell or a `NaN` — verified live with a fully mocked
+  sensor-less response (`powerSource: "none"`, `heartrateAvg: null`) that the card renders
+  as "N/A" / "-- ppm" without disturbing the surrounding grid, and with three other mocked
+  variants (real device power + NP, Strava-estimated watts, real heart rate) all rendering
+  correctly with zero `NaN` anywhere on the page.
+- **NaN safety** — `athlete_profiles.weight_kg` is `NOT NULL` in the schema, but the energy
+  formula still falls back to a `FALLBACK_WEIGHT_KG` (70) constant rather than trusting
+  that guarantee blindly, and `activity.total_elevation_gain` defaults to `0` — neither
+  value the energy formula multiplies against can ever be `null`/`undefined`.
 
 Fluid/sodium loss for the ride reuses its *stored* `humidity_avg`/`temperature_avg`
 (the real weather sampled at sync time) with the athlete's current `sweat_rate`. The
