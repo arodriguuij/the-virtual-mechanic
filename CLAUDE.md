@@ -173,13 +173,18 @@ reach for — simply cannot work. Instead:
   "Sincronizar rutas" action (`not_connected`, `no_rides`), since a logged-out visitor
   can never reach that page to see them.
   A Pas Normal Studios-inspired redesign gave the page an actual atmosphere instead of a
-  flat cream background: `public/login-road-bg.svg` (a purpose-drawn, monochrome road-
-  perspective illustration — not a stock/product photo, so there's no licensing concern
-  and no external network dependency) sits full-bleed behind a `bg-[#FDFCF9]/90
-  backdrop-blur-sm` overlay, which keeps the page reading as this app's usual light/cream
-  palette while still letting a faint road-and-horizon texture show through at the edges
-  (verified live at both mobile and desktop viewports — barely visible on a narrow phone,
-  clearly a receding road on a wider screen, same overlay both times). The card itself is
+  flat cream background. A first attempt used a full-bleed illustrated road-perspective
+  SVG behind a `bg-[#FDFCF9]/90 backdrop-blur-sm` overlay — the overlay opacity needed to
+  keep the page reading as this app's light/cream palette left the image itself all but
+  invisible, so on a phone the "atmosphere" just read as a flat, slightly blurred gray
+  smudge rather than any recognizable texture. Replaced with a plain CSS technical
+  dot-grid instead — `background-image: radial-gradient(#171717 1px, transparent 1px)`
+  at a `24px 24px` tile, `opacity-[0.07]`, no overlay/blur needed at all since the pattern
+  itself is already faint — directly on the app's own `bg-[#FDFCF9]`. Crisp at any zoom
+  level (a radial-gradient tile, not a raster image), reads as a deliberate technical
+  texture rather than a failed photo, and needed no image asset at all (the old
+  `public/login-road-bg.svg` was deleted as dead weight once nothing referenced it). The
+  card itself is
   sharp-edged by this app's usual standard (`rounded-lg`, not the `rounded-2xl` auth-flow
   cards used elsewhere) with a thin `border-neutral-200/90` and only `shadow-sm`. The old
   paragraph-style value prop was replaced with a 3-line checkmark list (`✓ Recetas exactas

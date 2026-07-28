@@ -33,13 +33,16 @@ export default async function LoginPage({
       : null;
 
   return (
-    <div
-      className="relative flex min-h-screen w-full flex-col items-center justify-center bg-cover bg-center p-4"
-      style={{ backgroundImage: "url('/login-road-bg.svg')" }}
-    >
-      <div className="absolute inset-0 bg-[#FDFCF9]/90 backdrop-blur-sm" />
+    <div className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-[#FDFCF9] p-4">
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.07]"
+        style={{
+          backgroundImage: "radial-gradient(#171717 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
 
-      <div className="relative w-full max-w-md rounded-lg border border-neutral-200/90 bg-white p-6 shadow-sm sm:p-8">
+      <div className="relative z-10 w-full max-w-md rounded-lg border border-neutral-200/90 bg-white p-6 shadow-sm sm:p-8">
         <div className="flex flex-col items-center">
           <AppLogo className="size-10 shrink-0" />
           <span className="mt-2 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
