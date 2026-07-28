@@ -1435,24 +1435,30 @@ inside the card the *sole* control for picking which ride gets analyzed:
   site: `className` (merged via `cn()`/Tailwind-merge) and `emptyMessage` (this card's own
   "Sin datos de trazado GPS para esta actividad." copy for an indoor/GPS-less ride,
   replacing the planner-specific default string that made no sense outside that context).
-- **Layout** — map and the 5-stat grid are stacked (`flex flex-col`), not side-by-side.
-  The map stays a compact `h-36` (mobile-critical vertical space) below `lg:`, then
-  switches to `lg:aspect-video lg:h-auto` — a real 16:9 rectangle at whatever the card's
-  full width happens to be, verified live at a 1280px viewport as a `1178×662px` box
-  (ratio ≈1.78, i.e. genuinely 16:9). A side-by-side `map | stats` column layout was
-  tried first (map fixed at `16rem`) but read as too small no matter what aspect ratio it
-  used, since a narrow fixed column can't ever look like "a significant rectangular area"
-  — letting the map take the *entire* card width and grow tall via `aspect-video` was the
-  fix, with the stats grid (`grid-cols-2 sm:grid-cols-4`, unchanged) simply flowing below
-  it at full width like it already did on mobile.
+- **Layout** — went through three iterations before landing on a genuine middle ground.
+  First, map and stats stacked (`flex flex-col`) at every width, the map only a compact
+  `h-36` even on desktop — too small/square, with dead space beside it. Second, the map
+  grew to the *entire* card width at `lg:aspect-video lg:h-auto` (a real 16:9 rectangle,
+  measured live as `1178×662px` at 1280px) — a dramatic overcorrection that pushed every
+  stat below the fold on anything but a tall screen. The current version is a bounded
+  side-by-side `md:grid-cols-12` layout: `RouteMapPreview` takes `md:col-span-5` at a
+  *capped* `md:h-52` (208px — contained and elegant, not stretching with the card's width
+  the way `aspect-video` did), the stats grid takes `md:col-span-7` and reverts from
+  `sm:grid-cols-4` to `md:grid-cols-2` (a 4-column row would be cramped in a 7/12-width
+  column; 2 columns gives 5 stats a clean 2-2-1 layout instead), and `md:items-center` on
+  the outer grid centers the map vertically against the taller stats block beside it.
+  Mobile is untouched throughout every iteration — still the original stacked `h-36` map
+  above a `grid-cols-2 sm:grid-cols-4` stat row.
 - **Zoom controls** — Leaflet's own default `+`/`−` control is disabled
   (`zoomControl={false}` on `MapContainer`) and replaced with `MapZoomControls`, a small
   `useMap()`-based component rendering two plain Tailwind buttons in its place: no
   Tailwind class can reach into Leaflet's own bundled CSS to restyle its default control,
-  and that default read as disproportionately large once the map itself grew this much
-  larger. `size-7` (roughly Leaflet's own default footprint) on mobile, shrinking to
-  `lg:size-6` with a smaller glyph on desktop, where a mouse cursor doesn't need as
-  generous a touch target as a finger does.
+  and that default read as disproportionately large/heavy next to this app's otherwise
+  compact chrome. `size-7` (roughly Leaflet's own default footprint) on mobile, shrinking
+  to `md:size-6` with a smaller glyph — at the same `md:` breakpoint the layout itself
+  switches at, since a mouse cursor doesn't need as generous a touch target as a finger
+  does. This is a change to the shared `RouteMapPreview` component, so it applies equally
+  to the Fueling Planner's own map usage, not just this card.
 - **Date/time stamp** — `formatActivityDateTime()` builds "Martes 28 de Julio · Inicio a
   las 17:30h" from three separate `Intl`/`toLocaleDateString` calls (weekday, day, month,
   time) rather than one combined format string, since `es-ES`'s own long-date output
@@ -1476,9 +1482,11 @@ inside the card the *sole* control for picking which ride gets analyzed:
   exists. A plain "Analizando tu última salida…" line covers that initial loading window
   (`loading && !result`), distinct from the RPE picker/error states that can still follow it.
 
-Verified end-to-end (map decode → render → switcher → re-analyze, auto-load on mount, the
-old selector's absence, and both the mobile-compact/desktop-16:9 map sizes) via a
-temporary, unauthenticated route rendering `PostRideAnalysis` directly with a mocked
+Verified end-to-end at every layout iteration (map decode → render → switcher →
+re-analyze, auto-load on mount, the old selector's absence, and the map's measured box
+size at 390/768/900/1280px — `288×142` on mobile, growing from `262×206` to `476×206` in
+the `md:` side-by-side layout, capped height confirmed at every width) via a temporary,
+unauthenticated route rendering `PostRideAnalysis` directly with a mocked
 `/api/post-ride/analysis` response (Playwright route interception, not real Strava data —
 there's no live Strava session available in this environment) — removed again before
 committing, same verification pattern used for the Strava route-caching work earlier.

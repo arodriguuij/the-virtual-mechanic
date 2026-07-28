@@ -37,11 +37,10 @@ function FitBoundsToRoute({ points }: { points: [number, number][] }) {
  * place, since Leaflet's default `+`/`−` control only takes inline sizing
  * from its own bundled CSS (no Tailwind class of ours can reach it) and read
  * as disproportionately large/heavy next to this app's otherwise compact,
- * sober chrome — especially on desktop, where the map itself is much larger
- * now but the controls shouldn't grow with it. `size-7` on mobile keeps
- * roughly Leaflet's own default footprint; `lg:size-6` with a smaller glyph
- * shrinks it further once there's a cursor precise enough not to need the
- * extra touch target.
+ * sober chrome. `size-7` on mobile keeps roughly Leaflet's own default
+ * footprint; `md:size-6` with a smaller glyph shrinks it further at the same
+ * `md:` breakpoint where callers switch to a desktop layout, since a cursor
+ * doesn't need as generous a touch target as a finger does.
  */
 function MapZoomControls() {
   const map = useMap();
@@ -52,7 +51,7 @@ function MapZoomControls() {
         type="button"
         onClick={() => map.zoomIn()}
         aria-label="Acercar mapa"
-        className="flex size-7 cursor-pointer items-center justify-center border-b border-neutral-300 text-sm leading-none font-bold text-neutral-700 transition-colors hover:bg-neutral-50 lg:size-6 lg:text-xs"
+        className="flex size-7 cursor-pointer items-center justify-center border-b border-neutral-300 text-sm leading-none font-bold text-neutral-700 transition-colors hover:bg-neutral-50 md:size-6 md:text-xs"
       >
         +
       </button>
@@ -60,7 +59,7 @@ function MapZoomControls() {
         type="button"
         onClick={() => map.zoomOut()}
         aria-label="Alejar mapa"
-        className="flex size-7 cursor-pointer items-center justify-center text-sm leading-none font-bold text-neutral-700 transition-colors hover:bg-neutral-50 lg:size-6 lg:text-xs"
+        className="flex size-7 cursor-pointer items-center justify-center text-sm leading-none font-bold text-neutral-700 transition-colors hover:bg-neutral-50 md:size-6 md:text-xs"
       >
         −
       </button>

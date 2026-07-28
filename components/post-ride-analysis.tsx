@@ -22,7 +22,7 @@ import { primaryButtonClass } from "@/lib/ui-classes";
 // this component, never a static one.
 const RouteMapPreview = dynamic(
   () => import("@/components/route-map-preview").then((mod) => mod.RouteMapPreview),
-  { ssr: false, loading: () => <Skeleton className="h-36 w-full rounded-lg lg:aspect-video lg:h-auto" /> }
+  { ssr: false, loading: () => <Skeleton className="h-36 w-full rounded-lg md:col-span-5 md:h-52" /> }
 );
 
 // How many of the athlete's most recent synced rides the in-card "Cambiar
@@ -386,21 +386,22 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                 </p>
               </div>
 
-              <div className="flex flex-col gap-4 border-t border-neutral-200 pt-3">
-                {/* Compact square-ish preview on mobile (`h-36`, unchanged);
-                    a much larger 16:9 rectangle once there's real desktop
-                    width to give it, rather than a fixed narrow side column
-                    — a map confined to a small square left too much of the
-                    card's own width empty next to it. */}
+              <div className="grid grid-cols-1 gap-4 border-t border-neutral-200 pt-3 md:grid-cols-12 md:items-center md:gap-6">
+                {/* Compact square-ish preview on mobile (`h-36`, unchanged
+                    — stacked above the stats); a contained side column on
+                    desktop (`h-52`, capped well below the full-bleed 16:9
+                    version this went through first — that one pushed every
+                    stat below the fold on tall screens) rather than the
+                    stats flowing beneath it. */}
                 <RouteMapPreview
                   points={result.activity.points}
                   distanceKm={result.activity.distanceKm}
                   elevationGainM={result.activity.elevationGainM}
-                  className="mt-0 h-36 w-full lg:aspect-video lg:h-auto"
+                  className="mt-0 h-36 w-full md:col-span-5 md:h-52"
                   emptyMessage="Sin datos de trazado GPS para esta actividad."
                 />
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:col-span-7 md:grid-cols-2">
                   <div className="flex flex-col gap-1">
                     <span className={statLabel}>Distancia</span>
                     <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
