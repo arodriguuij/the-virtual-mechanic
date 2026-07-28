@@ -40,7 +40,7 @@ function SidebarContent({
               className={cn(
                 "flex cursor-pointer items-center gap-3 border-l-2 px-3 py-2.5 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150",
                 active
-                  ? "border-neutral-900 text-neutral-900"
+                  ? "border-terracotta text-terracotta"
                   : "border-transparent text-neutral-500 hover:text-neutral-900"
               )}
             >

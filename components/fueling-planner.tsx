@@ -27,6 +27,13 @@ import { parseGpxFile, type ParsedGpxRoute } from "@/lib/gpx-import";
 import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
 import {
+  badgeClass,
+  fieldClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+  selectableFieldClass,
+} from "@/lib/ui-classes";
+import {
   calculateHouseholdMeasures,
   formatGarminExportText,
   formatRecipeForSharing,
@@ -89,14 +96,11 @@ function pocketFoodName(type: PocketFoodItemType): string {
 const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
-const inputClass =
-  "border border-neutral-300 bg-background px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900";
-// RUTA/INTENSIDAD/SALIDA share this exact base — a fixed `h-10` height (rather
-// than relying on padding to coincidentally match) is what keeps the native
-// `datetime-local` control visually identical to the two `<select>`s beside
-// it, since browsers box that control's own chrome differently than a select.
-const selectableInputClass =
-  "h-10 w-full rounded-sm border border-neutral-200 bg-neutral-50/50 px-3 py-2 text-sm text-neutral-900 focus:border-black focus:bg-white focus:outline-none transition-colors duration-150 cursor-pointer appearance-none";
+// Shared with every other field/button across the app (`lib/ui-classes.ts`) —
+// aliased to these file-local names since they're already used at every
+// input/select/date call site below.
+const inputClass = fieldClass;
+const selectableInputClass = selectableFieldClass;
 // `datetime-local` renders its own calendar-picker icon that Tailwind can
 // only reach via the `::-webkit-calendar-picker-indicator` pseudo-element —
 // dimmed by default, full opacity on hover, so it still reads as clickable
@@ -105,8 +109,6 @@ const dateInputClass = cn(
   selectableInputClass,
   "[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
 );
-const primaryButtonClass =
-  "inline-flex w-full cursor-pointer items-center justify-center gap-2 border border-neutral-900 bg-neutral-900 px-6 py-3 text-xs font-bold tracking-widest text-background uppercase transition-colors duration-150 hover:bg-background hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-neutral-900 disabled:hover:text-background sm:w-fit";
 
 const INTENSITY_OPTIONS: IntensityLevel[] = [
   "recovery",
@@ -544,7 +546,7 @@ export function FuelingPlanner({
             className={cn(
               "cursor-pointer rounded-md px-2 py-2 font-semibold tracking-wide uppercase transition-colors duration-150",
               mode === "route"
-                ? "bg-neutral-900 text-background shadow-sm"
+                ? "bg-terracotta text-white shadow-sm"
                 : "text-neutral-500 hover:text-neutral-900"
             )}
           >
@@ -556,7 +558,7 @@ export function FuelingPlanner({
             className={cn(
               "cursor-pointer rounded-md px-2 py-2 font-semibold tracking-wide uppercase transition-colors duration-150",
               mode === "quick"
-                ? "bg-neutral-900 text-background shadow-sm"
+                ? "bg-terracotta text-white shadow-sm"
                 : "text-neutral-500 hover:text-neutral-900"
             )}
           >
@@ -568,7 +570,7 @@ export function FuelingPlanner({
             className={cn(
               "cursor-pointer rounded-md px-2 py-2 font-semibold tracking-wide uppercase transition-colors duration-150",
               mode === "gpx"
-                ? "bg-neutral-900 text-background shadow-sm"
+                ? "bg-terracotta text-white shadow-sm"
                 : "text-neutral-500 hover:text-neutral-900"
             )}
           >
@@ -800,8 +802,8 @@ export function FuelingPlanner({
                 className={cn(
                   "cursor-pointer rounded-sm border px-3 py-1.5 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150",
                   fuelingMode === opt.value
-                    ? "border-neutral-900 bg-neutral-900 text-background"
-                    : "border-neutral-300 text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+                    ? "border-terracotta bg-terracotta text-white"
+                    : "border-neutral-300 text-neutral-600 hover:border-terracotta hover:text-terracotta"
                 )}
               >
                 {opt.label}
@@ -811,26 +813,32 @@ export function FuelingPlanner({
           <p className="text-xs text-neutral-500">{FUELING_MODE_DESCRIPTIONS[fuelingMode]}</p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border border-neutral-200 bg-neutral-50/60 px-3 py-2 font-mono text-xs text-neutral-700">
+        <div className="flex flex-col gap-2 border border-neutral-200 bg-surface px-3 py-3">
           {result ? (
             <>
-              <span>
-                OBJETIVO:{" "}
-                <span className="font-semibold text-neutral-900">{result.totalRideCarbsG}g HC</span>
-              </span>
-              <span>
-                CUBIERTO:{" "}
-                <span className="font-semibold text-neutral-900">{result.pocketFoodCarbsG}g HC</span>
-              </span>
-              <span>
-                RESTANTE:{" "}
-                <span className="font-semibold text-neutral-900">
-                  {Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG)}g HC
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={badgeClass}>OBJETIVO {result.totalRideCarbsG}g HC</span>
+                <span className={cn(badgeClass, "border-sage/30 bg-sage/10 text-sage")}>
+                  CUBIERTO {result.pocketFoodCarbsG}g HC
                 </span>
-              </span>
+                <span className={cn(badgeClass, "border-terracotta/30 bg-terracotta/10 text-terracotta")}>
+                  RESTANTE {Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG)}g HC
+                </span>
+              </div>
+              <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-sand">
+                <div
+                  className="h-full bg-sage transition-all duration-300"
+                  style={{
+                    width:
+                      result.totalRideCarbsG > 0
+                        ? `${Math.min(100, (result.pocketFoodCarbsG / result.totalRideCarbsG) * 100)}%`
+                        : "0%",
+                  }}
+                />
+              </div>
             </>
           ) : (
-            <span className="text-neutral-500">
+            <span className="font-mono text-xs text-neutral-500">
               Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
             </span>
           )}
@@ -890,7 +898,7 @@ export function FuelingPlanner({
               (mode === "route" && !selectedRoute) ||
               (mode === "gpx" && !parsedGpx)
             }
-            className={primaryButtonClass}
+            className={cn(primaryButtonClass, "w-full sm:w-fit")}
           >
             {loading ? "Calculando…" : "Calcular estrategia"}
           </button>
@@ -899,7 +907,7 @@ export function FuelingPlanner({
               type="checkbox"
               checked={isTargetEvent}
               onChange={(e) => setIsTargetEvent(e.target.checked)}
-              className="size-3.5 cursor-pointer accent-neutral-900"
+              className="size-3.5 cursor-pointer accent-terracotta"
             />
             Ruta objetivo / Competición
           </label>
@@ -1012,7 +1020,7 @@ export function FuelingPlanner({
                 <button
                   type="button"
                   onClick={handleCopyRecipe}
-                  className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 border border-neutral-300 px-2.5 py-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:border-neutral-900 hover:text-neutral-900"
+                  className={cn(secondaryButtonClass, "w-fit shrink-0 px-2.5 py-1.5 text-[10px]")}
                 >
                   {copied ? (
                     "✓ Receta copiada"
@@ -1161,7 +1169,7 @@ export function FuelingPlanner({
                       <span className="font-mono text-xs text-neutral-500">
                         {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
                       </span>
-                      {entry.label}
+                      {stripEmoji(entry.label)}
                     </li>
                   ))}
                 </ol>
@@ -1227,7 +1235,7 @@ export function FuelingPlanner({
                   type="button"
                   onClick={handleDownloadGpx}
                   disabled={downloadingGpx}
-                  className="inline-flex w-fit cursor-pointer items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:border-neutral-900 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
+                  className={cn(secondaryButtonClass, "w-fit")}
                 >
                   <Download className="size-3.5" />
                   {downloadingGpx ? "Generando…" : "Descargar GPX con avisos de nutrición"}
@@ -1236,7 +1244,7 @@ export function FuelingPlanner({
                 <button
                   type="button"
                   onClick={handleExportGarmin}
-                  className="inline-flex w-fit cursor-pointer items-center gap-1.5 border border-neutral-300 px-3 py-2 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:border-neutral-900 hover:text-neutral-900"
+                  className={cn(secondaryButtonClass, "w-fit")}
                 >
                   {exportCopied ? (
                     "✓ Ficha copiada"

@@ -1,5 +1,8 @@
 import { Info, Mountain, Thermometer, Wind } from "lucide-react";
 
+import { badgeClass } from "@/lib/ui-classes";
+import { cn } from "@/lib/utils";
+
 const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 
 /**
@@ -30,7 +33,7 @@ export function WeatherImpactCard({
   thermalImpactNote: string | null;
 }) {
   return (
-    <div className="flex flex-col gap-3 border border-neutral-200 bg-neutral-50/60 px-3 py-3">
+    <div className="flex flex-col gap-3 border border-neutral-200 bg-surface px-3 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className={statLabel}>Impacto térmico</span>
         <span className="text-xs text-neutral-500">
@@ -49,37 +52,33 @@ export function WeatherImpactCard({
         </span>
       </div>
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           <span className="flex items-center gap-1 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
             <Thermometer className="size-3" />
             Temp.
           </span>
-          <span className="font-mono text-lg font-semibold text-neutral-900 tabular-nums">
+          <span className={cn(badgeClass, "w-fit text-sm font-semibold tabular-nums")}>
             {temperatureC}°C
             {temperatureMaxC != null && temperatureMaxC !== temperatureC && (
-              <span className="ml-1 text-xs font-normal text-neutral-500">
-                (máx {temperatureMaxC}°C)
-              </span>
+              <span className="ml-1 text-xs font-normal opacity-70">(máx {temperatureMaxC}°C)</span>
             )}
           </span>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           <span className="flex items-center gap-1 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
             <Wind className="size-3" />
             Viento
           </span>
-          <span className="font-mono text-lg font-semibold text-neutral-900 tabular-nums">
-            {windSpeedKmh}
-            <span className="ml-1 text-xs font-normal text-neutral-500">km/h</span>
+          <span className={cn(badgeClass, "w-fit text-sm font-semibold tabular-nums")}>
+            {windSpeedKmh} km/h
           </span>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           <span className="text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
             Humedad
           </span>
-          <span className="font-mono text-lg font-semibold text-neutral-900 tabular-nums">
-            {humidityPct}
-            <span className="ml-1 text-xs font-normal text-neutral-500">%</span>
+          <span className={cn(badgeClass, "w-fit text-sm font-semibold tabular-nums")}>
+            {humidityPct}%
           </span>
         </div>
       </div>

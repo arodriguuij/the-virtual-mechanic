@@ -14,19 +14,16 @@ import {
   gutTrainingLevelRanges,
   sweatRateLabels,
 } from "@/lib/metabolic-engine";
+import { fieldClass, primaryButtonClass, selectableFieldClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 
-const profileInputClass =
-  "border border-neutral-300 bg-background px-3 py-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900";
-// Selects are "pick one" controls, unlike the plain number inputs sharing
-// `profileInputClass` — an explicit pointer cursor signals that difference.
-const selectableProfileInputClass = cn(profileInputClass, "cursor-pointer");
-const primaryButtonClass =
-  "inline-flex w-full cursor-pointer items-center justify-center gap-2 border border-neutral-900 bg-neutral-900 px-6 py-3 text-xs font-bold tracking-widest text-background uppercase transition-colors duration-150 hover:bg-background hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-neutral-900 disabled:hover:text-background sm:w-fit";
+// Shared with every other field/button across the app (`lib/ui-classes.ts`).
+const profileInputClass = fieldClass;
+const selectableProfileInputClass = selectableFieldClass;
 
 async function PhysiologicalProfileCard() {
   const profile = await getAthleteProfile();
@@ -150,7 +147,7 @@ async function PhysiologicalProfileCard() {
                 (type) => (
                   <label
                     key={type}
-                    className="flex cursor-pointer flex-col gap-1 rounded-sm border border-neutral-300 px-3 py-2.5 transition-colors duration-150 has-checked:border-neutral-900 has-checked:bg-neutral-100"
+                    className="flex cursor-pointer flex-col gap-1 rounded-lg border border-neutral-200 px-3 py-2.5 transition-colors duration-150 has-checked:border-terracotta has-checked:bg-terracotta/5"
                   >
                     <span className="flex items-center gap-2">
                       <input
@@ -158,7 +155,7 @@ async function PhysiologicalProfileCard() {
                         name="athlete_type"
                         value={type}
                         defaultChecked={(profile?.athlete_type ?? "balanced") === type}
-                        className="size-3.5 cursor-pointer accent-neutral-900"
+                        className="size-3.5 cursor-pointer accent-terracotta"
                       />
                       <span className="text-sm font-medium text-neutral-900">
                         {athleteTypeLabels[type]}
@@ -178,7 +175,7 @@ async function PhysiologicalProfileCard() {
               type="checkbox"
               name="is_salty_sweater"
               defaultChecked={profile?.is_salty_sweater ?? false}
-              className="mt-0.5 size-3.5 cursor-pointer accent-neutral-900"
+              className="mt-0.5 size-3.5 cursor-pointer accent-terracotta"
             />
             <span>
               Sudo mucha sal (cercos blancos en el maillot / escozor en los ojos)
@@ -189,7 +186,7 @@ async function PhysiologicalProfileCard() {
             </span>
           </label>
 
-          <button type="submit" className={primaryButtonClass}>
+          <button type="submit" className={cn(primaryButtonClass, "w-full sm:w-fit")}>
             Guardar
           </button>
         </form>

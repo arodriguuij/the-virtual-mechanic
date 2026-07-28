@@ -21,6 +21,7 @@ import {
   getWeeklyPerformance,
 } from "@/lib/dashboard-data";
 import { gutTrainingLevelLabels, gutTrainingLevelRanges } from "@/lib/metabolic-engine";
+import { badgeClass, primaryButtonClass, secondaryButtonClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -294,7 +295,7 @@ async function WeeklyPerformancePanel() {
 
           <div className="flex flex-col gap-1">
             <span className={statLabel}>Gut training</span>
-            <span className={cn(weeklyStatValue, "uppercase")}>
+            <span className={cn(badgeClass, "w-fit text-sm font-semibold tracking-wide uppercase")}>
               {gutTrainingLevelLabels[weekly.gutTrainingLevel]}
             </span>
             <span className="text-xs text-neutral-500">
@@ -344,15 +345,11 @@ function WeeklyPerformancePanelSkeleton() {
   );
 }
 
-const stravaButtonClass =
-  "inline-flex cursor-pointer items-center gap-2 px-4 py-2.5 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150";
-
 // A compact, subdued treatment for the routine "sync" action — distinct from
-// `stravaButtonClass`'s bolder connect CTA below, since re-syncing rides is
-// something an already-connected athlete does often and shouldn't compete
-// visually with the page title for space, especially on a narrow phone.
-const syncButtonClass =
-  "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-mono tracking-wider text-neutral-700 transition-all duration-150 hover:bg-neutral-50";
+// the bolder connect CTA below, since re-syncing rides is something an
+// already-connected athlete does often and shouldn't compete visually with
+// the page title for space, especially on a narrow phone.
+const syncButtonClass = cn(secondaryButtonClass, "w-fit shrink-0 px-2.5 py-1.5 text-[11px]");
 
 async function StravaButton() {
   const profile = await getProfile();
@@ -360,13 +357,7 @@ async function StravaButton() {
 
   if (!connected) {
     return (
-      <a
-        href="/api/strava/connect"
-        className={cn(
-          stravaButtonClass,
-          "border border-neutral-900 bg-neutral-900 text-background hover:bg-neutral-700"
-        )}
-      >
+      <a href="/api/strava/connect" className={cn(primaryButtonClass, "w-fit")}>
         <Link2 className="size-3.5" />
         Conectar Strava
       </a>
@@ -453,13 +444,13 @@ export default async function Home({
             <TabsList variant="line" className="w-full justify-start border-b border-neutral-200">
               <TabsTrigger
                 value="pre-ride"
-                className="flex-none text-[11px] font-semibold tracking-widest uppercase"
+                className="flex-none text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
               >
                 Pre-Ride
               </TabsTrigger>
               <TabsTrigger
                 value="post-ride"
-                className="flex-none text-[11px] font-semibold tracking-widest uppercase"
+                className="flex-none text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
               >
                 Post-Ride
               </TabsTrigger>

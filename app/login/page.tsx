@@ -26,7 +26,7 @@ export default async function LoginPage({
       : null;
 
   return (
-    <div className="flex min-h-screen w-full flex-col items-center justify-center bg-neutral-50/50 p-4">
+    <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <div className="w-full max-w-md rounded-2xl border border-neutral-200/80 bg-white p-8 text-center shadow-sm sm:p-10">
         <div className="flex flex-col items-center gap-8">
           <div className="flex items-center gap-2 text-sm font-bold tracking-[0.2em] text-neutral-900 uppercase">

@@ -670,6 +670,12 @@ of them needed their own API round-trip:
   available (quick-calculator mode). Returned as `timingTimeline` and rendered as a
   "Cronograma Dinámico de Ingesta" block: the hydration frequency line plus a chronological
   list of solid/gel/caffeine entries, each with a `lucide-react` icon and its km/min marker.
+  Each entry's `label` is built from `pocketFoodLabels` (e.g. "Comer 🍙 Bollo de arroz..."),
+  which keeps its emoji prefix for the clipboard/GPX export text — this on-screen list
+  strips it at render time via `stripEmoji(entry.label)` (same "keep emoji in source data,
+  strip only at the one on-screen render site" convention `pocketFoodName()` already uses
+  for the pocket-food stepper rows), so the visible schedule reads "Comer Bollo de arroz..."
+  with no emoji anywhere in the app's own UI chrome.
 - **`getCarbRatioContextNote(carbsGPerHour)`** — the plain-language *why* behind whichever
   maltodextrin:fructose ratio `getMaltodextrinFraction` picked (reusing that function's own
   `HIGH_CARB_RATE_THRESHOLD_G_PER_HOUR`/`MODERATE_CARB_RATE_THRESHOLD_G_PER_HOUR`
@@ -1252,22 +1258,56 @@ status bar blends with the page instead of showing a mismatched color.
   render a result in place rather than trigger a navigation.
 - Compose UI from `components/ui` primitives rather than raw HTML where one exists.
 - Tailwind utility classes only — no CSS modules, no styled-components.
-- Design tokens (`--brand`, `--status-good`, `--status-warning`, `--status-critical`)
-  live in `app/globals.css` alongside the shadcn theme variables; reuse them instead of
-  hardcoding hex colors so the light, Scandinavian-technical Pas Normal Studios/Apple-style
-  editorial look stays consistent: bold uppercase tracked headers (`CardTitle`'s default,
-  the page `<h1>`, `TabsTrigger` labels) in the same clean geometric sans as everything
-  else — never a monospace/retro face for names or labels — with `font-mono` reserved
-  strictly for *displayed numeric metrics* (stat blocks, recipe grams, ride distances,
-  the pocket-food carb figures — never on user-editable form inputs like a `<select>` full
-  of words, and never on a food/label *name*, only the number next to it). Structural
+- Design tokens live in `app/globals.css` (`@theme inline` maps each `--color-*` Tailwind
+  utility to a plain CSS custom property in `:root`); reuse them instead of hardcoding hex
+  colors. As of the Pas Normal Studios-style editorial palette pass, the base is a warm
+  cream (`--background` `#f8f7f4`, `bg-background`) rather than a cold white/gray, with
+  `--card`/`--popover` pure white (`#ffffff`) so cards visually lift off that base, and
+  `--surface` (`#f1efea`, `bg-surface`) one layer between the two for input backgrounds
+  and secondary containers. Earth-tone technical accents replace the old monochrome
+  black-on-white for anything "active"/"primary": `--terracotta` (`#c85231`,
+  `bg-terracotta`/`text-terracotta`/`border-terracotta`, `--terracotta-hover` on hover) is
+  the one accent for every primary action button, active tab, and active segmented-control
+  pill; `--sage` (`#526553`) marks carb-coverage "cubierto"/positive-progress state,
+  distinct from the older, more muted `--status-good` (`#526553` too, same hex, kept as a
+  separate token since status banners and the carb-coverage meter may need to diverge
+  later); `--sand` (`#d5cfbf`) is the "restante/déficit" tone — deliberately not a second
+  red/warning color, since an unfilled carb target isn't an error state; `--slate-tech`
+  (`#52606d`) is reserved for future route/weather context, not yet wired into any
+  component. `--badge-bg`/`--badge-foreground`/`--badge-border` (`bg-badge`/
+  `text-badge-foreground`/`border-badge-border`) style small data pills (weather readouts,
+  Gut Training level) via `badgeClass` below.
+- **`lib/ui-classes.ts`** is the shared button/field/badge class-string baseline — every
+  hand-rolled `<button>`/`<input>`/`<select>` across the Dashboard, Pre-Ride planner,
+  Post-Ride analysis, and Physiological Profile form imports `primaryButtonClass`
+  (terracotta fill, `rounded-lg`, `font-mono` uppercase — CALCULAR ESTRATEGIA, ANALIZAR,
+  GUARDAR, GUARDAR CONSUMO REAL), `secondaryButtonClass` (white/outline counterpart —
+  Copiar receta, Descargar GPX, Sincronizar), `fieldClass`/`selectableFieldClass` (every
+  plain input vs. every select/date field), or `badgeClass` — plain exported strings
+  composed via `cn()` at each call site for its own state-dependent classes (disabled,
+  active, etc.), not a wrapping component, since every call site already needs that
+  composition anyway. A file-local `const inputClass = fieldClass` alias is fine where a
+  file already had many call sites under that name; don't invent a *second* set of
+  near-identical classes for a new button/field — import from here.
+- Bold uppercase tracked headers (`CardTitle`'s default, the page `<h1>`, `TabsTrigger`
+  labels) stay in the same clean geometric sans as everything else — never a monospace/
+  retro face for names or labels — with `font-mono` reserved strictly for *displayed
+  numeric metrics* (stat blocks, recipe grams, ride distances, the pocket-food carb
+  figures — never on user-editable form inputs like a `<select>` full of words, and never
+  on a food/label *name*, only the number next to it) and, as of the design-system pass
+  above, also the uppercase label text on every shared button/badge class. Structural
   dividers are soft `border-neutral-200`/`border-neutral-300` lines, not `border-neutral-900`
-  or `ring-1 ring-foreground/10` shadows — `border-neutral-900` is reserved for solid,
-  deliberate elements (a primary CTA's black fill, a toggle's active/selected state), not
-  general-purpose borders, since a black divider line reads as heavy-handed/brutalist
-  rather than clean. Corners are `rounded-sm` (2-4px) or square, never Tailwind's larger
-  default radii. `--font-sans` in `app/globals.css` must stay wired to
-  `var(--font-geist-sans)` (the actual variable `next/font/google`'s `Geist` sets in
-  `app/layout.tsx`) — it was accidentally self-referential (`var(--font-sans)`) for a long
-  stretch of this project's history, which silently fell back to the browser's default
-  serif for every heading; if headings ever look serif again, check this line first.
+  — a stark black divider reads as heavy-handed/brutalist rather than clean; `border-neutral-900`
+  itself is no longer used for "active/selected" states either (that's `border-terracotta`
+  now), only for genuinely monochrome one-off elements that have no accent-color reason to
+  exist (e.g. the app's own Flame mark). Corners are `rounded-lg` on every shared button/
+  field/badge and `rounded-2xl` on auth-flow cards (`/login`, `/auth/callback`) — plain
+  `rounded-sm`/square corners are reserved for dense data cards/rows (`Card` itself, ride
+  history rows, reference tables) where a softer radius would look inconsistent with their
+  tighter internal spacing. Never a bare `rounded-none`/no-radius button — every button
+  shares one of the two classes above specifically so this can't regress file-by-file.
+  `--font-sans` in `app/globals.css` must stay wired to `var(--font-geist-sans)` (the
+  actual variable `next/font/google`'s `Geist` sets in `app/layout.tsx`) — it was
+  accidentally self-referential (`var(--font-sans)`) for a long stretch of this project's
+  history, which silently fell back to the browser's default serif for every heading; if
+  headings ever look serif again, check this line first.
