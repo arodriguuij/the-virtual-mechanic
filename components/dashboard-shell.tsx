@@ -16,18 +16,30 @@ const NAV_ITEMS = [
 
 function SidebarContent({
   onNavigate,
+  onClose,
   identitySlot,
 }: {
   onNavigate?: () => void;
+  onClose?: () => void;
   identitySlot: ReactNode;
 }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-full flex-col gap-10 px-6 py-8">
-      <div className="flex items-center gap-2 border-b border-neutral-200 pb-6 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
-        <AppLogo className="size-7 shrink-0" />
-        Motor Metabólico
+    <div className="flex h-full flex-col px-6 py-8">
+      <div className="mb-6 flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
+        <div className="flex items-center gap-2 text-xs font-bold tracking-wider whitespace-nowrap text-neutral-900 uppercase">
+          <AppLogo className="size-6 shrink-0" />
+          Motor Metabólico
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar menú"
+          className="cursor-pointer rounded-lg p-2 text-neutral-400 transition-all duration-150 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none lg:hidden"
+        >
+          <X className="size-5" />
+        </button>
       </div>
 
       <nav className="flex flex-1 flex-col gap-0.5">
@@ -39,10 +51,10 @@ function SidebarContent({
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "flex cursor-pointer items-center gap-3 border-l-2 px-3 py-2.5 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150",
+                "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-xs tracking-wider uppercase transition-colors duration-150",
                 active
-                  ? "border-terracotta text-terracotta"
-                  : "border-transparent text-neutral-500 hover:text-neutral-900"
+                  ? "bg-surface font-semibold text-terracotta"
+                  : "font-medium text-neutral-600 hover:bg-neutral-100/60 hover:text-neutral-900"
               )}
             >
               <item.icon className="size-4" strokeWidth={1.5} />
@@ -52,17 +64,23 @@ function SidebarContent({
         })}
       </nav>
 
-      {identitySlot}
+      <div className="flex flex-col gap-4">
+        {identitySlot}
 
-      <form action={logout}>
-        <button
-          type="submit"
-          className="flex w-full cursor-pointer items-center gap-2 border-t border-neutral-200 pt-4 text-[11px] font-semibold tracking-widest text-neutral-500 uppercase transition-colors duration-150 hover:text-neutral-900"
-        >
-          <LogOut className="size-3.5" strokeWidth={1.5} />
-          Cerrar sesión
-        </button>
-      </form>
+        <form action={logout}>
+          <button
+            type="submit"
+            className="flex w-full cursor-pointer items-center gap-2 border-t border-neutral-200 pt-4 text-[11px] font-semibold tracking-widest text-neutral-500 uppercase transition-colors duration-150 hover:text-neutral-900"
+          >
+            <LogOut className="size-3.5" strokeWidth={1.5} />
+            Cerrar sesión
+          </button>
+        </form>
+      </div>
+
+      <div className="mt-auto border-t border-neutral-200/60 pt-6 text-center font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
+        Motor Metabólico v1.0 · Precision Fueling
+      </div>
     </div>
   );
 }
@@ -92,14 +110,11 @@ export function DashboardShell({
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <button
-          type="button"
-          className="absolute top-7 right-4 cursor-pointer text-neutral-500 transition-colors duration-150 hover:text-neutral-900 lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        >
-          <X className="size-5" />
-        </button>
-        <SidebarContent onNavigate={() => setMobileOpen(false)} identitySlot={identitySlot} />
+        <SidebarContent
+          onNavigate={() => setMobileOpen(false)}
+          onClose={() => setMobileOpen(false)}
+          identitySlot={identitySlot}
+        />
       </aside>
 
       <div className="flex flex-1 flex-col lg:pl-64">

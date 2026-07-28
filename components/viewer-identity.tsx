@@ -16,7 +16,10 @@ export async function ViewerIdentity() {
       </Avatar>
       <div className="flex flex-col overflow-hidden">
         <span className="truncate text-sm font-medium text-neutral-900">{identity.name}</span>
-        <span className="truncate text-[10px] tracking-widest text-neutral-500 uppercase">
+        <span className="flex items-center truncate text-[10px] tracking-widest text-neutral-500 uppercase">
+          {identity.isStravaConnected && (
+            <span className="mr-1.5 inline-block size-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+          )}
           {identity.subtitle}
         </span>
       </div>

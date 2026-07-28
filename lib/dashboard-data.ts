@@ -306,6 +306,7 @@ export type ViewerIdentity = {
   subtitle: string;
   initials: string;
   avatarUrl: string | null;
+  isStravaConnected: boolean;
 };
 
 function initialsFrom(name: string): string {
@@ -343,6 +344,7 @@ export const getViewerIdentity = cache(async (): Promise<ViewerIdentity> => {
             subtitle: "Conectado con Strava",
             initials: initialsFrom(fullName),
             avatarUrl: athlete.profileMedium,
+            isStravaConnected: true,
           };
         }
       } catch (error) {
@@ -356,5 +358,6 @@ export const getViewerIdentity = cache(async (): Promise<ViewerIdentity> => {
     subtitle: user ? "Cuenta de desarrollo" : "Sin sesión",
     initials: initialsFrom(emailName),
     avatarUrl: null,
+    isStravaConnected: false,
   };
 });
