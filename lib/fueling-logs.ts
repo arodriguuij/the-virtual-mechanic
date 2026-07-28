@@ -31,10 +31,6 @@ export async function logFuelingPlan(
     total_carbs_g: params.totalCarbsG,
     fluid_ml: params.fluidMl,
     sodium_mg: params.sodiumMg,
-    // `money_saved` is a legacy NOT NULL column from the app's now-removed
-    // cost-savings feature — always 0, kept only so existing inserts don't
-    // need a schema migration.
-    money_saved: 0,
   });
   if (error) throw error;
 }

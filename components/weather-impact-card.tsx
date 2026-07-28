@@ -1,14 +1,15 @@
-import { Info, Mountain, Thermometer, Wind } from "lucide-react";
+import { Droplet, Mountain, Thermometer, Wind } from "lucide-react";
 
 const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 
 /**
  * "Badge de Clima e Impacto Térmico Dinámico" — the pre-ride planner's
  * weather readout: real Temp/Viento/Humedad figures from Open-Meteo (see
- * `POST /api/fueling/plan`'s `weather` object), plus a plain-language note
- * on how that temperature is actually altering the plan
- * (`getThermalImpactNote` in `lib/metabolic-engine.ts`) rather than leaving
- * the athlete to infer it from a raw °C figure.
+ * `POST /api/fueling/plan`'s `weather` object), plus the actual hourly
+ * hydration/sodium targets those conditions translate to — a direct,
+ * auditable consumption figure rather than an isolated percentage like
+ * "+31% por estrés térmico" (which states an increase without stating an
+ * increase *of what*, or what to actually do about it).
  */
 export function WeatherImpactCard({
   temperatureC,
@@ -18,7 +19,8 @@ export function WeatherImpactCard({
   source,
   multiPointSample,
   lapseRateAdjustmentC,
-  thermalImpactNote,
+  fluidLossMlPerHour,
+  sodiumMgPerHour,
 }: {
   temperatureC: number;
   temperatureMaxC: number | null;
@@ -27,7 +29,8 @@ export function WeatherImpactCard({
   source: "dynamic" | "planning_default";
   multiPointSample: boolean;
   lapseRateAdjustmentC: number;
-  thermalImpactNote: string | null;
+  fluidLossMlPerHour: number;
+  sodiumMgPerHour: number;
 }) {
   return (
     <div className="flex flex-col gap-3 border border-neutral-200 bg-surface px-3 py-3">
@@ -81,12 +84,11 @@ export function WeatherImpactCard({
           </span>
         </div>
       </div>
-      {thermalImpactNote && (
-        <p className="flex items-start gap-1.5 text-xs text-neutral-600">
-          <Info className="mt-0.5 size-3 shrink-0" />
-          {thermalImpactNote}
-        </p>
-      )}
+      <p className="flex items-center gap-1.5 text-xs text-neutral-600">
+        <Droplet className="size-3 shrink-0" />
+        Hidratación objetivo: <span className="font-mono font-semibold text-neutral-900">{fluidLossMlPerHour} ml/h</span>
+        {" · "}Sodio objetivo: <span className="font-mono font-semibold text-neutral-900">{sodiumMgPerHour} mg/h</span>
+      </p>
     </div>
   );
 }

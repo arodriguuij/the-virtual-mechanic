@@ -124,7 +124,7 @@ export function DashboardShell({
       </aside>
 
       <div className="flex flex-1 flex-col lg:pl-64">
-        <header className="flex items-center gap-4 border-b border-neutral-200 px-6 py-4 lg:hidden">
+        <header className="sticky top-0 z-40 flex w-full items-center gap-4 border-b border-neutral-200/80 bg-white/90 px-6 py-4 backdrop-blur-md transition-all lg:hidden">
           <button
             type="button"
             className="cursor-pointer text-neutral-500 transition-colors duration-150 hover:text-neutral-900"

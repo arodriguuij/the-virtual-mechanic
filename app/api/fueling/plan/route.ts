@@ -15,6 +15,7 @@ import {
   getHomeLabRecipe,
   getHybridGelSuggestion,
   getLapseRateAdjustedTemperature,
+  getNetCarbDeficit,
   getOptimalPocketFoodSelection,
   getPersonalizedCarbOxidationRateGPerHour,
   getPocketFoodMilestones,
@@ -23,8 +24,6 @@ import {
   getRelativeIntensity,
   getRelativeIntensityFromLevel,
   getSodiumLossMgPerHour,
-  getThermalImpactNote,
-  simulateGlycogenBattery,
   type FuelingMode,
   type IntensityLevel,
   type PocketFoodItemType,
@@ -291,6 +290,7 @@ export async function POST(request: NextRequest) {
     fluidLossMlPerHour,
     durationHours,
     pocketFoodCarbsG,
+    forceHighCarbRatio: isTargetEvent,
   });
   const bottlePlan = getBottlePlan(recipe, athleteProfile.bottle_capacity_ml);
   const reloadStrategy = getReloadStrategy({
@@ -311,18 +311,15 @@ export async function POST(request: NextRequest) {
     fluidLossMlPerHour,
     peakFraction: peakFractionForTimeline,
   });
-  const thermalImpactNote = getThermalImpactNote(temperatureC, humidityPct);
-
-  // The battery drains at the ride's *true* metabolic demand (uncapped,
-  // phenotype-adjusted) regardless of what the gut can absorb — the gut cap
-  // limits the recommended intake, not the body's actual burn rate.
+  // The real deficit is measured against the ride's *true* metabolic demand
+  // (uncapped, phenotype-adjusted) regardless of what the gut can absorb —
+  // the gut cap limits the recommended intake, not the body's actual burn
+  // rate.
   const trueBurnRateGPerHour = getPersonalizedCarbOxidationRateGPerHour(relativeIntensity, athleteType);
-  const glycogenBattery = simulateGlycogenBattery({
-    weightKg: athleteProfile.weight_kg,
+  const netCarbDeficit = getNetCarbDeficit({
     burnRateGPerHour: trueBurnRateGPerHour,
     intakeGPerHour: carbsGPerHour,
     durationHours,
-    distanceKm: rideDistanceKm,
   });
 
   const isLongOrTargetRide = durationHours > TARGET_EVENT_DURATION_THRESHOLD_HOURS || isTargetEvent;
@@ -364,7 +361,6 @@ export async function POST(request: NextRequest) {
       source: weatherSource,
       multiPointSample: sampledAtRealAltitude,
       lapseRateAdjustmentC,
-      thermalImpactNote,
     },
     gutTraining: {
       isGutLimited: gutTarget.isGutLimited,
@@ -375,7 +371,7 @@ export async function POST(request: NextRequest) {
     reloadStrategy,
     nutritionMilestones,
     timingTimeline,
-    glycogenBattery,
+    netCarbDeficit,
     carbLoading,
   });
 }

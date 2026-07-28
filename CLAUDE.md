@@ -73,7 +73,7 @@ ride's own conditions; `carbs_burned_g`/`fluid_loss_ml`/`sodium_loss_mg` are com
 at sync time from those plus the athlete's profile — `null` on rides synced before an FTP
 was set, since carb oxidation can't be estimated without one), `fueling_logs` (`profile_id`
 FK; `kind` — `'pre_ride' | 'post_ride'`; `activity_id` nullable FK to `activities`, only
-set for `post_ride` rows; `total_carbs_g`/`fluid_ml`/`sodium_mg`/`money_saved` — the raw
+set for `post_ride` rows; `total_carbs_g`/`fluid_ml`/`sodium_mg` — the raw
 physiological burn/loss figures at log time, see "Weekly Performance Panel" below;
 `carbs_consumed_g`/`fluid_consumed_ml`/`sodium_consumed_mg` — nullable, populated later by
 `POST /api/post-ride/consumption` once the athlete fills in what they actually ate/drank
@@ -401,30 +401,26 @@ variant, no JS needed; the selected card's `has-checked:border-neutral-900
 has-checked:bg-neutral-100` gives a fine dark border plus a subtle fill rather than a
 heavy block color).
 
-### Glycogen battery simulator
+### Net Carb Deficit (replacing the old glycogen-battery simulator)
 
-`simulateGlycogenBattery()` models the ride as a simple tank draining at the body's own
-(phenotype-adjusted, *uncapped*) burn rate — deliberately not the gut-capped recommended
-intake, since the gut cap limits what can be *absorbed*, not what the body actually burns
-without it. `getGlycogenStoresGrams(weightKg)` estimates total liver+muscle glycogen
-stores at a fixed 8g/kg (a standard sports-science approximation, ~560g for a 70kg
-athlete) — not an individually measured value. Two scenarios, both against that same tank:
-
-- **`noFuel`** — zero external intake; `bonkAtHours`/`bonkAtKm` mark when the tank hits
-  empty (`bonkAtKm` only set in route mode, where a real distance exists to place the bonk
-  along), or `remainingBatteryPct` if the ride finishes before that happens.
-- **`withRecipe`** — net burn rate is `burnRate − recommendedIntakeGPerHour` (the *capped*
-  figure the recipe is actually built from); `remainingBatteryPct` at the finish.
-
-This is a simplified constant-net-burn-rate model — it doesn't separately simulate gut
-absorption lag or a real-time replenishment curve, just "tank drains at X, refills at Y."
-Rendered in `components/fueling-planner.tsx` as a compact two-column comparison
-("Pájara en el km X" vs. "Batería final: Y%"), each paired with a monochrome
-`lucide-react` icon (`TriangleAlert`/`BatteryCharging`) rather than a color emoji — every
-status/section marker in this component (reload strategy, bottle types, carb-loading,
-native-alerts note) follows the same convention: a `lucide-react` icon sized to match
-the surrounding text (`size-3` to `size-3.5`) that inherits the text's own color, never a
-literal emoji character.
+An earlier pass modeled the ride as a "glycogen battery" — a simple tank (fixed 8g/kg
+liver+muscle glycogen estimate) draining at the body's burn rate, reporting a "Batería
+final: Y%" / "Pájara en el km X" comparison. Removed as its own kind of "humo": a
+percentage of an *estimated* total store on top of an *estimated* burn rate is two layers
+of approximation stacked before the athlete ever sees a number, and "bonk" is a binary
+framing for what's really a continuous, auditable quantity. `getNetCarbDeficit()`
+(`lib/metabolic-engine.ts`) replaces it with a direct, three-line breakdown in grams:
+`estimatedBurnG` (the ride's real phenotype-adjusted, *uncapped* carb burn — deliberately
+not the gut-capped recommended intake, since the gut cap limits what can be absorbed, not
+what the body actually burns), `plannedIntakeG` (the recipe's recommended, gut-capped
+intake over the same duration), and `netDeficitG` (`estimatedBurnG - plannedIntakeG` —
+positive means the plan doesn't fully cover the ride's real demand, which is expected and
+fine as long as it's within what the body's own reserves can cover; negative/zero means
+intake covers or exceeds the burn). Rendered in `components/fueling-planner.tsx` as a
+3-column "Gasto estimado de HC / Ingesta planificada / Déficit neto al finalizar" stat row
+(replacing the old two-column noFuel/withRecipe comparison), plus a compact "Déficit neto:
+±Xg HC" line in the Hero Card — a `TrendingDown` `lucide-react` icon in both spots rather
+than the old `BatteryCharging`/`TriangleAlert` pairing.
 
 ### Hybrid nutrition (pocket food)
 
@@ -658,8 +654,8 @@ line when `true`.
 
 `components/weather-impact-card.tsx` (`WeatherImpactCard`) replaces the pre-ride planner's
 old one-line weather summary with a small dedicated block: Temp/Viento/Humedad as three
-`font-mono` stat readouts, plus a plain-language note on how that temperature is actually
-altering the plan. Wind is new: `lib/open-meteo.ts`'s `getWeatherAtPoint`/
+`font-mono` stat readouts, plus the direct hourly hydration/sodium targets those
+conditions translate to. Wind is new: `lib/open-meteo.ts`'s `getWeatherAtPoint`/
 `getWeatherForDeparture` both now also request Open-Meteo's `wind_speed_10m` field
 (`RouteWeather.windSpeedKmhAvg`/`DepartureWeather.windSpeedKmhAvg`, averaged across
 whichever points were sampled — the 3-point start/summit/finish sample or the single
@@ -668,13 +664,12 @@ departure-window average) and `POST /api/fueling/plan` threads it through as
 `getFluidLossMlPerHour`/`getSodiumLossMgPerHour`, which stay driven by temperature and
 humidity exactly as before.
 
-`getThermalImpactNote(temperatureC, humidityPct)` (`lib/metabolic-engine.ts`) returns the
-note itself, `null` in the comfortable 12-25°C band where no adjustment is worth calling
-out: above 25°C it reports the exact heat-stress increase already computed by
-`getHeatHumidityMultiplier` ("Tasa de sudoración incrementada un +X% por estrés
-térmico."), below 12°C a fixed low-evapo-transpiration note. Computed server-side (it
-only needs `temperatureC`/`humidityPct`, both already resolved by the time the response is
-built) and returned as `weather.thermalImpactNote`.
+An earlier version reported an isolated percentage instead ("Tasa de sudoración
+incrementada un +31% por estrés térmico", via a since-removed `getThermalImpactNote()`) —
+a number with no unit of *what* is increasing and no actionable figure to act on. Replaced
+with `WeatherImpactCard`'s own "Hidratación objetivo: X ml/h · Sodio objetivo: Y mg/h" line,
+fed directly from the response's existing `fluidLossMlPerHour`/`sodiumMgPerHour` fields —
+the same real per-hour targets the recipe is already built from, not a new computation.
 
 ### Household measures, dynamic ingestion timeline & scientific tooltips
 
@@ -698,11 +693,17 @@ of them needed their own API round-trip:
   (L/h × 10))))`) as a standalone recurring sip-reminder frequency (not a point in time),
   slow-digesting solids (banana/energy bar/rice cake/dates + any custom entry) somewhere in
   the first third of the ride, fast-absorption gels from the halfway point through the
-  finish, and one caffeine milestone (only on rides ≥1.5h) timed 45 minutes before the
-  ride's real elevation peak — `peakFraction` comes from the same `fetchRoutePeakPoint`
-  distance fraction the 3-point weather sample above already resolves (or a parsed GPX's
-  own peak, see below), falling back to a fixed 75%-of-ride placement when neither is
-  available (quick-calculator mode). Returned as `timingTimeline` and rendered as a
+  finish, and one caffeine milestone (only on rides ≥1.5h) — always at or after 65% of the
+  ride (`CAFFEINE_WINDOW_START_FRACTION`), midpoint of a fixed 65-75% window by default, or
+  timed 45 minutes before the route's real elevation peak *only* when that peak sits in the
+  second half of the ride (`peakFraction >= LATE_CLIMB_MIN_FRACTION`, 0.5) — `peakFraction`
+  comes from the same `fetchRoutePeakPoint` distance fraction the 3-point weather sample
+  above already resolves (or a parsed GPX's own peak, see below). An earlier version used
+  the peak fraction directly with no lower bound, which meant a route whose highest point
+  sits near the very start (a climb straight out of the departure point) could suggest
+  caffeine as early as km 5 / minute 12 — defeating the entire point of a late-ride
+  alertness boost; the 65% floor fixes that unconditionally, regardless of where any early
+  climb sits. Returned as `timingTimeline` and rendered as a
   "Cronograma Dinámico de Ingesta" block: the hydration frequency line plus a chronological
   list of solid/gel/caffeine entries, each with a `lucide-react` icon and its km/min marker.
   Each entry's `label` is built from `pocketFoodLabels` (e.g. "Comer 🍙 Bollo de arroz..."),
@@ -727,7 +728,15 @@ day before a long/target event, plus three fixed low-fiber, low-fat/protein guid
 only includes this in the response (`carbLoading: null` otherwise) when
 `durationHours > 3.5` or the planner's optional "Ruta objetivo / Competición" checkbox
 (`isTargetEvent`) is checked — shown in the UI as a collapsible native `<details>` block
-so it doesn't add visual weight to rides that don't need it.
+so it doesn't add visual weight to rides that don't need it. `isTargetEvent` also forces
+`getHomeLabRecipe()`'s `forceHighCarbRatio` — the 1:0.8 near-maximal maltodextrin:fructose
+split (see "Metabolic engine" above) applies unconditionally rather than only above 75g/h,
+since squeezing out the last few g/h of dual-transporter absorption is worth it on a target
+event regardless of the ride's own carb rate. The checkbox shows a micro-text explaining
+this exact adjustment ("Ajustado a ratio Fructosa:Maltodextrina 1:0.8 y límite máximo de
+absorción por alta intensidad...") once checked — the "límite máximo de absorción" half
+refers to the gut-training cap that already applies to every calculation (see "Gut Training
+Scale" below), not something newly toggled by this checkbox.
 
 ### Fueling planner ("Paso 1")
 
@@ -778,7 +787,7 @@ recipe for that specific ride's real forecast conditions.
   on every successful calculation — see "Weekly Performance Panel" below. The response also
   carries `totalRideCarbsG` (the unadjusted target, for the UI's "covers X of Y" line),
   `pocketFoodCarbsG`, `bottlePlan`, `reloadStrategy`, `nutritionMilestones`,
-  `timingTimeline`, `glycogenBattery`, and `carbLoading` (see their respective sections
+  `timingTimeline`, `netCarbDeficit`, and `carbLoading` (see their respective sections
   above) alongside the original recipe/weather/gut-training fields. Route mode also accepts
   an optional `durationHoursOverride` (skips `estimateRideDurationHours()` entirely when
   present) and optional `peakLat`/`peakLng`/`peakDistanceFraction` (used instead of calling
@@ -788,20 +797,17 @@ recipe for that specific ride's real forecast conditions.
 - **`components/fueling-planner.tsx`** (`"use client"`) — the interactive planner UI:
   a route/quick/GPX mode toggle (see "GPX Híbrido parser" below for the third), a route
   `<select>` (built from the routes passed down as props) or duration+watts inputs, a
-  `datetime-local` departure input (defaults to tomorrow 08:00 via
-  `defaultDepartureLocal()`), the pocket-food catalog (see "Hybrid nutrition" above), an
-  optional "Ruta objetivo / Competición" checkbox (`isTargetEvent`),
-  Ruta/Intensidad/Salida share one literal `selectableInputClass` string (`h-10 w-full
-  rounded-sm border border-neutral-200 bg-neutral-50/50 ...`) rather than composing it
-  from the plain-input base — a fixed `h-10` keeps the native `datetime-local` control's
-  own browser-drawn chrome the same rendered height as the two `<select>`s beside it,
-  which padding-based sizing alone doesn't guarantee across browsers; `dateInputClass`
-  layers the `::-webkit-calendar-picker-indicator` opacity/cursor treatment on top of the
-  same base so the native calendar icon still reads as clickable without a separate style.
+  `DeparturePicker` quick-select (a `Hoy`/`Mañana` day-pill pair plus a plain hour
+  `<select>` — `DEPARTURE_HOUR_OPTIONS`, 05:00-20:00 hourly — replacing an earlier
+  `datetime-local` input; `buildDepartureLocal(dayOffset, hour)` combines the two into the
+  same local datetime string the calculation request expects, so nothing downstream of
+  `departureLocal` needed to change), the pocket-food catalog (see "Hybrid nutrition"
+  above), an optional "Ruta objetivo / Competición" checkbox (`isTargetEvent`, with a
+  micro-text explaining its real effect once checked — see "Carb-loading protocol" above),
   and a result panel rendering whatever `/api/fueling/plan` returns — carb/sodium targets,
-  the DIY recipe with its bottle architecture and pocket-food coverage line, the glycogen
-  battery comparison, the reload-strategy block when applicable, the money-saved
-  comparison, which weather source was used (`dynamic` vs `planning_default`, plus the
+  the DIY recipe with its bottle architecture and pocket-food coverage line, the Net Carb
+  Deficit breakdown (see "Net Carb Deficit" above), the reload-strategy block when
+  applicable, which weather source was used (`dynamic` vs `planning_default`, plus the
   lapse-rate note when non-zero), a "Gut Training" warning banner whenever
   `gutTraining.isGutLimited` is true, the collapsible carb-loading module when applicable,
   and the nutrition-export button (see "Nutrition export" below) — see "Result panel visual
@@ -977,18 +983,13 @@ regardless of source, so it doesn't need to know whether they came from a Strava
 
 The app deliberately carries no euro/price comparison anywhere — an earlier pass had a
 "Ahorras X € frente a geles comerciales" figure (`getMoneySavedVsGels()` in
-`lib/metabolic-engine.ts`, a Hero Card line, and a `fueling_logs.money_saved` column fed
-by every pre/post-ride log write) that was removed outright: the product is meant to read
-as precision nutrition/performance science, not marketing/savings framing, and a
-cost-comparison figure competing for attention with the actual physiological numbers
-undercut that. The Hero Card at the top of a calculated result now shows exactly three
-figures — the DIY per-bottle dose (malto/fructose/salt), the intake cadence (trago
-frequency plus g/h carbs · mg/h sodium), and the glycogen-battery forecast — nothing else.
-`fueling_logs.money_saved` is still a real (`NOT NULL`) Supabase column with no migration
-tooling in this codebase to drop it cleanly, so `logFuelingPlan()` (`lib/fueling-logs.ts`)
-still writes a literal `0` to it on every insert — a vestigial column, not a live feature;
-if that column is ever formally dropped via a Supabase migration, this write can go with
-it.
+`lib/metabolic-engine.ts` and a Hero Card line) that was removed outright: the product is
+meant to read as precision nutrition/performance science, not marketing/savings framing,
+and a cost-comparison figure competing for attention with the actual physiological numbers
+undercut that. `fueling_logs.money_saved` was dropped to nullable (`ALTER TABLE
+fueling_logs ALTER COLUMN money_saved DROP NOT NULL`) once the feature was fully removed,
+so `logFuelingPlan()` (`lib/fueling-logs.ts`) no longer writes to it at all — no vestigial
+field threaded through for a column that no longer requires one.
 
 ### Offline strategy cache ("Modo Cobertura Limitada")
 
@@ -1010,44 +1011,42 @@ can't work at all, since the browser can't fetch the HTML itself without a netwo
 connection. That's a deliberate scope boundary: this feature is the readable, low-effort
 `localStorage` fallback that was asked for, not a full offline-first PWA rebuild.
 
-### Nutrition export: GPX course points & clipboard fallback
+### Nutrition export: clean GPX course + clipboard fallback
 
-Route mode has real ride geometry to attach nutrition reminders to; quick mode doesn't —
-the export button switches mechanism accordingly rather than pretending both modes are
-the same:
+Route mode has real ride geometry to export; quick mode doesn't — the export button
+switches mechanism accordingly rather than pretending both modes are the same. An earlier
+version injected a `<wpt>` per nutrition milestone/reload stop into the downloaded GPX —
+removed outright: a GPS course file is for navigation, and a one-shot waypoint doesn't
+even match how nutrition timing actually works (a recurring interval, not a single point
+on the map) — the head unit's own native repeating alert is the correct mechanism for that,
+not a fake waypoint standing in for a turn. `lib/gpx-export.ts`'s `buildRouteGpx()` (pure,
+renamed from the old `buildNutritionGpx()`) now writes only a `<trk>` of the route itself,
+nothing else.
 
-- **Route mode (`selectedRoute.summaryPolyline` present)** — "Descargar GPX con avisos de
-  nutrición" downloads an actual `.gpx` course file. `lib/strava-routes.ts`'s `StravaRoute`
-  now carries the route's raw `summaryPolyline` string alongside its already-decoded start
-  point (free — it's already in the `/athlete/routes` list response, no extra Strava call).
+- **Route mode (`selectedRoute.summaryPolyline` present)** — "Descargar GPX de la ruta"
+  downloads an actual `.gpx` course file. `lib/strava-routes.ts`'s `StravaRoute` carries
+  the route's raw `summaryPolyline` string alongside its already-decoded start point (free
+  — it's already in the `/athlete/routes` list response, no extra Strava call).
   `POST /api/fueling/gpx` (auth-checked like every other route, but doesn't need the
-  athlete's profile data) decodes it via the existing `decodePolyline()`
-  (`lib/strava.ts`), then `buildNutritionGpx()` (`lib/gpx-export.ts`, pure) writes a
-  standard GPX 1.1 file: a `<trk>` of the full route plus a `<wpt>` for each
-  `nutritionMilestone` and the reload stop (see "Hybrid nutrition"/"Reload strategy"
-  above). Both Garmin Edge and Wahoo ELEMNT surface named waypoints attached to an
-  imported course as on-screen proximity alerts (and, depending on the device's own point-alert
-  settings, audible ones) — this isn't a vendor-specific extension, just plain GPX
-  waypoints, for maximum cross-device compatibility. `getPointAtFraction()` places each
-  waypoint using the same "index ≈ distance fraction" simplification
-  `getRouteSamplePoints()` already uses elsewhere in this codebase, rather than walking a
-  real cumulative-distance calculation. `stripEmoji()` strips pictographic characters from
-  waypoint names before writing them (older head-unit firmware sometimes renders emoji as
-  empty boxes) while keeping accented Spanish text intact. The client
-  (`handleDownloadGpx()`) triggers the download via a `Blob` + object URL + a temporary
-  `<a download>` click — no server-rendered redirect, since this is a binary file response,
-  not a JSON API.
+  athlete's profile data) decodes it via the existing `decodePolyline()` (`lib/strava.ts`)
+  and passes the coordinates straight to `buildRouteGpx()` — no milestones/reload-strategy
+  data is even sent in the request body anymore. The client (`handleDownloadGpx()`)
+  triggers the download via a `Blob` + object URL + a temporary `<a download>` click — no
+  server-rendered redirect, since this is a binary file response, not a JSON API.
 - **Quick mode (no route/polyline)** — falls back to the original clipboard-text export:
   "Exportar a Garmin / Wahoo / Strava" copies `formatGarminExportText()`'s plain-text
   "ficha técnica" (fixed 15-min frequency-alarm reminder, g/h carb/sodium targets, and a
   "📍 Hitos de Nutrición" list built from `nutritionMilestones` plus the reload stop) via
   `navigator.clipboard.writeText()`, flipping to "✓ Ficha copiada" for 2s — the same
   clipboard-plus-flip-label pattern as "Copiar Receta," with its own `exportCopied` state.
+  This text-only mechanism is unaffected by the GPX cleanup above — it was never writing
+  into an actual navigation file, just a note the athlete pastes wherever's convenient.
 
-A fixed guidance line ("Alertas nativas: en tu Garmin/Wahoo, configura Ajustes → Alertas
-→ Comer/Beber cada 15 min…", with an `AlarmClock` icon) always renders under the export
-button regardless of mode, since the head unit's own native interval alerts and the
-GPX/clipboard export are complementary, not either/or.
+A fixed guidance line ("Configura en tu GPS las Alertas Nativas de Comer/Beber con
+temporizador repetitivo de 15 o 20 min — el GPX de la ruta es solo para navegación.", with
+an `AlarmClock` icon) always renders under the export button regardless of mode — this is
+now the *only* mechanism this app recommends for in-ride nutrition timing on a real head
+unit, the GPX file itself carrying none of it.
 
 - **"Copiar Receta"** — a button next to the recipe header calls
   `navigator.clipboard.writeText()` with the output of
@@ -1375,7 +1374,15 @@ item would navigate underneath a still-open overlay. The same `SidebarContent` h
 (`AppLogo` + "Motor Metabólico") and the mobile top header's own logo+text are both
 wrapped in a `<Link href="/">` (the sidebar one also firing `onNavigate` to close the
 drawer) so clicking the brand mark always returns to the Dashboard, a near-universal web
-convention this app was missing.
+convention this app was missing. That mobile top header is `sticky top-0 z-40` with a
+translucent `bg-white/90 backdrop-blur-md` — pinned in place as the page content scrolls
+underneath it, rather than scrolling away with the rest of the page — so the hamburger
+menu and brand mark stay reachable without scrolling back up. Layered correctly against
+everything else that can render above the page on mobile: the drawer backdrop/`<aside>`
+are `z-9999`/`z-10000` (well above the header's `z-40`, so opening the drawer fully covers
+it) and `RouteMapPreview`'s Leaflet container is `relative z-0 isolate` (so its internal
+panes/zoom-control z-indexes, up to `1000`, stay contained below the sticky header and can
+never escape upward past their own container while scrolling).
 
 The sidebar's bottom identity card (`components/viewer-identity.tsx`) is a separate,
 Suspense-streamed Server Component (`ViewerIdentity`/`ViewerIdentitySkeleton`) rather than
@@ -1431,11 +1438,15 @@ the figures would be frozen from whenever `next build` last ran.
 ### Mobile-first layout
 
 The multi-column grids across the Dashboard and Perfil pages (profile form, planner
-inputs, result-panel stat rows, the glycogen battery comparison) stack to a single column
+inputs, result-panel stat rows, the Net Carb Deficit breakdown) stack to a single column
 at the default breakpoint and only go multi-column at `sm:` — mobile is the default
 layout, not an afterthought squeezed into a desktop grid. The `app/page.tsx` header
-(title + Strava button) wraps (`flex-col`) instead of forcing a single row that would
-overflow a narrow viewport. The planner's route/quick/GPX mode toggle is a compact
+(greeting/title + Strava button) keeps both on one row (`justify-between`) with the
+greeting/title in their own `min-w-0` truncating column and the sync button collapsing to
+an icon + short "Sync" label below `sm:` — an earlier `flex-col`-wrapping version let a
+long "Sincronizar Strava" label clip the greeting text on a narrow phone; truncating each
+side independently instead of wrapping the whole row fixed that. The planner's
+route/quick/GPX mode toggle is a compact
 `grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1` segmented control (an inner
 `rounded-md bg-neutral-900 shadow-sm` pill marks the active mode) rather than a row of
 individually bordered, wrapping pill buttons — three columns fit in one row even on a

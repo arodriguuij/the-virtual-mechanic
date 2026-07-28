@@ -298,28 +298,6 @@ export function getFluidLossMlPerHour(
   );
 }
 
-/** Below this, evapo-transpiration is low enough that fluid needs drop and
- * carbs are better tolerated as solid food (slower gastric emptying isn't a
- * liability in the cold the way it is in the heat). */
-const LOW_TEMPERATURE_THRESHOLD_C = 12;
-
-/**
- * "Impacto Térmico" — a one-line dynamic explanation of how ambient
- * temperature is actually altering the plan, rather than just showing a raw
- * °C figure and leaving the athlete to infer what it means. `null` in the
- * comfortable 12-25°C band, where no adjustment note is warranted.
- */
-export function getThermalImpactNote(temperatureC: number, humidityPct: number): string | null {
-  if (temperatureC > HIGH_HEAT_THRESHOLD_C) {
-    const increasePct = Math.round((getHeatHumidityMultiplier(temperatureC, humidityPct) - 1) * 100);
-    return `Tasa de sudoración incrementada un +${increasePct}% por estrés térmico.`;
-  }
-  if (temperatureC < LOW_TEMPERATURE_THRESHOLD_C) {
-    return "Hidratación ajustada a baja evapo-transpiración; carbohidratos derivados a comida sólida.";
-  }
-  return null;
-}
-
 /** Average sweat sodium concentration for a typical athlete — real
  * individual values range roughly 400-1500mg/L. Self-identified "salty
  * sweaters" (white crust on the jersey, stinging eyes — see
@@ -570,10 +548,19 @@ const SOLID_FOOD_MAX_FRACTION = 0.3;
 // against.
 const CAFFEINE_MIN_DURATION_HOURS = 1.5;
 const CAFFEINE_LEAD_MINUTES = 45;
-// Used only when there's no real GPX/route peak-elevation point to time
-// against (quick-calculator mode) — the last quarter of a ride is a common
-// generic placement for a caffeine boost regardless of terrain.
-const DEFAULT_CAFFEINE_FRACTION = 0.75;
+// Caffeine is only ever suggested late in the ride — early placement (the
+// bug this window fixes: a route whose elevation peak sits near the start,
+// e.g. a climb straight out of the departure point, used to time caffeine as
+// early as km 5 / minute 12, which defeats the point of a late-ride alertness
+// boost) is never allowed. Absent a real late climb to time against, the
+// suggestion lands at the midpoint of this window.
+const CAFFEINE_WINDOW_START_FRACTION = 0.65;
+const CAFFEINE_WINDOW_END_FRACTION = 0.75;
+// A route's real elevation peak only overrides the fixed window when it
+// falls in the second half of the ride — a genuine late climb is worth
+// timing caffeine against directly; an early one is not a reason to move
+// caffeine earlier than the window above.
+const LATE_CLIMB_MIN_FRACTION = 0.5;
 
 export type TimingTimelineEntry = {
   type: "solid" | "gel" | "caffeine";
@@ -660,9 +647,14 @@ export function generateTimingTimeline({
   });
 
   if (durationHours >= CAFFEINE_MIN_DURATION_HOURS) {
-    const targetFraction = peakFraction ?? DEFAULT_CAFFEINE_FRACTION;
+    const hasLateClimb = peakFraction != null && peakFraction >= LATE_CLIMB_MIN_FRACTION;
     const leadFraction = CAFFEINE_LEAD_MINUTES / 60 / durationHours;
-    const fraction = Math.max(0.05, targetFraction - leadFraction);
+    // Never earlier than the window's start, regardless of where the climb
+    // sits — a late climb can only push caffeine later than the default
+    // midpoint, never earlier than 65% of the ride.
+    const fraction = hasLateClimb
+      ? Math.max(CAFFEINE_WINDOW_START_FRACTION, peakFraction - leadFraction)
+      : (CAFFEINE_WINDOW_START_FRACTION + CAFFEINE_WINDOW_END_FRACTION) / 2;
     entries.push(
       makeTimingEntry("caffeine", "Toma de cafeína (~100-200mg)", fraction, durationHours, distanceKm)
     );
@@ -696,7 +688,8 @@ export type HomeLabRecipe = {
 export const HIGH_CARB_RATE_THRESHOLD_G_PER_HOUR = 75;
 export const MODERATE_CARB_RATE_THRESHOLD_G_PER_HOUR = 45;
 
-function getMaltodextrinFraction(carbsGPerHour: number): number {
+function getMaltodextrinFraction(carbsGPerHour: number, forceHighCarbRatio = false): number {
+  if (forceHighCarbRatio) return 1 / 1.8;
   if (carbsGPerHour < MODERATE_CARB_RATE_THRESHOLD_G_PER_HOUR) return 1;
   if (carbsGPerHour <= HIGH_CARB_RATE_THRESHOLD_G_PER_HOUR) return 2 / 3;
   return 1 / 1.8;
@@ -725,7 +718,12 @@ export function getCarbRatioContextNote(carbsGPerHour: number): string {
  * covers both carbs and hydration. `pocketFoodCarbsG` (from the hybrid
  * nutrition module above) is subtracted from the ride's carb target first —
  * solid food eaten from the jersey pocket means less needs to go in the
- * bottles, not an additional carb allowance on top.
+ * bottles, not an additional carb allowance on top. `forceHighCarbRatio`
+ * (set from the planner's "Ruta objetivo / Competición" checkbox) skips the
+ * rate-based ratio bands entirely and always applies the 1:0.8 near-maximal
+ * dual-transporter split — a target event is exactly the scenario where
+ * squeezing out the last few g/h of absorption is worth it even if the
+ * ride's own carb rate wouldn't otherwise have crossed the 75g/h threshold.
  */
 export function getHomeLabRecipe({
   carbsGPerHour,
@@ -733,15 +731,17 @@ export function getHomeLabRecipe({
   fluidLossMlPerHour,
   durationHours,
   pocketFoodCarbsG = 0,
+  forceHighCarbRatio = false,
 }: {
   carbsGPerHour: number;
   sodiumMgPerHour: number;
   fluidLossMlPerHour: number;
   durationHours: number;
   pocketFoodCarbsG?: number;
+  forceHighCarbRatio?: boolean;
 }): HomeLabRecipe {
   const totalCarbsG = Math.max(0, carbsGPerHour * durationHours - pocketFoodCarbsG);
-  const maltodextrinG = totalCarbsG * getMaltodextrinFraction(carbsGPerHour);
+  const maltodextrinG = totalCarbsG * getMaltodextrinFraction(carbsGPerHour, forceHighCarbRatio);
   const fructoseG = totalCarbsG - maltodextrinG;
 
   return {
@@ -990,76 +990,46 @@ export function getGlycogenBurnedFromPowerZones(
 }
 
 
-/** Combined liver + muscle glycogen storage, a standard sports-science
- * approximation (~560g for a 70kg athlete) — not an individually measured
- * value. */
-const GLYCOGEN_STORAGE_G_PER_KG = 8;
-
-export function getGlycogenStoresGrams(weightKg: number): number {
-  return Math.round(weightKg * GLYCOGEN_STORAGE_G_PER_KG);
-}
-
-export type GlycogenBatterySimulation = {
-  glycogenStoresG: number;
-  noFuel: {
-    bonkOccurs: boolean;
-    bonkAtHours: number | null;
-    /** Only set when the ride has a real distance (route mode). */
-    bonkAtKm: number | null;
-    remainingBatteryPct: number;
-  };
-  withRecipe: {
-    bonkOccurs: boolean;
-    remainingBatteryPct: number;
-  };
+export type NetCarbDeficit = {
+  /** The body's real (phenotype-adjusted, uncapped) carb burn over the
+   * whole ride — what the athlete actually spends, independent of what the
+   * gut can absorb. */
+  estimatedBurnG: number;
+  /** The recipe's recommended (gut-capped) intake over the whole ride —
+   * what the plan actually tells the athlete to consume. */
+  plannedIntakeG: number;
+  /** `estimatedBurnG - plannedIntakeG` — positive means the plan doesn't
+   * fully cover the ride's real demand (a genuine deficit, most common on
+   * long/hard rides where the gut-training cap sits below the true burn
+   * rate); negative or zero means the planned intake covers or exceeds it. */
+  netDeficitG: number;
 };
 
 /**
- * "Simulador de Batería de Glucógeno" — models the ride as a simple tank
- * draining at the body's own (phenotype-adjusted) burn rate, comparing two
- * scenarios: eating nothing at all vs. following the DIY recipe's
- * recommended (gut-capped) intake. Not a real-time depletion/replenishment
- * model — glycogen resynthesis during the ride from ingested carbs is
- * simplified to a constant net burn rate (burn − intake) rather than
- * separately modeling gut absorption lag.
+ * "Déficit Neto de Carbohidratos" — an auditable, physiologically direct
+ * alternative to a "glycogen battery %" gauge: rather than model total body
+ * glycogen stores (an estimate on top of an estimate), this simply compares
+ * the ride's real carb expenditure against what the plan actually delivers,
+ * in grams. A positive `netDeficitG` is not itself a "bonk" — it just means
+ * the recommended (gut-capped) intake alone won't fully replace what's
+ * burned, which is expected and fine as long as it's within what the body's
+ * own glycogen/fat reserves can cover.
  */
-export function simulateGlycogenBattery({
-  weightKg,
+export function getNetCarbDeficit({
   burnRateGPerHour,
   intakeGPerHour,
   durationHours,
-  distanceKm,
 }: {
-  weightKg: number;
   burnRateGPerHour: number;
   intakeGPerHour: number;
   durationHours: number;
-  distanceKm: number | null;
-}): GlycogenBatterySimulation {
-  const glycogenStoresG = getGlycogenStoresGrams(weightKg);
-
-  const hoursToBonkNoFuel = burnRateGPerHour > 0 ? glycogenStoresG / burnRateGPerHour : Infinity;
-  const bonkOccursNoFuel = hoursToBonkNoFuel < durationHours;
-  const remainingNoFuelG = Math.max(0, glycogenStoresG - burnRateGPerHour * durationHours);
-
-  const netBurnRateWithRecipe = Math.max(0, burnRateGPerHour - intakeGPerHour);
-  const remainingWithRecipeG = Math.max(0, glycogenStoresG - netBurnRateWithRecipe * durationHours);
-
+}): NetCarbDeficit {
+  const estimatedBurnG = Math.round(burnRateGPerHour * durationHours);
+  const plannedIntakeG = Math.round(intakeGPerHour * durationHours);
   return {
-    glycogenStoresG,
-    noFuel: {
-      bonkOccurs: bonkOccursNoFuel,
-      bonkAtHours: bonkOccursNoFuel ? Math.round(hoursToBonkNoFuel * 100) / 100 : null,
-      bonkAtKm:
-        bonkOccursNoFuel && distanceKm != null
-          ? Math.round(distanceKm * (hoursToBonkNoFuel / durationHours) * 10) / 10
-          : null,
-      remainingBatteryPct: Math.round((remainingNoFuelG / glycogenStoresG) * 100),
-    },
-    withRecipe: {
-      bonkOccurs: remainingWithRecipeG <= 0,
-      remainingBatteryPct: Math.round((remainingWithRecipeG / glycogenStoresG) * 100),
-    },
+    estimatedBurnG,
+    plannedIntakeG,
+    netDeficitG: estimatedBurnG - plannedIntakeG,
   };
 }
 

@@ -2,7 +2,6 @@
 
 import {
   AlarmClock,
-  BatteryCharging,
   CalendarDays,
   ChevronDown,
   Copy,
@@ -13,6 +12,7 @@ import {
   MapPin,
   Pencil,
   Send,
+  TrendingDown,
   TriangleAlert,
   Upload,
   Utensils,
@@ -118,24 +118,18 @@ const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums
 // input/select/date call site below.
 const inputClass = fieldClass;
 const selectableInputClass = selectableFieldClass;
-// `datetime-local` gets its own class list rather than sharing
-// `selectableFieldClass` — iOS Safari renders this control as several
-// internal segments (month/day/year/hour/minute/AM-PM) with their own
-// intrinsic minimum width, which can force the field wider than its grid
-// column and overflow the card's right edge on a narrow phone.
-// `min-w-0`/`max-w-full`/`box-border`/`truncate` on both the input and its
-// wrapper (see the three call sites below) are what actually stop that —
-// `w-full` alone doesn't help, since a flex/grid item's default
-// `min-width: auto` still lets its content force the item wider anyway.
-const dateInputClass = cn(
-  "w-full max-w-full box-border appearance-none truncate rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-xs font-sans text-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900 sm:text-sm",
-  "cursor-pointer",
-  // `datetime-local` renders its own calendar-picker icon that Tailwind can
-  // only reach via the `::-webkit-calendar-picker-indicator` pseudo-element —
-  // dimmed by default, full opacity on hover, so it still reads as clickable
-  // without competing visually with the rest of the field.
-  "[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
-);
+// "Salida" quick-select: a day pill (Hoy/Mañana) plus a plain hour `<select>`
+// replaces the old `datetime-local` input — that native control's per-browser
+// chrome (and iOS Safari's multi-segment month/day/year/hour/minute/AM-PM
+// rendering in particular) was more precision than a rider picking "tomorrow
+// morning" actually needs, and needed its own overflow-defense classes to
+// avoid forcing the field wider than its grid column on a narrow phone. Hour
+// options cover the range a rider would plausibly start a ride at.
+const DEPARTURE_HOUR_OPTIONS = [
+  "05:00", "06:00", "07:00", "08:00", "09:00", "10:00",
+  "11:00", "12:00", "13:00", "14:00", "15:00", "16:00",
+  "17:00", "18:00", "19:00", "20:00",
+];
 
 const INTENSITY_OPTIONS: IntensityLevel[] = [
   "recovery",
@@ -170,7 +164,6 @@ type PlanResult = {
     source: "dynamic" | "planning_default";
     multiPointSample: boolean;
     lapseRateAdjustmentC: number;
-    thermalImpactNote: string | null;
   };
   gutTraining: {
     isGutLimited: boolean;
@@ -211,18 +204,10 @@ type PlanResult = {
       atKm: number | null;
     }[];
   };
-  glycogenBattery: {
-    glycogenStoresG: number;
-    noFuel: {
-      bonkOccurs: boolean;
-      bonkAtHours: number | null;
-      bonkAtKm: number | null;
-      remainingBatteryPct: number;
-    };
-    withRecipe: {
-      bonkOccurs: boolean;
-      remainingBatteryPct: number;
-    };
+  netCarbDeficit: {
+    estimatedBurnG: number;
+    plannedIntakeG: number;
+    netDeficitG: number;
   };
   carbLoading: {
     minCarbsG: number;
@@ -231,14 +216,62 @@ type PlanResult = {
   } | null;
 };
 
-/** Local datetime-local input value for "tomorrow at 08:00" — the planner's
- * default departure, before the user picks their own. */
-function defaultDepartureLocal(): string {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(8, 0, 0, 0);
+/** Combines a day pill (0 = hoy, 1 = mañana) and an "HH:mm" hour selection
+ * into the same local datetime string the calculation request expects. */
+function buildDepartureLocal(dayOffset: 0 | 1, hour: string): string {
+  const date = new Date();
+  date.setDate(date.getDate() + dayOffset);
+  const [h, m] = hour.split(":").map(Number);
+  date.setHours(h, m, 0, 0);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function DeparturePicker({
+  dayOffset,
+  onDayOffsetChange,
+  hour,
+  onHourChange,
+}: {
+  dayOffset: 0 | 1;
+  onDayOffsetChange: (offset: 0 | 1) => void;
+  hour: string;
+  onHourChange: (hour: string) => void;
+}) {
+  return (
+    <div className="flex w-full min-w-0 max-w-full flex-col gap-1.5">
+      <span className={eyebrow}>Salida</span>
+      <div className="grid grid-cols-2 gap-1.5">
+        {([0, 1] as const).map((offset) => (
+          <button
+            key={offset}
+            type="button"
+            onClick={() => onDayOffsetChange(offset)}
+            className={cn(
+              "cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold tracking-wide uppercase transition-colors duration-150",
+              dayOffset === offset
+                ? "border-terracotta bg-terracotta text-white"
+                : "border-neutral-300 bg-white text-neutral-600 hover:border-neutral-400"
+            )}
+          >
+            {offset === 0 ? "Hoy" : "Mañana"}
+          </button>
+        ))}
+      </div>
+      <select
+        aria-label="Hora de salida"
+        className={selectableFieldClass}
+        value={hour}
+        onChange={(e) => onHourChange(e.target.value)}
+      >
+        {DEPARTURE_HOUR_OPTIONS.map((h) => (
+          <option key={h} value={h}>
+            {h}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
 }
 
 function PocketFoodStepperRow({
@@ -304,7 +337,12 @@ export function FuelingPlanner({
   const [intensity, setIntensity] = useState<IntensityLevel>("endurance");
   const [quickDurationHours, setQuickDurationHours] = useState(2);
   const [quickAverageWatts, setQuickAverageWatts] = useState(180);
-  const [departureLocal, setDepartureLocal] = useState(defaultDepartureLocal);
+  const [departureDayOffset, setDepartureDayOffset] = useState<0 | 1>(1);
+  const [departureHour, setDepartureHour] = useState("08:00");
+  const departureLocal = useMemo(
+    () => buildDepartureLocal(departureDayOffset, departureHour),
+    [departureDayOffset, departureHour]
+  );
   const [isTargetEvent, setIsTargetEvent] = useState(false);
   const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
   const [customCarbsG, setCustomCarbsG] = useState(0);
@@ -553,9 +591,6 @@ export function FuelingPlanner({
         body: JSON.stringify({
           routeName: selectedRoute.name,
           summaryPolyline: selectedRoute.summaryPolyline,
-          distanceKm: selectedRoute.distanceKm,
-          milestones: result.nutritionMilestones,
-          reloadStrategy: result.reloadStrategy,
         }),
       });
       if (!res.ok) throw new Error("gpx_failed");
@@ -563,7 +598,7 @@ export function FuelingPlanner({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${selectedRoute.name.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}-nutricion.gpx`;
+      a.download = `${selectedRoute.name.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}.gpx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -665,18 +700,12 @@ export function FuelingPlanner({
                   ))}
                 </select>
               </div>
-              <div className="flex w-full min-w-0 max-w-full flex-col gap-1.5 overflow-hidden">
-                <label htmlFor="departure-route" className={eyebrow}>
-                  Salida
-                </label>
-                <input
-                  id="departure-route"
-                  type="datetime-local"
-                  className={dateInputClass}
-                  value={departureLocal}
-                  onChange={(e) => setDepartureLocal(e.target.value)}
-                />
-              </div>
+              <DeparturePicker
+                dayOffset={departureDayOffset}
+                onDayOffsetChange={setDepartureDayOffset}
+                hour={departureHour}
+                onHourChange={setDepartureHour}
+              />
             </div>
           ) : (
             <p className="text-sm text-neutral-500">
@@ -714,18 +743,12 @@ export function FuelingPlanner({
                 onChange={(e) => setQuickAverageWatts(Number(e.target.value))}
               />
             </div>
-            <div className="flex w-full min-w-0 max-w-full flex-col gap-1.5 overflow-hidden">
-              <label htmlFor="departure-quick" className={eyebrow}>
-                Salida
-              </label>
-              <input
-                id="departure-quick"
-                type="datetime-local"
-                className={dateInputClass}
-                value={departureLocal}
-                onChange={(e) => setDepartureLocal(e.target.value)}
-              />
-            </div>
+            <DeparturePicker
+              dayOffset={departureDayOffset}
+              onDayOffsetChange={setDepartureDayOffset}
+              hour={departureHour}
+              onHourChange={setDepartureHour}
+            />
           </div>
         ) : null}
 
@@ -803,18 +826,12 @@ export function FuelingPlanner({
                       ))}
                     </select>
                   </div>
-                  <div className="flex w-full min-w-0 max-w-full flex-col gap-1.5 overflow-hidden">
-                    <label htmlFor="departure-gpx" className={eyebrow}>
-                      Salida
-                    </label>
-                    <input
-                      id="departure-gpx"
-                      type="datetime-local"
-                      className={dateInputClass}
-                      value={departureLocal}
-                      onChange={(e) => setDepartureLocal(e.target.value)}
-                    />
-                  </div>
+                  <DeparturePicker
+                    dayOffset={departureDayOffset}
+                    onDayOffsetChange={setDepartureDayOffset}
+                    hour={departureHour}
+                    onHourChange={setDepartureHour}
+                  />
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="gpx-duration" className={eyebrow}>
                       <Pencil className="mr-1 inline size-3" />
@@ -958,28 +975,36 @@ export function FuelingPlanner({
           </div>
         </details>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <button
-            type="button"
-            onClick={handleCalculate}
-            disabled={
-              loading ||
-              (mode === "route" && !selectedRoute) ||
-              (mode === "gpx" && !parsedGpx)
-            }
-            className={cn(primaryButtonClass, "w-full sm:w-fit")}
-          >
-            {loading ? "Calculando…" : "Calcular estrategia"}
-          </button>
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-600">
-            <input
-              type="checkbox"
-              checked={isTargetEvent}
-              onChange={(e) => setIsTargetEvent(e.target.checked)}
-              className="size-3.5 cursor-pointer accent-terracotta"
-            />
-            Ruta objetivo / Competición
-          </label>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              onClick={handleCalculate}
+              disabled={
+                loading ||
+                (mode === "route" && !selectedRoute) ||
+                (mode === "gpx" && !parsedGpx)
+              }
+              className={cn(primaryButtonClass, "w-full sm:w-fit")}
+            >
+              {loading ? "Calculando…" : "Calcular estrategia"}
+            </button>
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-600">
+              <input
+                type="checkbox"
+                checked={isTargetEvent}
+                onChange={(e) => setIsTargetEvent(e.target.checked)}
+                className="size-3.5 cursor-pointer accent-terracotta"
+              />
+              Ruta objetivo / Competición
+            </label>
+          </div>
+          {isTargetEvent && (
+            <p className="text-[11px] text-neutral-500">
+              Ajustado a ratio Fructosa:Maltodextrina 1:0.8 y límite máximo de absorción por
+              alta intensidad.
+            </p>
+          )}
         </div>
 
         {error && <p className="text-sm text-status-warning">{error}</p>}
@@ -1013,9 +1038,12 @@ export function FuelingPlanner({
                   1 trago cada {result.timingTimeline.hydrationIntervalMinutes} min ({result.carbsGPerHour} g/h HC · {result.sodiumMgPerHour} mg/h Sodio)
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <BatteryCharging className="size-3.5 shrink-0 text-neutral-400" />
-                  Batería final: {result.glycogenBattery.withRecipe.remainingBatteryPct}%
-                  {!result.glycogenBattery.withRecipe.bonkOccurs && " (Sin pájara)"}
+                  <TrendingDown className="size-3.5 shrink-0 text-neutral-400" />
+                  Déficit neto:{" "}
+                  {result.netCarbDeficit.netDeficitG > 0
+                    ? `-${result.netCarbDeficit.netDeficitG}`
+                    : `+${Math.abs(result.netCarbDeficit.netDeficitG)}`}{" "}
+                  g HC
                 </span>
               </div>
             </div>
@@ -1028,7 +1056,8 @@ export function FuelingPlanner({
               source={result.weather.source}
               multiPointSample={result.weather.multiPointSample}
               lapseRateAdjustmentC={result.weather.lapseRateAdjustmentC}
-              thermalImpactNote={result.weather.thermalImpactNote}
+              fluidLossMlPerHour={result.fluidLossMlPerHour}
+              sodiumMgPerHour={result.sodiumMgPerHour}
             />
 
             <div className="my-4 grid w-full grid-cols-3 gap-1 text-center sm:gap-4 sm:text-left">
@@ -1069,39 +1098,32 @@ export function FuelingPlanner({
               </p>
             )}
 
-            <div className="grid grid-cols-1 gap-3 border border-neutral-200 px-3 py-3 sm:grid-cols-2 sm:gap-4">
+            <div className="grid grid-cols-1 gap-3 border border-neutral-200 px-3 py-3 sm:grid-cols-3 sm:gap-4">
               <div className="flex flex-col gap-1">
-                <span className={eyebrow}>Sin nutrir</span>
-                {result.glycogenBattery.noFuel.bonkOccurs ? (
-                  <span className="flex items-center gap-1.5 text-sm font-medium text-status-critical">
-                    <TriangleAlert className="size-3.5 shrink-0" />
-                    Pájara
-                    {result.glycogenBattery.noFuel.bonkAtKm != null
-                      ? ` en el km ${result.glycogenBattery.noFuel.bonkAtKm}`
-                      : ""}
-                    {result.glycogenBattery.noFuel.bonkAtHours != null
-                      ? ` (a las ${result.glycogenBattery.noFuel.bonkAtHours}h)`
-                      : ""}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1.5 text-sm font-medium text-neutral-900">
-                    <BatteryCharging className="size-3.5 shrink-0" />
-                    Sin pájara — {result.glycogenBattery.noFuel.remainingBatteryPct}% al llegar
-                  </span>
-                )}
+                <span className={eyebrow}>Gasto estimado de HC</span>
+                <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                  {result.netCarbDeficit.estimatedBurnG} g
+                </span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className={eyebrow}>Con receta DIY</span>
+                <span className={eyebrow}>Ingesta planificada</span>
+                <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                  {result.netCarbDeficit.plannedIntakeG} g
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className={eyebrow}>Déficit neto al finalizar</span>
                 <span
                   className={cn(
-                    "flex items-center gap-1.5 text-sm font-medium",
-                    result.glycogenBattery.withRecipe.bonkOccurs
-                      ? "text-status-critical"
-                      : "text-status-good"
+                    "flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums",
+                    result.netCarbDeficit.netDeficitG > 0 ? "text-status-warning" : "text-status-good"
                   )}
                 >
-                  <BatteryCharging className="size-3.5 shrink-0" />
-                  Batería final: {result.glycogenBattery.withRecipe.remainingBatteryPct}%
+                  <TrendingDown className="size-3.5 shrink-0" />
+                  {result.netCarbDeficit.netDeficitG > 0
+                    ? `-${result.netCarbDeficit.netDeficitG}`
+                    : `+${Math.abs(result.netCarbDeficit.netDeficitG)}`}{" "}
+                  g
                 </span>
               </div>
             </div>
@@ -1362,7 +1384,7 @@ export function FuelingPlanner({
                   className={cn(secondaryButtonClass, "w-fit")}
                 >
                   <Download className="size-3.5" />
-                  {downloadingGpx ? "Generando…" : "Descargar GPX con avisos de nutrición"}
+                  {downloadingGpx ? "Generando…" : "Descargar GPX de la ruta"}
                 </button>
               ) : (
                 <button
@@ -1382,8 +1404,8 @@ export function FuelingPlanner({
               )}
               <p className="flex items-start gap-1.5 text-xs text-neutral-500">
                 <AlarmClock className="mt-0.5 size-3 shrink-0" />
-                Alertas nativas: en tu Garmin/Wahoo, configura Ajustes → Alertas → Comer/Beber
-                cada 15 min, además de los avisos por GPS de este archivo.
+                Configura en tu GPS las Alertas Nativas de Comer/Beber con temporizador
+                repetitivo de 15 o 20 min — el GPX de la ruta es solo para navegación.
               </p>
             </div>
           </div>
