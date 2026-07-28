@@ -24,6 +24,20 @@ const DIRECTION_LOCK_PX = 10; // px of movement before deciding this is a horizo
 
 type TouchDragState = { startX: number; startY: number; locked: boolean; horizontal: boolean };
 
+/**
+ * Clicking the brand mark while already on the Dashboard shouldn't navigate at
+ * all (a same-page `Link` click is a no-op route change anyway) — instead it
+ * scrolls smoothly back to the top, the same "logo always gets you home, and
+ * home is where you already are" affordance most editorial sites use. Anywhere
+ * else, falls through to the `Link`'s normal navigation to `/`.
+ */
+function scrollToTopIfHome(e: React.MouseEvent<HTMLAnchorElement>, pathname: string) {
+  if (pathname === "/") {
+    e.preventDefault();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+}
+
 function SidebarContent({
   onNavigate,
   onClose,
@@ -40,7 +54,10 @@ function SidebarContent({
       <div className="mb-6 flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
         <Link
           href="/"
-          onClick={onNavigate}
+          onClick={(e) => {
+            onNavigate?.();
+            scrollToTopIfHome(e, pathname);
+          }}
           aria-label="Ir al Dashboard"
           className="flex cursor-pointer items-center gap-2 text-xs font-bold tracking-wider whitespace-nowrap text-neutral-900 uppercase transition-opacity duration-150 hover:opacity-80 focus:outline-none"
         >
@@ -109,6 +126,7 @@ export function DashboardShell({
   children: ReactNode;
   identitySlot: ReactNode;
 }) {
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   // Non-null only while a horizontal drag is actively in progress — the drawer's
   // position while dragging (0 = closed, DRAWER_WIDTH_PX = fully open), tracked
@@ -214,6 +232,7 @@ export function DashboardShell({
           </button>
           <Link
             href="/"
+            onClick={(e) => scrollToTopIfHome(e, pathname)}
             aria-label="Ir al Dashboard"
             className="flex cursor-pointer items-center gap-2 text-xs font-bold whitespace-nowrap text-neutral-900 uppercase tracking-wider transition-opacity duration-150 hover:opacity-80 focus:outline-none"
           >

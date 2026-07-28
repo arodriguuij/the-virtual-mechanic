@@ -1524,7 +1524,17 @@ item would navigate underneath a still-open overlay. The same `SidebarContent` h
 (`AppLogo` + "Motor Metabólico") and the mobile top header's own logo+text are both
 wrapped in a `<Link href="/">` (the sidebar one also firing `onNavigate` to close the
 drawer) so clicking the brand mark always returns to the Dashboard, a near-universal web
-convention this app was missing. That mobile top header is `sticky top-0 z-40` with a
+convention this app was missing. **Clicking it while already on the Dashboard** doesn't
+navigate at all — `scrollToTopIfHome()` intercepts the `Link`'s `onClick`, and if
+`usePathname() === "/"` calls `e.preventDefault()` plus `window.scrollTo({ top: 0,
+behavior: "smooth" })` instead, since a same-page `Link` click is a no-op route change
+anyway and a logo click is a near-universal "take me back to the top" gesture on
+editorial sites. Both brand `Link`s (`SidebarContent`'s, which covers the always-visible
+desktop sidebar *and* the mobile drawer since it's the same component; and the mobile-only
+sticky header's own) share this one function rather than duplicating the pathname check —
+verified live at both a 1280px and a 390px viewport: scrolling down, then clicking the
+brand mark, lands back at `scrollY === 0` with the URL unchanged, while the same click
+from `/perfil` navigates to `/` normally. That mobile top header is `sticky top-0 z-40` with a
 translucent `bg-white/90 backdrop-blur-md` — pinned in place as the page content scrolls
 underneath it, rather than scrolling away with the rest of the page — so the hamburger
 menu and brand mark stay reachable without scrolling back up. Layered correctly against
