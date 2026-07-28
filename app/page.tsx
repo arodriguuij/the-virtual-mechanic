@@ -18,6 +18,7 @@ import {
   getProfile,
   getRecentActivities,
   getStravaRoutes,
+  getViewerIdentity,
 } from "@/lib/dashboard-data";
 import { primaryButtonClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,8 @@ import { cn } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
+const greetingClass =
+  "truncate font-mono text-[10px] tracking-wider text-neutral-500 uppercase sm:text-xs";
 
 function formatRelativeDate(iso: string) {
   const date = new Date(iso);
@@ -32,6 +35,32 @@ function formatRelativeDate(iso: string) {
   if (days <= 0) return "hoy";
   if (days === 1) return "ayer";
   return date.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+}
+
+function getGreetingPrefix(hour: number): string {
+  if (hour >= 5 && hour < 12) return "Buenos días";
+  if (hour >= 12 && hour < 20) return "Buenas tardes";
+  return "Buenas noches";
+}
+
+// Its own Suspense boundary (like `StravaButton`/`ProfileCheckBannerSection`
+// below) so the greeting's Strava round-trip via `getViewerIdentity()` never
+// blocks the rest of the Dashboard from rendering — `getViewerIdentity` is
+// `cache()`-deduped, so this costs no extra query beyond what the sidebar's
+// own `ViewerIdentity` already fetches this request.
+async function GreetingSection() {
+  const identity = await getViewerIdentity();
+  const firstName = identity.name.split(" ")[0];
+  const greeting = getGreetingPrefix(new Date().getHours());
+  return (
+    <p className={greetingClass}>
+      {greeting}, {firstName}
+    </p>
+  );
+}
+
+function GreetingSkeleton() {
+  return <Skeleton className="h-3 w-28" />;
 }
 
 async function FuelingPlannerSection() {
@@ -260,9 +289,9 @@ export default async function Home() {
       <div className="flex flex-col gap-6">
         <header className="mb-6 flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
           <div className="mr-2 flex min-w-0 flex-col">
-            <p className="truncate font-mono text-[10px] tracking-wider text-neutral-500 uppercase sm:text-xs">
-              Buenas tardes, Alejandro
-            </p>
+            <Suspense fallback={<GreetingSkeleton />}>
+              <GreetingSection />
+            </Suspense>
             <h1 className="truncate font-mono text-xl font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
               Dashboard
             </h1>

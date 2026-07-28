@@ -274,8 +274,9 @@ as its `strava_athlete_id` matches).
   as before.
   On mobile, the button itself collapses from the full "Sincronizar Strava" label to just a
   `RefreshCw` icon (Strava-orange, `#FC4C02`) plus a short "Sync" label — the full label
-  next to the Dashboard header's own greeting ("Buenas tardes, Alejandro") was wide enough
-  to clip the greeting text on a narrow phone; `sm:` and up show the full label again.
+  next to the Dashboard header's own greeting (e.g. "Buenas tardes, Alejandro" — see
+  "Dynamic greeting" below) was wide enough to clip the greeting text on a narrow phone;
+  `sm:` and up show the full label again.
 
 #### Geographic microclimate sampling
 
@@ -1489,6 +1490,24 @@ without relying on wrapping. `app/page.tsx`'s Dashboard header keeps its own sli
 different structure (a greeting eyebrow line above the `<h1>`, no subtitle line below it)
 since that's a deliberate, already-compact pattern, not the `<h1>` + subtitle shape the
 other two routes use.
+
+### Dynamic greeting
+
+The Dashboard's eyebrow line above the `<h1>` used to be a hardcoded "Buenas tardes,
+Alejandro" — always the wrong time-of-day prefix outside actual afternoon hours, and
+always this one developer's name regardless of who's actually signed in.
+`GreetingSection` (`app/page.tsx`) replaces it with `getGreetingPrefix(new
+Date().getHours())` (`05:00-11:59` "Buenos días", `12:00-19:59` "Buenas tardes",
+`20:00-04:59` "Buenas noches") plus the real signed-in athlete's first name, taken from
+`getViewerIdentity()` (`lib/dashboard-data.ts` — the same Strava-backed identity source
+`components/viewer-identity.tsx`'s sidebar card already uses; `cache()`-deduped, so
+calling it a second time this request costs no extra Strava round-trip). It's its own
+`Suspense` boundary (`GreetingSkeleton` fallback), same pattern as `StravaButton`/
+`ProfileCheckBannerSection` below, so the greeting's Strava-dependent fetch never blocks
+the rest of the Dashboard from rendering. Computed and rendered entirely server-side with
+no client component involved, so there's no hydration mismatch risk — the server-rendered
+markup is the only markup, never re-computed client-side against a possibly different
+`Date()`.
 
 ### Route dynamic rendering
 
