@@ -164,14 +164,16 @@ reach for — simply cannot work. Instead:
   (`supabase.auth.signOut()` then `redirect("/login")`) wired directly as a `<form
   action={logout}>` in `components/dashboard-shell.tsx`'s sidebar, below the identity
   card.
-- **`app/login/page.tsx`** — the only entry point when `proxy.ts` finds no session: a
-  centered screen (value prop + a single "Conectar con Strava" CTA linking to
-  `/api/strava/connect`) with its own `stravaLoginErrorMessages` map for login-time
-  failures (`missing_code`, `token_exchange_failed`, `missing_athlete_id`,
-  `auth_bridge_failed`, `save_failed`) — distinct from `app/page.tsx`'s own
-  `stravaErrorMessages`, which now only covers errors from the already-logged-in
-  "Sincronizar rutas" action (`not_connected`, `no_rides`), since a logged-out visitor
-  can never reach that page to see them.
+### Login & loading screens (`app/login/page.tsx`, `app/auth/callback/page.tsx`)
+
+**`app/login/page.tsx`** is the only entry point when `proxy.ts` finds no session: a
+centered screen (value prop + a single "Conectar con Strava" CTA linking to
+`/api/strava/connect`) with its own `stravaLoginErrorMessages` map for login-time
+failures (`missing_code`, `token_exchange_failed`, `missing_athlete_id`,
+`auth_bridge_failed`, `save_failed`) — distinct from `app/page.tsx`'s own
+`stravaErrorMessages`, which now only covers errors from the already-logged-in
+"Sincronizar rutas" action (`not_connected`, `no_rides`), since a logged-out visitor
+can never reach that page to see them.
   A Pas Normal Studios-inspired redesign pass went through three iterations before
   landing on the current **full-bleed, card-free editorial layout** (no floating white
   box, no shadow, no background pattern at all — a single flat `bg-[#FDFCF9]` for the
@@ -216,6 +218,20 @@ reach for — simply cannot work. Instead:
   confirmed via computed style, and the old `public/login-road-bg.svg` asset was deleted
   once nothing referenced it.
 
+**`components/auth-page-shell.tsx`**'s `AuthPageShell` holds the top bar/hero-wrapper/
+bottom bar frame described above as a single shared component, once `/auth/callback`'s
+own transition screen needed the *identical* bars — extracted so a future copy or style
+change to either only has to happen in one place rather than two copies drifting apart. A
+plain component (no `"use client"`, no server-only APIs), so it's safe to import from
+`/login`'s `async` Server Component and from `/auth/callback`'s `"use client"` one alike;
+each page passes only its own hero content as `children`. **`app/auth/callback/page.tsx`**
+now renders `AuthPageShell` with a pulsing `AppLogo`, a "Conectando con Strava..." status
+title, and a "Sincronizando perfil fisiológico y recalculando datos de rutas recientes."
+subtitle in place of the old standalone dual-logo card (`AppLogo` + three sequenced
+pulsing dots + `StravaMark` inside its own `rounded-2xl` white card) — the transition
+screen and the login screen it leads into (or back to, on failure) now read as the exact
+same surface rather than two differently-styled auth screens.
+
 ### Seeding dev data
 
 `npm run seed` (`scripts/seed.ts`) still signs in with `SEED_USER_EMAIL`/
@@ -236,9 +252,9 @@ as its `strava_athlete_id` matches).
 - `GET /api/strava/connect` — redirects to Strava's authorize URL (`lib/strava.ts`).
 - **`/auth/callback`** (`app/auth/callback/page.tsx`) — `getStravaRedirectUri()` points
   Strava's redirect here rather than straight at the Route Handler below, so the browser
-  has a real page to render (a dual-logo "Conectando con Strava..." transition screen —
-  the app's own Flame mark, three sequenced pulsing dots, and Strava's icomark in its
-  corporate `#FC4C02` orange, via the shared `components/strava-mark.tsx`) for however
+  has a real page to render (a "Conectando con Strava..." transition screen, sharing the
+  exact same full-bleed `AuthPageShell` frame as `/login` — see "Login & loading screens"
+  below — with a pulsing `AppLogo` and status copy in place of the login CTA) for however
   long the token-exchange/Supabase-bridge work below takes, instead of a blank tab.
   Strava's "Authorization Callback Domain" setting only ever validates the *domain*, never
   the path, so this needed no change on Strava's side. The page does no work itself: a
