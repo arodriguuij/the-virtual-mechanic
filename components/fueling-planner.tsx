@@ -290,8 +290,8 @@ function DeparturePicker({
   onHourChange: (hour: string) => void;
 }) {
   return (
-    <div className="flex w-full min-w-0 max-w-full flex-col gap-1.5">
-      <span className={eyebrow}>Salida</span>
+    <div className="flex w-full min-w-0 max-w-full flex-col gap-2 rounded-lg border border-neutral-200 px-3 py-3">
+      <span className={eyebrow}>Fecha y hora de salida</span>
       <div className="grid grid-cols-3 gap-1.5">
         {DEPARTURE_DAY_MODE_OPTIONS.map((opt) => (
           <button
@@ -1096,9 +1096,10 @@ export function FuelingPlanner({
                 (mode === "route" && !selectedRoute) ||
                 (mode === "gpx" && !parsedGpx)
               }
-              className={cn(primaryButtonClass, "w-full sm:w-fit")}
+              className={cn(primaryButtonClass, "mt-4 w-full py-3.5 text-sm")}
             >
-              {loading ? "Calculando…" : "Calcular estrategia"}
+              <Zap className="size-4 shrink-0" />
+              {loading ? "Calculando…" : "Calcular estrategia nutricional"}
             </button>
             <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-600">
               <input

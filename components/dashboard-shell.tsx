@@ -164,7 +164,7 @@ export function DashboardShell({
           </Link>
         </header>
 
-        <main className="mx-auto w-full max-w-7xl flex-1 px-6 pt-10 pb-24 sm:px-8 sm:pt-14 sm:pb-16">
+        <main className="mx-auto w-full max-w-7xl flex-1 px-6 pt-10 pb-28 sm:px-8 sm:pt-14 sm:pb-16">
           {children}
         </main>
       </div>

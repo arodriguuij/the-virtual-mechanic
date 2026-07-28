@@ -926,27 +926,37 @@ export type BiphasicRecoveryTarget = {
 };
 
 /**
- * "Ventana de Recuperación Bifásica" — splits `recoveryTarget.carbsG` (the
- * net carb debt, see `getMacroRecoveryTarget` above) across the two windows
- * that actually matter physiologically, rather than handing over one lump
- * figure the athlete has to decide when to eat. Protein is untouched by
- * this split (see `getMacroRecoveryTarget`'s own rationale — it's about
- * muscle repair, not the carb debt) and rides entirely in phase 2, since
- * spreading protein across an all-liquid phase 1 dose isn't standard
- * post-exercise practice the way fast carbs are.
+ * "Ventana de Recuperación Bifásica" — splits the athlete's *full* net carb
+ * debt (`RecoveryDebt.carbsDebtG`, before `getMacroRecoveryTarget`'s own
+ * 1.2g/kg calorie-ceiling cap) across the two windows that actually matter
+ * physiologically, rather than handing over one lump figure the athlete has
+ * to decide when to eat. Deliberately the *uncapped* debt, not
+ * `recoveryTarget.carbsG` — an earlier version split the capped figure,
+ * which meant phase1+phase2 could silently sum to less than the "Deuda Neta
+ * a Reponer" figure already shown in the Balance Neto section above it
+ * whenever the cap actually bound (a big debt on a small athlete), reading
+ * as if the two sections disagreed about the same number. Protein is
+ * untouched by this split (see `getMacroRecoveryTarget`'s own rationale —
+ * it's about muscle repair, not the carb debt) and rides entirely in phase
+ * 2, since spreading protein across an all-liquid phase 1 dose isn't
+ * standard post-exercise practice the way fast carbs are.
  */
-export function getBiphasicRecoveryTarget(
-  recoveryTarget: MacroRecoveryTarget
-): BiphasicRecoveryTarget {
-  const phase1CarbsG = Math.round(recoveryTarget.carbsG * RECOVERY_PHASE_1_CARB_FRACTION);
+export function getBiphasicRecoveryTarget({
+  carbsDebtG,
+  proteinG,
+}: {
+  carbsDebtG: number;
+  proteinG: number;
+}): BiphasicRecoveryTarget {
+  const phase1CarbsG = Math.round(carbsDebtG * RECOVERY_PHASE_1_CARB_FRACTION);
   return {
     phase1: {
       carbsG: phase1CarbsG,
       windowLabel: "0-45 min · inmediata",
     },
     phase2: {
-      carbsG: recoveryTarget.carbsG - phase1CarbsG,
-      proteinG: recoveryTarget.proteinG,
+      carbsG: carbsDebtG - phase1CarbsG,
+      proteinG,
       windowLabel: "1.5-2 h · comida principal",
     },
   };

@@ -325,18 +325,29 @@ export type NutritionDiary = {
   summary: NutritionDiarySummary;
 };
 
-// Deliberately its own ad-hoc 3-tier scale, distinct from the 4-level
-// self-reported `athlete_profiles.gut_training_level` (Principiante/
-// Intermedio/Avanzado/Pro) — this one is derived from real logged intake
-// across every ride, not a category the athlete picked once on their
-// profile. Checked in descending order; the first match wins.
+// Its own 3-tier scale, distinct from the 4-level self-reported
+// `athlete_profiles.gut_training_level` (Principiante/Intermedio/Avanzado/
+// Pro, which caps the *recommendation* — see `getGutTrainingCapGPerHour` in
+// `lib/metabolic-engine.ts` — and is edited once on `/perfil`) — this one is
+// derived from real logged intake across every ride and is the single
+// source of truth for the "Nivel X" badge shown on both `/historial` and
+// `/estadisticas`, so the two screens can never show conflicting figures for
+// the same underlying data. Checked in descending order; the first match
+// wins.
 const GUT_TRAINING_TIERS: { minGPerHour: number; level: 1 | 2 | 3; rangeLabel: string }[] = [
-  { minGPerHour: 90, level: 3, rangeLabel: "90+ g/h" },
-  { minGPerHour: 60, level: 2, rangeLabel: "60-75 g/h" },
+  { minGPerHour: 80, level: 3, rangeLabel: "80-90+ g/h" },
+  { minGPerHour: 50, level: 2, rangeLabel: "50-75 g/h" },
   { minGPerHour: 30, level: 1, rangeLabel: "30-45 g/h" },
 ];
 
-function gutTrainingTierFromIntake(avgGPerHour: number | null): GutTrainingTier | null {
+/**
+ * Real-intake-derived Gut Training tier — exported so `/estadisticas` can
+ * compute the exact same "Nivel X" badge `/historial` already shows
+ * (`getNutritionDiary` below), both fed by their own screen's real average
+ * consumed-carbs-per-hour figure, rather than each screen deriving its own
+ * slightly different label.
+ */
+export function gutTrainingTierFromIntake(avgGPerHour: number | null): GutTrainingTier | null {
   if (avgGPerHour == null) return null;
   for (const tier of GUT_TRAINING_TIERS) {
     if (avgGPerHour >= tier.minGPerHour) return { level: tier.level, rangeLabel: tier.rangeLabel };

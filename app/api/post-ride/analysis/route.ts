@@ -249,6 +249,12 @@ export async function POST(request: NextRequest) {
       elevationGainM: Math.round(elevationGainM),
       durationHours: Math.round(hours * 100) / 100,
       points,
+      // The exact temperature this ride's fluid/sodium loss was computed
+      // from (sampled at sync time via Open-Meteo along the route — see
+      // "Geographic microclimate sampling" — or a fixed indoor placeholder
+      // for a trainer ride) — surfaced so the telemetry card can cite it
+      // rather than asking the athlete to trust an unexplained number.
+      temperatureAvgC: activity.temperature_avg,
     },
     carbsBurnedG,
     fluidLossMl,

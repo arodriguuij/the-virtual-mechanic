@@ -2,12 +2,12 @@ import { Suspense } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getRecentIntakeBreakdown, getWeeklyPerformance } from "@/lib/dashboard-data";
 import {
-  getIntakeRecommendationNote,
-  gutTrainingLevelLabels,
-  gutTrainingLevelRanges,
-} from "@/lib/metabolic-engine";
+  getRecentIntakeBreakdown,
+  getWeeklyPerformance,
+  gutTrainingTierFromIntake,
+} from "@/lib/dashboard-data";
+import { getIntakeRecommendationNote } from "@/lib/metabolic-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +28,11 @@ function hydrationLabel(score: number): string {
 // space against a once-a-week glance-back).
 async function SummaryCard() {
   const weekly = await getWeeklyPerformance();
-  // "60-75 g/h" -> value/unit split, so the range renders in the same
-  // big-number-plus-small-unit shape as the other 3 stat cards.
-  const [gutTrainingRangeValue, gutTrainingRangeUnit] =
-    gutTrainingLevelRanges[weekly.gutTrainingLevel].split(" ");
+  // Same real-intake-derived tier `/historial` shows (`gutTrainingTierFromIntake`
+  // in `lib/dashboard-data.ts`) — not the self-reported `athlete_profiles.
+  // gut_training_level` this card used to display, so the two screens can
+  // never disagree about what "Nivel X" means for the same athlete.
+  const gutTier = gutTrainingTierFromIntake(weekly.avgIntakeGPerHour);
 
   return (
     <Card>
@@ -91,15 +92,17 @@ async function SummaryCard() {
 
             <div className="flex flex-col gap-1">
               <span className={statLabel}>Capacidad digestiva</span>
-              <span className={weeklyStatValue}>
-                {gutTrainingRangeValue}
-                <span className="ml-1 text-sm font-normal text-neutral-500">
-                  {gutTrainingRangeUnit}
-                </span>
-              </span>
-              <span className="text-xs text-neutral-500 uppercase">
-                {gutTrainingLevelLabels[weekly.gutTrainingLevel]}
-              </span>
+              {gutTier ? (
+                <>
+                  <span className={weeklyStatValue}>Nivel {gutTier.level}</span>
+                  <span className="text-xs text-neutral-500 uppercase">{gutTier.rangeLabel}</span>
+                </>
+              ) : (
+                <>
+                  <span className={weeklyStatValue}>—</span>
+                  <span className="text-xs text-neutral-500">Sin datos suficientes</span>
+                </>
+              )}
             </div>
 
             <div className="flex flex-col gap-1">

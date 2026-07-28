@@ -32,7 +32,7 @@ export function ProfileSavedToast() {
   return (
     <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 border border-status-good/30 bg-status-good/10 px-4 py-3 text-sm text-status-good shadow-sm">
       <Check className="size-4 shrink-0" />
-      Perfil metabólico actualizado correctamente
+      Guardado automáticamente
     </div>
   );
 }

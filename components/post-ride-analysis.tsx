@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Utensils, Zap } from "lucide-react";
+import { ChevronDown, Sun, Utensils, Zap } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -46,6 +46,23 @@ const RPE_OPTIONS: { value: IntensityLevel; label: string }[] = [
   { value: "threshold", label: "Duro" },
 ];
 
+// One-tap presets for "¿Qué consumiste realmente?" — a rider reconstructing
+// a ride from memory thinks in items eaten ("un gel, un bidón"), not raw
+// grams, so these add fixed, illustrative real-world doses on top of
+// whatever's already typed rather than replacing it. Same "not a real
+// nutrition database" convention as the pre-ride planner's own pocket-food
+// catalog (`lib/metabolic-engine.ts`'s `pocketFoodCarbsG`).
+const CONSUMPTION_PRESETS: {
+  label: string;
+  carbsG: number;
+  fluidL: number;
+  sodiumMg: number;
+}[] = [
+  { label: "+1 Gel (+25g HC)", carbsG: 25, fluidL: 0, sodiumMg: 0 },
+  { label: "+1 Bidón (+30g HC / +400mg Na / +0.5L)", carbsG: 30, fluidL: 0.5, sodiumMg: 400 },
+  { label: "+1 Barrita (+35g HC)", carbsG: 35, fluidL: 0, sodiumMg: 0 },
+];
+
 type ActivityOption = {
   id: string;
   name: string;
@@ -69,6 +86,7 @@ type AnalysisResult = {
     elevationGainM: number;
     durationHours: number;
     points: [number, number][] | null;
+    temperatureAvgC: number | null;
   };
   carbsBurnedG: number;
   fluidLossMl: number;
@@ -112,6 +130,54 @@ function formatActivityDateTime(iso: string): string {
     hour12: false,
   });
   return `${weekday} ${date.getDate()} de ${month} · Inicio a las ${time}h`;
+}
+
+// "Balance Neto de Recuperación" — a Gastado/Ingerido/Deuda neta row for one
+// metric (carbs, fluid, or sodium), replacing the previous plain-text
+// equation ("GASTADO 210g − INGERIDO 0g = DEUDA NETA 210g") with a scannable
+// 3-cell grid; the debt figure is the one visually emphasized (terracotta,
+// this app's one accent color) since it's the number that actually drives
+// the recovery target below it.
+function BalanceNetoRow({
+  label,
+  spent,
+  consumed,
+  debt,
+}: {
+  label: string;
+  spent: string;
+  consumed: string;
+  debt: string;
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-2 rounded-lg bg-surface px-3 py-2">
+      <div className="col-span-3 -mb-1 text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+        {label}
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[9px] font-semibold tracking-wider text-neutral-500 uppercase">
+          Gastado
+        </span>
+        <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+          {spent}
+        </span>
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[9px] font-semibold tracking-wider text-neutral-500 uppercase">
+          Ingerido
+        </span>
+        <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+          {consumed}
+        </span>
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[9px] font-semibold tracking-wider text-neutral-500 uppercase">
+          Deuda neta
+        </span>
+        <span className="font-mono text-sm font-bold text-terracotta tabular-nums">{debt}</span>
+      </div>
+    </div>
+  );
 }
 
 const sourceLabels: Record<AnalysisResult["source"], string> = {
@@ -233,6 +299,16 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
     handleAnalyze(undefined, undefined, activityId);
   }
 
+  // Adds a preset's fixed doses on top of whatever the athlete already typed
+  // — never replaces it, since they might be logging several items across
+  // multiple taps (a gel and a bottle, say).
+  function applyConsumptionPreset(preset: (typeof CONSUMPTION_PRESETS)[number]) {
+    setCarbsConsumedG((g) => g + preset.carbsG);
+    setFluidConsumedL((l) => Math.round((l + preset.fluidL) * 10) / 10);
+    setSodiumConsumedMg((mg) => mg + preset.sodiumMg);
+    setConsumptionSaved(false);
+  }
+
   async function handleSaveConsumption() {
     setSavingConsumption(true);
     setConsumptionError(null);
@@ -277,9 +353,12 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
   }, [result, recoveryDebt]);
 
   const biphasicRecoveryTarget = useMemo(() => {
-    if (!recoveryTarget) return null;
-    return getBiphasicRecoveryTarget(recoveryTarget);
-  }, [recoveryTarget]);
+    if (!recoveryTarget || !recoveryDebt) return null;
+    return getBiphasicRecoveryTarget({
+      carbsDebtG: recoveryDebt.carbsDebtG,
+      proteinG: recoveryTarget.proteinG,
+    });
+  }, [recoveryTarget, recoveryDebt]);
 
   if (activities.length === 0) {
     return (
@@ -468,10 +547,22 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                 </div>
               </div>
 
-              <p className="border-t border-neutral-200 pt-2 font-mono text-[10px] text-neutral-400">
-                Cálculo de deuda metabólica generado a partir de la telemetría real de tu
-                ciclocomputador.
-              </p>
+              <div className="flex flex-col gap-1 border-t border-neutral-200 pt-2 font-mono text-[10px] text-neutral-400">
+                <p>
+                  Cálculo de deuda metabólica generado a partir de la telemetría real de tu
+                  ciclocomputador.
+                </p>
+                {result.activity.temperatureAvgC != null && (
+                  <p className="flex items-center gap-1">
+                    <Sun className="size-3 shrink-0" />
+                    Temperatura de ruta: {result.activity.temperatureAvgC}°C — vía Open-Meteo
+                  </p>
+                )}
+                <p className="flex items-center gap-1">
+                  <Zap className="size-3 shrink-0" />
+                  Glucógeno: {sourceLabels[result.source]}
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -507,6 +598,18 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
 
             <div>
               <span className={eyebrow}>¿Qué consumiste realmente durante la ruta?</span>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {CONSUMPTION_PRESETS.map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => applyConsumptionPreset(preset)}
+                    className="cursor-pointer rounded-md border border-neutral-300 bg-white px-2.5 py-1 font-mono text-[11px] font-semibold text-neutral-600 transition-colors duration-150 hover:border-terracotta hover:text-terracotta"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
               <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="flex items-center justify-between gap-2 rounded-lg border border-neutral-200 px-3 py-1.5">
                   <label htmlFor="carbs-consumed" className="text-sm text-neutral-900">
@@ -594,26 +697,25 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
             {recoveryDebt && (
               <div className="border border-neutral-200 px-3 py-2.5">
                 <span className={eyebrow}>Balance neto de recuperación</span>
-                <div className="mt-1.5 flex flex-col gap-1 font-mono text-xs text-neutral-600 sm:text-sm">
-                  <div>
-                    GASTADO {result.carbsBurnedG}g − INGERIDO EN RUTA {carbsConsumedG}g ={" "}
-                    <span className="font-semibold text-neutral-900">
-                      DEUDA NETA A REPONER {recoveryDebt.carbsDebtG}g
-                    </span>
-                  </div>
-                  <div>
-                    PÉRDIDA AJUSTADA {recoveryDebt.fluidTargetMl}ml − INGERIDO EN RUTA{" "}
-                    {Math.round(fluidConsumedL * 1000)}ml ={" "}
-                    <span className="font-semibold text-neutral-900">
-                      DEUDA NETA A REPONER {recoveryDebt.fluidDebtMl}ml
-                    </span>
-                  </div>
-                  <div>
-                    PERDIDO {result.sodiumLossMg}mg − INGERIDO EN RUTA {sodiumConsumedMg}mg ={" "}
-                    <span className="font-semibold text-neutral-900">
-                      DEUDA NETA A REPONER {recoveryDebt.sodiumDebtMg}mg
-                    </span>
-                  </div>
+                <div className="mt-2 flex flex-col gap-2">
+                  <BalanceNetoRow
+                    label="Carbohidratos"
+                    spent={`${result.carbsBurnedG}g`}
+                    consumed={`${carbsConsumedG}g`}
+                    debt={`${recoveryDebt.carbsDebtG}g`}
+                  />
+                  <BalanceNetoRow
+                    label="Líquido"
+                    spent={`${recoveryDebt.fluidTargetMl}ml`}
+                    consumed={`${Math.round(fluidConsumedL * 1000)}ml`}
+                    debt={`${recoveryDebt.fluidDebtMl}ml`}
+                  />
+                  <BalanceNetoRow
+                    label="Sodio"
+                    spent={`${result.sodiumLossMg}mg`}
+                    consumed={`${sodiumConsumedMg}mg`}
+                    debt={`${recoveryDebt.sodiumDebtMg}mg`}
+                  />
                 </div>
               </div>
             )}

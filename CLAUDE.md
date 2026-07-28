@@ -184,6 +184,20 @@ A second, differently-styled copy of this same fallback lives at
 authenticated Dashboard shell needed its own route group and its own nested `loading.tsx`
 rather than reusing this root one as-is.
 
+**Dashboard preview mockup.** Between the benefits checklist and the Strava button,
+`/login` now shows a small illustrative preview — a hand-drawn inline SVG "route" squiggle
+(a plain `<path>`, terracotta stroke, no real geodata) over three mock stat readouts
+(`48.2 KM` / `620 KCAL` / `38 G HC/H`) — so a brand-new visitor gets a sense of what the
+Dashboard actually produces before connecting an account, rather than a blind leap of
+faith. Deliberately a static SVG sketch, not a live `RouteMapPreview`/Leaflet instance —
+this page renders for every logged-out visitor, and there's no real route to show them
+yet anyway. `hidden sm:flex`: `AuthPageShell` is deliberately zero-scroll and was tuned to
+exactly zero vertical slack at a 360×640 viewport (see "Root-level scroll lock" below) —
+there's no room to add a new element on the smallest phones without either clipping
+content or reintroducing scroll, so the mockup only appears once there's real height to
+spare (verified live: hidden and zero-overflow at 390×844, visible and correctly laid out
+at 1280px wide).
+
 **`app/login/page.tsx`** is the only entry point when `proxy.ts` finds no session: a
 centered screen (value prop + a single "Conectar con Strava" CTA linking to
 `/api/strava/connect`) with its own `stravaLoginErrorMessages` map for login-time
@@ -1481,6 +1495,17 @@ inside the card the *sole* control for picking which ride gets analyzed:
   session now happens automatically rather than waiting on a manual trigger that no longer
   exists. A plain "Analizando tu última salida…" line covers that initial loading window
   (`loading && !result`), distinct from the RPE picker/error states that can still follow it.
+- **Data-provenance footnotes.** Below the existing "Cálculo de deuda metabólica..." line,
+  two more small footnotes cite where each figure actually came from: temperature (a `Sun`
+  icon, "Temperatura de ruta: X°C — vía Open-Meteo") and the glycogen calculation basis (a
+  `Zap` icon, reusing the exact same dynamic `sourceLabels[result.source]` text already
+  shown next to the "Deuda de Glucógeno" header — e.g. "calculado a partir de tus zonas de
+  potencia reales" — rather than a hardcoded claim like "basado en tu NP y FTP," which
+  would be simply false whenever the real source is heart-rate or self-reported RPE
+  instead). `POST /api/post-ride/analysis` now also returns `activity.temperatureAvgC`
+  (Strava/Open-Meteo's `activities.temperature_avg`, already read server-side for the
+  fluid-loss formula, just not previously returned to the client) — the temperature
+  footnote only renders when that figure isn't `null`.
 
 Verified end-to-end at every layout iteration (map decode → render → switcher →
 re-analyze, auto-load on mount, the old selector's absence, and the map's measured box
@@ -1576,12 +1601,26 @@ Agua L, Sodio mg — all starting at 0, reset to 0 on every fresh `handleAnalyze
 a previous activity's entries don't leak into a new one), then feeds them through
 `useMemo`-wrapped `getRecoveryDebt`/`getMacroRecoveryTarget` calls (re-imported from
 `lib/metabolic-engine.ts` directly, reusing the server's initial numbers as the burned/
-lost inputs and `weightKg` from the API response) for instant per-keystroke recompute. A
-"Balance neto de recuperación" block spells out the arithmetic per metric — e.g.
-`GASTADO 250g − INGERIDO EN RUTA 180g = DEUDA NETA A REPONER 70g` — immediately above the
-"Objetivo de recuperación post-ruta" section (see "Biphasic recovery window" below), now
-reading from the locally-recomputed `recoveryTarget` instead of the raw API response, with
-a footer note that the target is "calculado sobre la deuda neta real."
+lost inputs and `weightKg` from the API response) for instant per-keystroke recompute.
+
+**Quick-add consumption presets.** A rider reconstructing a ride from memory thinks in
+items eaten, not raw grams — `CONSUMPTION_PRESETS` (`+1 Gel` +25g HC, `+1 Bidón` +30g HC /
++400mg sodio / +0.5L, `+1 Barrita` +35g HC, illustrative fixed doses, same "not a real
+nutrition database" convention as the pre-ride planner's own pocket-food catalog) render
+as one-tap buttons directly above the three manual inputs. `applyConsumptionPreset()` adds
+a preset's doses on top of whatever's already typed (never replaces it, since the rider
+might tap several presets across the same ride) and clears `consumptionSaved` like any
+other edit.
+
+**Balance Neto de Recuperación — visual card grid, not plain-text equations.** The old
+"GASTADO 250g − INGERIDO EN RUTA 180g = DEUDA NETA A REPONER 70g" inline-text line (one per
+metric) is now `BalanceNetoRow`, a `grid-cols-3` block per metric (Carbohidratos/Líquido/
+Sodio, stacked) showing Gastado/Ingerido/Deuda neta as three labeled cells — the debt
+figure in `text-terracotta` (this app's one accent color, not a new hardcoded hex) since
+it's the number that actually drives the recovery target below it. Sits immediately above
+the "Objetivo de recuperación post-ruta" section (see "Biphasic recovery window" below),
+still reading from the locally-recomputed `recoveryDebt`, with a footer note that the
+target is "calculado sobre la deuda neta real."
 
 #### Biphasic recovery window ("Fase 1" vs "Fase 2")
 
@@ -1590,19 +1629,29 @@ over the recovery window — the first ~30-45 minutes are the only stretch where
 glucose uptake happens largely through insulin-independent GLUT-4 translocation
 (exercise-induced, not diet-induced), so a fast liquid source (a shake, juice, fruit)
 capitalizes on a window that then closes, rather than waiting for a slower solid meal.
-`getBiphasicRecoveryTarget(recoveryTarget)` (`lib/metabolic-engine.ts`, pure) splits
-`recoveryTarget.carbsG` by a fixed `RECOVERY_PHASE_1_CARB_FRACTION` (35%, the midpoint of
-the commonly-cited 30-40% GLUT-4 window) into `phase1.carbsG` (immediate) and
-`phase2.carbsG = recoveryTarget.carbsG - phase1.carbsG` (the remaining ~65%, so the two
-always sum back to the original target with no rounding leakage). Protein is untouched by
-this split and rides entirely in `phase2` — same rationale as `getMacroRecoveryTarget`
-itself: it's about muscle repair, not the carb debt, so spreading it across an all-liquid
-phase 1 dose isn't standard practice. `components/post-ride-analysis.tsx` renders this as
-two side-by-side blocks ("⚡ Fase 1 · 0-45 min · inmediata" and "🍽️ Fase 2 · 1.5-2h · comida
-principal", `Zap`/`Utensils` icons) above a smaller 2-card row for Grasas límite and
-Rehidratación — `biphasicRecoveryTarget` is its own `useMemo` derived from the already-live-
-recomputed `recoveryTarget`, so editing the in-ride-consumption inputs updates the phase
-split instantly along with everything else on this card.
+`getBiphasicRecoveryTarget({ carbsDebtG, proteinG })` (`lib/metabolic-engine.ts`, pure)
+splits the athlete's **full net carb debt** (`recoveryDebt.carbsDebtG`) by a fixed
+`RECOVERY_PHASE_1_CARB_FRACTION` (35%, the midpoint of the commonly-cited 30-40% GLUT-4
+window) into `phase1.carbsG` (immediate) and `phase2.carbsG = carbsDebtG - phase1.carbsG`
+(the remaining ~65%, so the two always sum back to the debt with no rounding leakage) —
+**deliberately the uncapped debt, not `recoveryTarget.carbsG`**. An earlier version split
+the capped target instead, which meant phase1+phase2 could silently sum to *less* than the
+"Deuda Neta a Reponer" figure already shown in the Balance Neto section right above it,
+whenever `getMacroRecoveryTarget`'s own 1.2g/kg calorie ceiling actually bound (a large
+debt on a lighter athlete) — reading as if the two sections disagreed about the same
+number. Verified live with a deliberately cap-triggering scenario (500g debt, 60kg athlete
+→ 72g capped target): phase1 (166g) + phase2 (309g) now sum to exactly 475g, matching the
+Balance Neto row's own "Deuda neta 475g" figure, not the smaller capped target. Protein is
+untouched by this split and rides entirely in `phase2` — same rationale as
+`getMacroRecoveryTarget` itself: it's about muscle repair, not the carb debt, so spreading
+it across an all-liquid phase 1 dose isn't standard practice. `components/
+post-ride-analysis.tsx` renders this as two side-by-side blocks ("Fase 1 · 0-45 min ·
+inmediata" and "Fase 2 · 1.5-2h · comida principal", `Zap`/`Utensils` icons, no emoji)
+above a smaller 2-card row for Grasas límite and Rehidratación — `biphasicRecoveryTarget`
+is its own `useMemo` derived from both `recoveryDebt` and `recoveryTarget` (needs
+`recoveryDebt.carbsDebtG` directly now, alongside `recoveryTarget.proteinG`), so editing
+the in-ride-consumption inputs updates the phase split instantly along with everything
+else on this card.
 
 ### Estadísticas (`/estadisticas`) & Weekly Performance
 
@@ -1622,9 +1671,15 @@ not baked into the screen an athlete opens before every ride.
 `/perfil` is (`01 · Resumen 7 días`, `02 · Desglose de ingesta`, `03 · Recomendación
 biológica`):
 
-- **`SummaryCard`** — the exact same four figures the old Dashboard panel showed
-  (Cumplimiento 7D, Promedio ingesta, Gut Training, Balance hídrico), moved here verbatim
-  — see the figures' own documentation below, unchanged.
+- **`SummaryCard`** — the same four figures the old Dashboard panel showed (Cumplimiento
+  7D, Promedio ingesta, Gut Training, Balance hídrico), moved here — see the figures' own
+  documentation below. **Gut Training's headline stat was later switched** from the
+  self-reported `athlete_profiles.gut_training_level` figure to
+  `gutTrainingTierFromIntake(weekly.avgIntakeGPerHour)` — the exact same real-intake-
+  derived "Nivel X" tier `/historial` already computes (see "Sidebar navigation..." below)
+  — so the two screens can never show conflicting Gut Training labels for the same
+  athlete. `weekly.gutTrainingLevel` (the self-reported field) is still fetched and still
+  used by `RecommendationCard` below, just no longer for this card's own display.
 - **`IntakeBreakdownCard`** — real consumed-vs-target carbs per ride, for the most recent
   rides that actually have consumption data logged. **`getRecentIntakeBreakdown()`**
   (`lib/dashboard-data.ts`) queries `fueling_logs` (`kind: 'post_ride'`, non-null
@@ -1668,9 +1723,10 @@ strict about never fabricating a plausible-looking number for data that doesn't 
 - **Promedio ingesta** — average real consumed-carb rate (`carbs_consumed_g` ÷ that
   ride's own `activities.moving_time`) across those same logs — genuine intake, not the
   planned target.
-- **Gut training** — read straight from `athlete_profiles.gut_training_level` via
-  `gutTrainingLevelLabels`/`gutTrainingLevelRanges` (see "Gut Training Scale" above);
-  always real, never depends on any week's ride data.
+- **Gut training** — `WeeklyPerformance.gutTrainingLevel` itself still reads straight from
+  the self-reported `athlete_profiles.gut_training_level` (always real, never depends on
+  any week's ride data) — but `SummaryCard`'s own headline "Capacidad digestiva" stat no
+  longer displays this field directly; see the `SummaryCard` bullet above for why.
 - **Balance hídrico** — average of `min(100%, fluid_consumed_ml / fluid_ml)` and
   `min(100%, sodium_consumed_mg / sodium_mg)` (both against the *raw* stored loss, not the
   post-exercise-replacement-factor-adjusted target, for a direct "how much of what you
@@ -1732,7 +1788,7 @@ primary key and Supabase's upsert already handles "create if missing, update if 
 in one call. On success, redirects to `/perfil?profile_saved=1` (same query-param
 convention as `profile_error`/`strava_error`) rather than a bare `/perfil`, which
 `components/profile-saved-toast.tsx` (`"use client"`) reads to render a self-dismissing
-confirmation toast ("✓ Perfil fisiológico actualizado en Supabase") — fixed bottom-right,
+confirmation toast ("✓ Guardado automáticamente") — fixed bottom-right,
 `--status-good` toned, auto-hides after 3s and strips the query param via
 `router.replace(pathname)` (the *current* path via `usePathname()`, not a hardcoded one,
 so the same component stays correct if it's ever reused from another page) so a manual
@@ -1879,11 +1935,15 @@ sesión") instead of a made-up bio line.
     capped per-ride before averaging, across *every* logged `post_ride` entry with real
     consumption data — not just the displayed page); **HC procesados** (total carbs
     actually consumed across every logged ride, `formatCarbsTotal()` switching to kg
-    display above 1000g); **Gut training** — a `Nivel 1/2/3` badge (`30-45` / `60-75` /
-    `90+` g/h) derived from real average logged intake. Deliberately a *different* scale
-    from `athlete_profiles.gut_training_level` (the 4-tier self-reported
-    Principiante/Intermedio/Avanzado/Pro field shown elsewhere) — this one reflects
-    demonstrated real intake across logged rides, not a category the athlete picked once.
+    display above 1000g); **Gut training** — a `Nivel 1/2/3` badge (`30-45` / `50-75` /
+    `80-90+` g/h) derived from real average logged intake — the exact same
+    `gutTrainingTierFromIntake()` tier `/estadisticas`' own `SummaryCard` now shows too
+    (see "Estadísticas" above), so the two screens can never disagree. Deliberately a
+    *different* scale from `athlete_profiles.gut_training_level` (the 4-tier self-reported
+    Principiante/Intermedio/Avanzado/Pro field, still shown on `/perfil` and still what
+    caps the fueling planner's recommended intake — see "Gut Training Scale" above) — this
+    one reflects demonstrated real intake across logged rides, not a category the athlete
+    picked once.
     All three collapse to a single "sin datos aún" line when nothing's logged yet, same
     "never fabricate" convention as `getWeeklyPerformance`.
   - **`02 · Diario de rutas`** — one `NutritionRideCard` per synced activity (`getNutritionDiary`'s
@@ -2047,6 +2107,29 @@ wide for a 320px screen after already being pushed to `text-[10px]` — degrades
 ellipsis rather than a broken/garbled clip, with the button's own height and border
 unaffected either way.
 
+### "Fecha y hora de salida" card & the planner's final CTA
+
+`DeparturePicker` (`components/fueling-planner.tsx`) used to be just another bare grid cell
+sitting alongside "Ruta"/"Intensidad objetivo" (or "Duración"/"Vatios objetivo" in quick
+mode) — visually indistinguishable from the plain input fields around it, even though it's
+actually a compound control (the Hoy/Mañana/Elegir fecha segmented pills, an optional date
+picker, and an hour `<select>`). It now renders inside its own `rounded-lg border
+border-neutral-200 px-3 py-3` wrapper headed by "Fecha y hora de salida" (replacing the
+plain "Salida" eyebrow label), so the date+time controls read as one grouped unit at every
+one of `DeparturePicker`'s three call sites (route/quick/GPX modes) — a single component
+change rather than restructuring each mode's surrounding grid.
+
+The planner's final "Calcular estrategia" button was restyled into a more prominent
+closing CTA: relabeled "Calcular estrategia nutricional" with a leading `Zap` icon
+(`lucide-react`, not a literal ⚡ emoji — this app's no-emoji convention applies to buttons
+too), and widened from `w-full sm:w-fit` (fit-content on desktop) to always `w-full` with
+taller `py-3.5` padding and a `mt-4` gap above it, so it reads as a clear final step
+regardless of viewport rather than shrinking to an inline-sized button on wider screens.
+Still `primaryButtonClass` (the shared terracotta token) underneath — not a new one-off
+hex color, despite an initial spec suggesting one; this app's design-system convention
+(see "Code style" below) is to reuse `--terracotta` for every primary action rather than
+introduce a second near-identical accent color for the same role.
+
 ### Route dynamic rendering
 
 Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because
@@ -2084,14 +2167,15 @@ layouts above.
 
 **Bottom safe-area padding for iOS Safari's floating bottom bar.** `components/
 dashboard-shell.tsx`'s shared `<main>` — used by every interior route (Dashboard,
-`/perfil`, `/estadisticas`, `/historial`) — carries `pb-24 sm:pb-16` (split from the
+`/perfil`, `/estadisticas`, `/historial`) — carries `pb-28 sm:pb-16` (split from the
 previous single `py-10 sm:py-14`, top padding unchanged) rather than a symmetric
 top/bottom value. iOS Safari's floating bottom chrome (the address bar/tab-switcher
 strip) sits *over* page content rather than reserving its own layout space, so a
 symmetric padding that looked fine on desktop was tight enough on an iPhone to have the
 real bottom bar overlap the last card/button (verified against real device screenshots).
 Mobile gets the larger value since that chrome only exists there; desktop keeps a smaller
-`pb-16` since there's no floating bar to clear.
+`pb-16` since there's no floating bar to clear. `pb-24` still wasn't quite enough on some
+devices/OS versions and was bumped once more to `pb-28`.
 
 **Normalized header-to-first-card spacing (`gap-6` everywhere).** The outer page wrapper
 governing the gap between each route's `<header>` and its first content block had drifted
