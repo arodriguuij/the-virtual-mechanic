@@ -188,12 +188,18 @@ can never reach that page to see them.
   three horizontal bands (top bar, centered hero, bottom bar) stacked in one `flex-col`
   page, divided only by thin `border-neutral-300/80` rules — structure communicated
   through typography and hairlines, not containers.
-  - **Top bar** — brand mark + "Motor Metabólico" on the left, a "V1.0 · Nutrición de
-    precisión" badge on the right. At a 390px mobile width the two together are only a
-    pixel or two narrower than the available space, so both carry `shrink-0
-    whitespace-nowrap` (a flex row shrinks its children by default otherwise, which was
-    wrapping "Motor Metabólico" onto two lines) and the badge additionally collapses to
-    just "V1.0" below `sm:`, revealing the full text only where there's real room.
+  - **Top bar** — brand mark + "Motor Metabólico" **centered** (`justify-center` on the
+    header itself, not a `justify-between` split) with the "V1.0 · Nutrición de precisión"
+    badge `absolute right-6`, hidden below `sm:` entirely rather than collapsing to just
+    "V1.0" — an earlier version kept the badge on mobile at a shortened "V1.0", but a
+    left-aligned brand competing with a right-aligned badge is exactly the asymmetric,
+    "cargado" look this pass was meant to fix, and dropping the badge on mobile lets the
+    brand mark sit genuinely centered instead of visually off-center against an invisible
+    counterweight. `components/dashboard-shell.tsx`'s own mobile sticky header got the
+    identical treatment — the hamburger button moved from an inline flex item (which
+    pushed the brand mark left, `Menu` icon + logo + text reading as one lopsided cluster)
+    to `absolute left-6` against a `justify-center` header, so the authenticated app's
+    header now uses the same centered-brand language as the logged-out screens.
   - **Hero** — centered via `flex-1 items-center justify-center` in the remaining space
     between the two bars. "NUTRICIÓN DE PRECISIÓN PARA CICLISTAS" replaces the old
     shorter title now that there's no card width constraining it. The old paragraph-style
@@ -203,11 +209,20 @@ can never reach that page to see them.
     convention of short declarative benefit lines over descriptive prose. The error banner
     (`stravaLoginErrorMessages`) renders inline here, same `max-w-xs` width as everything
     else, no card chrome around it.
-  - **Bottom bar** — three technical specs ("01 / Ratio 1:0.8 optimizado", "02 /
-    Meteorología en vivo", "03 / Mezcla casera"). Stacks to one spec per line on mobile
-    (`flex-col`) and a single centered row at `sm:` — a `flex-wrap` row at every width was
-    tried first and wrapped unevenly (one spec alone on its own line, the other two
-    sharing the next), which read as broken rather than intentional.
+  - **Bottom bar** — three technical specs, always one line, never wrapped/stacked.
+    `specsFull` ("01 / Ratio 1:0.8 optimizado", "02 / Meteorología en vivo", "03 / Mezcla
+    casera") renders at `sm:` and up; below it, `specsShort` ("01 / Ratio 1:0.8", "02 /
+    Clima en vivo", "03 / Mezcla casera") — two entirely separate rows (`sm:hidden` /
+    `hidden sm:flex`), not one row whose text swaps, since the two variants need different
+    `gap`s to each fit their own viewport. This exists because the full specs measured
+    388px of content against only 342px available at a 390px viewport — every version
+    tried before this one either wrapped unevenly (a bare `flex-wrap` row, one spec alone
+    on its own line) or silently clipped both edges (`justify-center` truncating an
+    overflowing row from both sides equally, verified live: "01 / Ratio 1:0.8 optimizado"
+    losing its "01 / Ratio 1:" and "03 / Mezcla casera" losing its "asera"). Shortened
+    labels below `sm:` — same "shorter label on mobile" convention as the Sync button and
+    the Carbos/Carbohidratos stat label elsewhere in this app — was the fix that actually
+    fits with room to spare (measured: exactly 342px of 342px available).
   `components/strava-login-button.tsx` is a solid `bg-neutral-900`/`hover:bg-black`
   technical button (`rounded-md`, `py-3.5 px-6`), wrapped in a `max-w-xs mx-auto` div by
   the page rather than sizing itself, with `StravaMark` left at its default corporate-

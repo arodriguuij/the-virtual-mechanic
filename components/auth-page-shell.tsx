@@ -2,7 +2,12 @@ import type { ReactNode } from "react";
 
 import { AppLogo } from "@/components/app-logo";
 
-const specs = ["01 / Ratio 1:0.8 optimizado", "02 / Meteorología en vivo", "03 / Mezcla casera"];
+const specsFull = ["01 / Ratio 1:0.8 optimizado", "02 / Meteorología en vivo", "03 / Mezcla casera"];
+// A narrow phone can't fit the full specs on one line (measured: 388px of content
+// against 342px available at a 390px viewport, clipping both edges) — shortened labels
+// below `sm:` instead of wrapping/scrolling, same "shorter label on mobile" convention as
+// the Sync button and the Carbos/Carbohidratos stat label elsewhere in this app.
+const specsShort = ["01 / Ratio 1:0.8", "02 / Clima en vivo", "03 / Mezcla casera"];
 
 /**
  * Shared full-bleed, card-free frame for every unauthenticated screen
@@ -17,25 +22,31 @@ const specs = ["01 / Ratio 1:0.8 optimizado", "02 / Meteorología en vivo", "03 
 export function AuthPageShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen w-full flex-col bg-[#FDFCF9]">
-      <header className="flex items-center justify-between border-b border-neutral-300/80 bg-[#FDFCF9] px-6 py-4">
-        <div className="flex shrink-0 items-center gap-2">
+      <header className="relative flex w-full items-center justify-center border-b border-neutral-300/80 bg-[#FDFCF9] px-6 py-4">
+        <div className="flex items-center gap-2">
           <AppLogo className="size-5 shrink-0" />
-          <span className="font-mono text-sm font-bold whitespace-nowrap text-neutral-900 tracking-wider">
+          <span className="font-mono text-sm font-bold whitespace-nowrap text-neutral-900 uppercase tracking-wider">
             Motor Metabólico
           </span>
         </div>
-        <span className="shrink-0 text-right font-mono text-[10px] whitespace-nowrap text-neutral-500 uppercase tracking-widest">
-          <span className="sm:hidden">V1.0</span>
-          <span className="hidden sm:inline">V1.0 · Nutrición de precisión</span>
+        <span className="absolute right-6 hidden font-mono text-[10px] whitespace-nowrap text-neutral-500 uppercase tracking-widest sm:block">
+          V1.0 · Nutrición de precisión
         </span>
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center px-6 py-8">{children}</main>
 
       <footer className="border-t border-neutral-300/80 bg-[#FDFCF9] px-6 py-4">
-        <div className="flex flex-col items-center gap-1 font-mono text-[10px] tracking-wider text-neutral-500 uppercase sm:flex-row sm:justify-center sm:gap-x-12">
-          {specs.map((spec) => (
-            <span key={spec} className="whitespace-nowrap">
+        <div className="flex w-full items-center justify-center gap-3 font-mono text-[9px] tracking-wider text-neutral-500 uppercase sm:hidden">
+          {specsShort.map((spec) => (
+            <span key={spec} className="shrink-0 whitespace-nowrap">
+              {spec}
+            </span>
+          ))}
+        </div>
+        <div className="hidden w-full items-center justify-center gap-8 font-mono text-[10px] tracking-wider text-neutral-500 uppercase sm:flex">
+          {specsFull.map((spec) => (
+            <span key={spec} className="shrink-0 whitespace-nowrap">
               {spec}
             </span>
           ))}

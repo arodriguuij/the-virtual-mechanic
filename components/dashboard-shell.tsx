@@ -127,10 +127,10 @@ export function DashboardShell({
       </aside>
 
       <div className="flex flex-1 flex-col lg:pl-64">
-        <header className="sticky top-0 z-40 flex w-full items-center gap-4 border-b border-neutral-200/80 bg-white/90 px-6 py-4 backdrop-blur-md transition-all lg:hidden">
+        <header className="sticky top-0 z-40 flex w-full items-center justify-center border-b border-neutral-200/80 bg-white/90 px-6 py-4 backdrop-blur-md transition-all lg:hidden">
           <button
             type="button"
-            className="cursor-pointer text-neutral-500 transition-colors duration-150 hover:text-neutral-900"
+            className="absolute left-6 cursor-pointer text-neutral-500 transition-colors duration-150 hover:text-neutral-900"
             onClick={() => setMobileOpen(true)}
           >
             <Menu className="size-5" />
@@ -138,9 +138,9 @@ export function DashboardShell({
           <Link
             href="/"
             aria-label="Ir al Dashboard"
-            className="flex cursor-pointer items-center gap-2.5 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase transition-opacity duration-150 hover:opacity-80 focus:outline-none"
+            className="flex cursor-pointer items-center gap-2 text-xs font-bold whitespace-nowrap text-neutral-900 uppercase tracking-wider transition-opacity duration-150 hover:opacity-80 focus:outline-none"
           >
-            <AppLogo className="size-7 shrink-0" />
+            <AppLogo className="size-6 shrink-0" />
             Motor Metabólico
           </Link>
         </header>
