@@ -1742,7 +1742,14 @@ Two small layout fixes bundled with the translation pass above:
   rows share height, that wrap stretched all three buttons taller than the field beside
   them (verified live: 49px vs. the field's 42px). Fixed with a fixed `h-10`, a smaller
   `text-[10px]` (`sm:text-xs`), and `whitespace-nowrap` so no label can ever wrap and
-  re-trigger the same row-height stretch.
+  re-trigger the same row-height stretch. A later pass shrank this further to `h-9` (36px,
+  `px-3`, a fixed `text-[11px]`, `rounded-md`) — still comfortably above the "Elegir
+  fecha" wrap-trigger height, but visually more compact/proportionate next to
+  "Intensidad objetivo"'s plain `<select>` (42px) in the same `sm:grid-cols-2` row; the
+  shared `fieldClass`/`selectableFieldClass` was deliberately left untouched rather than
+  also shrunk to match exactly, since that class is reused by every input/select
+  app-wide and a few px of visual difference in this one row reads as compact/aligned
+  regardless (verified live at both viewports).
 
 ### Route dynamic rendering
 

@@ -272,7 +272,7 @@ function DeparturePicker({
             type="button"
             onClick={() => onDayModeChange(opt.value)}
             className={cn(
-              "h-10 cursor-pointer rounded-lg border px-2 text-[10px] font-mono font-semibold whitespace-nowrap uppercase transition-colors duration-150 sm:text-xs",
+              "h-9 cursor-pointer rounded-md border px-3 text-[11px] font-mono font-bold whitespace-nowrap uppercase transition-all duration-150",
               dayMode === opt.value
                 ? "border-terracotta bg-terracotta text-white"
                 : "border-neutral-300 bg-white text-neutral-600 hover:border-neutral-400"
