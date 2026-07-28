@@ -827,6 +827,56 @@ Strava"/"Calculadora rápida" as "Subir GPX":
   is never true for this mode — nutrition export falls back to the clipboard/Garmin-text
   path (see "Nutrition export" below) rather than regenerating a course GPX from the
   athlete's own uploaded track, which was out of scope for this pass.
+- **Bug fixed alongside the map preview below**: the route/quick-mode input block was a
+  plain `mode === "route" ? <route fields> : <quick fields>` ternary from before GPX mode
+  existed — once GPX became a third `mode` value, that `: <quick fields>` else-branch
+  silently rendered the quick-calculator's Duración/Vatios/Salida fields *underneath* the
+  GPX dropzone too (any non-"route" mode fell into it). Fixed to
+  `mode === "route" ? ... : mode === "quick" ? ... : null`, so GPX mode shows only its own
+  dedicated fields.
+
+### Route map preview (`RouteMapPreview`)
+
+`components/route-map-preview.tsx` renders the actual shape of the selected Strava route
+or uploaded GPX track — a distance/elevation figure alone doesn't tell an athlete whether
+a ride is a flat loop or a mountain out-and-back the way seeing its line on a map does.
+Format-agnostic by design: it takes already-decoded `points: [number, number][] | null`
+regardless of source, so it doesn't need to know whether they came from a Strava
+`summary_polyline` or a GPX file.
+
+- **`lib/polyline.ts`** — `decodePolyline()` moved here (from `lib/strava.ts`, which
+  re-exports it for every existing import) since it has no `"server-only"` marker,
+  unlike `lib/strava.ts` — a client component decoding a Strava route's polyline for the
+  map can't import from a `"server-only"` file at all (`lib/strava.ts` throws at build/
+  bundle time if pulled into client code). `lib/gpx-import.ts`'s `ParsedGpxRoute` gained
+  its own `points: [number, number][]` field for the same reason in the other direction —
+  a GPX file already has every coordinate in hand locally, no decoding needed at all.
+- **Leaflet + `react-leaflet`** (added as real dependencies — no lightweight alternative
+  covers "pannable tile map with a fitted polyline" as directly) render the map itself:
+  `MapContainer`/`TileLayer`/`Polyline`, plus a small `FitBoundsToRoute` child component
+  that calls the underlying Leaflet map's `fitBounds()` imperatively via `useMap()` inside
+  a `useEffect` — `react-leaflet` has no declarative "fit to these bounds" prop, so this
+  is the documented pattern for it. Tile layer is CartoDB Positron (`light_all`) — a clean,
+  low-saturation basemap with no busy POI icons/labels to compete with the route line,
+  which is drawn in the app's own terracotta accent (`#C85231`) rather than Leaflet's
+  default blue.
+- **Must be dynamically imported with `ssr: false`, never statically**: Leaflet reads
+  `window`/`document` at module scope, which breaks Next's server-render pass for the
+  initial HTML — this is true even inside a `"use client"` file, since every client
+  component still renders once on the server unless its *import* is wrapped in
+  `next/dynamic(..., { ssr: false })`. `components/fueling-planner.tsx` does this once at
+  module scope (`const RouteMapPreview = dynamic(() => import(...), { ssr: false, loading:
+  () => <Skeleton .../> })`) rather than at every call site.
+- Rendered directly below the "Ruta" `<select>` in route mode (decoding
+  `selectedRoute.summaryPolyline` via a `useMemo`, re-decoded only when the selected route
+  changes — a long ride's polyline can be a few hundred points) and directly below the GPX
+  dropzone in GPX mode (using the parsed file's own `points` — `null` before any file is
+  selected, which is what triggers the component's built-in neutral placeholder: "Selecciona
+  una ruta de Strava o sube un GPX para visualizar el trazado."). Not shown in quick-
+  calculator mode, which has no geographic data at all. A floating `bg-white/90
+  backdrop-blur-sm` badge in the map's bottom-left corner echoes the same distance/D+
+  figures the route `<select>`/GPX filename line already show, for at-a-glance reference
+  without needing to scroll back up.
 
 ### Offline strategy cache ("Modo Cobertura Limitada")
 

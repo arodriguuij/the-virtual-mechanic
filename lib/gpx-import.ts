@@ -25,6 +25,10 @@ export type ParsedGpxRoute = {
   peakLat: number | null;
   peakLng: number | null;
   peakDistanceFraction: number | null;
+  /** The full decoded track, for `RouteMapPreview` — a GPX file already has
+   * every point in hand locally, no polyline decoding needed the way a
+   * Strava route's `summaryPolyline` requires. */
+  points: [number, number][];
 };
 
 type TrackPoint = { lat: number; lng: number; eleM: number | null };
@@ -111,5 +115,6 @@ export function parseGpxFile(xmlText: string, fileName: string): ParsedGpxRoute 
       peakIndex >= 0 && distanceKm > 0
         ? Math.max(0, Math.min(1, cumulativeDistanceKm[peakIndex] / distanceKm))
         : null,
+    points: points.map((p): [number, number] => [p.lat, p.lng]),
   };
 }

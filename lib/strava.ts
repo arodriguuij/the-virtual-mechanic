@@ -1,5 +1,7 @@
 import "server-only";
 
+import { decodePolyline } from "@/lib/polyline";
+
 const STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize";
 const STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token";
 const STRAVA_API_BASE = "https://www.strava.com/api/v3";
@@ -251,42 +253,12 @@ export function isIndoorRide(activity: Pick<StravaActivity, "trainer" | "sport_t
   return activity.trainer === true || activity.sport_type === "VirtualRide" || activity.type === "VirtualRide";
 }
 
-/**
- * Decodes a Strava/Google-encoded polyline string into `[lat, lng]` pairs.
- * Pure geometry decode, no I/O — see
- * https://developers.google.com/maps/documentation/utilities/polylinealgorithm
- */
-export function decodePolyline(encoded: string): [number, number][] {
-  const coordinates: [number, number][] = [];
-  let index = 0;
-  let lat = 0;
-  let lng = 0;
-
-  while (index < encoded.length) {
-    let shift = 0;
-    let result = 0;
-    let byte: number;
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
-    lat += result & 1 ? ~(result >> 1) : result >> 1;
-
-    shift = 0;
-    result = 0;
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
-    lng += result & 1 ? ~(result >> 1) : result >> 1;
-
-    coordinates.push([lat / 1e5, lng / 1e5]);
-  }
-
-  return coordinates;
-}
+// Re-exported (via the import above) so every existing
+// `import { decodePolyline } from "@/lib/strava"` keeps working unchanged —
+// the implementation moved to `lib/polyline.ts` (no `"server-only"` marker)
+// since `components/route-map-preview.tsx`, a client component, needs to
+// decode polylines too.
+export { decodePolyline };
 
 const KM_PER_SAMPLE_POINT = 25;
 const MIN_SAMPLE_POINTS = 3;

@@ -17,13 +17,16 @@ import {
   Utensils,
   Zap,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { stripEmoji } from "@/lib/gpx-export";
 import { parseGpxFile, type ParsedGpxRoute } from "@/lib/gpx-import";
+import { decodePolyline } from "@/lib/polyline";
 import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
 import {
@@ -53,6 +56,19 @@ import type { StravaRoute } from "@/lib/strava-routes";
 // plausible "typical road ride" pace, not a personalized figure; the UI
 // flags this explicitly so the athlete knows to double-check the estimate.
 const FALLBACK_AVG_SPEED_KMH = 25;
+
+// Leaflet reads `window`/`document` at module scope, which breaks Next's
+// server render pass — `ssr: false` is what actually prevents that, not
+// just this file's own top-level `"use client"` (every client component
+// still renders once on the server for the initial HTML unless its import
+// is wrapped like this).
+const RouteMapPreview = dynamic(
+  () => import("@/components/route-map-preview").then((mod) => mod.RouteMapPreview),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="mt-3 h-48 w-full rounded-lg" />,
+  }
+);
 
 function formatHoursMinutes(hours: number): string {
   const totalMinutes = Math.round(Math.max(0, hours) * 60);
@@ -299,6 +315,12 @@ export function FuelingPlanner({
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === selectedRouteId) ?? null,
     [routes, selectedRouteId]
+  );
+  // Decoded once per route change, not on every render — a long ride's
+  // polyline can be a few hundred points.
+  const selectedRoutePoints = useMemo(
+    () => (selectedRoute?.summaryPolyline ? decodePolyline(selectedRoute.summaryPolyline) : null),
+    [selectedRoute]
   );
 
   // "Conversión Dinámica a Medidas Caseras" — recomputed from the last
@@ -598,6 +620,11 @@ export function FuelingPlanner({
                     </option>
                   ))}
                 </select>
+                <RouteMapPreview
+                  points={selectedRoutePoints}
+                  distanceKm={selectedRoute?.distanceKm ?? null}
+                  elevationGainM={selectedRoute?.elevationGainM ?? null}
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="intensity" className={eyebrow}>
@@ -634,7 +661,7 @@ export function FuelingPlanner({
               No se encontraron rutas guardadas en Strava — usa la calculadora rápida.
             </p>
           )
-        ) : (
+        ) : mode === "quick" ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="duration" className={eyebrow}>
@@ -678,7 +705,7 @@ export function FuelingPlanner({
               />
             </div>
           </div>
-        )}
+        ) : null}
 
         {mode === "gpx" && (
           <div className="flex flex-col gap-4">
@@ -725,6 +752,12 @@ export function FuelingPlanner({
                 </p>
               )}
             </div>
+
+            <RouteMapPreview
+              points={parsedGpx?.points ?? null}
+              distanceKm={parsedGpx?.distanceKm ?? null}
+              elevationGainM={parsedGpx?.elevationGainM ?? null}
+            />
 
             {gpxError && <p className="text-sm text-status-warning">{gpxError}</p>}
 
