@@ -18,16 +18,13 @@ import {
   getProfile,
   getRecentActivities,
   getStravaRoutes,
-  getWeeklyPerformance,
 } from "@/lib/dashboard-data";
-import { gutTrainingLevelLabels, gutTrainingLevelRanges } from "@/lib/metabolic-engine";
 import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
-const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 
 function formatRelativeDate(iso: string) {
   const date = new Date(iso);
@@ -226,131 +223,6 @@ function RideHistorySkeleton() {
   );
 }
 
-function hydrationLabel(score: number): string {
-  if (score >= 9) return "Óptimo";
-  if (score >= 7) return "Bueno";
-  if (score >= 5) return "Mejorable";
-  return "Bajo";
-}
-
-const weeklyStatValue = "font-mono text-xl font-bold text-neutral-900 tabular-nums";
-
-async function WeeklyPerformancePanel() {
-  const weekly = await getWeeklyPerformance();
-  // "60-75 g/h" -> value/unit split, so the range renders in the same
-  // big-number-plus-small-unit shape as the other 3 weekly stat cards
-  // (Cumplimiento/Promedio ingesta/Balance hídrico) instead of a badge pill.
-  const [gutTrainingRangeValue, gutTrainingRangeUnit] =
-    gutTrainingLevelRanges[weekly.gutTrainingLevel].split(" ");
-
-  return (
-    <div className="border border-neutral-200 bg-neutral-50/60 px-4 py-4 sm:px-6">
-      <span className={eyebrow}>Rendimiento semanal · últimos 7 días</span>
-
-      {weekly.ridesThisWeekCount === 0 ? (
-        <p className="mt-2 text-sm text-neutral-500">
-          0 km registrados esta semana — sincroniza tu primera salida para ver tu progreso aquí.
-        </p>
-      ) : (
-        <div className="mt-3 grid grid-cols-2 gap-6 sm:grid-cols-4">
-          {weekly.compliancePct == null && weekly.avgIntakeGPerHour == null ? (
-            <div className="col-span-2 flex items-center border border-dashed border-neutral-300 bg-white/60 px-3 py-2.5">
-              <p className="text-sm text-neutral-500">
-                Calcula tu primera estrategia de nutrición para empezar a registrar tu balance
-                semanal.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="flex flex-col gap-1">
-                <span className={statLabel}>Cumplimiento 7D</span>
-                <span className={weeklyStatValue}>
-                  {weekly.compliancePct != null ? (
-                    <>
-                      {weekly.compliancePct}
-                      <span className="ml-0.5 text-sm font-normal text-neutral-500">%</span>
-                    </>
-                  ) : (
-                    "—"
-                  )}
-                </span>
-                {weekly.compliancePct == null && (
-                  <span className="text-xs text-neutral-500">Sin datos de consumo aún</span>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <span className={statLabel}>Promedio ingesta</span>
-                <span className={weeklyStatValue}>
-                  {weekly.avgIntakeGPerHour != null ? (
-                    <>
-                      {weekly.avgIntakeGPerHour}
-                      <span className="ml-1 text-sm font-normal text-neutral-500">g/h</span>
-                    </>
-                  ) : (
-                    "—"
-                  )}
-                </span>
-                {weekly.avgIntakeGPerHour == null && (
-                  <span className="text-xs text-neutral-500">Sin datos de consumo aún</span>
-                )}
-              </div>
-            </>
-          )}
-
-          <div className="flex flex-col gap-1">
-            <span className={statLabel}>Gut training</span>
-            <span className={weeklyStatValue}>
-              {gutTrainingRangeValue}
-              <span className="ml-1 text-sm font-normal text-neutral-500">{gutTrainingRangeUnit}</span>
-            </span>
-            <span className="text-xs text-neutral-500 uppercase">
-              {gutTrainingLevelLabels[weekly.gutTrainingLevel]}
-            </span>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <span className={statLabel}>Balance hídrico</span>
-            <span className={weeklyStatValue}>
-              {weekly.hydrationScore != null ? (
-                <>
-                  {weekly.hydrationScore.toFixed(1)}
-                  <span className="ml-0.5 text-sm font-normal text-neutral-500">/10</span>
-                </>
-              ) : (
-                "—"
-              )}
-            </span>
-            {weekly.hydrationScore != null ? (
-              <span className="text-xs text-neutral-500 uppercase">
-                {hydrationLabel(weekly.hydrationScore)}
-              </span>
-            ) : (
-              <span className="text-xs text-neutral-500">Sin datos de consumo aún</span>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function WeeklyPerformancePanelSkeleton() {
-  return (
-    <div className="border border-neutral-200 bg-neutral-50/60 px-4 py-4 sm:px-6">
-      <Skeleton className="h-3 w-40" />
-      <div className="mt-3 grid grid-cols-2 gap-6 sm:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="flex flex-col gap-2">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-6 w-16" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // A compact, subdued treatment for the routine "sync" action — distinct from
 // the bolder connect CTA below, since re-syncing rides is something an
 // already-connected athlete does often and shouldn't compete visually with
@@ -408,57 +280,41 @@ export default async function Home() {
           <ProfileCheckBannerSection />
         </Suspense>
 
-        {/*
-          Mobile-first priority: a new athlete's very first useful action is
-          calculating a fueling strategy, not reading last week's stats — so
-          the Tabs block (Pre-Ride's Fueling Planner is its default tab)
-          renders before the Weekly Performance Panel on small screens via
-          `order`, reverting to the original stats-then-tabs order at `sm:`
-          and up, where there's enough width to not need the reprioritization.
-        */}
-        <div className="order-2 sm:order-0">
-          <Suspense fallback={<WeeklyPerformancePanelSkeleton />}>
-            <WeeklyPerformancePanel />
-          </Suspense>
-        </div>
+        <Tabs defaultValue="pre-ride">
+          <TabsList variant="line" className="w-full justify-start border-b border-neutral-200">
+            <TabsTrigger
+              value="pre-ride"
+              className="flex-none text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
+            >
+              Pre-Ride
+            </TabsTrigger>
+            <TabsTrigger
+              value="post-ride"
+              className="flex-none text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
+            >
+              Post-Ride
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="order-1 sm:order-0">
-          <Tabs defaultValue="pre-ride">
-            <TabsList variant="line" className="w-full justify-start border-b border-neutral-200">
-              <TabsTrigger
-                value="pre-ride"
-                className="flex-none text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
-              >
-                Pre-Ride
-              </TabsTrigger>
-              <TabsTrigger
-                value="post-ride"
-                className="flex-none text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
-              >
-                Post-Ride
-              </TabsTrigger>
-            </TabsList>
+          <TabsContent value="pre-ride">
+            <div className="flex flex-col gap-10 pt-6">
+              <Suspense fallback={<FuelingPlannerSkeleton />}>
+                <FuelingPlannerSection />
+              </Suspense>
+            </div>
+          </TabsContent>
 
-            <TabsContent value="pre-ride">
-              <div className="flex flex-col gap-10 pt-6">
-                <Suspense fallback={<FuelingPlannerSkeleton />}>
-                  <FuelingPlannerSection />
-                </Suspense>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="post-ride">
-              <div className="flex flex-col gap-10 pt-6">
-                <Suspense fallback={<PostRideAnalysisSkeleton />}>
-                  <PostRideAnalysisSection />
-                </Suspense>
-                <Suspense fallback={<RideHistorySkeleton />}>
-                  <RideHistorySection />
-                </Suspense>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
+          <TabsContent value="post-ride">
+            <div className="flex flex-col gap-10 pt-6">
+              <Suspense fallback={<PostRideAnalysisSkeleton />}>
+                <PostRideAnalysisSection />
+              </Suspense>
+              <Suspense fallback={<RideHistorySkeleton />}>
+                <RideHistorySection />
+              </Suspense>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardShell>
   );

@@ -1174,16 +1174,46 @@ Rehidratación — `biphasicRecoveryTarget` is its own `useMemo` derived from th
 recomputed `recoveryTarget`, so editing the in-ride-consumption inputs updates the phase
 split instantly along with everything else on this card.
 
-### Weekly Performance Panel
+### Estadísticas (`/estadisticas`) & Weekly Performance
 
 `fueling_logs` is an append-only log — both `POST /api/fueling/plan` (every calculation,
 unconditionally — each one represents a genuinely considered ride) and
 `POST /api/post-ride/analysis` (once per activity, deduped) insert one row via
 `logFuelingPlan()` (`lib/fueling-logs.ts`). The Dashboard used to show a lifetime-totals
 bar summed from this table (€ saved, kg glycogen, L fluid, g sodium) — replaced by a
-gamification-oriented "Rendimiento Semanal" panel over the *last 7 days* instead, since a
-forever-accumulating total doesn't tell an athlete anything actionable about their
-current week.
+gamification-oriented "Rendimiento Semanal" panel over the *last 7 days*, which itself
+later moved off the Dashboard entirely onto its own `/estadisticas` route (reached from
+the sidebar, `BarChart3` icon) — a forever-accumulating total, and later a permanently-
+visible weekly panel, both fought the Dashboard's actual job (the daily pre/post-ride
+actions) for space and attention; a once-a-week glance-back belongs on its own screen,
+not baked into the screen an athlete opens before every ride.
+
+`app/estadisticas/page.tsx` is three Server Component cards, numbered the same way
+`/perfil` is (`01 · Resumen 7 días`, `02 · Desglose de ingesta`, `03 · Recomendación
+biológica`):
+
+- **`SummaryCard`** — the exact same four figures the old Dashboard panel showed
+  (Cumplimiento 7D, Promedio ingesta, Gut Training, Balance hídrico), moved here verbatim
+  — see the figures' own documentation below, unchanged.
+- **`IntakeBreakdownCard`** — real consumed-vs-target carbs per ride, for the most recent
+  rides that actually have consumption data logged. **`getRecentIntakeBreakdown()`**
+  (`lib/dashboard-data.ts`) queries `fueling_logs` (`kind: 'post_ride'`, non-null
+  `activity_id`/`carbs_consumed_g`) and `activities` as two separate queries joined
+  client-side via a `Map` (same pattern `getWeeklyPerformance` already uses) rather than a
+  single PostgREST embedded-relation select — this codebase has no generated Supabase
+  types yet to verify the FK's exact constraint name against, so the two-query join is the
+  safer bet. Rendered as one two-tone progress rail per ride (`bg-sage` fill, `bg-badge`
+  rail — same visual language as the Fueling Planner's own objetivo/en-bolsillo/déficit
+  bar), consumed capped at 100% width even when real intake exceeded the target (a rider
+  who ate more than planned isn't a rendering bug).
+- **`RecommendationCard`** — **`getIntakeRecommendationNote()`** (`lib/metabolic-engine.ts`)
+  compares `avgIntakeGPerHour` (real logged intake) against the athlete's own
+  `getGutTrainingCapGPerHour()` and returns one of three plain-language notes: meaningfully
+  under their cap (below `INTAKE_HEADROOM_FRACTION`, 85%) suggests room to push the dose on
+  endurance rides; within that headroom band suggests holding steady and considering a
+  level-up; above the cap entirely suggests they may already be ready to advance a Gut
+  Training level. `null` average (no consumption data logged yet) returns a plain
+  "not enough data" note rather than fabricating a comparison with nothing real to compare.
 
 **`getWeeklyPerformance()`** (`lib/dashboard-data.ts`) computes four figures, and is
 strict about never fabricating a plausible-looking number for data that doesn't exist:
@@ -1215,8 +1245,8 @@ strict about never fabricating a plausible-looking number for data that doesn't 
   `min(100%, sodium_consumed_mg / sodium_mg)` (both against the *raw* stored loss, not the
   post-exercise-replacement-factor-adjusted target, for a direct "how much of what you
   lost did you replace" reading) across the same logs, scaled to a `/10` score with a
-  qualitative label (`hydrationLabel()` in `app/page.tsx`: ≥9 Óptimo, ≥7 Bueno, ≥5
-  Mejorable, else Bajo).
+  qualitative label (`hydrationLabel()` in `app/estadisticas/page.tsx`: ≥9 Óptimo, ≥7
+  Bueno, ≥5 Mejorable, else Bajo).
 
 When `ridesThisWeekCount` is `0`, the whole panel collapses to a single onboarding line
 ("0 km registrados esta semana — sincroniza tu primera salida...") instead of four empty
@@ -1283,23 +1313,47 @@ everywhere else. `PhysiologicalProfileCard` itself is already a Server Component
 "force-dynamic"`, and this Next.js version's `fetch` calls are uncached by default — see
 "Route dynamic rendering" below) and pre-fills every form field via `defaultValue`/
 `defaultChecked`, so a save is immediately reflected on the next load; there is no
-separate client-side fetch-on-mount step to keep in sync.
+separate client-side fetch-on-mount step to keep in sync. `components/profile-saved-toast.tsx`
+reads that same query param to render its self-dismissing "Perfil metabólico actualizado
+correctamente" toast.
 
-### Sidebar navigation vs. Dashboard tabs (app/page.tsx, app/perfil/page.tsx)
+`/perfil` is split into 3 numbered `Card`s (`01 · Métricas físicas y equipamiento`,
+`02 · Fenotipo metabólico y sudoración`, `03 · Adaptación digestiva (gut training)`) all
+inside one `<form>`, with a single full-width `Guardar cambios` button at the bottom — the
+page used to be one giant card with its own `CardTitle` ("Perfil fisiológico") sitting
+directly under the page's own `<h1>` of the same text, a literal visible duplicate. Gut
+Training's selector (`components/gut-training-selector.tsx`, `<GutTrainingSelector
+defaultLevel={...} />`) is the one `"use client"` island on an otherwise plain Server
+Component form — a real native radio group (`name="gut_training_level"`, still submits
+with the rest of the form exactly like the plain `defaultChecked` version it replaced), but
+promoted to client-side `useState` specifically so the helper line below it ("El motor
+limitará las recomendaciones a un máximo de N g/h...") can update live as the athlete
+clicks between levels, before ever hitting "Guardar cambios" — a `defaultChecked`-only
+version has no client state to read from for that. This also absorbed the old standalone
+"Escala de Adaptación Digestiva" reference table that used to sit at the very bottom of the
+page below the form — every level's own g/h range is already shown on its own selector
+card now, so a second static list repeating the same 4 ranges was pure duplication.
+
+### Sidebar navigation vs. Dashboard tabs (app/page.tsx, app/perfil/page.tsx, app/estadisticas/page.tsx)
 
 The Dashboard's tabs are daily-action surfaces (something a rider does before/after every
-ride); the Physiological Profile is a setup-once-then-rarely-touched surface, so it lives
-on its own route (`/perfil`) reached from the sidebar rather than as a third tab —
-mixing "things I do every ride" with "things I configure occasionally" in the same
-`TabsList` was the wrong information architecture once there were only two genuine daily
-tabs left. `components/dashboard-shell.tsx`'s `SidebarContent` renders `NAV_ITEMS`
-(`Dashboard` → `/`, `Perfil fisiológico` → `/perfil`) as real `next/link` `Link`s, using
-`usePathname()` to bold/border the active item (`border-neutral-900 text-neutral-900`)
-and dim the rest (`text-neutral-500`) — a client component already (it owns the mobile
-drawer's `mobileOpen` state), so this needed no new `"use client"` boundary. Each `Link`
-takes an `onNavigate` callback that closes the mobile drawer (`setMobileOpen(false)`) on
-click, since without it a mobile visitor tapping "Perfil fisiológico" would navigate
-underneath a still-open overlay.
+ride); the Physiological Profile and Estadísticas are both setup-once/glance-back-weekly
+surfaces, so they live on their own routes (`/perfil`, `/estadisticas`) reached from the
+sidebar rather than as Dashboard tabs — mixing "things I do every ride" with "things I
+configure or review occasionally" in the same `TabsList` was the wrong information
+architecture once there were only two genuine daily tabs left.
+`components/dashboard-shell.tsx`'s `SidebarContent` renders `NAV_ITEMS` (`Dashboard` →
+`/`, `Estadísticas` → `/estadisticas`, `Perfil fisiológico` → `/perfil`) as real
+`next/link` `Link`s, using `usePathname()` to give the active item a filled pill
+(`bg-surface text-terracotta`) and the rest a subtle hover fill — a client component
+already (it owns the mobile drawer's `mobileOpen` state), so this needed no new
+`"use client"` boundary. Each `Link` takes an `onNavigate` callback that closes the mobile
+drawer (`setMobileOpen(false)`) on click, since without it a mobile visitor tapping a nav
+item would navigate underneath a still-open overlay. The same `SidebarContent` header
+(`AppLogo` + "Motor Metabólico") and the mobile top header's own logo+text are both
+wrapped in a `<Link href="/">` (the sidebar one also firing `onNavigate` to close the
+drawer) so clicking the brand mark always returns to the Dashboard, a near-universal web
+convention this app was missing.
 
 The sidebar's bottom identity card (`components/viewer-identity.tsx`) is a separate,
 Suspense-streamed Server Component (`ViewerIdentity`/`ViewerIdentitySkeleton`) rather than

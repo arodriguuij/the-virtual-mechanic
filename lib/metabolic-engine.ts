@@ -204,6 +204,37 @@ export function getGutCappedCarbTarget(
   };
 }
 
+// Below this fraction of the athlete's own gut-training cap, their real
+// average intake is meaningfully under-using their current digestive
+// capacity — worth calling out as headroom, not just noise in the data.
+const INTAKE_HEADROOM_FRACTION = 0.85;
+
+/**
+ * "Recomendación Biológica" (`/estadisticas`) — a plain-language nudge
+ * comparing the athlete's real average consumed-carb rate (`getWeeklyPerformance`'s
+ * `avgIntakeGPerHour`, real logged intake, never planned targets) against
+ * their own gut-training cap, so the recommendation is personalized to
+ * their actual logged behavior rather than a generic tip. `null` input
+ * (no consumption data logged yet) returns a plain "not enough data" note
+ * rather than fabricating a comparison with nothing to compare.
+ */
+export function getIntakeRecommendationNote(
+  avgIntakeGPerHour: number | null,
+  gutTrainingLevel: GutTrainingLevel
+): string {
+  const capGPerHour = getGutTrainingCapGPerHour(gutTrainingLevel);
+  if (avgIntakeGPerHour == null) {
+    return "Todavía no hay suficientes datos de consumo real — registra tu ingesta tras cada salida para desbloquear una recomendación personalizada.";
+  }
+  if (avgIntakeGPerHour > capGPerHour) {
+    return `Tu ingesta real (${avgIntakeGPerHour} g/h) ya supera el techo de tu nivel actual (${capGPerHour} g/h) — es una señal de que tu intestino podría estar listo para subir de nivel en Gut Training.`;
+  }
+  if (avgIntakeGPerHour >= capGPerHour * INTAKE_HEADROOM_FRACTION) {
+    return `Tu promedio de ${avgIntakeGPerHour} g/h ya está cerca de tu capacidad actual (${capGPerHour} g/h) — mantén esta rutina y considera avanzar de nivel cuando te sientas cómodo.`;
+  }
+  return `Tu promedio de ${avgIntakeGPerHour} g/h está por debajo de tu capacidad de ${gutTrainingLevelRanges[gutTrainingLevel]}. Puedes aumentar la dosis en salidas de fondo para aprovechar mejor tu ventana digestiva.`;
+}
+
 /** Baseline sweat rate (ml/h) at comfortable conditions (~18°C, 50%
  * humidity) for each self-reported category. */
 const SWEAT_RATE_BASE_ML_PER_HOUR: Record<SweatRate, number> = {

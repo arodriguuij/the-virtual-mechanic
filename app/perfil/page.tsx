@@ -4,16 +4,11 @@ import { Suspense } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { GutTrainingSelector } from "@/components/gut-training-selector";
 import { ProfileSavedToast } from "@/components/profile-saved-toast";
 import { ViewerIdentity, ViewerIdentitySkeleton } from "@/components/viewer-identity";
 import { getAthleteProfile } from "@/lib/dashboard-data";
-import {
-  athleteTypeDescriptions,
-  athleteTypeLabels,
-  gutTrainingLevelLabels,
-  gutTrainingLevelRanges,
-  sweatRateLabels,
-} from "@/lib/metabolic-engine";
+import { athleteTypeDescriptions, athleteTypeLabels, sweatRateLabels } from "@/lib/metabolic-engine";
 import { fieldClass, primaryButtonClass, selectableFieldClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
@@ -188,30 +183,7 @@ async function PhysiologicalProfileCard() {
             en ruta es una capacidad que se gana progresivamente. Tu nivel actual limita el
             máximo que el planificador te recomendará, aunque la intensidad de la ruta pida más.
           </p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {(
-              Object.keys(gutTrainingLevelLabels) as (keyof typeof gutTrainingLevelLabels)[]
-            ).map((level) => (
-              <label
-                key={level}
-                className="flex cursor-pointer flex-col gap-1 rounded-lg border border-neutral-200 px-3 py-2.5 text-neutral-700 transition-colors duration-150 has-checked:border-2 has-checked:border-terracotta has-checked:bg-[#FDF8F6] has-checked:text-neutral-900 hover:border-neutral-400"
-              >
-                <span className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="gut_training_level"
-                    value={level}
-                    defaultChecked={(profile?.gut_training_level ?? "intermediate") === level}
-                    className="size-3.5 cursor-pointer accent-terracotta"
-                  />
-                  <span className="text-sm font-semibold">{gutTrainingLevelLabels[level]}</span>
-                </span>
-                <span className="font-mono text-xs text-neutral-500">
-                  {gutTrainingLevelRanges[level]}
-                </span>
-              </label>
-            ))}
-          </div>
+          <GutTrainingSelector defaultLevel={profile?.gut_training_level ?? "intermediate"} />
         </CardContent>
       </Card>
 

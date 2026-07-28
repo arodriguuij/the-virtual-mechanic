@@ -232,6 +232,67 @@ export const getRecentActivities = cache(
   }
 );
 
+export type IntakeBreakdownEntry = {
+  activityId: string;
+  activityName: string;
+  activityDate: string;
+  targetCarbsG: number;
+  consumedCarbsG: number;
+};
+
+/**
+ * Powers `/estadisticas`' "Desglose de Ingesta" card — real consumed-vs-
+ * target carbs per ride, for the most recent rides that actually have
+ * consumption data logged (`POST /api/post-ride/consumption`). Two queries
+ * joined client-side (same `Map`-join pattern as `getWeeklyPerformance`
+ * above) rather than a PostgREST embedded-relation select, since this
+ * codebase has no generated Supabase types yet to verify the FK's exact
+ * constraint name against.
+ */
+export const getRecentIntakeBreakdown = cache(
+  async (limit: number = 6): Promise<IntakeBreakdownEntry[]> => {
+    const supabase = await getAuthenticatedSupabaseClient();
+
+    const { data: logs, error: logsError } = await supabase
+      .from("fueling_logs")
+      .select("activity_id, total_carbs_g, carbs_consumed_g, created_at")
+      .eq("kind", "post_ride")
+      .not("activity_id", "is", null)
+      .not("carbs_consumed_g", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (logsError) throw logsError;
+
+    const entries = logs ?? [];
+    if (entries.length === 0) return [];
+
+    const activityIds = entries
+      .map((l) => l.activity_id)
+      .filter((id): id is string => id != null);
+    const { data: activities, error: activitiesError } = await supabase
+      .from("activities")
+      .select("id, name, activity_date")
+      .in("id", activityIds);
+    if (activitiesError) throw activitiesError;
+
+    const activityById = new Map((activities ?? []).map((a) => [a.id, a]));
+
+    return entries
+      .map((l): IntakeBreakdownEntry | null => {
+        const activity = l.activity_id ? activityById.get(l.activity_id) : null;
+        if (!activity) return null;
+        return {
+          activityId: activity.id,
+          activityName: activity.name,
+          activityDate: activity.activity_date,
+          targetCarbsG: l.total_carbs_g,
+          consumedCarbsG: l.carbs_consumed_g ?? 0,
+        };
+      })
+      .filter((e): e is IntakeBreakdownEntry => e != null);
+  }
+);
+
 /**
  * The athlete's saved/starred Strava cycling routes, for the fueling
  * planner's route selector. `[]` (not an error) whenever Strava isn't
