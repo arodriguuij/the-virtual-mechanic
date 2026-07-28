@@ -1937,6 +1937,39 @@ Two small layout fixes bundled with the translation pass above:
   app-wide and a few px of visual difference in this one row reads as compact/aligned
   regardless (verified live at both viewports).
 
+### Segmented-control responsiveness (`segmentedButtonClass`/`segmentedButtonLabelClass`)
+
+Even at the shrunk `h-9`/`text-[11px]` size above, a real narrow-phone test (320-390px,
+via a temporary unauthenticated Playwright route rendering `FuelingPlanner` in isolation —
+removed again once verified, not a permanent fixture) still found "Elegir fecha" and "Mi
+Inventario" tight enough to clip on the narrowest supported width. `components/
+fueling-planner.tsx` now exports two shared classes used by every 3-column segmented
+control in the file (Salida's Hoy/Mañana/Elegir fecha, the Ruta Strava/Calculadora/Subir
+GPX mode toggle, and Estrategia nutricional's Óptimo/Mi Inventario/Híbrido — the last of
+which used to be a wrapping `flex flex-wrap` row of variable-width pills, converted here to
+a `grid grid-cols-3` matching the other two so all three groups share one row-alignment
+convention): `segmentedButtonClass` on the `<button>` itself (`h-9 w-full min-w-0 flex
+items-center justify-center`, `text-[10px] sm:text-xs font-mono font-bold tracking-tight`,
+`px-1 sm:px-3` — each call site layers its own `rounded-*`/border/active-state colors via
+`cn()`) and **`segmentedButtonLabelClass`** (`block w-full truncate`) wrapping the label
+text in its own `<span>`.
+
+The label needing its own wrapped `<span>`, rather than just adding `overflow-hidden
+text-ellipsis whitespace-nowrap` straight onto the button, was a real bug caught by that
+same Playwright check: a `flex items-center justify-center` button clips overflowing
+content from *both* sides equally, since the flex box centers the content first and only
+then clips whatever doesn't fit — verified live, "Mi Inventario" at exactly 320px rendered
+as the nonsensical "i Inventario" (the leading "M" silently gone, no ellipsis marker at
+all, since `text-overflow: ellipsis` doesn't apply cleanly to centered flex content).
+Tailwind's `truncate` utility on a `block w-full` child span instead gives the label its
+own left-aligned single-line box to truncate against, so any overflow now reads as a
+proper "Mi Inventa…" — confirmed via `scrollWidth`/`clientWidth` measurement across
+320/360/390px: every other label (`Elegir fecha` included) fits with zero truncation at
+all three widths, and "Mi Inventario" — the one label that's still genuinely a few px too
+wide for a 320px screen after already being pushed to `text-[10px]` — degrades to a clean
+ellipsis rather than a broken/garbled clip, with the button's own height and border
+unaffected either way.
+
 ### Route dynamic rendering
 
 Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because

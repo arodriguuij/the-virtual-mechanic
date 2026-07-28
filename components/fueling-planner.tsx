@@ -121,6 +121,30 @@ const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums
 // input/select/date call site below.
 const inputClass = fieldClass;
 const selectableInputClass = selectableFieldClass;
+// Shared sizing/typography for every 3-column segmented control in this file
+// (Salida's Hoy/Mañana/Elegir fecha, the Ruta/Calculadora/GPX mode toggle,
+// Estrategia nutricional's Óptimo/Mi Inventario/Híbrido) — each still adds
+// its own border/background/active-state classes via `cn()`, but the
+// text-sizing and centering rules live in one place so a narrow-viewport fix
+// to one can't silently drift from the other two. `min-w-0` is what lets a
+// CSS grid column actually shrink below its content's natural width — a
+// grid item defaults to `min-width: auto`, which would otherwise force the
+// column (and the whole row) wider than its share of the grid instead of
+// ever truncating.
+const segmentedButtonClass =
+  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center px-1 text-center text-[10px] font-mono font-bold tracking-tight uppercase transition-all duration-150 sm:px-3 sm:text-xs";
+// Applied to the label text itself, not the button — `overflow-hidden`/
+// `text-ellipsis` on a `flex items-center justify-center` button clips
+// symmetrically from *both* sides of the centered content (verified live:
+// "Mi Inventario" rendered as the nonsensical "i Inventario" at 320px), since
+// the flex box centers the overflow before ever clipping it. Tailwind's
+// `truncate` utility on a `block w-full` child instead gives the label its
+// own left-aligned single-line box to truncate against, so an overflow
+// always reads as "Mi Inventari…" — a real ellipsis at the end, never a
+// garbled double-sided clip — while non-overflowing labels stay visually
+// centered exactly as before (there's no slack for `text-center` to act on
+// once the label is genuinely truncated).
+const segmentedButtonLabelClass = "block w-full truncate";
 // "Salida" quick-select: a day pill (Hoy/Mañana) plus a plain hour `<select>`
 // replaces the old `datetime-local` input — that native control's per-browser
 // chrome (and iOS Safari's multi-segment month/day/year/hour/minute/AM-PM
@@ -275,13 +299,14 @@ function DeparturePicker({
             type="button"
             onClick={() => onDayModeChange(opt.value)}
             className={cn(
-              "h-9 cursor-pointer rounded-md border px-3 text-[11px] font-mono font-bold whitespace-nowrap uppercase transition-all duration-150",
+              segmentedButtonClass,
+              "rounded-md border",
               dayMode === opt.value
                 ? "border-terracotta bg-terracotta text-white"
                 : "border-neutral-300 bg-white text-neutral-600 hover:border-neutral-400"
             )}
           >
-            {opt.label}
+            <span className={segmentedButtonLabelClass}>{opt.label}</span>
           </button>
         ))}
       </div>
@@ -672,42 +697,45 @@ export function FuelingPlanner({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <div className="grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1 text-[11px] font-mono">
+        <div className="grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1">
           <button
             type="button"
             onClick={() => setMode("route")}
             className={cn(
-              "cursor-pointer rounded-md px-2 py-2 font-semibold tracking-wide uppercase transition-colors duration-150",
+              segmentedButtonClass,
+              "rounded-md tracking-wide",
               mode === "route"
                 ? "bg-terracotta text-white shadow-sm"
                 : "text-neutral-500 hover:text-neutral-900"
             )}
           >
-            Ruta Strava
+            <span className={segmentedButtonLabelClass}>Ruta Strava</span>
           </button>
           <button
             type="button"
             onClick={() => setMode("quick")}
             className={cn(
-              "cursor-pointer rounded-md px-2 py-2 font-semibold tracking-wide uppercase transition-colors duration-150",
+              segmentedButtonClass,
+              "rounded-md tracking-wide",
               mode === "quick"
                 ? "bg-terracotta text-white shadow-sm"
                 : "text-neutral-500 hover:text-neutral-900"
             )}
           >
-            Calculadora
+            <span className={segmentedButtonLabelClass}>Calculadora</span>
           </button>
           <button
             type="button"
             onClick={() => setMode("gpx")}
             className={cn(
-              "cursor-pointer rounded-md px-2 py-2 font-semibold tracking-wide uppercase transition-colors duration-150",
+              segmentedButtonClass,
+              "rounded-md tracking-wide",
               mode === "gpx"
                 ? "bg-terracotta text-white shadow-sm"
                 : "text-neutral-500 hover:text-neutral-900"
             )}
           >
-            Subir GPX
+            <span className={segmentedButtonLabelClass}>Subir GPX</span>
           </button>
         </div>
 
@@ -948,20 +976,21 @@ export function FuelingPlanner({
 
         <div className="flex flex-col gap-1.5">
           <span className={eyebrow}>Estrategia nutricional</span>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="grid grid-cols-3 gap-1.5">
             {FUELING_MODE_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => setFuelingMode(opt.value)}
                 className={cn(
-                  "cursor-pointer rounded-sm border px-3 py-1.5 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150",
+                  segmentedButtonClass,
+                  "rounded-sm border tracking-wide",
                   fuelingMode === opt.value
                     ? "border-terracotta bg-terracotta text-white"
                     : "border-neutral-300 text-neutral-600 hover:border-terracotta hover:text-terracotta"
                 )}
               >
-                {opt.label}
+                <span className={segmentedButtonLabelClass}>{opt.label}</span>
               </button>
             ))}
           </div>
