@@ -172,10 +172,13 @@ persistent shell of their own (each renders its own full-bleed `AuthPageShell` o
 `/privacidad`, a plain top bar), so a full-screen fallback is correct here: `min-h-screen
 w-full flex items-center justify-center bg-[#FDFCF9]`, just the brand mark, no
 "Cargando..."/status text — a purist loading state that reads as part of the app's own
-chrome rather than a generic spinner screen. The mark uses a small custom
+chrome rather than a generic spinner screen. The mark (`size-14`) uses a custom
 `animate-logo-breathe` keyframe (`app/globals.css`) rather than Tailwind's own
-`animate-pulse` — a bare opacity fade alone read flatter than pairing it with an
-almost-imperceptible `scale(0.98) → scale(1)` shift, which `animate-pulse` alone can't do.
+`animate-pulse` — a bare opacity fade alone read flatter than pairing it with a scale
+shift. An initial `scale(0.98) → scale(1)` / opacity `0.85 → 1` version read as too subtle
+in practice — closer to "frozen" than "loading" — widened to a clearly visible
+`scale(0.9) → scale(1.05)` / opacity `0.6 → 1` swing over a faster `1.4s` cycle, still a
+smooth ease-in-out breathing motion rather than a sharp pulse.
 A second, differently-styled copy of this same fallback lives at
 **`app/(app)/loading.tsx`** — see "Sidebar navigation vs. Dashboard tabs" below for why the
 authenticated Dashboard shell needed its own route group and its own nested `loading.tsx`
@@ -1698,9 +1701,9 @@ group (a folder name in parens — purely organizational, contributes nothing to
 now the one place that renders `<DashboardShell>` — it wraps `{children}` once, at the
 layout level, so it mounts immediately and independently of whatever page is loading below
 it. **`app/(app)/loading.tsx`** is the fallback for exactly that `{children}` slot (i.e.
-`DashboardShell`'s own `<main>`) — contained to the content area (`flex min-h-[60vh] w-full
-flex-1 items-center justify-center py-12`, no background of its own, so it blends into
-`DashboardShell`'s `bg-background` instead of painting a visible box), never the whole
+`DashboardShell`'s own `<main>`) — contained to the content area (`flex min-h-[50vh] w-full
+flex-1 flex-col items-center justify-center py-12`, no background of its own, so it blends
+into `DashboardShell`'s `bg-background` instead of painting a visible box), never the whole
 viewport (`min-h-screen`/`fixed inset-0`, what the *root* `app/loading.tsx` still correctly
 uses for the shell-less `/login`/`/auth/callback`/`/privacidad` segment — see "Login &
 loading screens" above). Each of the four page components had their own `<DashboardShell

@@ -172,22 +172,24 @@
   }
 }
 
-/* Sober "breathing" logo animation for `app/loading.tsx` — a subtle
-   opacity+scale pulse, gentler than Tailwind's own `animate-pulse` (which
-   only fades) since a bare fade on a brand mark reads flatter than an
-   almost-imperceptible scale shift alongside it. */
+/* "Breathing" logo animation for the loading screens (`app/loading.tsx`,
+   `app/(app)/loading.tsx`) — an earlier version's 0.98→1 scale / 0.85→1
+   opacity range was too subtle to read as "actively loading" rather than
+   "frozen." Widened to a clearly visible 0.90→1.05 scale / 0.6→1 opacity
+   swing, still a smooth ease-in-out breathing motion rather than a sharp
+   Tailwind `animate-pulse` fade — sober, but unmistakably alive. */
 @keyframes logo-breathe {
   0%,
   100% {
-    transform: scale(0.98);
-    opacity: 0.85;
+    transform: scale(0.9);
+    opacity: 0.6;
   }
   50% {
-    transform: scale(1);
+    transform: scale(1.05);
     opacity: 1;
   }
 }
 
 .animate-logo-breathe {
-  animation: logo-breathe 1.8s ease-in-out infinite;
+  animation: logo-breathe 1.4s ease-in-out infinite;
 }

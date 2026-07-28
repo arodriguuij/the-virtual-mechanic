@@ -12,7 +12,7 @@ import { AppLogo } from "@/components/app-logo";
 export default function Loading() {
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-[#FDFCF9]">
-      <AppLogo className="animate-logo-breathe size-12" />
+      <AppLogo className="animate-logo-breathe size-14" />
     </div>
   );
 }
