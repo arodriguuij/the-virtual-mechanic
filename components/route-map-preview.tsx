@@ -5,6 +5,8 @@ import "leaflet/dist/leaflet.css";
 import { useEffect } from "react";
 import { MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
 
+import { cn } from "@/lib/utils";
+
 // CartoDB Positron — a clean, low-saturation basemap (no busy POI icons/
 // labels competing with the route line) that fits this app's sober
 // editorial look better than a default OSM tile set.
@@ -48,17 +50,28 @@ export function RouteMapPreview({
   points,
   distanceKm,
   elevationGainM,
+  className,
+  emptyMessage = "Selecciona una ruta de Strava o sube un GPX para visualizar el trazado.",
 }: {
   points: [number, number][] | null;
   distanceKm: number | null;
   elevationGainM: number | null;
+  /** Overrides the default `mt-3 h-48 w-full` sizing — merged via `cn()`
+   * (Tailwind-merge-aware), so a caller embedding this in its own grid cell
+   * (e.g. Post-Ride Analysis's 2-column telemetry layout) can drop the
+   * top margin and pick its own height instead of the planner's default. */
+  className?: string;
+  emptyMessage?: string;
 }) {
   if (!points || points.length < 2) {
     return (
-      <div className="mt-3 flex h-48 w-full items-center justify-center rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-6 text-center">
-        <p className="text-sm text-neutral-500">
-          Selecciona una ruta de Strava o sube un GPX para visualizar el trazado.
-        </p>
+      <div
+        className={cn(
+          "mt-3 flex h-48 w-full items-center justify-center rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-6 text-center",
+          className
+        )}
+      >
+        <p className="text-sm text-neutral-500">{emptyMessage}</p>
       </div>
     );
   }
@@ -69,7 +82,12 @@ export function RouteMapPreview({
   ].filter((part): part is string => part != null);
 
   return (
-    <div className="relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-lg border border-neutral-200">
+    <div
+      className={cn(
+        "relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-lg border border-neutral-200",
+        className
+      )}
+    >
       <MapContainer
         className="h-full w-full"
         center={points[0]}

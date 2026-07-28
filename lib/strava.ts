@@ -238,6 +238,12 @@ export type StravaActivityDetail = {
   // speed/grade instead) — the first fallback tier for a rider with no
   // power data at all.
   calories: number | null;
+  // Encoded route geometry, same shape as `StravaActivity.map` above — absent
+  // for indoor rides and occasionally for GPS-less outdoor ones. Powers the
+  // Post-Ride Analysis telemetry card's map preview so an athlete auditing a
+  // past ride can visually confirm *which* ride it is rather than relying on
+  // a title alone (many routes share generic/duplicate names).
+  summaryPolyline: string | null;
 };
 
 /**
@@ -273,6 +279,7 @@ export async function fetchActivityDetail(
     weightedAverageWatts: activity.weighted_average_watts ?? null,
     kilojoules: activity.kilojoules ?? null,
     calories: activity.calories ?? null,
+    summaryPolyline: activity.map?.summary_polyline ?? null,
   };
 }
 

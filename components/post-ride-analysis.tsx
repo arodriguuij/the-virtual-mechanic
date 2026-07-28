@@ -1,10 +1,12 @@
 "use client";
 
-import { Utensils, Zap } from "lucide-react";
+import { ChevronDown, Utensils, Zap } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SyncForm } from "@/components/sync-button";
 import {
   getBiphasicRecoveryTarget,
@@ -14,6 +16,20 @@ import {
 } from "@/lib/metabolic-engine";
 import { cn } from "@/lib/utils";
 import { primaryButtonClass, selectableFieldClass } from "@/lib/ui-classes";
+
+// Leaflet reads `window`/`document` at module scope — same `ssr: false`
+// requirement as `components/fueling-planner.tsx`'s own dynamic import of
+// this component, never a static one.
+const RouteMapPreview = dynamic(
+  () => import("@/components/route-map-preview").then((mod) => mod.RouteMapPreview),
+  { ssr: false, loading: () => <Skeleton className="h-36 w-full rounded-lg lg:h-full" /> }
+);
+
+// How many of the athlete's most recent synced rides the in-card "Cambiar
+// salida" switcher offers — a quick way to hop to a different recent
+// audit without scrolling back up to the "Actividad" selector above the
+// fold, capped at 5 so the dropdown itself stays short and scannable.
+const ACTIVITY_SWITCHER_LIMIT = 5;
 
 const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
@@ -53,6 +69,7 @@ type AnalysisResult = {
     distanceKm: number;
     elevationGainM: number;
     durationHours: number;
+    points: [number, number][] | null;
   };
   carbsBurnedG: number;
   fluidLossMl: number;
@@ -75,6 +92,27 @@ function formatHoursMinutes(hours: number): string {
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+}
+
+function capitalize(word: string): string {
+  return word.length > 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word;
+}
+
+// "Martes 28 de Julio · Inicio a las 17:30h" — built from separate
+// `Intl`/`toLocaleDateString` calls rather than one combined format string,
+// since `es-ES`'s own long-date output ("martes, 28 de julio") lowercases
+// every word and this app's convention capitalizes the weekday/month for a
+// cleaner, more legible stamp (but not "de", which stays lowercase).
+function formatActivityDateTime(iso: string): string {
+  const date = new Date(iso);
+  const weekday = capitalize(date.toLocaleDateString("es-ES", { weekday: "long" }));
+  const month = capitalize(date.toLocaleDateString("es-ES", { month: "long" }));
+  const time = date.toLocaleTimeString("es-ES", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return `${weekday} ${date.getDate()} de ${month} · Inicio a las ${time}h`;
 }
 
 const sourceLabels: Record<AnalysisResult["source"], string> = {
@@ -117,14 +155,22 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
     }
   }, [result]);
 
-  async function handleAnalyze(rpeLevel?: IntensityLevel, rpeLabel?: string) {
+  // `activityIdOverride` exists for the telemetry card's own "Cambiar
+  // salida" switcher (see below): switching activities there both updates
+  // `selectedId` and immediately re-runs the analysis, but `setSelectedId`
+  // doesn't take effect until the next render — passing the id straight
+  // through avoids a stale-closure request against the *previous* selection.
+  async function handleAnalyze(rpeLevel?: IntensityLevel, rpeLabel?: string, activityIdOverride?: string) {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/post-ride/analysis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activityId: selectedId, ...(rpeLevel ? { rpeLevel } : {}) }),
+        body: JSON.stringify({
+          activityId: activityIdOverride ?? selectedId,
+          ...(rpeLevel ? { rpeLevel } : {}),
+        }),
       });
       const data = await res.json();
 
@@ -157,6 +203,17 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
     } finally {
       setLoading(false);
     }
+  }
+
+  // The telemetry card's "Cambiar salida" quick switcher — picking a
+  // different recent ride both updates the top "Actividad" selector (kept in
+  // sync via the same `selectedId` state) and re-runs the analysis in place,
+  // without the athlete needing to scroll back up and click "Analizar" again.
+  function handleSwitchActivity(activityId: string) {
+    setSelectedId(activityId);
+    setNeedsRpe(false);
+    setError(null);
+    handleAnalyze(undefined, undefined, activityId);
   }
 
   async function handleSaveConsumption() {
@@ -305,79 +362,119 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                   <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
                   Ruta sincronizada desde Strava
                 </span>
-                <span className="font-mono text-[10px] text-neutral-500">
-                  {new Date(result.activity.activityDate).toLocaleDateString("es-ES", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                </span>
-              </div>
-              <span className="text-sm font-medium text-neutral-900">{result.activity.name}</span>
 
-              <div className="grid grid-cols-2 gap-3 border-t border-neutral-200 pt-3 sm:grid-cols-4">
-                <div className="flex flex-col gap-1">
-                  <span className={statLabel}>Distancia</span>
-                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
-                    {result.activity.distanceKm} km
+                {/* "Cambiar salida" — a quick way to re-audit a different one
+                    of the athlete's last few synced rides without scrolling
+                    back up to the "Actividad" selector above. Native
+                    `<select>` (this codebase has no custom dropdown
+                    primitive), with a persistent "Cambiar salida" label so
+                    it reads as an action rather than just echoing back
+                    whichever ride is currently selected. */}
+                <label className="flex cursor-pointer items-center gap-1.5 font-mono text-[10px] font-bold tracking-wider text-neutral-500 uppercase">
+                  Cambiar salida
+                  <span className="relative flex items-center">
+                    <select
+                      aria-label="Cambiar salida"
+                      value={selectedId}
+                      disabled={loading}
+                      onChange={(e) => handleSwitchActivity(e.target.value)}
+                      className="cursor-pointer appearance-none rounded-md border border-neutral-300 bg-white py-1 pr-5 pl-2 text-neutral-700 normal-case hover:border-neutral-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {activities.slice(0, ACTIVITY_SWITCHER_LIMIT).map((activity) => (
+                        <option key={activity.id} value={activity.id}>
+                          {activity.name} ·{" "}
+                          {new Date(activity.activity_date).toLocaleDateString("es-ES", {
+                            day: "numeric",
+                            month: "short",
+                          })}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-1.5 size-3 text-neutral-400" />
                   </span>
-                  <span className="font-mono text-[10px] text-neutral-500">
-                    {result.activity.elevationGainM}m D+
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className={statLabel}>Tiempo en movimiento</span>
-                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
-                    {formatHoursMinutes(result.activity.durationHours)}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className={statLabel}>Potencia</span>
-                  {result.telemetry.powerSource === "none" ? (
-                    <>
-                      <span className="font-mono text-sm font-semibold text-neutral-400 tabular-nums">
-                        N/A
-                      </span>
-                      <span className="font-mono text-[10px] text-neutral-500">
-                        {lastRpeLabel ? `RPE: ${lastRpeLabel}` : "Sin sensor"}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
-                        {result.telemetry.powerWatts} W
-                      </span>
-                      <span className="font-mono text-[10px] text-neutral-500">
-                        {result.telemetry.powerSource === "estimated"
-                          ? "Potencia est."
-                          : result.telemetry.normalizedPowerWatts != null
-                            ? `NP ${result.telemetry.normalizedPowerWatts}W`
-                            : "Real"}
-                      </span>
-                    </>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className={statLabel}>Gasto energético</span>
-                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
-                    {result.telemetry.energyKcal} kcal
-                  </span>
-                  <span className="font-mono text-[10px] text-neutral-500">
-                    {result.telemetry.energySource === "estimated" ? "Estimado" : "Strava"}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className={statLabel}>Frecuencia cardíaca</span>
-                  <span
-                    className={cn(
-                      "font-mono text-sm font-semibold tabular-nums",
-                      result.telemetry.heartrateAvg != null ? "text-neutral-900" : "text-neutral-400"
+                </label>
+              </div>
+
+              <div>
+                <span className="text-sm font-medium text-neutral-900">{result.activity.name}</span>
+                <p className="font-mono text-xs text-neutral-500">
+                  {formatActivityDateTime(result.activity.activityDate)}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 border-t border-neutral-200 pt-3 lg:grid-cols-[16rem_1fr]">
+                <RouteMapPreview
+                  points={result.activity.points}
+                  distanceKm={result.activity.distanceKm}
+                  elevationGainM={result.activity.elevationGainM}
+                  className="mt-0 h-36 lg:h-full"
+                  emptyMessage="Sin datos de trazado GPS para esta actividad."
+                />
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="flex flex-col gap-1">
+                    <span className={statLabel}>Distancia</span>
+                    <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                      {result.activity.distanceKm} km
+                    </span>
+                    <span className="font-mono text-[10px] text-neutral-500">
+                      {result.activity.elevationGainM}m D+
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className={statLabel}>Tiempo en movimiento</span>
+                    <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                      {formatHoursMinutes(result.activity.durationHours)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className={statLabel}>Potencia</span>
+                    {result.telemetry.powerSource === "none" ? (
+                      <>
+                        <span className="font-mono text-sm font-semibold text-neutral-400 tabular-nums">
+                          N/A
+                        </span>
+                        <span className="font-mono text-[10px] text-neutral-500">
+                          {lastRpeLabel ? `RPE: ${lastRpeLabel}` : "Sin sensor"}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                          {result.telemetry.powerWatts} W
+                        </span>
+                        <span className="font-mono text-[10px] text-neutral-500">
+                          {result.telemetry.powerSource === "estimated"
+                            ? "Potencia est."
+                            : result.telemetry.normalizedPowerWatts != null
+                              ? `NP ${result.telemetry.normalizedPowerWatts}W`
+                              : "Real"}
+                        </span>
+                      </>
                     )}
-                  >
-                    {result.telemetry.heartrateAvg != null
-                      ? `${result.telemetry.heartrateAvg} ppm (media)`
-                      : "-- ppm"}
-                  </span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className={statLabel}>Gasto energético</span>
+                    <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                      {result.telemetry.energyKcal} kcal
+                    </span>
+                    <span className="font-mono text-[10px] text-neutral-500">
+                      {result.telemetry.energySource === "estimated" ? "Estimado" : "Strava"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className={statLabel}>Frecuencia cardíaca</span>
+                    <span
+                      className={cn(
+                        "font-mono text-sm font-semibold tabular-nums",
+                        result.telemetry.heartrateAvg != null ? "text-neutral-900" : "text-neutral-400"
+                      )}
+                    >
+                      {result.telemetry.heartrateAvg != null
+                        ? `${result.telemetry.heartrateAvg} ppm (media)`
+                        : "-- ppm"}
+                    </span>
+                  </div>
                 </div>
               </div>
 

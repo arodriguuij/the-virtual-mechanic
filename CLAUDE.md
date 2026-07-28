@@ -1414,6 +1414,57 @@ didn't have) by the summary at the top; showing both would have been pure duplic
 object (Strava's `total_elevation_gain`, already read server-side for the energy-estimate
 formula below, just not previously returned to the client).
 
+**Route map, exact date/time stamp, and a "Cambiar salida" quick switcher** were added on
+top of that same card — a title alone isn't enough to confirm *which* ride is being
+audited when several rides share a generic/duplicate name (e.g. a club's usual weekday
+loop), so the card now shows the ride's actual GPS shape and its exact start time, plus a
+fast way to jump to a different recent ride without scrolling back up:
+
+- **Map** — `fetchActivityDetail()` (`lib/strava.ts`) now also returns `summaryPolyline`
+  (Strava's `map.summary_polyline` on the `/activities/{id}` detail response, the same
+  field `StravaActivity.map` already carries on the list/sync side); the route decodes it
+  via the existing `decodePolyline()` (`lib/polyline.ts`) and returns the resulting
+  `points: [number, number][] | null` on `activity`. `components/post-ride-analysis.tsx`
+  reuses `components/route-map-preview.tsx`'s `RouteMapPreview` unchanged (dynamically
+  imported with `ssr: false`, same as the Fueling Planner's own usage) rather than a
+  second map component. `RouteMapPreview` gained two new optional props to support this
+  second call site: `className` (merged via `cn()`/Tailwind-merge, so this card can drop
+  the planner's default `mt-3 h-48` and use its own `mt-0 h-36 lg:h-full` instead — `h-36`
+  fixed on mobile per spec, stretching to match the stats column's own height once the
+  layout goes 2-column at `lg:`) and `emptyMessage` (this card's own "Sin datos de
+  trazado GPS para esta actividad." copy for an indoor/GPS-less ride, replacing the
+  planner-specific default string that made no sense outside that context).
+- **Layout** — the card's map + 5-stat grid sit in a `grid grid-cols-1 lg:grid-cols-[16rem_1fr]`
+  wrapper: stacked (map above stats) below `lg:`, side-by-side above it. The inner stats
+  grid stays `grid-cols-2 sm:grid-cols-4` at every width rather than also shrinking at
+  `lg:` — verified live that a narrower `lg:grid-cols-2` variant left the stats spread
+  across a lot of dead horizontal space once the map's fixed `16rem` column left the
+  remaining space wider than expected; the full 4-column stat row fits comfortably next
+  to the map at any width this app targets.
+- **Date/time stamp** — `formatActivityDateTime()` builds "Martes 28 de Julio · Inicio a
+  las 17:30h" from three separate `Intl`/`toLocaleDateString` calls (weekday, day, month,
+  time) rather than one combined format string, since `es-ES`'s own long-date output
+  ("martes, 28 de julio") lowercases every word and this app's convention capitalizes the
+  weekday/month (not "de") for a cleaner, more legible stamp.
+- **"Cambiar salida" switcher** — a native `<select>` (no custom dropdown primitive exists
+  in this codebase) inside a persistent `<label>` reading "Cambiar salida," listing the
+  athlete's `ACTIVITY_SWITCHER_LIMIT` (5) most recent activities, positioned opposite the
+  "Ruta sincronizada..." badge in the card's header row. Picking one calls
+  `handleSwitchActivity()`, which updates `selectedId` (keeping the top "Actividad"
+  selector in sync) and immediately re-runs `handleAnalyze()` against the newly picked id
+  — `handleAnalyze()` gained an optional third `activityIdOverride` parameter specifically
+  for this, since `setSelectedId` doesn't take effect until the next render and the
+  analysis call needs the *new* id immediately, not whatever `selectedId` still held in
+  the current closure. This is a convenience layered on top of the existing "Actividad"
+  selector above the fold, not a replacement for it — the top selector is still what
+  triggers the *first* analysis of a session.
+
+Verified end-to-end (map decode → render → switcher → re-analyze) via a temporary,
+unauthenticated route rendering `PostRideAnalysis` directly with a mocked
+`/api/post-ride/analysis` response (Playwright route interception, not real Strava data
+— there's no live Strava session available in this environment) — removed again before
+committing, same verification pattern used for the Strava route-caching work earlier.
+
 The same response also carries a `telemetry` object — the *raw* sensor readings
 themselves (energy, power, heart rate), a separate concern from which tier above actually
 produced `carbsBurnedG`. `fetchActivityDetail()` (`lib/strava.ts`) is now always called

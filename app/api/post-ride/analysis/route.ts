@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import { fetchActivityDetail } from "@/lib/strava";
+import { decodePolyline } from "@/lib/polyline";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { fetchActivityPowerZones } from "@/lib/strava-zones";
 import { hasPostRideLog, logFuelingPlan } from "@/lib/fueling-logs";
@@ -199,6 +200,16 @@ export async function POST(request: NextRequest) {
   const normalizedPowerWatts = hasDevicePower ? (activityDetail?.weightedAverageWatts ?? null) : null;
   const heartrateAvg = activityDetail?.averageHeartrate ?? null;
 
+  // Decoded route geometry for the telemetry card's map preview — many
+  // Strava routes share generic/duplicate names, so seeing the actual track
+  // shape is what actually lets an athlete confirm *which* ride they're
+  // auditing. `null` for an indoor ride, a GPS-less outdoor one, or if the
+  // token/API call failed — `RouteMapPreview` already renders a neutral
+  // placeholder for that case.
+  const points = activityDetail?.summaryPolyline
+    ? decodePolyline(activityDetail.summaryPolyline)
+    : null;
+
   // Initial figures assume zero in-ride intake — the client recomputes this
   // live once the athlete fills in what they actually consumed during the
   // ride (see `components/post-ride-analysis.tsx`), using the same pure
@@ -237,6 +248,7 @@ export async function POST(request: NextRequest) {
       distanceKm: Math.round((activity.distance / 1000) * 10) / 10,
       elevationGainM: Math.round(elevationGainM),
       durationHours: Math.round(hours * 100) / 100,
+      points,
     },
     carbsBurnedG,
     fluidLossMl,
