@@ -166,20 +166,26 @@ reach for — simply cannot work. Instead:
   card.
 ### Login & loading screens (`app/login/page.tsx`, `app/auth/callback/page.tsx`)
 
-**`app/loading.tsx`** is Next's route-level `loading.tsx` boundary — shown automatically
-while any route segment's Server Component data is still resolving, app-wide, not just
-during auth. Deliberately just the brand mark on the same `#FDFCF9` cream as the auth-flow
-screens below, no "Cargando..."/status text at all: a purist loading state that reads as
-part of the app's own chrome rather than a generic spinner screen. The mark uses a small
-custom `animate-logo-breathe` keyframe (`app/globals.css`) rather than Tailwind's own
+**`app/loading.tsx`** is Next's route-level `loading.tsx` boundary at the true app root —
+the fallback for `/login`, `/auth/callback`, and `/privacidad`, none of which have a
+persistent shell of their own (each renders its own full-bleed `AuthPageShell` or, for
+`/privacidad`, a plain top bar), so a full-screen fallback is correct here: `min-h-screen
+w-full flex items-center justify-center bg-[#FDFCF9]`, just the brand mark, no
+"Cargando..."/status text — a purist loading state that reads as part of the app's own
+chrome rather than a generic spinner screen. The mark uses a small custom
+`animate-logo-breathe` keyframe (`app/globals.css`) rather than Tailwind's own
 `animate-pulse` — a bare opacity fade alone read flatter than pairing it with an
 almost-imperceptible `scale(0.98) → scale(1)` shift, which `animate-pulse` alone can't do.
+A second, differently-styled copy of this same fallback lives at
+**`app/(app)/loading.tsx`** — see "Sidebar navigation vs. Dashboard tabs" below for why the
+authenticated Dashboard shell needed its own route group and its own nested `loading.tsx`
+rather than reusing this root one as-is.
 
 **`app/login/page.tsx`** is the only entry point when `proxy.ts` finds no session: a
 centered screen (value prop + a single "Conectar con Strava" CTA linking to
 `/api/strava/connect`) with its own `stravaLoginErrorMessages` map for login-time
 failures (`missing_code`, `token_exchange_failed`, `missing_athlete_id`,
-`auth_bridge_failed`, `save_failed`) — distinct from `app/page.tsx`'s own
+`auth_bridge_failed`, `save_failed`) — distinct from `app/(app)/page.tsx`'s own
 `stravaErrorMessages`, which now only covers errors from the already-logged-in
 "Sincronizar rutas" action (`not_connected`, `no_rides`), since a logged-out visitor
 can never reach that page to see them.
@@ -400,7 +406,7 @@ as its `strava_athlete_id` matches).
   its own React state completely untouched, since `router.refresh()` never remounts them.
   A self-dismissing toast reports success or a per-error-code message, replacing the old
   `?strava_error=` query-param banner on this page entirely (that mechanism, and
-  `app/page.tsx`'s own `stravaErrorMessages` map, existed *only* to surface this route's
+  `app/(app)/page.tsx`'s own `stravaErrorMessages` map, existed *only* to surface this route's
   redirect errors — now dead code once the route stopped redirecting, so both were removed
   rather than left stubbed out). The toast is a solid `bg-white` pill (`rounded-xl`,
   `shadow-xl`, `border-neutral-200/90`, `z-10000`) fixed to the bottom-center of the
@@ -482,6 +488,38 @@ immediate re-check rather than waiting for the 24h window.
 The empty-state copy itself ("Sin rutas en Strava — usa la calculadora rápida o sube un
 GPX.") replaced an earlier version that only mentioned the quick calculator, not the GPX
 uploader — by the time GPX mode existed, that message was stale.
+
+### Strava API compliance: privacy policy, scopes, and data-use disclosure
+
+Three things Strava's API Agreement expects from any app using their API, all satisfied
+together:
+
+- **Branding** — `components/strava-login-button.tsx`'s CTA already carries both the
+  official Strava icomark (`components/strava-mark.tsx`, corporate `#FC4C02` orange) and
+  explicit "Conectar con Strava" text, satisfying the requirement to visibly identify
+  Strava as the connected service rather than a generic "Conectar cuenta" button.
+- **A published, publicly-reachable privacy policy** — `app/privacidad/page.tsx`, added to
+  `PUBLIC_PATH_PREFIXES` in `proxy.ts` so it's reachable with *no session at all* (the
+  requirement is specifically that a visitor can read it *before* connecting their
+  account, not only after logging in). Deliberately not built on `components/
+  auth-page-shell.tsx` despite living alongside `/login` conceptually — that shell locks
+  the whole viewport to `h-dvh overflow-hidden` for its own single-screen hero layout,
+  which would be wrong for a long-form policy document that needs to scroll normally
+  (verified live: `/privacidad`'s `scrollHeight` is ~1891px against an 844px viewport,
+  genuinely scrollable, unlike every `AuthPageShell` screen). Plain top bar (brand mark +
+  a "Volver" link back to `/login`) plus a normal scrolling `<article>`-style `<main>`.
+  Linked from `/login`'s own footer note ("Acceso seguro mediante OAuth. Solo lectura de
+  rutas — nunca vendemos ni compartimos tus datos. **Política de Privacidad**") — verified
+  the added text doesn't reintroduce mobile scroll on the login screen itself.
+- **Data-use disclosure, matching the real scopes** — the policy states the exact three
+  OAuth scopes this app actually requests (`read`, `activity:read_all`,
+  `profile:read_all` — see `STRAVA_SCOPES` in `lib/strava.ts`), what each is used for, and
+  states plainly that no write scope is ever requested and no data is sold or shared with
+  third parties — both true statements about this codebase (there's no write call to
+  Strava's API anywhere, and no analytics/ads SDK or data-export mechanism exists) rather
+  than aspirational copy. The contact email (`arodriguuij@gmail.com`) is the developer's
+  real address, not a placeholder — asked explicitly rather than inventing a
+  `@motormetabolico.app` address that domain doesn't actually have configured.
 
 ### Metabolic engine
 
@@ -1105,7 +1143,7 @@ Strava"/"Calculadora rápida" as "Subir GPX":
   (preferred — the athlete's *current* pace, last 4 weeks) or `all_ride_totals`
   (fallback) into a plain km/h figure (`distance / moving_time × 3.6`). `null` (never a
   fabricated number) when Strava isn't connected or the athlete has no ride history yet —
-  `FuelingPlannerSection` (`app/page.tsx`) fetches this alongside `getStravaRoutes()` and
+  `FuelingPlannerSection` (`app/(app)/page.tsx`) fetches this alongside `getStravaRoutes()` and
   passes it into `<FuelingPlanner avgSpeedKmh={...} />`.
 - A GPX upload's estimated duration is `distanceKm / avgSpeedKmh` (a fixed
   `FALLBACK_AVG_SPEED_KMH` of 25km/h when `avgSpeedKmh` is `null`, with an explicit "sin
@@ -1500,7 +1538,7 @@ visible weekly panel, both fought the Dashboard's actual job (the daily pre/post
 actions) for space and attention; a once-a-week glance-back belongs on its own screen,
 not baked into the screen an athlete opens before every ride.
 
-`app/estadisticas/page.tsx` is three Server Component cards, numbered the same way
+`app/(app)/estadisticas/page.tsx` is three Server Component cards, numbered the same way
 `/perfil` is (`01 · Resumen 7 días`, `02 · Desglose de ingesta`, `03 · Recomendación
 biológica`):
 
@@ -1557,7 +1595,7 @@ strict about never fabricating a plausible-looking number for data that doesn't 
   `min(100%, sodium_consumed_mg / sodium_mg)` (both against the *raw* stored loss, not the
   post-exercise-replacement-factor-adjusted target, for a direct "how much of what you
   lost did you replace" reading) across the same logs, scaled to a `/10` score with a
-  qualitative label (`hydrationLabel()` in `app/estadisticas/page.tsx`: ≥9 Óptimo, ≥7
+  qualitative label (`hydrationLabel()` in `app/(app)/estadisticas/page.tsx`: ≥9 Óptimo, ≥7
   Bueno, ≥5 Mejorable, else Bajo).
 
 When `ridesThisWeekCount` is `0`, the whole panel collapses to a single onboarding line
@@ -1585,7 +1623,7 @@ pair (`ftp === 200 && sweat_rate === "medium"` — the literal values
 `app/api/auth/strava/callback/route.ts`'s `DEFAULT_FTP`/`DEFAULT_SWEAT_RATE` insert for a
 brand-new athlete with no physiological data yet). Checking *both* together, not either
 field alone, is deliberate: a real athlete whose genuine sweat rate happens to be "medium"
-would otherwise get flagged forever. `app/page.tsx`'s `ProfileCheckBannerSection` calls
+would otherwise get flagged forever. `app/(app)/page.tsx`'s `ProfileCheckBannerSection` calls
 `getAthleteProfile()` (already `cache()`-deduped, so this costs no extra query) and passes
 the result straight to `ProfileCheckBanner`, which shows a single fixed message whenever
 that array is non-empty ("Tu estrategia actual usa valores estimados. Configura tu FTP y
@@ -1621,7 +1659,7 @@ so the same component stays correct if it's ever reused from another page) so a 
 refresh doesn't keep re-showing a stale confirmation. On invalid input or an RLS block,
 redirects to `/perfil?profile_error=<code>` instead, same non-silent-failure convention as
 everywhere else. `PhysiologicalProfileCard` itself is already a Server Component that
-`await getAthleteProfile()`s on every request (`app/perfil/page.tsx` exports `dynamic =
+`await getAthleteProfile()`s on every request (`app/(app)/perfil/page.tsx` exports `dynamic =
 "force-dynamic"`, and this Next.js version's `fetch` calls are uncached by default — see
 "Route dynamic rendering" below) and pre-fills every form field via `defaultValue`/
 `defaultChecked`, so a save is immediately reflected on the next load; there is no
@@ -1646,7 +1684,28 @@ version has no client state to read from for that. This also absorbed the old st
 page below the form — every level's own g/h range is already shown on its own selector
 card now, so a second static list repeating the same 4 ranges was pure duplication.
 
-### Sidebar navigation vs. Dashboard tabs (app/page.tsx, app/perfil/page.tsx, app/estadisticas/page.tsx, app/historial/page.tsx)
+### Sidebar navigation vs. Dashboard tabs (app/(app)/page.tsx, app/(app)/perfil/page.tsx, app/(app)/estadisticas/page.tsx, app/(app)/historial/page.tsx)
+
+**The `(app)` route group and its persistent shell layout.** These four routes used to each
+render `<DashboardShell>` themselves, individually, at the top of their own page component.
+That worked fine for a normal render, but it meant Next's nearest `loading.tsx` — which
+wraps a route segment's `{children}` in a Suspense boundary — replaced the *entire* page,
+`DashboardShell` included, every time that page's own data fetch was still in flight: the
+header and sidebar would flicker out and back in on every navigation between Dashboard
+routes, a jarring "app shell" break. Fixed by moving all four pages under a `(app)` route
+group (a folder name in parens — purely organizational, contributes nothing to the URL, so
+`/`, `/perfil`, `/estadisticas`, `/historial` are unchanged) with **`app/(app)/layout.tsx`**
+now the one place that renders `<DashboardShell>` — it wraps `{children}` once, at the
+layout level, so it mounts immediately and independently of whatever page is loading below
+it. **`app/(app)/loading.tsx`** is the fallback for exactly that `{children}` slot (i.e.
+`DashboardShell`'s own `<main>`) — contained to the content area (`flex min-h-[60vh] w-full
+flex-1 items-center justify-center py-12`, no background of its own, so it blends into
+`DashboardShell`'s `bg-background` instead of painting a visible box), never the whole
+viewport (`min-h-screen`/`fixed inset-0`, what the *root* `app/loading.tsx` still correctly
+uses for the shell-less `/login`/`/auth/callback`/`/privacidad` segment — see "Login &
+loading screens" above). Each of the four page components had their own `<DashboardShell
+identitySlot={...}>...</DashboardShell>` wrapper and its `ViewerIdentity`/`Suspense`
+plumbing stripped out to just their own inner content, now that the layout supplies both.
 
 The Dashboard's tabs are daily-action surfaces (something a rider does before/after every
 ride); the Physiological Profile, Estadísticas, and Historial are all setup-once/glance-
@@ -1692,7 +1751,7 @@ never escape upward past their own container while scrolling).
 The sidebar's bottom identity card (`components/viewer-identity.tsx`) is a separate,
 Suspense-streamed Server Component (`ViewerIdentity`/`ViewerIdentitySkeleton`) rather than
 markup baked into `DashboardShell` — `DashboardShell` is `"use client"`, so it takes an
-`identitySlot: ReactNode` prop instead, and both `app/page.tsx` and `app/perfil/page.tsx`
+`identitySlot: ReactNode` prop instead, and both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx`
 pass the same `<Suspense fallback={<ViewerIdentitySkeleton />}><ViewerIdentity /></Suspense>`
 so the (possibly network-bound, if it hits Strava) identity fetch never blocks the rest of
 the shell from rendering. **`ViewerIdentity`/`ViewerIdentitySkeleton` carry no border of
@@ -1714,7 +1773,7 @@ own email local-part — never a hardcoded placeholder name — with a subtitle 
 the real connection status ("Conectado con Strava" / "Cuenta de desarrollo" / "Sin
 sesión") instead of a made-up bio line.
 
-- **`app/page.tsx`** — the Weekly Performance Panel (see above) sits above two
+- **`app/(app)/page.tsx`** — the Weekly Performance Panel (see above) sits above two
   `components/ui/tabs.tsx` (`@base-ui/react/tabs`) panels, labeled "Antes de salir"/"Al
   llegar" (the `value`s stay the internal `"pre-ride"`/`"post-ride"` identifiers — only
   the visible label text changed, as part of the app's full Spanish-only pass, see
@@ -1730,8 +1789,8 @@ sesión") instead of a made-up bio line.
     Ride history used to also live here (`RideHistorySection`) — moved to its own
     `/historial` route (see below), so this tab now holds only the just-finished ride's
     analysis.
-- **`app/historial/page.tsx`** — its own `DashboardShell`-wrapped page (own header,
-  reached from the sidebar's `Historial` nav item, `History` `lucide-react` icon).
+- **`app/(app)/historial/page.tsx`** — its own page under the `(app)` shell layout (own
+  header, reached from the sidebar's `Historial` nav item, `History` `lucide-react` icon).
   Redesigned from a plain Strava ride lookbook (name/distance/weather, no nutrition
   angle) into a "Diario de Rendimiento Nutricional" — two numbered cards, same
   `01 · .../02 · ...` convention as `/perfil` and `/estadisticas`:
@@ -1768,8 +1827,8 @@ sesión") instead of a made-up bio line.
     aquí." — a forward-looking onboarding line rather than the earlier flat "Sin
     actividades registradas todavía," so a brand-new athlete's first-ever visit to this
     route reads as "this is ready and waiting for you" rather than "there's nothing here."
-- **`app/perfil/page.tsx`** — its own `DashboardShell`-wrapped page (own header, own
-  `profile_saved`/`profile_error` query-param handling — see "Athlete profile" above)
+- **`app/(app)/perfil/page.tsx`** — its own page under the `(app)` shell layout (own header,
+  own `profile_saved`/`profile_error` query-param handling — see "Athlete profile" above)
   rather than a tab panel. `PhysiologicalProfileCard` reads `getAthleteProfile()` and
   renders an inline edit form (weight/FTP/sweat rate/gut training level/bottle
   count/bottle capacity/salty-sweater checkbox, pre-filled with current values) POSTing to
@@ -1794,7 +1853,7 @@ verified live via Playwright at a 390px viewport, both regressions are gone (all
 routes render their `<h1>` on a single line at 20px/`text-xl`, matching the Dashboard's
 own header, which already used the responsive pair). `/estadisticas`'s title was also
 shortened to "Análisis & cumplimiento" so it reads cleanly at the smaller mobile size
-without relying on wrapping. `app/page.tsx`'s Dashboard header keeps its own slightly
+without relying on wrapping. `app/(app)/page.tsx`'s Dashboard header keeps its own slightly
 different structure (a greeting eyebrow line above the `<h1>`, no subtitle line below it)
 since that's a deliberate, already-compact pattern, not the `<h1>` + subtitle shape the
 other two routes use.
@@ -1804,7 +1863,7 @@ other two routes use.
 The Dashboard's eyebrow line above the `<h1>` used to be a hardcoded "Buenas tardes,
 Alejandro" — always the wrong time-of-day prefix outside actual afternoon hours, and
 always this one developer's name regardless of who's actually signed in.
-`GreetingSection` (`app/page.tsx`) replaces it with `getGreetingPrefix(new
+`GreetingSection` (`app/(app)/page.tsx`) replaces it with `getGreetingPrefix(new
 Date().getHours())` (`05:00-11:59` "Buenos días", `12:00-19:59` "Buenas tardes",
 `20:00-04:59` "Buenas noches") plus the real signed-in athlete's first name, taken from
 `getViewerIdentity()` (`lib/dashboard-data.ts` — the same Strava-backed identity source
@@ -1830,7 +1889,7 @@ large, risk-only mechanical refactor across API routes/DB-adjacent code. Changes
 
 - Dashboard tabs: "Pre-Ride"/"Post-Ride" → "Antes de salir"/"Al llegar".
 - "Planificador de fueling" → "Planificador de nutrición" (both the Fueling Planner's own
-  `CardTitle` and the no-profile-yet fallback card in `app/page.tsx`).
+  `CardTitle` and the no-profile-yet fallback card in `app/(app)/page.tsx`).
 - "Receta DIY"/"Dosis DIY"/"(DIY)" → "receta casera"/"Dosis casera" (`fueling-planner.tsx`
   UI text, the DIY-recipe accordion header, and the clipboard-exported recipe's own
   `"🚴 RECETA DIY..."` header line in `lib/metabolic-engine.ts`'s
@@ -1856,7 +1915,7 @@ large, risk-only mechanical refactor across API routes/DB-adjacent code. Changes
 
 Two small layout fixes bundled with the translation pass above:
 
-- **Header-to-tabs whitespace** — `app/page.tsx`'s outer page wrapper was `gap-10` with an
+- **Header-to-tabs whitespace** — `app/(app)/page.tsx`'s outer page wrapper was `gap-10` with an
   additional `mb-6` on the header itself, stacking to a large gap before the "Antes de
   salir"/"Al llegar" tabs even though the header already ends in its own `border-b pb-4`.
   Reduced to a single `gap-4` on the wrapper with the header's redundant `mb-6` removed.
@@ -1877,7 +1936,7 @@ Two small layout fixes bundled with the translation pass above:
 
 ### Route dynamic rendering
 
-Both `app/page.tsx` and `app/perfil/page.tsx` export `dynamic = "force-dynamic"` because
+Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because
 each reads live Supabase data — without it Next prerenders the route at build time and
 the figures would be frozen from whenever `next build` last ran.
 
@@ -1886,7 +1945,7 @@ the figures would be frozen from whenever `next build` last ran.
 The multi-column grids across the Dashboard and Perfil pages (profile form, planner
 inputs, result-panel stat rows, the Net Carb Deficit breakdown) stack to a single column
 at the default breakpoint and only go multi-column at `sm:` — mobile is the default
-layout, not an afterthought squeezed into a desktop grid. The `app/page.tsx` header
+layout, not an afterthought squeezed into a desktop grid. The `app/(app)/page.tsx` header
 (greeting/title + Strava button) keeps both on one row (`justify-between`) with the
 greeting/title in their own `min-w-0` truncating column — an earlier `flex-col`-wrapping
 version let a long label clip the greeting text on a narrow phone; truncating each side
@@ -1948,7 +2007,7 @@ exclusive on the same edge of the screen.
 
 **Mobile dashboard priority reorder.** A brand-new athlete's first useful action is
 calculating a fueling strategy, not reading a week of stats they don't have yet — so on
-small screens `app/page.tsx` renders the Tabs block (Pre-Ride's Fueling Planner is its
+small screens `app/(app)/page.tsx` renders the Tabs block (Pre-Ride's Fueling Planner is its
 default tab) *before* the Weekly Performance Panel, reverting to the original
 stats-then-tabs order at `sm:` and up. Both blocks are wrapped in their own `div` (`order-2
 sm:order-0` on the Weekly panel's wrapper, `order-1 sm:order-0` on the Tabs wrapper) inside

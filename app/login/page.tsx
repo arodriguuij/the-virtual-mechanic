@@ -1,4 +1,5 @@
 import { TriangleAlert } from "lucide-react";
+import Link from "next/link";
 
 import { AuthPageShell } from "@/components/auth-page-shell";
 import { StravaLoginButton } from "@/components/strava-login-button";
@@ -57,7 +58,11 @@ export default async function LoginPage({
       <StravaLoginButton />
 
       <p className="mt-2 text-center font-mono text-[10px] text-neutral-500 sm:mt-3 sm:text-[11px]">
-        Acceso seguro mediante OAuth. Solo lectura de rutas.
+        Acceso seguro mediante OAuth. Solo lectura de rutas — nunca vendemos ni compartimos
+        tus datos.{" "}
+        <Link href="/privacidad" className="underline underline-offset-2 hover:text-neutral-700">
+          Política de Privacidad
+        </Link>
       </p>
     </AuthPageShell>
   );

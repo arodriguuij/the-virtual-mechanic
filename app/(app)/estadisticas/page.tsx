@@ -2,8 +2,6 @@ import { Suspense } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DashboardShell } from "@/components/dashboard-shell";
-import { ViewerIdentity, ViewerIdentitySkeleton } from "@/components/viewer-identity";
 import { getRecentIntakeBreakdown, getWeeklyPerformance } from "@/lib/dashboard-data";
 import {
   getIntakeRecommendationNote,
@@ -247,35 +245,27 @@ function RecommendationCardSkeleton() {
 
 export default function EstadisticasPage() {
   return (
-    <DashboardShell
-      identitySlot={
-        <Suspense fallback={<ViewerIdentitySkeleton />}>
-          <ViewerIdentity />
-        </Suspense>
-      }
-    >
-      <div className="flex flex-col gap-6">
-        <header className="border-b border-neutral-200 pb-6">
-          <h1 className="text-xl font-bold font-mono text-neutral-900 uppercase tracking-tight sm:text-2xl">
-            Análisis &amp; cumplimiento
-          </h1>
-          <p className="text-xs font-mono text-neutral-500 mt-1 leading-relaxed">
-            Rendimiento semanal, cumplimiento real y recomendaciones a partir de tus datos
-          </p>
-        </header>
+    <div className="flex flex-col gap-6">
+      <header className="border-b border-neutral-200 pb-6">
+        <h1 className="text-xl font-bold font-mono text-neutral-900 uppercase tracking-tight sm:text-2xl">
+          Análisis &amp; cumplimiento
+        </h1>
+        <p className="text-xs font-mono text-neutral-500 mt-1 leading-relaxed">
+          Rendimiento semanal, cumplimiento real y recomendaciones a partir de tus datos
+        </p>
+      </header>
 
-        <div className="flex flex-col gap-6">
-          <Suspense fallback={<SummaryCardSkeleton />}>
-            <SummaryCard />
-          </Suspense>
-          <Suspense fallback={<IntakeBreakdownCardSkeleton />}>
-            <IntakeBreakdownCard />
-          </Suspense>
-          <Suspense fallback={<RecommendationCardSkeleton />}>
-            <RecommendationCard />
-          </Suspense>
-        </div>
+      <div className="flex flex-col gap-6">
+        <Suspense fallback={<SummaryCardSkeleton />}>
+          <SummaryCard />
+        </Suspense>
+        <Suspense fallback={<IntakeBreakdownCardSkeleton />}>
+          <IntakeBreakdownCard />
+        </Suspense>
+        <Suspense fallback={<RecommendationCardSkeleton />}>
+          <RecommendationCard />
+        </Suspense>
       </div>
-    </DashboardShell>
+    </div>
   );
 }

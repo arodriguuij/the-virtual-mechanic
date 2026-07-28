@@ -5,8 +5,6 @@ import { Suspense } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DashboardShell } from "@/components/dashboard-shell";
-import { ViewerIdentity, ViewerIdentitySkeleton } from "@/components/viewer-identity";
 import { FuelingPlanner } from "@/components/fueling-planner";
 import { PostRideAnalysis } from "@/components/post-ride-analysis";
 import { ProfileCheckBanner } from "@/components/profile-check-banner";
@@ -164,65 +162,57 @@ function StravaButtonSkeleton() {
 // via its own toast now, since the sync flow no longer navigates at all.
 export default async function Home() {
   return (
-    <DashboardShell
-      identitySlot={
-        <Suspense fallback={<ViewerIdentitySkeleton />}>
-          <ViewerIdentity />
-        </Suspense>
-      }
-    >
-      <div className="flex flex-col gap-6">
-        <header className="flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
-          <div className="mr-2 flex min-w-0 flex-col">
-            <Suspense fallback={<GreetingSkeleton />}>
-              <GreetingSection />
-            </Suspense>
-            <h1 className="truncate font-mono text-xl font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
-              Dashboard
-            </h1>
-          </div>
-          <Suspense fallback={<StravaButtonSkeleton />}>
-            <StravaButton />
+    <div className="flex flex-col gap-6">
+      <header className="flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
+        <div className="mr-2 flex min-w-0 flex-col">
+          <Suspense fallback={<GreetingSkeleton />}>
+            <GreetingSection />
           </Suspense>
-        </header>
-
-        <Suspense fallback={null}>
-          <ProfileCheckBannerSection />
+          <h1 className="truncate font-mono text-xl font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
+            Dashboard
+          </h1>
+        </div>
+        <Suspense fallback={<StravaButtonSkeleton />}>
+          <StravaButton />
         </Suspense>
+      </header>
 
-        <Tabs defaultValue="pre-ride">
-          <TabsList variant="line" className="w-full justify-start border-b border-neutral-200">
-            <TabsTrigger
-              value="pre-ride"
-              className="flex-none text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
-            >
-              Antes de salir
-            </TabsTrigger>
-            <TabsTrigger
-              value="post-ride"
-              className="flex-none text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
-            >
-              Al llegar
-            </TabsTrigger>
-          </TabsList>
+      <Suspense fallback={null}>
+        <ProfileCheckBannerSection />
+      </Suspense>
 
-          <TabsContent value="pre-ride">
-            <div className="flex flex-col gap-10 pt-6">
-              <Suspense fallback={<FuelingPlannerSkeleton />}>
-                <FuelingPlannerSection />
-              </Suspense>
-            </div>
-          </TabsContent>
+      <Tabs defaultValue="pre-ride">
+        <TabsList variant="line" className="w-full justify-start border-b border-neutral-200">
+          <TabsTrigger
+            value="pre-ride"
+            className="flex-none text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
+          >
+            Antes de salir
+          </TabsTrigger>
+          <TabsTrigger
+            value="post-ride"
+            className="flex-none text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
+          >
+            Al llegar
+          </TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="post-ride">
-            <div className="flex flex-col gap-10 pt-6">
-              <Suspense fallback={<PostRideAnalysisSkeleton />}>
-                <PostRideAnalysisSection />
-              </Suspense>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </DashboardShell>
+        <TabsContent value="pre-ride">
+          <div className="flex flex-col gap-10 pt-6">
+            <Suspense fallback={<FuelingPlannerSkeleton />}>
+              <FuelingPlannerSection />
+            </Suspense>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="post-ride">
+          <div className="flex flex-col gap-10 pt-6">
+            <Suspense fallback={<PostRideAnalysisSkeleton />}>
+              <PostRideAnalysisSection />
+            </Suspense>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }

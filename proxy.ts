@@ -6,10 +6,14 @@ import { NextResponse, type NextRequest } from "next/server";
 // is the dual-logo transition page Strava redirects back to (see
 // `getStravaRedirectUri` in `lib/strava.ts`) — there's no session yet at that
 // point either, since it's what forwards into `/api/auth/strava/callback`
-// to actually establish one. Everything else requires a real signed-in user.
+// to actually establish one. `/privacidad` also has to be public — Strava's
+// API Agreement requires a published privacy policy reachable *before* a
+// visitor connects their account, not only after logging in. Everything else
+// requires a real signed-in user.
 const PUBLIC_PATH_PREFIXES = [
   "/login",
   "/auth/callback",
+  "/privacidad",
   "/api/strava/connect",
   "/api/auth/strava/callback",
 ];

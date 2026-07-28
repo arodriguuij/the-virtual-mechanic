@@ -3,10 +3,8 @@ import { Suspense } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DashboardShell } from "@/components/dashboard-shell";
 import { GutTrainingSelector } from "@/components/gut-training-selector";
 import { ProfileSavedToast } from "@/components/profile-saved-toast";
-import { ViewerIdentity, ViewerIdentitySkeleton } from "@/components/viewer-identity";
 import { getAthleteProfile } from "@/lib/dashboard-data";
 import { athleteTypeDescriptions, athleteTypeLabels, sweatRateLabels } from "@/lib/metabolic-engine";
 import { fieldClass, primaryButtonClass, selectableFieldClass } from "@/lib/ui-classes";
@@ -247,13 +245,7 @@ export default async function PerfilPage({
   const profileSaved = params.profile_saved === "1";
 
   return (
-    <DashboardShell
-      identitySlot={
-        <Suspense fallback={<ViewerIdentitySkeleton />}>
-          <ViewerIdentity />
-        </Suspense>
-      }
-    >
+    <>
       {profileSaved && <ProfileSavedToast />}
       <div className="flex flex-col gap-6">
         <header className="border-b border-neutral-200 pb-6">
@@ -276,6 +268,6 @@ export default async function PerfilPage({
           <PhysiologicalProfileCard />
         </Suspense>
       </div>
-    </DashboardShell>
+    </>
   );
 }
