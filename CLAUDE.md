@@ -1705,10 +1705,14 @@ inputs, result-panel stat rows, the Net Carb Deficit breakdown) stack to a singl
 at the default breakpoint and only go multi-column at `sm:` — mobile is the default
 layout, not an afterthought squeezed into a desktop grid. The `app/page.tsx` header
 (greeting/title + Strava button) keeps both on one row (`justify-between`) with the
-greeting/title in their own `min-w-0` truncating column and the sync button collapsing to
-an icon + short "Sync" label below `sm:` — an earlier `flex-col`-wrapping version let a
-long "Sincronizar Strava" label clip the greeting text on a narrow phone; truncating each
-side independently instead of wrapping the whole row fixed that. The planner's
+greeting/title in their own `min-w-0` truncating column — an earlier `flex-col`-wrapping
+version let a long label clip the greeting text on a narrow phone; truncating each side
+independently instead of wrapping the whole row fixed that. The Sync button itself
+(`components/sync-button.tsx`) has since shrunk to one ultra-compact style at every
+breakpoint (`h-8 px-3 rounded-md border border-neutral-300/80 bg-white shadow-2xs`, a
+single "Sincronizar" label, no separate mobile/desktop text variants) — small enough now
+that the old responsive two-label split (a short mobile-only label vs. a longer desktop
+one) was no longer needed to avoid clipping. The planner's
 route/quick/GPX mode toggle is a compact
 `grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1` segmented control (an inner
 `rounded-md bg-neutral-900 shadow-sm` pill marks the active mode) rather than a row of
@@ -1722,6 +1726,38 @@ keypad; shared input classes across `page.tsx`/`fueling-planner.tsx`/
 target. `app/layout.tsx`'s `<body>` carries `overflow-x-hidden` as a defensive backstop
 against any stray horizontal overflow, on top of (not instead of) fixing the actual
 layouts above.
+
+**Bottom safe-area padding for iOS Safari's floating bottom bar.** `components/
+dashboard-shell.tsx`'s shared `<main>` — used by every interior route (Dashboard,
+`/perfil`, `/estadisticas`, `/historial`) — carries `pb-24 sm:pb-16` (split from the
+previous single `py-10 sm:py-14`, top padding unchanged) rather than a symmetric
+top/bottom value. iOS Safari's floating bottom chrome (the address bar/tab-switcher
+strip) sits *over* page content rather than reserving its own layout space, so a
+symmetric padding that looked fine on desktop was tight enough on an iPhone to have the
+real bottom bar overlap the last card/button (verified against real device screenshots).
+Mobile gets the larger value since that chrome only exists there; desktop keeps a smaller
+`pb-16` since there's no floating bar to clear.
+
+**Historial's redundant title, removed.** `RideHistorySection`'s `Card` used to open with
+its own `CardHeader` (`CardTitle` "Historial de rutas" + a `CardDescription` subtitle) —
+directly redundant with the page's own `<h1>Historial</h1>` immediately above it, the
+same title appearing twice in a row. Removed entirely (in both the populated and
+`RideHistorySkeleton` variants) so the card starts directly with the numbered activity
+list (`01 Activation Ride`, etc.); the empty-state variant keeps its "Sin actividades
+registradas todavía" message as a plain `CardContent` paragraph, no title needed above a
+single sentence.
+
+**Normalized header-to-first-card spacing (`gap-6` everywhere).** The outer page wrapper
+governing the gap between each route's `<header>` and its first content block had drifted
+to three different values across four routes that all use the exact same visual
+pattern: `/perfil` and `/estadisticas` were `gap-10` (40px), the Dashboard was `gap-4`
+(16px), and only `/historial` already matched the intended `gap-6` (24px). All four now
+use `gap-6` — chosen because it was already correct on the newest route rather than
+picking a new value none of them had. Note this outer gap is deliberately a *different*
+concern from the inner `gap-6` that already existed inside `/perfil` and `/estadisticas`
+(which spaces their own multiple sibling `Card`s apart from each other) — both happen to
+be the same 24px value, but they're two independent spacings that were never in conflict,
+only the outer one needed changing.
 
 **Sidebar drawer: click/tap only, no touch-gesture layer.** The drawer opens and closes
 exclusively via explicit taps — the hamburger button, the `X` close button, and the

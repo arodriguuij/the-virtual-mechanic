@@ -15,9 +15,10 @@ import { cn } from "@/lib/utils";
  * hitting the exact same `POST /api/strava/sync` route), which is what
  * makes this component's pending state real.
  *
- * Collapses to an icon + short "Sincronizar" label on mobile — the full
- * "Sincronizar Strava" text next to the Dashboard's own greeting/title
- * overflowed a narrow phone and clipped the greeting text.
+ * Ultra-compact at every breakpoint — a single icon + "Sincronizar" label,
+ * no separate mobile/desktop text variants, since the button is small enough
+ * now (`h-8`) that the shorter label reads fine next to the Dashboard's own
+ * greeting/title on any screen size.
  */
 function SyncButton() {
   const { pending } = useFormStatus();
@@ -27,14 +28,11 @@ function SyncButton() {
       type="submit"
       disabled={pending}
       title="Sincronizar rutas con Strava"
-      className="flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-2 text-neutral-700 shadow-sm transition-all duration-150 hover:border-neutral-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 sm:py-2"
+      className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-neutral-300/80 bg-white px-3 font-mono text-[11px] font-bold text-neutral-800 shadow-2xs transition-all duration-150 hover:bg-neutral-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
     >
-      <RefreshCw className={cn("size-4 text-[#FC4C02]", pending && "animate-spin")} />
-      <span className="hidden font-mono text-xs font-semibold tracking-wider uppercase sm:inline">
-        {pending ? "Sincronizando..." : "Sincronizar Strava"}
-      </span>
-      <span className="font-mono text-[10px] font-semibold tracking-wider text-neutral-600 uppercase sm:hidden">
-        {pending ? "..." : "Sincronizar"}
+      <RefreshCw className={cn("size-3.5 text-[#FC4C02]", pending && "animate-spin")} />
+      <span className="uppercase tracking-wider">
+        {pending ? "Sincronizando..." : "Sincronizar"}
       </span>
     </button>
   );

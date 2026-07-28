@@ -171,7 +171,7 @@ export default async function Home() {
         </Suspense>
       }
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-6">
         <header className="flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
           <div className="mr-2 flex min-w-0 flex-col">
             <Suspense fallback={<GreetingSkeleton />}>

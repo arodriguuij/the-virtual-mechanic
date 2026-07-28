@@ -1,7 +1,7 @@
 import { Droplets, ExternalLink, Flame } from "lucide-react";
 import { Suspense } from "react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ViewerIdentity, ViewerIdentitySkeleton } from "@/components/viewer-identity";
@@ -37,24 +37,15 @@ async function RideHistorySection() {
   if (activities.length === 0) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Historial de rutas</CardTitle>
-          <CardDescription className={eyebrow}>
-            Sin actividades registradas todavía
-          </CardDescription>
-        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-neutral-500">Sin actividades registradas todavía</p>
+        </CardContent>
       </Card>
     );
   }
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Historial de rutas</CardTitle>
-        <CardDescription className={eyebrow}>
-          Últimas salidas sincronizadas desde Strava
-        </CardDescription>
-      </CardHeader>
       <CardContent className="flex flex-col">
         {activities.map((activity, index) => (
           <div
@@ -107,10 +98,6 @@ async function RideHistorySection() {
 function RideHistorySkeleton() {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Historial de rutas</CardTitle>
-        <Skeleton className="h-3 w-56" />
-      </CardHeader>
       <CardContent className="flex flex-col">
         {Array.from({ length: 4 }).map((_, i) => (
           <div
