@@ -20,6 +20,8 @@ const benefits = [
   "Pautas listas para tu mezcla casera",
 ];
 
+const specs = ["01 / Ratio 1:0.8 optimizado", "02 / Meteorología en vivo", "03 / Mezcla casera"];
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -33,27 +35,26 @@ export default async function LoginPage({
       : null;
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-[#FDFCF9] p-4">
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.07]"
-        style={{
-          backgroundImage: "radial-gradient(#171717 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-        }}
-      />
-
-      <div className="relative z-10 w-full max-w-md rounded-lg border border-neutral-200/90 bg-white p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col items-center">
-          <AppLogo className="size-10 shrink-0" />
-          <span className="mt-2 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
+    <div className="flex min-h-screen w-full flex-col bg-[#FDFCF9]">
+      <header className="flex items-center justify-between border-b border-neutral-300/80 bg-[#FDFCF9] px-6 py-4">
+        <div className="flex shrink-0 items-center gap-2">
+          <AppLogo className="size-5 shrink-0" />
+          <span className="font-mono text-sm font-bold whitespace-nowrap text-neutral-900 tracking-wider">
             Motor Metabólico
           </span>
-          <h1 className="mt-2 text-center font-mono text-xl font-bold tracking-tight text-neutral-900 uppercase">
-            Nutrición de precisión
-          </h1>
         </div>
+        <span className="shrink-0 text-right font-mono text-[10px] whitespace-nowrap text-neutral-500 uppercase tracking-widest">
+          <span className="sm:hidden">V1.0</span>
+          <span className="hidden sm:inline">V1.0 · Nutrición de precisión</span>
+        </span>
+      </header>
 
-        <ul className="my-6 space-y-2.5 font-mono text-xs text-neutral-700">
+      <main className="flex flex-1 flex-col items-center justify-center px-6 py-8">
+        <h1 className="mb-6 max-w-lg text-center font-mono text-2xl font-bold tracking-tight text-neutral-900 uppercase sm:text-3xl">
+          Nutrición de precisión para ciclistas
+        </h1>
+
+        <ul className="mx-auto mb-8 max-w-xs space-y-3 font-mono text-xs text-neutral-700">
           {benefits.map((benefit) => (
             <li key={benefit} className="flex items-start gap-2">
               <span className="text-terracotta">&#10003;</span>
@@ -63,18 +64,30 @@ export default async function LoginPage({
         </ul>
 
         {error && (
-          <div className="mb-4 flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-left text-sm text-status-warning">
+          <div className="mx-auto mb-4 flex w-full max-w-xs items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-left text-sm text-status-warning">
             <TriangleAlert className="size-4 shrink-0" />
             {error}
           </div>
         )}
 
-        <StravaLoginButton />
+        <div className="mx-auto w-full max-w-xs">
+          <StravaLoginButton />
+        </div>
 
-        <p className="mt-3 text-center font-mono text-[11px] text-neutral-400">
-          Acceso seguro mediante OAuth. Solo leemos tus rutas.
+        <p className="mt-4 text-center font-mono text-[11px] text-neutral-500">
+          Acceso seguro mediante OAuth. Solo lectura de rutas.
         </p>
-      </div>
+      </main>
+
+      <footer className="border-t border-neutral-300/80 bg-[#FDFCF9] px-6 py-4">
+        <div className="flex flex-col items-center gap-1 font-mono text-[10px] tracking-wider text-neutral-500 uppercase sm:flex-row sm:justify-center sm:gap-x-12">
+          {specs.map((spec) => (
+            <span key={spec} className="whitespace-nowrap">
+              {spec}
+            </span>
+          ))}
+        </div>
+      </footer>
     </div>
   );
 }

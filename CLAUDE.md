@@ -172,34 +172,49 @@ reach for — simply cannot work. Instead:
   `stravaErrorMessages`, which now only covers errors from the already-logged-in
   "Sincronizar rutas" action (`not_connected`, `no_rides`), since a logged-out visitor
   can never reach that page to see them.
-  A Pas Normal Studios-inspired redesign gave the page an actual atmosphere instead of a
-  flat cream background. A first attempt used a full-bleed illustrated road-perspective
-  SVG behind a `bg-[#FDFCF9]/90 backdrop-blur-sm` overlay — the overlay opacity needed to
-  keep the page reading as this app's light/cream palette left the image itself all but
-  invisible, so on a phone the "atmosphere" just read as a flat, slightly blurred gray
-  smudge rather than any recognizable texture. Replaced with a plain CSS technical
-  dot-grid instead — `background-image: radial-gradient(#171717 1px, transparent 1px)`
-  at a `24px 24px` tile, `opacity-[0.07]`, no overlay/blur needed at all since the pattern
-  itself is already faint — directly on the app's own `bg-[#FDFCF9]`. Crisp at any zoom
-  level (a radial-gradient tile, not a raster image), reads as a deliberate technical
-  texture rather than a failed photo, and needed no image asset at all (the old
-  `public/login-road-bg.svg` was deleted as dead weight once nothing referenced it). The
-  card itself is
-  sharp-edged by this app's usual standard (`rounded-lg`, not the `rounded-2xl` auth-flow
-  cards used elsewhere) with a thin `border-neutral-200/90` and only `shadow-sm`. The old
-  paragraph-style value prop was replaced with a 3-line checkmark list (`✓ Recetas exactas
-  de glucosa y fructosa` / `✓ Ajuste por meteorología en tiempo real` / `✓ Pautas listas
-  para tu mezcla casera`) in `font-mono text-xs` — terser and more scannable, matching the
-  PNS convention of short declarative benefit lines over descriptive prose.
-  `components/strava-login-button.tsx` changed from a filled Strava-orange button to a
-  solid `bg-neutral-900`/`hover:bg-black` technical button, with `StravaMark` left at its
-  default corporate-orange fill (`#FC4C02`) rather than the white override it used
-  on the old orange background — the icon is now the only spot of color on an otherwise
-  monochrome button, same "one accent color, used deliberately" restraint as the rest of
-  this app's palette. The footer privacy note was shortened to a single line ("Acceso
-  seguro mediante OAuth. Solo leemos tus rutas.") as part of the same pass — verified this
-  and the rest of the card fit one screen with zero scroll at a 390×844 mobile viewport,
-  both with and without the error banner visible.
+  A Pas Normal Studios-inspired redesign pass went through three iterations before
+  landing on the current **full-bleed, card-free editorial layout** (no floating white
+  box, no shadow, no background pattern at all — a single flat `bg-[#FDFCF9]` for the
+  entire viewport): a first attempt tried a full-bleed illustrated road-perspective SVG
+  behind a `bg-[#FDFCF9]/90 backdrop-blur-sm` overlay, but the overlay opacity needed to
+  keep the page's light/cream palette left the image all but invisible on a phone (a
+  flat blurred smudge, not a recognizable texture); a second attempt replaced it with a
+  faint CSS dot-grid (`radial-gradient`) behind a floating white `Card`, but the result
+  read as a generic SaaS/Google-login template rather than this app's editorial identity
+  — floating boxes with shadows are exactly the "consumer SaaS" look this app's whole
+  design system otherwise avoids. The current version has no card and no texture at all:
+  three horizontal bands (top bar, centered hero, bottom bar) stacked in one `flex-col`
+  page, divided only by thin `border-neutral-300/80` rules — structure communicated
+  through typography and hairlines, not containers.
+  - **Top bar** — brand mark + "Motor Metabólico" on the left, a "V1.0 · Nutrición de
+    precisión" badge on the right. At a 390px mobile width the two together are only a
+    pixel or two narrower than the available space, so both carry `shrink-0
+    whitespace-nowrap` (a flex row shrinks its children by default otherwise, which was
+    wrapping "Motor Metabólico" onto two lines) and the badge additionally collapses to
+    just "V1.0" below `sm:`, revealing the full text only where there's real room.
+  - **Hero** — centered via `flex-1 items-center justify-center` in the remaining space
+    between the two bars. "NUTRICIÓN DE PRECISIÓN PARA CICLISTAS" replaces the old
+    shorter title now that there's no card width constraining it. The old paragraph-style
+    value prop is a 3-line checkmark list (`✓ Recetas exactas de glucosa y fructosa` /
+    `✓ Ajuste por meteorología en tiempo real` / `✓ Pautas listas para tu mezcla casera`,
+    `font-mono text-xs`, `max-w-xs mx-auto`) — terser and more scannable, matching the PNS
+    convention of short declarative benefit lines over descriptive prose. The error banner
+    (`stravaLoginErrorMessages`) renders inline here, same `max-w-xs` width as everything
+    else, no card chrome around it.
+  - **Bottom bar** — three technical specs ("01 / Ratio 1:0.8 optimizado", "02 /
+    Meteorología en vivo", "03 / Mezcla casera"). Stacks to one spec per line on mobile
+    (`flex-col`) and a single centered row at `sm:` — a `flex-wrap` row at every width was
+    tried first and wrapped unevenly (one spec alone on its own line, the other two
+    sharing the next), which read as broken rather than intentional.
+  `components/strava-login-button.tsx` is a solid `bg-neutral-900`/`hover:bg-black`
+  technical button (`rounded-md`, `py-3.5 px-6`), wrapped in a `max-w-xs mx-auto` div by
+  the page rather than sizing itself, with `StravaMark` left at its default corporate-
+  orange fill (`#FC4C02`) — the icon is the only spot of color on an otherwise monochrome
+  button, same "one accent color, used deliberately" restraint as the rest of this app's
+  palette. Verified live at both a 390×844 mobile viewport (zero scroll, with and without
+  the error banner) and desktop — no element on the page carries a `box-shadow` anywhere,
+  confirmed via computed style, and the old `public/login-road-bg.svg` asset was deleted
+  once nothing referenced it.
 
 ### Seeding dev data
 
