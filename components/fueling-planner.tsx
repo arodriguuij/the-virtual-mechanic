@@ -4,9 +4,11 @@ import {
   AlarmClock,
   BatteryCharging,
   CalendarDays,
+  ChevronDown,
   Copy,
   Download,
   Droplet,
+  Euro,
   FlaskConical,
   Fuel,
   MapPin,
@@ -21,7 +23,6 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { stripEmoji } from "@/lib/gpx-export";
@@ -30,7 +31,6 @@ import { decodePolyline } from "@/lib/polyline";
 import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
 import {
-  badgeClass,
   fieldClass,
   primaryButtonClass,
   secondaryButtonClass,
@@ -40,6 +40,7 @@ import {
   calculateHouseholdMeasures,
   formatGarminExportText,
   formatRecipeForSharing,
+  getPocketFoodTotalCarbsG,
   getTableSaltGrams,
   HYPERTONIC_THRESHOLD_PCT,
   intensityLabels,
@@ -48,6 +49,7 @@ import {
   type FuelingMode,
   type IntensityLevel,
   type PocketFoodItemType,
+  type PocketFoodSelection,
 } from "@/lib/metabolic-engine";
 import type { StravaRoute } from "@/lib/strava-routes";
 
@@ -357,6 +359,18 @@ export function FuelingPlanner({
         fructoseG: result.reloadStrategy.ziplocDose.fructoseG,
       })
     : null;
+
+  // Accordion header preview for "Comida de bolsillo" — in Óptimo mode the
+  // selection is server-computed (only known once `result` comes back), so
+  // that takes priority over the athlete's own local (disabled) steppers.
+  const effectivePocketFood: PocketFoodSelection =
+    fuelingMode === "optimal" ? (result?.pocketFood ?? {}) : { ...pocketFood, customCarbsG };
+  const pocketFoodItemCount =
+    Object.entries(effectivePocketFood).reduce(
+      (sum, [key, qty]) => (key === "customCarbsG" ? sum : sum + (qty ?? 0)),
+      0
+    ) + (effectivePocketFood.customCarbsG && effectivePocketFood.customCarbsG > 0 ? 1 : 0);
+  const pocketFoodCarbsPreview = getPocketFoodTotalCarbsG(effectivePocketFood);
 
   // "Modo Cobertura Limitada" — if the athlete opens the app with no
   // connection at all (mid-climb, no signal), load the last strategy that
@@ -859,28 +873,35 @@ export function FuelingPlanner({
 
         <div className="flex flex-col gap-2 border border-neutral-200 bg-surface px-3 py-3">
           {result ? (
-            <>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={badgeClass}>OBJETIVO {result.totalRideCarbsG}g HC</span>
-                <span className={cn(badgeClass, "border-sage/30 bg-sage/10 text-sage")}>
-                  CUBIERTO {result.pocketFoodCarbsG}g HC
-                </span>
-                <span className={cn(badgeClass, "border-terracotta/30 bg-terracotta/10 text-terracotta")}>
-                  RESTANTE {Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG)}g HC
-                </span>
-              </div>
-              <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-sand">
-                <div
-                  className="h-full bg-sage transition-all duration-300"
-                  style={{
-                    width:
-                      result.totalRideCarbsG > 0
-                        ? `${Math.min(100, (result.pocketFoodCarbsG / result.totalRideCarbsG) * 100)}%`
-                        : "0%",
-                  }}
-                />
-              </div>
-            </>
+            (() => {
+              const coveredPct =
+                result.totalRideCarbsG > 0
+                  ? Math.min(100, (result.pocketFoodCarbsG / result.totalRideCarbsG) * 100)
+                  : 0;
+              const deficitG = Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG);
+              return (
+                <>
+                  <div className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-2">
+                    <span className="font-mono text-xs text-neutral-500">
+                      OBJETIVO {result.totalRideCarbsG}g HC
+                    </span>
+                    <span className="font-mono text-xs font-bold text-emerald-700">
+                      EN BOLSILLO {result.pocketFoodCarbsG}g HC
+                    </span>
+                    <span className="font-mono text-xs font-bold text-terracotta">
+                      DÉFICIT EN BIDÓN {deficitG}g HC
+                    </span>
+                  </div>
+                  <div className="mt-2 flex h-2.5 w-full overflow-hidden rounded-full bg-badge">
+                    <div
+                      className="bg-sage transition-all duration-300"
+                      style={{ width: `${coveredPct}%` }}
+                    />
+                    <div className="bg-terracotta/20" style={{ width: `${100 - coveredPct}%` }} />
+                  </div>
+                </>
+              );
+            })()
           ) : (
             <span className="font-mono text-xs text-neutral-500">
               Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
@@ -888,50 +909,56 @@ export function FuelingPlanner({
           )}
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <span className={eyebrow}>Comida de bolsillo que llevarás encima</span>
-          {fuelingMode === "optimal" && (
-            <p className="text-xs text-neutral-500">
-              Automático — solo geles y bidón en modo Óptimo, sin alimentos sólidos.
-            </p>
-          )}
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {(fuelingMode === "optimal" ? GEL_DOSE_TYPES : ALL_POCKET_FOOD_TYPES).map((type) => (
-              <PocketFoodStepperRow
-                key={type}
-                type={type}
-                qty={
-                  fuelingMode === "optimal"
-                    ? (result?.pocketFood[type] ?? 0)
-                    : (pocketFood[type] ?? 0)
-                }
-                onChange={(qty) => setPocketFoodQty(type, qty)}
-                disabled={fuelingMode === "optimal"}
-              />
-            ))}
-            {fuelingMode !== "optimal" && (
-              <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5">
-                <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
-                  Personalizado
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    id="custom-carbs"
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    max={MAX_CUSTOM_CARBS_G}
-                    value={customCarbsG || ""}
-                    onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
-                    placeholder="0"
-                    className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900"
-                  />
-                  <span className="font-mono text-xs text-neutral-500">g HC</span>
-                </div>
-              </div>
+        <details className="group border border-neutral-200 rounded-lg">
+          <summary className="flex list-none items-center justify-between gap-2 rounded-lg p-3 bg-white cursor-pointer text-sm font-medium text-neutral-900 [&::-webkit-details-marker]:hidden">
+            Comida de bolsillo en maillot ({pocketFoodItemCount} items · {pocketFoodCarbsPreview}g
+            HC)
+            <ChevronDown className="size-4 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
+          </summary>
+          <div className="flex flex-col gap-1.5 border-t border-neutral-200 p-3">
+            {fuelingMode === "optimal" && (
+              <p className="text-xs text-neutral-500">
+                Automático — solo geles y bidón en modo Óptimo, sin alimentos sólidos.
+              </p>
             )}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {(fuelingMode === "optimal" ? GEL_DOSE_TYPES : ALL_POCKET_FOOD_TYPES).map((type) => (
+                <PocketFoodStepperRow
+                  key={type}
+                  type={type}
+                  qty={
+                    fuelingMode === "optimal"
+                      ? (result?.pocketFood[type] ?? 0)
+                      : (pocketFood[type] ?? 0)
+                  }
+                  onChange={(qty) => setPocketFoodQty(type, qty)}
+                  disabled={fuelingMode === "optimal"}
+                />
+              ))}
+              {fuelingMode !== "optimal" && (
+                <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5">
+                  <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
+                    Personalizado
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      id="custom-carbs"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={MAX_CUSTOM_CARBS_G}
+                      value={customCarbsG || ""}
+                      onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
+                      placeholder="0"
+                      className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                    />
+                    <span className="font-mono text-xs text-neutral-500">g HC</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </details>
 
         <div className="flex flex-wrap items-center gap-4">
           <button
@@ -969,6 +996,31 @@ export function FuelingPlanner({
             )}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className={eyebrow}>Estrategia de bolsillo &amp; receta DIY</span>
+            </div>
+
+            <div className="mb-2 rounded-xl bg-[#343334] p-5 text-white shadow-sm">
+              <span className="font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
+                Estrategia ejecutiva de fueling
+              </span>
+              <p className="mt-1.5 font-mono text-xl font-bold text-[#FD5A08]">
+                {result.bottlePlan.fuelBottles.count > 0
+                  ? `${result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g Malto + ${result.bottlePlan.fuelBottles.fructoseGPerBottle}g Fructosa`
+                  : "Cobertura completa vía comida de bolsillo"}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-neutral-300">
+                <span className="flex items-center gap-1.5">
+                  <Droplet className="size-3.5 shrink-0 text-neutral-400" />
+                  1 trago / {result.timingTimeline.hydrationIntervalMinutes} min
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <BatteryCharging className="size-3.5 shrink-0 text-neutral-400" />
+                  Batería final: {result.glycogenBattery.withRecipe.remainingBatteryPct}%
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Euro className="size-3.5 shrink-0 text-neutral-400" />
+                  Ahorro: {result.moneySaved.toFixed(2)} €
+                </span>
+              </div>
             </div>
 
             <WeatherImpactCard
@@ -1057,16 +1109,20 @@ export function FuelingPlanner({
               </div>
             </div>
 
-            <Separator className="bg-neutral-200" />
-
-            <div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className={eyebrow}>
-                  Receta de laboratorio casero (DIY) · {result.durationHours} h
+            <details className="group rounded-lg border border-neutral-200">
+              <summary className="flex list-none cursor-pointer flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
+                  <span className={eyebrow}>
+                    Receta de laboratorio casero (DIY) · {result.durationHours} h
+                  </span>
                 </span>
                 <button
                   type="button"
-                  onClick={handleCopyRecipe}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCopyRecipe();
+                  }}
                   className={cn(secondaryButtonClass, "w-fit shrink-0 px-2.5 py-1.5 text-[10px]")}
                 >
                   {copied ? (
@@ -1078,7 +1134,8 @@ export function FuelingPlanner({
                     </>
                   )}
                 </button>
-              </div>
+              </summary>
+              <div className="border-t border-neutral-200 p-3">
               {result.pocketFoodCarbsG > 0 && (
                 <p className="mt-1.5 flex items-start gap-1.5 text-xs text-neutral-500">
                   <Utensils className="mt-0.5 size-3 shrink-0" />
@@ -1189,92 +1246,100 @@ export function FuelingPlanner({
                   </div>
                 </div>
               )}
-            </div>
+              </div>
+            </details>
 
-            <div className="border border-neutral-200 px-3 py-3">
-              <span className={eyebrow}>Cronograma dinámico de ingesta</span>
-              <p className="mt-2 flex items-center gap-1.5 text-sm text-neutral-700">
-                <Droplet className="size-3.5 shrink-0 text-neutral-500" />
-                Bebe un trago cada{" "}
-                <span className="font-mono font-semibold text-neutral-900">
-                  {result.timingTimeline.hydrationIntervalMinutes} min
-                </span>
-              </p>
-              {result.timingTimeline.entries.length > 0 && (
-                <ol className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
-                  {result.timingTimeline.entries.map((entry, i) => (
-                    <li key={i} className="flex items-center gap-1.5">
-                      {entry.type === "solid" && (
-                        <Utensils className="size-3.5 shrink-0 text-neutral-500" />
-                      )}
-                      {entry.type === "gel" && (
-                        <Zap className="size-3.5 shrink-0 text-neutral-500" />
-                      )}
-                      {entry.type === "caffeine" && (
-                        <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
-                      )}
-                      <span className="font-mono text-xs text-neutral-500">
-                        {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
-                      </span>
-                      {stripEmoji(entry.label)}
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </div>
-
-            {result.reloadStrategy && (
-              <div className="border border-status-warning/40 bg-status-warning/10 px-3 py-2.5">
-                <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-status-warning uppercase">
-                  <Fuel className="size-3.5 shrink-0" />
-                  Estrategia de recarga en ruta
-                </span>
-                <p className="mt-1.5 text-sm font-semibold text-neutral-900">
-                  {result.reloadStrategy.startingBottleCount} bidón
-                  {result.reloadStrategy.startingBottleCount > 1 ? "es" : ""} en bici +{" "}
-                  {result.reloadStrategy.ziplocBagsCount} dosis de recarga en maillot
+            <details className="group rounded-lg border border-neutral-200">
+              <summary className="flex list-none cursor-pointer items-center gap-1.5 p-3 [&::-webkit-details-marker]:hidden">
+                <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
+                <span className={eyebrow}>Cronograma dinámico de ingesta</span>
+              </summary>
+              <div className="border-t border-neutral-200 p-3">
+                <p className="flex items-center gap-1.5 text-sm text-neutral-700">
+                  <Droplet className="size-3.5 shrink-0 text-neutral-500" />
+                  Bebe un trago cada{" "}
+                  <span className="font-mono font-semibold text-neutral-900">
+                    {result.timingTimeline.hydrationIntervalMinutes} min
+                  </span>
                 </p>
-                <ol className="mt-1.5 flex flex-col gap-1 text-sm text-neutral-700">
-                  <li>
-                    1. Inicio de ruta: {result.reloadStrategy.startingBottleCount} bidón
-                    {result.reloadStrategy.startingBottleCount > 1 ? "es" : ""} preparado
-                    {result.reloadStrategy.startingBottleCount > 1 ? "s" : ""} en el cuadro.
-                  </li>
-                  <li>
-                    2. En el maillot: lleva {result.reloadStrategy.ziplocBagsCount} bolsita
-                    {result.reloadStrategy.ziplocBagsCount > 1 ? "s" : ""} Ziploc con{" "}
-                    {result.reloadStrategy.ziplocDose.maltodextrinG}g malto (~
-                    {ziplocMeasures!.maltodextrinScoops} cazos) +{" "}
-                    {result.reloadStrategy.ziplocDose.fructoseG}g fructosa (~
-                    {ziplocMeasures!.fructoseScoops} cazos) +{" "}
-                    {getTableSaltGrams(result.reloadStrategy.ziplocDose.sodiumMg)}g sal común (~
-                    {ziplocMeasures!.saltTeaspoons} cdta.) (dosis pre-medida por bidón).
-                  </li>
-                  <li className="flex items-center gap-1.5 font-medium text-neutral-900">
-                    <MapPin className="size-3.5 shrink-0" />
-                    Parada de recarga recomendada:{" "}
-                    {result.reloadStrategy.reloadAtKm != null
-                      ? `Km ${result.reloadStrategy.reloadAtKm}`
-                      : `Hora ${result.reloadStrategy.reloadAtHours}`}
-                  </li>
-                </ol>
-                {result.reloadStrategy.isImpractical && (
-                  <p className="mt-2 flex items-start gap-1.5 border-t border-status-warning/30 pt-2 text-xs text-status-warning">
-                    <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
-                    {result.reloadStrategy.ziplocBagsCount} recargas en ruta no es un plan
-                    realista — con tus bidones de {result.bottlePlan.bottleSizeMl}ml, esta
-                    estrategia necesita más carbohidratos disueltos de los que puedes llevar
-                    cómodamente. Prueba con bidones de mayor capacidad o traslada más carga a
-                    comida sólida/geles (modo Híbrido u Óptimo).
-                  </p>
+                {result.timingTimeline.entries.length > 0 && (
+                  <ol className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
+                    {result.timingTimeline.entries.map((entry, i) => (
+                      <li key={i} className="flex items-center gap-1.5">
+                        {entry.type === "solid" && (
+                          <Utensils className="size-3.5 shrink-0 text-neutral-500" />
+                        )}
+                        {entry.type === "gel" && (
+                          <Zap className="size-3.5 shrink-0 text-neutral-500" />
+                        )}
+                        {entry.type === "caffeine" && (
+                          <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
+                        )}
+                        <span className="font-mono text-xs text-neutral-500">
+                          {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
+                        </span>
+                        {stripEmoji(entry.label)}
+                      </li>
+                    ))}
+                  </ol>
                 )}
               </div>
-            )}
+            </details>
 
-            <div className="flex items-center gap-2 border border-status-good/40 bg-status-good/10 px-3 py-2 text-sm text-status-good">
-              <span className="font-medium">Ahorras {result.moneySaved.toFixed(2)} €</span>
-              <span className="text-neutral-600">frente a geles comerciales equivalentes.</span>
-            </div>
+            {result.reloadStrategy && (
+              <details className="group rounded-lg border border-status-warning/40 bg-status-warning/10">
+                <summary className="flex list-none cursor-pointer items-center justify-between gap-2 p-3 [&::-webkit-details-marker]:hidden">
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-status-warning uppercase">
+                      <Fuel className="size-3.5 shrink-0" />
+                      Estrategia de recarga en ruta
+                    </span>
+                    <span className="text-sm font-semibold text-neutral-900">
+                      {result.reloadStrategy.startingBottleCount} bidón
+                      {result.reloadStrategy.startingBottleCount > 1 ? "es" : ""} en bici +{" "}
+                      {result.reloadStrategy.ziplocBagsCount} dosis de recarga en maillot
+                    </span>
+                  </span>
+                  <ChevronDown className="size-4 shrink-0 text-status-warning transition-transform duration-150 group-open:rotate-180" />
+                </summary>
+                <div className="border-t border-status-warning/30 p-3 pt-2">
+                  <ol className="flex flex-col gap-1 text-sm text-neutral-700">
+                    <li>
+                      1. Inicio de ruta: {result.reloadStrategy.startingBottleCount} bidón
+                      {result.reloadStrategy.startingBottleCount > 1 ? "es" : ""} preparado
+                      {result.reloadStrategy.startingBottleCount > 1 ? "s" : ""} en el cuadro.
+                    </li>
+                    <li>
+                      2. En el maillot: lleva {result.reloadStrategy.ziplocBagsCount} bolsita
+                      {result.reloadStrategy.ziplocBagsCount > 1 ? "s" : ""} Ziploc con{" "}
+                      {result.reloadStrategy.ziplocDose.maltodextrinG}g malto (~
+                      {ziplocMeasures!.maltodextrinScoops} cazos) +{" "}
+                      {result.reloadStrategy.ziplocDose.fructoseG}g fructosa (~
+                      {ziplocMeasures!.fructoseScoops} cazos) +{" "}
+                      {getTableSaltGrams(result.reloadStrategy.ziplocDose.sodiumMg)}g sal común (~
+                      {ziplocMeasures!.saltTeaspoons} cdta.) (dosis pre-medida por bidón).
+                    </li>
+                    <li className="flex items-center gap-1.5 font-medium text-neutral-900">
+                      <MapPin className="size-3.5 shrink-0" />
+                      Parada de recarga recomendada:{" "}
+                      {result.reloadStrategy.reloadAtKm != null
+                        ? `Km ${result.reloadStrategy.reloadAtKm}`
+                        : `Hora ${result.reloadStrategy.reloadAtHours}`}
+                    </li>
+                  </ol>
+                  {result.reloadStrategy.isImpractical && (
+                    <p className="mt-2 flex items-start gap-1.5 border-t border-status-warning/30 pt-2 text-xs text-status-warning">
+                      <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                      {result.reloadStrategy.ziplocBagsCount} recargas en ruta no es un plan
+                      realista — con tus bidones de {result.bottlePlan.bottleSizeMl}ml, esta
+                      estrategia necesita más carbohidratos disueltos de los que puedes llevar
+                      cómodamente. Prueba con bidones de mayor capacidad o traslada más carga a
+                      comida sólida/geles (modo Híbrido u Óptimo).
+                    </p>
+                  )}
+                </div>
+              </details>
+            )}
 
             {result.carbLoading && (
               <details className="border border-neutral-200 px-3 py-2.5">

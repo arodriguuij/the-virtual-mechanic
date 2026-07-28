@@ -786,7 +786,64 @@ recipe for that specific ride's real forecast conditions.
   comparison, which weather source was used (`dynamic` vs `planning_default`, plus the
   lapse-rate note when non-zero), a "Gut Training" warning banner whenever
   `gutTraining.isGutLimited` is true, the collapsible carb-loading module when applicable,
-  and the nutrition-export button (see "Nutrition export" below).
+  and the nutrition-export button (see "Nutrition export" below) — see "Result panel visual
+  hierarchy" below for how these are actually arranged on screen.
+
+### Result panel visual hierarchy (Hero card + collapsible technical breakdown)
+
+The result panel used to be one long flat column of same-weight text — every section from
+weather to the reload plan competed for the same attention, so the actual headline numbers
+(what to mix, how often to drink, whether it's working) were no easier to find than any
+supporting detail. Restructured around a "glance vs. dig deeper" split instead:
+
+- **Hero card** — a dark (`bg-[#343334]`, a literal one-off brand-charcoal fill, not a
+  reusable token — same convention as `components/app-logo.tsx`'s and Strava's own
+  `#FC4C02` one-off hex usages elsewhere in this app) card rendered first, directly under
+  the result header. Shows only the four numbers an athlete actually needs mid-prep: the
+  per-bottle malto/fructose dose in the brand's bright orange (`text-[#FD5A08]` —
+  deliberately not `--terracotta`, which is this app's muted UI accent color; this is the
+  one spot that intentionally pops with the brighter mark color instead), the hydration
+  frequency, the finishing glycogen battery %, and the money saved. Falls back to
+  "Cobertura completa vía comida de bolsillo" instead of a nonsensical "0g Malto + 0g
+  Fructosa" line whenever `bottlePlan.fuelBottles.count` is `0` (pocket food alone covers
+  the ride — see "Hybrid nutrition" above).
+- **OBJETIVO / EN BOLSILLO / DÉFICIT EN BIDÓN progress bar** — replaces three separate
+  badge pills with a single two-segment rail (`bg-sage` for the covered fraction,
+  `bg-terracotta/20` for the remainder) plus the three raw figures above it. Stacks to one
+  column below `sm:` — an earlier three-column-with-`truncate` version cut the numbers
+  themselves off on a narrow phone (verified: "DÉFICIT EN BIDÓN 336g HC" truncated to
+  "DÉFICIT EN …"), which defeats the entire point of a scannable metric; letting each
+  figure take its own full-width row instead never truncates, at the cost of a slightly
+  taller block on mobile only.
+- **Comida de bolsillo en maillot accordion** — the pocket-food catalog/stepper grid (see
+  "Hybrid nutrition" above) is now behind a `<details>` closed by default, headed by a
+  live "N items · Mg HC" summary computed from `getPocketFoodTotalCarbsG()` against
+  whichever selection is actually in effect (the athlete's own `pocketFood` state in every
+  mode except Óptimo, where it's `result.pocketFood` — the server-computed selection —
+  since the athlete never edits it there).
+- **Collapsible technical breakdown** — the DIY recipe + bottle architecture (+ the
+  hypertonic-concentration warning, when it fires), the dynamic ingestion timeline, and
+  the reload strategy (when applicable) are each their own `<details>`, closed by default,
+  alongside the pre-existing carb-loading `<details>`. Weather, the duration/carbs/sodium
+  stat row, the gut-training warning, and the no-fuel-vs-with-recipe battery comparison
+  stay always-visible above the accordions — compact enough already, and each one is a
+  quick safety/sanity check an athlete would want without an extra tap. The standalone
+  "Ahorras X €" banner that used to sit between the reload strategy and the carb-loading
+  module was removed outright rather than folded into an accordion — it's the same figure
+  the Hero card already shows at the top, so keeping both was pure duplication working
+  against the whole point of this pass.
+- **Nested "Copiar receta" button inside the recipe accordion's `<summary>`** — a native
+  `<details>`/`<summary>` toggles open/closed on any click within the summary, which would
+  otherwise also collapse the accordion every time the copy button is pressed. Its
+  `onClick` calls `e.stopPropagation()` before `handleCopyRecipe()` so the click never
+  reaches the summary's own toggle handler — verified live (clicking "Copiar receta"
+  leaves the accordion open both before and after the click).
+- Every new accordion reuses the exact chevron pattern (`ChevronDown` rotated via
+  `group-open:rotate-180` on a `<details className="group">`) rather than the plain
+  browser-native disclosure triangle the pre-existing carb-loading `<details>` uses — a
+  deliberate visual upgrade applied consistently across all the *new* accordions, though
+  the carb-loading one was left as-is rather than restyled purely for consistency's sake
+  on a pass that wasn't asked to touch it.
 
 ### GPX Híbrido parser (auto-cálculo + tiempo editable)
 
