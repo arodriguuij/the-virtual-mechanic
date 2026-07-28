@@ -254,7 +254,7 @@ export default function EstadisticasPage() {
         </Suspense>
       }
     >
-      <div className="flex flex-col gap-10">
+      <div className="flex flex-col gap-6">
         <header className="border-b border-neutral-200 pb-6">
           <h1 className="font-mono text-2xl font-bold tracking-tight text-neutral-900 uppercase">
             Análisis de metabolismo &amp; cumplimiento

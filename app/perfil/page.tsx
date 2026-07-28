@@ -9,7 +9,15 @@ import { ProfileSavedToast } from "@/components/profile-saved-toast";
 import { ViewerIdentity, ViewerIdentitySkeleton } from "@/components/viewer-identity";
 import { getAthleteProfile } from "@/lib/dashboard-data";
 import { athleteTypeDescriptions, athleteTypeLabels, sweatRateLabels } from "@/lib/metabolic-engine";
-import { fieldClass, primaryButtonClass, selectableFieldClass } from "@/lib/ui-classes";
+import {
+  fieldClass,
+  primaryButtonClass,
+  segmentedControlButtonActiveHasCheckedClass,
+  segmentedControlButtonClass,
+  segmentedControlClass,
+  selectionCardClass,
+  selectionCardDotClass,
+} from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +33,6 @@ const cardNumberHeading = "font-mono text-xs font-bold tracking-widest text-neut
 
 // Shared with every other field/button across the app (`lib/ui-classes.ts`).
 const profileInputClass = fieldClass;
-const selectableProfileInputClass = selectableFieldClass;
 
 async function PhysiologicalProfileCard() {
   const profile = await getAthleteProfile();
@@ -72,34 +79,44 @@ async function PhysiologicalProfileCard() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="bottle_count" className={eyebrow}>
-                Soportes de bidón
-              </label>
-              <select
-                id="bottle_count"
-                name="bottle_count"
-                defaultValue={profile?.bottle_count ?? 2}
-                className={selectableProfileInputClass}
-              >
-                <option value={1}>1 bidón</option>
-                <option value={2}>2 bidones</option>
-              </select>
+              <span className={eyebrow}>Soportes de bidón</span>
+              <div className={segmentedControlClass}>
+                {([1, 2] as const).map((count) => (
+                  <label
+                    key={count}
+                    className={cn(segmentedControlButtonClass, segmentedControlButtonActiveHasCheckedClass)}
+                  >
+                    <input
+                      type="radio"
+                      name="bottle_count"
+                      value={count}
+                      defaultChecked={(profile?.bottle_count ?? 2) === count}
+                      className="sr-only"
+                    />
+                    {count} {count === 1 ? "bidón" : "bidones"}
+                  </label>
+                ))}
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="bottle_capacity_ml" className={eyebrow}>
-                Capacidad por bidón
-              </label>
-              <select
-                id="bottle_capacity_ml"
-                name="bottle_capacity_ml"
-                defaultValue={profile?.bottle_capacity_ml ?? 750}
-                className={selectableProfileInputClass}
-              >
-                <option value={500}>500 ml</option>
-                <option value={600}>600 ml</option>
-                <option value={750}>750 ml</option>
-                <option value={950}>950 ml</option>
-              </select>
+              <span className={eyebrow}>Capacidad por bidón</span>
+              <div className={segmentedControlClass}>
+                {([500, 600, 750, 950] as const).map((ml) => (
+                  <label
+                    key={ml}
+                    className={cn(segmentedControlButtonClass, segmentedControlButtonActiveHasCheckedClass)}
+                  >
+                    <input
+                      type="radio"
+                      name="bottle_capacity_ml"
+                      value={ml}
+                      defaultChecked={(profile?.bottle_capacity_ml ?? 750) === ml}
+                      className="sr-only"
+                    />
+                    {ml} ml
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
         </CardContent>
@@ -116,8 +133,15 @@ async function PhysiologicalProfileCard() {
                 (type) => (
                   <label
                     key={type}
-                    className="flex cursor-pointer flex-col gap-1 rounded-lg border border-neutral-200 px-3 py-2.5 transition-colors duration-150 has-checked:border-terracotta has-checked:bg-[#FDF8F6]"
+                    className={cn(
+                      "group flex cursor-pointer flex-col gap-1",
+                      selectionCardClass,
+                      "has-checked:border-2 has-checked:border-terracotta has-checked:shadow-md"
+                    )}
                   >
+                    <span
+                      className={cn(selectionCardDotClass, "hidden group-has-checked:block")}
+                    />
                     <span className="flex items-center gap-2">
                       <input
                         type="radio"
@@ -140,21 +164,24 @@ async function PhysiologicalProfileCard() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="sweat_rate" className={eyebrow}>
-              Tasa de sudoración
-            </label>
-            <select
-              id="sweat_rate"
-              name="sweat_rate"
-              defaultValue={profile?.sweat_rate ?? "medium"}
-              className={cn(selectableProfileInputClass, "sm:w-1/2")}
-            >
+            <span className={eyebrow}>Tasa de sudoración</span>
+            <div className={cn(segmentedControlClass, "sm:w-1/2")}>
               {(Object.keys(sweatRateLabels) as (keyof typeof sweatRateLabels)[]).map((rate) => (
-                <option key={rate} value={rate}>
+                <label
+                  key={rate}
+                  className={cn(segmentedControlButtonClass, segmentedControlButtonActiveHasCheckedClass)}
+                >
+                  <input
+                    type="radio"
+                    name="sweat_rate"
+                    value={rate}
+                    defaultChecked={(profile?.sweat_rate ?? "medium") === rate}
+                    className="sr-only"
+                  />
                   {sweatRateLabels[rate]}
-                </option>
+                </label>
               ))}
-            </select>
+            </div>
           </div>
 
           <label className="flex cursor-pointer items-start gap-2 text-sm text-neutral-700">
@@ -255,7 +282,7 @@ export default async function PerfilPage({
       }
     >
       {profileSaved && <ProfileSavedToast />}
-      <div className="flex flex-col gap-10">
+      <div className="flex flex-col gap-6">
         <header className="border-b border-neutral-200 pb-6">
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900 uppercase font-mono">
             Perfil fisiológico

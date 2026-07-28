@@ -257,7 +257,7 @@ export default async function Home() {
         </Suspense>
       }
     >
-      <div className="flex flex-col gap-10">
+      <div className="flex flex-col gap-6">
         <header className="mb-6 flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
           <div className="mr-2 flex min-w-0 flex-col">
             <p className="truncate font-mono text-[10px] tracking-wider text-neutral-500 uppercase sm:text-xs">
@@ -293,7 +293,7 @@ export default async function Home() {
           </TabsList>
 
           <TabsContent value="pre-ride">
-            <div className="flex flex-col gap-10 pt-6">
+            <div className="flex flex-col gap-6 pt-6">
               <Suspense fallback={<FuelingPlannerSkeleton />}>
                 <FuelingPlannerSection />
               </Suspense>
@@ -301,7 +301,7 @@ export default async function Home() {
           </TabsContent>
 
           <TabsContent value="post-ride">
-            <div className="flex flex-col gap-10 pt-6">
+            <div className="flex flex-col gap-6 pt-6">
               <Suspense fallback={<PostRideAnalysisSkeleton />}>
                 <PostRideAnalysisSection />
               </Suspense>

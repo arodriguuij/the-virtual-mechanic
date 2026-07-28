@@ -8,6 +8,7 @@ import {
   gutTrainingLevelRanges,
   type GutTrainingLevel,
 } from "@/lib/metabolic-engine";
+import { selectionCardActiveClass, selectionCardClass, selectionCardDotClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
 const LEVELS = Object.keys(gutTrainingLevelLabels) as GutTrainingLevel[];
@@ -31,12 +32,12 @@ export function GutTrainingSelector({ defaultLevel }: { defaultLevel: GutTrainin
           <label
             key={lvl}
             className={cn(
-              "flex cursor-pointer flex-col gap-1 rounded-lg border px-3 py-2.5 transition-colors duration-150",
-              level === lvl
-                ? "border-2 border-terracotta bg-[#FDF8F6] text-neutral-900"
-                : "border-neutral-200 text-neutral-700 hover:border-neutral-400"
+              "flex cursor-pointer flex-col gap-1",
+              selectionCardClass,
+              level === lvl ? selectionCardActiveClass : "text-neutral-700"
             )}
           >
+            {level === lvl && <span className={selectionCardDotClass} />}
             <span className="flex items-center gap-2">
               <input
                 type="radio"
@@ -46,7 +47,9 @@ export function GutTrainingSelector({ defaultLevel }: { defaultLevel: GutTrainin
                 onChange={() => setLevel(lvl)}
                 className="size-3.5 cursor-pointer accent-terracotta"
               />
-              <span className="text-sm font-semibold">{gutTrainingLevelLabels[lvl]}</span>
+              <span className="text-sm font-semibold text-neutral-900">
+                {gutTrainingLevelLabels[lvl]}
+              </span>
             </span>
             <span className="font-mono text-xs text-neutral-500">
               {gutTrainingLevelRanges[lvl]}
