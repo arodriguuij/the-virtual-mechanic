@@ -18,8 +18,8 @@ function SyncButton({ className }: { className?: string }) {
 
   return (
     <button type="submit" disabled={pending} className={cn(className, pending && "opacity-70")}>
-      <RefreshCw className={cn("size-3.5", pending && "animate-spin")} />
-      {pending ? "Sincronizando…" : "Sincronizar rutas"}
+      <RefreshCw className={cn("size-3 shrink-0", pending && "animate-spin")} />
+      {pending ? "SINCRONIZANDO…" : "SINCRONIZAR"}
     </button>
   );
 }

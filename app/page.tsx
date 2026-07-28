@@ -347,6 +347,13 @@ function WeeklyPerformancePanelSkeleton() {
 const stravaButtonClass =
   "inline-flex cursor-pointer items-center gap-2 px-4 py-2.5 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150";
 
+// A compact, subdued treatment for the routine "sync" action — distinct from
+// `stravaButtonClass`'s bolder connect CTA below, since re-syncing rides is
+// something an already-connected athlete does often and shouldn't compete
+// visually with the page title for space, especially on a narrow phone.
+const syncButtonClass =
+  "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-[11px] font-mono tracking-wider text-neutral-700 transition-all duration-150 hover:bg-neutral-50";
+
 async function StravaButton() {
   const profile = await getProfile();
   const connected = Boolean(profile?.strava_athlete_id);
@@ -366,18 +373,11 @@ async function StravaButton() {
     );
   }
 
-  return (
-    <SyncForm
-      className={cn(
-        stravaButtonClass,
-        "border border-neutral-900 bg-transparent text-neutral-900 hover:bg-neutral-900 hover:text-background"
-      )}
-    />
-  );
+  return <SyncForm className={syncButtonClass} />;
 }
 
 function StravaButtonSkeleton() {
-  return <Skeleton className="h-8.5 w-40" />;
+  return <Skeleton className="h-7 w-28 rounded-lg" />;
 }
 
 // Login-time Strava errors (from `/api/auth/strava/callback`) now surface
@@ -411,10 +411,10 @@ export default async function Home({
       }
     >
       <div className="flex flex-col gap-10">
-        <header className="flex flex-col items-start gap-4 border-b border-neutral-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className={eyebrow}>Buenas tardes, Alejandro</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-wide text-neutral-900 uppercase">
+        <header className="flex items-center justify-between gap-2 border-b border-neutral-200 pb-6 sm:gap-3">
+          <div className="min-w-0">
+            <p className={cn(eyebrow, "truncate")}>Buenas tardes, Alejandro</p>
+            <h1 className="mt-1 text-xl font-bold tracking-wide text-neutral-900 uppercase sm:text-2xl">
               Dashboard
             </h1>
           </div>
