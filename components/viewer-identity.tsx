@@ -9,7 +9,7 @@ export async function ViewerIdentity() {
   const identity = await getViewerIdentity();
 
   return (
-    <div className="flex items-center gap-3 border-t border-neutral-200 pt-6">
+    <div className="flex items-center gap-3">
       <Avatar>
         {identity.avatarUrl && <AvatarImage src={identity.avatarUrl} alt={identity.name} />}
         <AvatarFallback>{identity.initials}</AvatarFallback>
@@ -29,7 +29,7 @@ export async function ViewerIdentity() {
 
 export function ViewerIdentitySkeleton() {
   return (
-    <div className="flex items-center gap-3 border-t border-neutral-200 pt-6">
+    <div className="flex items-center gap-3">
       <Skeleton className="size-8 shrink-0 rounded-full" />
       <div className="flex flex-col gap-1.5">
         <Skeleton className="h-3.5 w-28" />

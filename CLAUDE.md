@@ -263,13 +263,15 @@ as its `strava_athlete_id` matches).
   `?strava_error=` query-param banner on this page entirely (that mechanism, and
   `app/page.tsx`'s own `stravaErrorMessages` map, existed *only* to surface this route's
   redirect errors — now dead code once the route stopped redirecting, so both were removed
-  rather than left stubbed out). The toast itself is a solid `bg-neutral-900` pill
-  (`rounded-xl`, `shadow-2xl`, `z-10000`) fixed to the bottom-center of the viewport — an
-  earlier semi-transparent version let the Leaflet map show through behind it and looked
-  unfinished, and a stray page-center position, rather than the bottom-anchored one, read as
-  disconnected from the sync button that triggered it. A small emerald/red icon chip plus a
+  rather than left stubbed out). The toast is a solid `bg-white` pill (`rounded-xl`,
+  `shadow-xl`, `border-neutral-200/90`, `z-10000`) fixed to the bottom-center of the
+  viewport — an earlier semi-transparent version let the Leaflet map show through behind
+  it, and a since-reverted dark `bg-neutral-900` version broke with the app's light
+  editorial palette (every other surface in the app is white/cream, never a dark card).
+  A small `bg-emerald-50`/`bg-red-50` icon chip (a soft tint, not a saturated fill) plus a
   two-line title/message (e.g. "Sincronización completada" / "Rutas y datos de Strava
-  actualizados") auto-dismisses after 3s, same timing as before.
+  actualizados", dark text on the white background) auto-dismisses after 3s, same timing
+  as before.
   On mobile, the button itself collapses from the full "Sincronizar Strava" label to just a
   `RefreshCw` icon (Strava-orange, `#FC4C02`) plus a short "Sync" label — the full label
   next to the Dashboard header's own greeting ("Buenas tardes, Alejandro") was wide enough
@@ -1424,7 +1426,14 @@ markup baked into `DashboardShell` — `DashboardShell` is `"use client"`, so it
 `identitySlot: ReactNode` prop instead, and both `app/page.tsx` and `app/perfil/page.tsx`
 pass the same `<Suspense fallback={<ViewerIdentitySkeleton />}><ViewerIdentity /></Suspense>`
 so the (possibly network-bound, if it hits Strava) identity fetch never blocks the rest of
-the shell from rendering. `getViewerIdentity()` (`lib/dashboard-data.ts`) still fetches
+the shell from rendering. **`ViewerIdentity`/`ViewerIdentitySkeleton` carry no border of
+their own** — `SidebarContent`'s own wrapping `<div className="border-t ... pt-4">` is the
+single divider above the identity block; `ViewerIdentity` used to *also* draw its own
+`border-t`, stacking two divider lines right above the avatar (a real bug, since the two
+components' borders are independent and both rendered). A second wrapper div (`mt-4
+border-t ... pt-3`) around the "Cerrar sesión" form supplies the divider *below* the
+identity block that was missing entirely before — exactly one line above the identity
+card, exactly one below it. `getViewerIdentity()` (`lib/dashboard-data.ts`) still fetches
 the display name/avatar live from Strava rather than reading them off the Supabase Auth
 user object — the real auth bridge (see "Real auth: Strava-exclusive login" above) never
 stores a firstname/lastname/avatar in Supabase's `user_metadata`, since the synthetic

@@ -70,18 +70,20 @@ function SidebarContent({
         })}
       </nav>
 
-      <div className="mt-4 flex w-full flex-col gap-4 border-t border-neutral-200/80 pt-4">
+      <div className="mt-4 flex w-full flex-col border-t border-neutral-200/80 pt-4">
         {identitySlot}
 
-        <form action={logout}>
-          <button
-            type="submit"
-            className="my-1 flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 font-mono text-xs font-semibold tracking-wider text-neutral-500 uppercase transition-all duration-150 hover:bg-red-50/80 hover:text-red-600"
-          >
-            <LogOut className="size-3.5" strokeWidth={1.5} />
-            Cerrar sesión
-          </button>
-        </form>
+        <div className="mt-4 border-t border-neutral-200/80 pt-3">
+          <form action={logout}>
+            <button
+              type="submit"
+              className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 font-mono text-xs font-semibold tracking-wider text-neutral-500 uppercase transition-all duration-150 hover:bg-red-50/80 hover:text-red-600"
+            >
+              <LogOut className="size-3.5" strokeWidth={1.5} />
+              Cerrar sesión
+            </button>
+          </form>
+        </div>
       </div>
 
       <div className="mt-4 pt-3 text-center font-mono text-[10px] tracking-widest text-neutral-400 uppercase">

@@ -101,24 +101,26 @@ export function SyncForm() {
         <SyncButton />
       </form>
       {toast && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 fixed bottom-6 left-1/2 z-10000 flex w-[90%] max-w-md -translate-x-1/2 items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-white shadow-2xl duration-200">
+        <div className="animate-in fade-in slide-in-from-bottom-4 pointer-events-auto fixed bottom-6 left-1/2 z-10000 flex w-[90%] max-w-md -translate-x-1/2 items-center gap-3 rounded-xl border border-neutral-200/90 bg-white px-4 py-3 text-neutral-900 shadow-xl duration-200">
           <div
             className={cn(
-              "flex size-6 shrink-0 items-center justify-center rounded-full",
-              toast.kind === "success" ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+              "flex size-7 shrink-0 items-center justify-center rounded-full border",
+              toast.kind === "success"
+                ? "border-emerald-200/60 bg-emerald-50 text-emerald-600"
+                : "border-red-200/60 bg-red-50 text-red-600"
             )}
           >
             {toast.kind === "success" ? (
-              <Check className="size-3.5 stroke-3" />
+              <Check className="size-4 stroke-[2.5]" />
             ) : (
-              <TriangleAlert className="size-3.5 stroke-3" />
+              <TriangleAlert className="size-4 stroke-[2.5]" />
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-mono text-xs font-semibold tracking-wider text-white uppercase">
+            <p className="font-mono text-xs font-bold tracking-wider text-neutral-900 uppercase">
               {toast.title}
             </p>
-            <p className="mt-0.5 truncate font-sans text-xs text-neutral-300">{toast.message}</p>
+            <p className="mt-0.5 truncate font-sans text-xs text-neutral-600">{toast.message}</p>
           </div>
         </div>
       )}
