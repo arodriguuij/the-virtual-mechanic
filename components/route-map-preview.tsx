@@ -69,7 +69,7 @@ export function RouteMapPreview({
   ].filter((part): part is string => part != null);
 
   return (
-    <div className="relative mt-3 h-48 w-full overflow-hidden rounded-lg border border-neutral-200">
+    <div className="relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-lg border border-neutral-200">
       <MapContainer
         className="h-full w-full"
         center={points[0]}

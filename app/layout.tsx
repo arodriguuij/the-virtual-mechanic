@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Motor Metabólico",
+  title: "Motor Metabólico — Nutrición Ciclista de Precisión",
   description:
-    "Planificador de nutrición y fisiología para ciclistas — fueling y recuperación a partir de tu FTP, peso y datos reales de Strava.",
+    "Planificación de fueling, estrategias de bolsillo y recetas DIY para ciclismo.",
   appleWebApp: {
     title: "Motor Metabólico",
     statusBarStyle: "default",

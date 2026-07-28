@@ -26,7 +26,7 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col gap-10 px-6 py-8">
       <div className="flex items-center gap-2 border-b border-neutral-200 pb-6 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
-        <AppLogo className="size-4" />
+        <AppLogo className="size-7 shrink-0" />
         Motor Metabólico
       </div>
 
@@ -80,7 +80,7 @@ export function DashboardShell({
     <div className="min-h-screen bg-background">
       <div
         className={cn(
-          "fixed inset-0 z-40 bg-black/30 transition-opacity lg:hidden",
+          "fixed inset-0 z-9999 bg-black/30 transition-opacity lg:hidden",
           mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
         )}
         onClick={() => setMobileOpen(false)}
@@ -88,7 +88,7 @@ export function DashboardShell({
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 border-r border-neutral-200 bg-background transition-transform lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-10000 w-64 border-r border-neutral-200 bg-background transition-transform lg:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -112,7 +112,7 @@ export function DashboardShell({
             <Menu className="size-5" />
           </button>
           <span className="flex items-center gap-2 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
-            <AppLogo className="size-4" />
+            <AppLogo className="size-7 shrink-0" />
             Motor Metabólico
           </span>
         </header>

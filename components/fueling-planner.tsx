@@ -1229,6 +1229,11 @@ export function FuelingPlanner({
                   <Fuel className="size-3.5 shrink-0" />
                   Estrategia de recarga en ruta
                 </span>
+                <p className="mt-1.5 text-sm font-semibold text-neutral-900">
+                  {result.reloadStrategy.startingBottleCount} bidón
+                  {result.reloadStrategy.startingBottleCount > 1 ? "es" : ""} en bici +{" "}
+                  {result.reloadStrategy.ziplocBagsCount} dosis de recarga en maillot
+                </p>
                 <ol className="mt-1.5 flex flex-col gap-1 text-sm text-neutral-700">
                   <li>
                     1. Inicio de ruta: {result.reloadStrategy.startingBottleCount} bidón

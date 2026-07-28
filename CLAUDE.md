@@ -560,9 +560,15 @@ fresh bottle at the same safe 8% concentration), and when to stop: `reloadAtKm`/
 `reloadAtHours` is the point the starting bottles would run dry, estimated as
 `maxBottlesOnBike / totalBottles` of the way through the ride (assuming roughly even
 consumption) — `reloadAtKm` only set in route mode, where a real distance exists.
-Rendered in `components/fueling-planner.tsx` as a numbered "Estrategia de Recarga en
-Ruta" block (a `Fuel` icon in the header, only shown when `reloadStrategy` isn't `null`):
-`startingBottleCount` bottles at the start, N Ziploc bags in the jersey, and the
+`POST /api/fueling/plan` always calls this with the athlete's real
+`athleteProfile.bottle_count` as `maxBottlesOnBike` — never the 2-bottle default — so the
+reload trigger and `startingBottleCount` both reflect the rider's actual cage count (1 or
+2), not an assumption. Rendered in `components/fueling-planner.tsx` as a numbered
+"Estrategia de Recarga en Ruta" block (a `Fuel` icon in the header, only shown when
+`reloadStrategy` isn't `null`), led by a one-line plain-language summary — "N bidón(es) en
+bici + M dosis de recarga en maillot" — before the numbered "1. Inicio de ruta.../2. En el
+maillot..." steps, so the headline takeaway doesn't require reading the full breakdown
+first: `startingBottleCount` bottles at the start, N Ziploc bags in the jersey, and the
 estimated stop point (marked with a `MapPin` icon).
 
 **`isImpractical`** — a small bottle (e.g. 500ml, at the 8% concentration cap only ~40g of
@@ -877,6 +883,20 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   backdrop-blur-sm` badge in the map's bottom-left corner echoes the same distance/D+
   figures the route `<select>`/GPX filename line already show, for at-a-glance reference
   without needing to scroll back up.
+- **Stacking-context isolation**: Leaflet assigns its own internal panes/controls
+  z-indexes up to `1000` (tile pane, overlay pane, the zoom `+`/`−` control, etc.) —
+  comfortably higher than this app's own chrome layers, which meant the map's zoom
+  buttons rendered *on top of* the mobile sidebar drawer (`components/dashboard-shell.tsx`)
+  whenever both were visible at once, since the drawer's `z-40`/`z-50` never had to
+  compete with anything above `z-50` before Leaflet arrived. Fixed two ways together: the
+  drawer's backdrop and `<aside>` were bumped to `z-9999`/`z-10000` (comfortably above
+  Leaflet's own internal max), and independently, `RouteMapPreview`'s outer container
+  gained `relative z-0 isolate` — `isolate` (`isolation: isolate`) gives the map its own
+  stacking context so none of Leaflet's internal z-indexes can ever escape upward past
+  their own container in the first place, regardless of what other z-index this app's
+  chrome uses in the future. Belt-and-suspenders: either fix alone would have solved the
+  immediate bug, but only the `isolate` containment is robust against a *future* z-index
+  regression elsewhere in the app.
 
 ### Offline strategy cache ("Modo Cobertura Limitada")
 
@@ -1299,9 +1319,16 @@ behavior is untouched.
 `<head>`, no manual `<link rel="manifest">` needed) declares `display: "standalone"` so
 Android/Chrome's install prompt launches the app without browser chrome. `app/icon.tsx`
 (512×512) and `app/apple-icon.tsx` (180×180) both generate a PNG at request time via
-`next/og`'s `ImageResponse` — a flame emoji on the `--foreground` dark square — rather
-than needing a hand-exported image asset; Next auto-injects the corresponding
-`<link rel="icon">`/`<link rel="apple-touch-icon">` tags. `app/layout.tsx`'s `metadata`
+`next/og`'s `ImageResponse` — the same brand-mark SVG paths as `components/app-logo.tsx`
+(same cropped viewBox, embedded directly as inline `<svg>`/`<path>` elements inside the
+`ImageResponse` JSX — `satori` renders raw SVG children natively, no rasterization step
+needed) on a `--background` cream square, replacing an earlier flame-emoji placeholder —
+rather than needing a hand-exported image asset; Next auto-injects the corresponding
+`<link rel="icon">`/`<link rel="apple-touch-icon">` tags. **Deliberately not** a static
+`app/icon.svg`/`public/icon.svg` file even though `icon.(svg|png|...)` is also a valid
+convention — Next allows only one `icon` resolution per route segment, and this segment
+already has the dynamic `icon.tsx`; adding a static file alongside it would conflict
+rather than layer. `app/layout.tsx`'s `metadata`
 sets `appleWebApp: { title, statusBarStyle: "default" }`, which is what actually gets iOS
 Safari's "Add to Home Screen" to launch standalone (Android reads the manifest instead).
 `viewport.themeColor` matches `--background` (`#faf9f5`) so the installed app's title/

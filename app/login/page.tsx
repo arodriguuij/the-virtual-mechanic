@@ -30,9 +30,11 @@ export default async function LoginPage({
     <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <div className="w-full max-w-md rounded-2xl border border-neutral-200/80 bg-white p-8 text-center shadow-sm sm:p-10">
         <div className="flex flex-col items-center gap-8">
-          <div className="flex items-center gap-2 text-sm font-bold tracking-[0.2em] text-neutral-900 uppercase">
-            <AppLogo className="size-5" />
-            Motor Metabólico
+          <div className="flex flex-col items-center">
+            <AppLogo className="mx-auto mb-4 size-16" />
+            <span className="text-sm font-bold tracking-[0.2em] text-neutral-900 uppercase">
+              Motor Metabólico
+            </span>
           </div>
 
           <div className="flex flex-col gap-2">
