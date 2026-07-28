@@ -1160,7 +1160,23 @@ export type ReloadStrategy = {
   };
   reloadAtKm: number | null;
   reloadAtHours: number;
+  /** More Ziploc sachets than a jersey pocket can reasonably carry and mix
+   * on the fly one at a time — see `MAX_PRACTICAL_ZIPLOC_BAGS` below. The
+   * math itself is still correct (a small bottle really does need this many
+   * refills to carry this much dissolved carb), this just flags that the
+   * *plan*, not the arithmetic, needs rethinking. */
+  isImpractical: boolean;
 };
+
+// Past this many sachets, "mix one in at a stop" stops being a realistic
+// mid-ride action regardless of how correct the underlying math is — a
+// jersey pocket carrying 5+ pre-measured bags and stopping that many times
+// isn't a plan a rider would actually follow. This doesn't cap or hide the
+// real number (the athlete still sees exactly how many bottles their
+// target genuinely requires), it only flags when the *plan* itself needs
+// rethinking (bigger bottles, or shifting more carbs to solid food/gels)
+// rather than silently presenting an unworkable reload schedule as normal.
+const MAX_PRACTICAL_ZIPLOC_BAGS = 4;
 
 /**
  * "Estrategia de Recarga en Ruta" — whenever the bottle plan needs more
@@ -1200,6 +1216,7 @@ export function getReloadStrategy({
     },
     reloadAtKm: distanceKm != null ? Math.round(distanceKm * reloadAtFraction * 10) / 10 : null,
     reloadAtHours: Math.round(durationHours * reloadAtFraction * 100) / 100,
+    isImpractical: extraBottles > MAX_PRACTICAL_ZIPLOC_BAGS,
   };
 }
 

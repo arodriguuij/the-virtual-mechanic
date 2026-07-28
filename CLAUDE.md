@@ -565,6 +565,17 @@ Ruta" block (a `Fuel` icon in the header, only shown when `reloadStrategy` isn't
 `startingBottleCount` bottles at the start, N Ziploc bags in the jersey, and the
 estimated stop point (marked with a `MapPin` icon).
 
+**`isImpractical`** — a small bottle (e.g. 500ml, at the 8% concentration cap only ~40g of
+carbs) combined with a long/high-carb ride can correctly compute a genuinely large sachet
+count (verified live: a 5.6h ride at 60g/h with 500ml bottles needs 8 Ziploc bags) — the
+arithmetic itself isn't wrong, but "mix in a new bottle 8 times mid-ride" isn't a plan a
+rider would actually follow. Rather than capping or hiding that real number,
+`ziplocBagsCount > MAX_PRACTICAL_ZIPLOC_BAGS` (4) sets `isImpractical: true`, and the UI
+renders an additional warning line below the reload steps naming the actual constraint
+(bottle size too small for this carb target) and two concrete ways out — bigger bottles,
+or shifting more of the load to solid food/gels via Híbrido/Óptimo mode — rather than
+silently presenting an unworkable reload schedule as if it were a normal recommendation.
+
 ### 3-point route weather sampling (start / summit / finish)
 
 A single start-coordinate weather lookup silently assumes the whole route sits at that

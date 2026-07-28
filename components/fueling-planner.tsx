@@ -168,6 +168,7 @@ type PlanResult = {
     ziplocDose: { maltodextrinG: number; fructoseG: number; sodiumMg: number };
     reloadAtKm: number | null;
     reloadAtHours: number;
+    isImpractical: boolean;
   } | null;
   nutritionMilestones: {
     label: string;
@@ -1206,6 +1207,16 @@ export function FuelingPlanner({
                       : `Hora ${result.reloadStrategy.reloadAtHours}`}
                   </li>
                 </ol>
+                {result.reloadStrategy.isImpractical && (
+                  <p className="mt-2 flex items-start gap-1.5 border-t border-status-warning/30 pt-2 text-xs text-status-warning">
+                    <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                    {result.reloadStrategy.ziplocBagsCount} recargas en ruta no es un plan
+                    realista — con tus bidones de {result.bottlePlan.bottleSizeMl}ml, esta
+                    estrategia necesita más carbohidratos disueltos de los que puedes llevar
+                    cómodamente. Prueba con bidones de mayor capacidad o traslada más carga a
+                    comida sólida/geles (modo Híbrido u Óptimo).
+                  </p>
+                )}
               </div>
             )}
 
