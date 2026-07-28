@@ -11,6 +11,7 @@ import {
   Fuel,
   MapPin,
   Pencil,
+  RefreshCw,
   Send,
   TrendingDown,
   TriangleAlert,
@@ -19,6 +20,7 @@ import {
   Zap,
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { stripEmoji } from "@/lib/gpx-export";
 import { parseGpxFile, type ParsedGpxRoute } from "@/lib/gpx-import";
 import { decodePolyline } from "@/lib/polyline";
+import { refreshStravaRoutes } from "@/lib/strava-actions";
 import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
 import {
@@ -393,7 +396,22 @@ export function FuelingPlanner({
   const [gpxDurationHours, setGpxDurationHours] = useState(2);
   const [gpxError, setGpxError] = useState<string | null>(null);
   const [isDraggingGpx, setIsDraggingGpx] = useState(false);
+  const [refreshingRoutes, setRefreshingRoutes] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  // Bypasses `getStravaRoutes()`'s 24h cache (see `lib/dashboard-data.ts`) on
+  // demand — an athlete who just starred a new route on Strava shouldn't
+  // have to wait up to a day for it to show up here.
+  async function handleRefreshRoutes() {
+    setRefreshingRoutes(true);
+    try {
+      await refreshStravaRoutes();
+      router.refresh();
+    } finally {
+      setRefreshingRoutes(false);
+    }
+  }
 
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === selectedRouteId) ?? null,
@@ -697,9 +715,21 @@ export function FuelingPlanner({
           routes.length > 0 ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5 sm:col-span-2">
-                <label htmlFor="route" className={eyebrow}>
-                  Ruta
-                </label>
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor="route" className={eyebrow}>
+                    Ruta
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleRefreshRoutes}
+                    disabled={refreshingRoutes}
+                    title="Recargar rutas desde Strava"
+                    className="flex cursor-pointer items-center gap-1 text-[10px] font-semibold tracking-widest text-neutral-500 uppercase transition-colors duration-150 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <RefreshCw className={cn("size-3", refreshingRoutes && "animate-spin")} />
+                    {refreshingRoutes ? "Sincronizando…" : "Recargar"}
+                  </button>
+                </div>
                 <select
                   id="route"
                   className={selectableInputClass}
@@ -745,9 +775,20 @@ export function FuelingPlanner({
               />
             </div>
           ) : (
-            <p className="text-sm text-neutral-500">
-              No se encontraron rutas guardadas en Strava — usa la calculadora rápida.
-            </p>
+            <div className="flex flex-col items-start gap-2 border border-dashed border-neutral-300 px-4 py-3">
+              <p className="text-sm text-neutral-500">
+                Sin rutas en Strava — usa la calculadora rápida o sube un GPX.
+              </p>
+              <button
+                type="button"
+                onClick={handleRefreshRoutes}
+                disabled={refreshingRoutes}
+                className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw className={cn("size-3.5", refreshingRoutes && "animate-spin")} />
+                {refreshingRoutes ? "Sincronizando…" : "Buscar rutas de nuevo"}
+              </button>
+            </div>
           )
         ) : mode === "quick" ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

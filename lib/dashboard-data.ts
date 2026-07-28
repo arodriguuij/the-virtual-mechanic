@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import type { AthleteType, GutTrainingLevel, SweatRate } from "@/lib/metabolic-engine";
@@ -459,11 +460,40 @@ export const getNutritionDiary = cache(
   }
 );
 
+// Cache tag for one athlete's saved-routes list — exported so
+// `lib/strava-actions.ts`'s manual refresh Server Action can invalidate
+// exactly this user's entry via `revalidateTag`, without affecting anyone
+// else's cached routes.
+export function stravaRoutesCacheTag(userId: string): string {
+  return `strava-routes-${userId}`;
+}
+
+// 24h — saved/starred routes on Strava change rarely (an athlete stars a new
+// route maybe a few times a month), so a full day between refreshes cuts
+// `GET /athlete/routes` calls by roughly 99% against calling it on every
+// Dashboard load, while the manual refresh button covers the rare "I just
+// starred a new route and want it now" case. Exported so the first-login
+// bootstrap (`app/api/auth/strava/callback/route.ts`) can pre-warm this
+// exact same Data Cache entry with the identical revalidate window, rather
+// than the two drifting out of sync.
+export const STRAVA_ROUTES_REVALIDATE_SECONDS = 60 * 60 * 24;
+
 /**
  * The athlete's saved/starred Strava cycling routes, for the fueling
  * planner's route selector. `[]` (not an error) whenever Strava isn't
  * connected or the API call fails — the planner just falls back to its
  * manual quick-calculator mode.
+ *
+ * The actual Strava call is wrapped in `unstable_cache`, keyed only by
+ * `userId` (not the access token, which rotates every ~6h) so a token
+ * refresh never defeats the cache — the wrapped closure captures whatever
+ * token was valid at cache-population time, and Next's Data Cache returns
+ * that same result for `STRAVA_ROUTES_REVALIDATE_SECONDS` regardless of
+ * later token rotations, until it naturally expires or `revalidateTag`
+ * clears it early. `getAuthenticatedSupabaseClient()`/`auth.getUser()` run
+ * *outside* the cached function deliberately — `unstable_cache` throws if a
+ * dynamic API like `cookies()` is used inside it, so only the plain network
+ * fetch is ever wrapped.
  */
 export const getStravaRoutes = cache(async (): Promise<StravaRoute[]> => {
   const supabase = await getAuthenticatedSupabaseClient();
@@ -476,7 +506,12 @@ export const getStravaRoutes = cache(async (): Promise<StravaRoute[]> => {
   const accessToken = await getValidStravaAccessToken(supabase, userId);
   if (!accessToken) return [];
 
-  return fetchAthleteRoutes(accessToken);
+  const fetchCachedRoutes = unstable_cache(
+    async () => fetchAthleteRoutes(accessToken),
+    [stravaRoutesCacheTag(userId)],
+    { revalidate: STRAVA_ROUTES_REVALIDATE_SECONDS, tags: [stravaRoutesCacheTag(userId)] }
+  );
+  return fetchCachedRoutes();
 });
 
 /**

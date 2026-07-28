@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { exchangeCodeForToken, fetchAthlete, getStravaRedirectUri } from "@/lib/strava";
+import { fetchAthleteRoutes } from "@/lib/strava-routes";
+import { syncLatestActivity } from "@/lib/strava-sync";
+import { stravaRoutesCacheTag, STRAVA_ROUTES_REVALIDATE_SECONDS } from "@/lib/dashboard-data";
 
 export const dynamic = "force-dynamic";
 
@@ -151,6 +155,36 @@ export async function GET(request: NextRequest) {
     }
   } catch (error) {
     console.error("No se pudo sincronizar el peso del atleta desde Strava:", error);
+  }
+
+  // First-login onboarding bootstrap: a brand-new athlete's Dashboard,
+  // "Al llegar," and Historial would otherwise all sit empty until they
+  // manually hit "Sincronizar Strava" for the first time — this pre-loads
+  // their saved routes and their latest ride so those screens have real data
+  // from the very first render. Only for `isNewAccount` (a Strava athlete
+  // genuinely never seen before), never on a returning login, and each is
+  // its own best-effort try/catch — a failure here must never undo an
+  // otherwise-successful login/token save above.
+  if (isNewAccount) {
+    try {
+      const warmRoutesCache = unstable_cache(
+        async () => fetchAthleteRoutes(token.access_token),
+        [stravaRoutesCacheTag(userId)],
+        {
+          revalidate: STRAVA_ROUTES_REVALIDATE_SECONDS,
+          tags: [stravaRoutesCacheTag(userId)],
+        }
+      );
+      await warmRoutesCache();
+    } catch (error) {
+      console.error("No se pudieron precargar las rutas guardadas de Strava:", error);
+    }
+
+    try {
+      await syncLatestActivity(supabase, userId, token.access_token);
+    } catch (error) {
+      console.error("No se pudo sincronizar la última salida en el primer login:", error);
+    }
   }
 
   return NextResponse.redirect(new URL("/", request.url));

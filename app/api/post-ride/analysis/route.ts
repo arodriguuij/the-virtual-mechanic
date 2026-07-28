@@ -235,6 +235,7 @@ export async function POST(request: NextRequest) {
       name: activity.name,
       activityDate: activity.activity_date,
       distanceKm: Math.round((activity.distance / 1000) * 10) / 10,
+      elevationGainM: Math.round(elevationGainM),
       durationHours: Math.round(hours * 100) / 100,
     },
     carbsBurnedG,

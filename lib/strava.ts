@@ -196,12 +196,20 @@ export async function fetchAthleteStats(
   };
 }
 
+// 30 (not the original 10) — a rider who's logged several other-sport
+// activities (a run, a swim, a gym session) between rides could otherwise
+// push their last real ride past the window, surfacing a misleading
+// "no_rides" error even though a recent cycling activity does exist further
+// back in their feed.
+const LATEST_ACTIVITY_LOOKBACK = 30;
+
 export async function fetchLatestRideActivity(
   accessToken: string
 ): Promise<StravaActivity | null> {
-  const res = await fetch(`${STRAVA_API_BASE}/athlete/activities?per_page=10`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const res = await fetch(
+    `${STRAVA_API_BASE}/athlete/activities?per_page=${LATEST_ACTIVITY_LOOKBACK}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
   if (!res.ok) {
     throw new Error(`Strava activities request failed: ${res.status} ${await res.text()}`);
   }

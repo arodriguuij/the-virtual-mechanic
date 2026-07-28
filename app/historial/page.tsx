@@ -204,7 +204,9 @@ async function NutritionDiarySection() {
       <Card>
         <CardContent>
           <span className={cardNumberHeading}>02 · Diario de rutas</span>
-          <p className="mt-2 text-sm text-neutral-500">Sin actividades registradas todavía</p>
+          <p className="mt-2 text-sm text-neutral-500">
+            Diario metabólico preparado. Tus salidas sincronizadas desde Strava aparecerán aquí.
+          </p>
         </CardContent>
       </Card>
     );

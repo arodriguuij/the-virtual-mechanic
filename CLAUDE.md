@@ -166,6 +166,15 @@ reach for — simply cannot work. Instead:
   card.
 ### Login & loading screens (`app/login/page.tsx`, `app/auth/callback/page.tsx`)
 
+**`app/loading.tsx`** is Next's route-level `loading.tsx` boundary — shown automatically
+while any route segment's Server Component data is still resolving, app-wide, not just
+during auth. Deliberately just the brand mark on the same `#FDFCF9` cream as the auth-flow
+screens below, no "Cargando..."/status text at all: a purist loading state that reads as
+part of the app's own chrome rather than a generic spinner screen. The mark uses a small
+custom `animate-logo-breathe` keyframe (`app/globals.css`) rather than Tailwind's own
+`animate-pulse` — a bare opacity fade alone read flatter than pairing it with an
+almost-imperceptible `scale(0.98) → scale(1)` shift, which `animate-pulse` alone can't do.
+
 **`app/login/page.tsx`** is the only entry point when `proxy.ts` finds no session: a
 centered screen (value prop + a single "Conectar con Strava" CTA linking to
 `/api/strava/connect`) with its own `stravaLoginErrorMessages` map for login-time
@@ -326,17 +335,37 @@ as its `strava_athlete_id` matches).
   table's `NOT NULL` columns until the athlete edits their real numbers via the
   Physiological Profile form. A failure here is logged but never undoes an otherwise-
   successful Strava connection.
-- `POST /api/strava/sync` — refreshes the access token if it's expired (via
-  `getValidStravaAccessToken()` in `lib/strava-session.ts`, shared with the routes
-  listing below so the refresh-and-persist dance lives in one place), pulls the
-  athlete's latest cycling activity, and writes it into `activities` if it isn't there
-  yet via `.upsert(..., { onConflict: "id", ignoreDuplicates: true })` (`id` *is* the
-  Strava activity id) rather than a plain insert — the `!existing` check below still
-  gates whether weather/nutrition get computed at all, but the write itself is now
-  race-safe against a rapid double-click on "Sincronizar rutas": two requests that both
-  see `!existing` before either finishes would otherwise hit a duplicate-key error on the
-  second insert; with `ignoreDuplicates`, the loser of that race is a silent no-op
-  instead. Only for a genuinely new activity (the `!existing` branch) it also:
+
+  **First-login onboarding bootstrap** — immediately after the token/weight-sync work
+  above, and only when `isNewAccount` is `true` (a Strava athlete genuinely never seen
+  before, the same flag the account-reuse logic already computes — never on a returning
+  login), the callback also pre-warms the athlete's saved-routes cache (see "Strava
+  saved-routes cache & manual refresh" below — an `unstable_cache` call with the exact
+  same `stravaRoutesCacheTag(userId)`/`STRAVA_ROUTES_REVALIDATE_SECONDS` the Dashboard's
+  own `getStravaRoutes()` uses, so it's genuinely the same Data Cache entry, not a second
+  one) and syncs their single most recent ride via `syncLatestActivity()`
+  (`lib/strava-sync.ts`, see below). Both are independent best-effort `try/catch` blocks —
+  a failure in either is logged but never undoes the login or blocks the final redirect —
+  so the Dashboard, "Al llegar," and Historial all have real data from the very first
+  render instead of sitting empty until the athlete manually hits "Sincronizar Strava."
+- `POST /api/strava/sync` and the first-login bootstrap above both call
+  **`syncLatestActivity()`** (`lib/strava-sync.ts`) — extracted into its own module so the
+  two callers share one identical weather-sampling/nutrition-calculation pipeline instead
+  of a second hand-copied implementation drifting out of sync with the first. It pulls the
+  athlete's latest cycling activity (`fetchLatestRideActivity()`, `lib/strava.ts` —
+  `per_page=30`, not the original `10`: an athlete who's logged several other-sport
+  activities — a run, a swim, a gym session — between rides could otherwise push their
+  last real ride past a smaller window, surfacing a misleading "no rides" error even
+  though a recent cycling activity exists a bit further back in their feed; the sport-type
+  filter itself, `CYCLING_SPORT_TYPES`, was already broad enough) and writes it into
+  `activities` if it isn't there yet via
+  `.upsert(..., { onConflict: "id", ignoreDuplicates: true })` (`id` *is* the Strava
+  activity id) rather than a plain insert — the `!existing` check below still gates
+  whether weather/nutrition get computed at all, but the write itself is race-safe against
+  a rapid double-click on "Sincronizar rutas": two requests that both see `!existing`
+  before either finishes would otherwise hit a duplicate-key error on the second insert;
+  with `ignoreDuplicates`, the loser of that race is a silent no-op instead. Only for a
+  genuinely new activity (the `!existing` branch) it also:
   - Samples real weather along the ride's actual route from Open-Meteo (see "Geographic
     microclimate sampling" below) for humidity/temperature/rain — indoor rides skip this
     entirely and use a fixed warm-room assumption instead (26°C / 60% humidity — trainer
@@ -349,6 +378,9 @@ as its `strava_athlete_id` matches).
     as the old wear model's neutral-placeholder fallback.
   - Skipped entirely when the activity already exists, so re-clicking "Sincronizar rutas"
     never double-counts nutrition cost or re-derives weather for the same ride.
+  `POST /api/strava/sync/route.ts` itself is now a thin wrapper: auth check, resolve a
+  valid access token, call `syncLatestActivity()`, map its `{ status: "no_rides" }` /
+  `{ status: "synced", ... }` result onto the route's existing JSON response shape.
 - The Dashboard header shows "Conectar Strava" or "Sincronizar Strava" depending on
   whether `profiles.strava_athlete_id` is set (`getProfile()` in `lib/dashboard-data.ts`).
   The sync button (`components/sync-button.tsx`, `"use client"`) still hits the exact same
@@ -414,6 +446,42 @@ instead:
 - Any point request that fails (network hiccup, no data for that hour) is dropped rather
   than failing the whole sync — `getWeatherForRoute` only returns `null` if *every* point
   came back empty, matching the existing "fall back to a neutral placeholder" convention.
+
+### Strava saved-routes cache & manual refresh
+
+`GET /athlete/routes` was being called on every single Dashboard load (via
+`getStravaRoutes()` in `lib/dashboard-data.ts`) purely to populate the Fueling Planner's
+route `<select>` — routes an athlete stars on Strava change maybe a few times a month, so
+that's a lot of passive API traffic for data that's almost always identical to the last
+call. `getStravaRoutes()` now wraps the actual `fetchAthleteRoutes()` network call in
+`unstable_cache`, keyed only by `stravaRoutesCacheTag(userId)` (a small exported helper,
+`` `strava-routes-${userId}` ``) — deliberately *not* by the access token, which rotates
+roughly every 6h, so a token refresh never defeats the cache; the wrapped closure just
+keeps using whichever token was valid at cache-population time. `STRAVA_ROUTES_REVALIDATE_SECONDS`
+(24h, both exported from `lib/dashboard-data.ts`) is the natural expiry, cutting this
+specific call by roughly 99% against calling it on every load. `getAuthenticatedSupabaseClient()`/
+`auth.getUser()` still run *outside* the cached function on every call — `unstable_cache`
+throws if a dynamic API like `cookies()` is used inside it, so only the plain `fetch` to
+Strava is ever wrapped.
+
+An athlete who just starred a new route on Strava shouldn't have to wait up to a full day
+for it to appear, though — **`refreshStravaRoutes()`** (`lib/strava-actions.ts`, a
+`"use server"` Server Action) calls `updateTag(stravaRoutesCacheTag(userId))` to bypass the
+cache on demand. `updateTag`, not `revalidateTag`, is the deliberate choice: this Next.js
+version requires `revalidateTag`'s second `profile` argument and only offers
+stale-while-revalidate semantics from a Route Handler, whereas `updateTag` (callable only
+from a Server Action) expires the tag immediately and makes the *next* request wait for
+genuinely fresh data — exactly the "read-your-own-writes" case a manual refresh click is.
+`components/fueling-planner.tsx`'s route `<select>` gets a small "Recargar" icon button
+next to its label (calls the action, then `router.refresh()`, with a spinning `RefreshCw`
+while pending) — the same manual-bypass button also appears, larger, in the "sin rutas
+guardadas" empty state (see below) as "Buscar rutas de nuevo," since a rider connecting
+Strava mid-session with zero starred routes yet is the case most likely to want an
+immediate re-check rather than waiting for the 24h window.
+
+The empty-state copy itself ("Sin rutas en Strava — usa la calculadora rápida o sube un
+GPX.") replaced an earlier version that only mentioned the quick calculator, not the GPX
+uploader — by the time GPX mode existed, that message was stale.
 
 ### Metabolic engine
 
@@ -1278,7 +1346,32 @@ applies.
    `Number.isFinite(carbsBurnedG)` before ever returning a result), which given the RPE
    math's inputs should never actually happen in practice.
 
+**Empty state** — `PostRideAnalysis` (`components/post-ride-analysis.tsx`) renders a
+prompt to sync rather than a bare "sin actividades" line when `activities.length === 0`:
+short copy plus the exact same `<SyncForm />` (`components/sync-button.tsx`) the Dashboard
+header's own "Sincronizar Strava" button uses, reused as-is rather than a second
+hand-rolled fetch/toast implementation — a first-time visitor with nothing synced yet gets
+a real, working sync action right in "Al llegar" instead of only in the header.
+
 ### Telemetry card: graceful degradation for missing sensors
+
+Before the "Deuda de Glucógeno" breakdown itself, the result panel now opens with a
+**"Ruta sincronizada desde Strava" telemetry summary** — a bordered `bg-surface` block
+led by a small emerald status pill (a colored dot + text, not a literal 🟢 glyph, matching
+this app's no-emoji convention — see `athleteTypeLabels`/historial's compliance badges)
+plus the ride's name and date, then a `grid-cols-2 sm:grid-cols-4` row of Distancia (+D+),
+Tiempo en movimiento (`formatHoursMinutes()`, a small local duplicate of
+`fueling-planner.tsx`'s own file-local helper of the same name — both are 4-line pure
+formatters, not worth sharing a module over), Potencia (+NP when available), Gasto
+energético, and Frecuencia cardíaca — with a fixed footer note ("Cálculo de deuda
+metabólica generado a partir de la telemetría real de tu ciclocomputador."). This
+supersedes the narrower 3-stat (Energía/Potencia/FC) "Telemetría" block that used to sit
+*after* the glucógeno numbers — removed outright rather than kept alongside the new card,
+since every figure it showed is now covered (plus distance/elevation/time, which it
+didn't have) by the summary at the top; showing both would have been pure duplication.
+`elevationGainM` is a new field on `POST /api/post-ride/analysis`'s `activity` response
+object (Strava's `total_elevation_gain`, already read server-side for the energy-estimate
+formula below, just not previously returned to the client).
 
 The same response also carries a `telemetry` object — the *raw* sensor readings
 themselves (energy, power, heart rate), a separate concern from which tier above actually
@@ -1670,6 +1763,11 @@ sesión") instead of a made-up bio line.
     summary KPIs specifically (only slicing to `displayLimit` for the rendered card list
     afterward) — an athlete with more synced rides than the display limit would otherwise
     get an all-time figure skewed toward only their most recent few.
+  - The zero-activities empty state ("02 · Diario de rutas" with nothing synced yet)
+    reads "Diario metabólico preparado. Tus salidas sincronizadas desde Strava aparecerán
+    aquí." — a forward-looking onboarding line rather than the earlier flat "Sin
+    actividades registradas todavía," so a brand-new athlete's first-ever visit to this
+    route reads as "this is ready and waiting for you" rather than "there's nothing here."
 - **`app/perfil/page.tsx`** — its own `DashboardShell`-wrapped page (own header, own
   `profile_saved`/`profile_error` query-param handling — see "Athlete profile" above)
   rather than a tab panel. `PhysiologicalProfileCard` reads `getAthleteProfile()` and

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { SyncForm } from "@/components/sync-button";
 import {
   getBiphasicRecoveryTarget,
   getMacroRecoveryTarget,
@@ -50,6 +51,7 @@ type AnalysisResult = {
     name: string;
     activityDate: string;
     distanceKm: number;
+    elevationGainM: number;
     durationHours: number;
   };
   carbsBurnedG: number;
@@ -67,6 +69,13 @@ type AnalysisResult = {
   };
   loggedNew: boolean;
 };
+
+function formatHoursMinutes(hours: number): string {
+  const totalMinutes = Math.round(Math.max(0, hours) * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+}
 
 const sourceLabels: Record<AnalysisResult["source"], string> = {
   zones: "calculado a partir de tus zonas de potencia reales",
@@ -207,6 +216,13 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
             Sin actividades registradas todavía
           </CardDescription>
         </CardHeader>
+        <CardContent className="flex flex-col items-start gap-3">
+          <p className="max-w-sm text-sm text-neutral-500">
+            En cuanto sincronices tu última salida desde Strava, aparecerá aquí lista para
+            calcular su deuda de glucógeno y objetivo de recuperación.
+          </p>
+          <SyncForm />
+        </CardContent>
       </Card>
     );
   }
@@ -283,6 +299,94 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
 
         {result && (
           <div ref={resultRef} className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
+            <div className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-surface px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200/60 bg-emerald-50 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-emerald-700 uppercase">
+                  <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
+                  Ruta sincronizada desde Strava
+                </span>
+                <span className="font-mono text-[10px] text-neutral-500">
+                  {new Date(result.activity.activityDate).toLocaleDateString("es-ES", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </span>
+              </div>
+              <span className="text-sm font-medium text-neutral-900">{result.activity.name}</span>
+
+              <div className="grid grid-cols-2 gap-3 border-t border-neutral-200 pt-3 sm:grid-cols-4">
+                <div className="flex flex-col gap-1">
+                  <span className={statLabel}>Distancia</span>
+                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                    {result.activity.distanceKm} km
+                  </span>
+                  <span className="font-mono text-[10px] text-neutral-500">
+                    {result.activity.elevationGainM}m D+
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={statLabel}>Tiempo en movimiento</span>
+                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                    {formatHoursMinutes(result.activity.durationHours)}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={statLabel}>Potencia</span>
+                  {result.telemetry.powerSource === "none" ? (
+                    <>
+                      <span className="font-mono text-sm font-semibold text-neutral-400 tabular-nums">
+                        N/A
+                      </span>
+                      <span className="font-mono text-[10px] text-neutral-500">
+                        {lastRpeLabel ? `RPE: ${lastRpeLabel}` : "Sin sensor"}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                        {result.telemetry.powerWatts} W
+                      </span>
+                      <span className="font-mono text-[10px] text-neutral-500">
+                        {result.telemetry.powerSource === "estimated"
+                          ? "Potencia est."
+                          : result.telemetry.normalizedPowerWatts != null
+                            ? `NP ${result.telemetry.normalizedPowerWatts}W`
+                            : "Real"}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={statLabel}>Gasto energético</span>
+                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                    {result.telemetry.energyKcal} kcal
+                  </span>
+                  <span className="font-mono text-[10px] text-neutral-500">
+                    {result.telemetry.energySource === "estimated" ? "Estimado" : "Strava"}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={statLabel}>Frecuencia cardíaca</span>
+                  <span
+                    className={cn(
+                      "font-mono text-sm font-semibold tabular-nums",
+                      result.telemetry.heartrateAvg != null ? "text-neutral-900" : "text-neutral-400"
+                    )}
+                  >
+                    {result.telemetry.heartrateAvg != null
+                      ? `${result.telemetry.heartrateAvg} ppm (media)`
+                      : "-- ppm"}
+                  </span>
+                </div>
+              </div>
+
+              <p className="border-t border-neutral-200 pt-2 font-mono text-[10px] text-neutral-400">
+                Cálculo de deuda metabólica generado a partir de la telemetría real de tu
+                ciclocomputador.
+              </p>
+            </div>
+
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className={eyebrow}>Deuda de glucógeno · &ldquo;{result.activity.name}&rdquo;</span>
               <span className="text-xs text-neutral-500">{sourceLabels[result.source]}</span>
@@ -309,67 +413,6 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                   {result.sodiumLossMg}
                   <span className="ml-1 text-sm font-normal text-neutral-500">mg</span>
                 </span>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 border-t border-neutral-100 pt-3">
-              <span className={eyebrow}>Telemetría</span>
-              <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                <div className="flex flex-col gap-1">
-                  <span className={statLabel}>Energía</span>
-                  <span className="font-mono text-base font-semibold text-neutral-900 tabular-nums sm:text-lg">
-                    {result.telemetry.energyKcal}
-                    <span className="ml-1 text-xs font-normal text-neutral-500">kcal</span>
-                  </span>
-                  <span className="text-[10px] text-neutral-400">
-                    {result.telemetry.energySource === "estimated" ? "Estimado" : "Strava"}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className={statLabel}>Potencia</span>
-                  {result.telemetry.powerSource === "none" ? (
-                    <>
-                      <span className="font-mono text-base font-semibold text-neutral-400 tabular-nums sm:text-lg">
-                        N/A
-                      </span>
-                      <span className="text-[10px] text-neutral-400">
-                        {lastRpeLabel ? `RPE: ${lastRpeLabel}` : "Sin sensor"}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="font-mono text-base font-semibold text-neutral-900 tabular-nums sm:text-lg">
-                        {result.telemetry.powerWatts}
-                        <span className="ml-1 text-xs font-normal text-neutral-500">W</span>
-                      </span>
-                      <span className="text-[10px] text-neutral-400">
-                        {result.telemetry.powerSource === "estimated"
-                          ? "Estimado"
-                          : result.telemetry.normalizedPowerWatts != null
-                            ? `NP ${result.telemetry.normalizedPowerWatts}W`
-                            : "Real"}
-                      </span>
-                    </>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className={statLabel}>FC media</span>
-                  <span
-                    className={cn(
-                      "font-mono text-base font-semibold tabular-nums sm:text-lg",
-                      result.telemetry.heartrateAvg != null ? "text-neutral-900" : "text-neutral-400"
-                    )}
-                  >
-                    {result.telemetry.heartrateAvg != null ? (
-                      <>
-                        {result.telemetry.heartrateAvg}
-                        <span className="ml-1 text-xs font-normal text-neutral-500">ppm</span>
-                      </>
-                    ) : (
-                      "-- ppm"
-                    )}
-                  </span>
-                </div>
               </div>
             </div>
 
