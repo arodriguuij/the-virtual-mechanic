@@ -38,17 +38,17 @@ export default async function LoginPage({
         Nutrición de precisión para ciclistas
       </h1>
 
-      <ul className="mx-auto mb-6 max-w-xs space-y-2 px-2 font-mono text-xs text-neutral-700 sm:mb-8 sm:space-y-3">
+      <ul className="my-6 w-full max-w-70 space-y-2.5 text-left font-mono text-xs text-neutral-800">
         {benefits.map((benefit) => (
           <li key={benefit} className="flex items-start gap-2">
-            <span className="text-terracotta">&#10003;</span>
+            <span className="font-bold text-terracotta">&#10003;</span>
             {benefit}
           </li>
         ))}
       </ul>
 
       {error && (
-        <div className="mx-auto mb-4 flex w-full max-w-xs items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-left text-sm text-status-warning">
+        <div className="mx-auto mb-4 flex w-full max-w-70 items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-left text-sm text-status-warning">
           <TriangleAlert className="size-4 shrink-0" />
           {error}
         </div>

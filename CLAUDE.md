@@ -205,10 +205,17 @@ can never reach that page to see them.
     shorter title now that there's no card width constraining it. The old paragraph-style
     value prop is a 3-line checkmark list (`✓ Recetas exactas de glucosa y fructosa` /
     `✓ Ajuste por meteorología en tiempo real` / `✓ Pautas listas para tu mezcla casera`,
-    `font-mono text-xs`, `max-w-xs mx-auto`) — terser and more scannable, matching the PNS
-    convention of short declarative benefit lines over descriptive prose. The error banner
-    (`stravaLoginErrorMessages`) renders inline here, same `max-w-xs` width as everything
-    else, no card chrome around it.
+    `font-mono text-xs`) — terser and more scannable, matching the PNS convention of short
+    declarative benefit lines over descriptive prose. Every checkmark is `font-bold
+    text-terracotta` (the design-system accent token, `#c85231` — not a hardcoded hex,
+    per this app's own "reuse tokens" convention) rather than the muted default text
+    color, so the three benefits read as a deliberately branded list rather than plain
+    body copy. The checklist, error banner, and Strava button all share one fixed
+    `max-w-70` (280px, the canonical Tailwind spelling of `max-w-[280px]`) block width —
+    narrower than the `max-w-xs` (320px) used everywhere else in this app, specifically so
+    this one screen's central column reads as a tight, deliberate column rather than
+    stretching to an arbitrary utility width never chosen for this exact layout. The error
+    banner (`stravaLoginErrorMessages`) renders inline here, no card chrome around it.
   - **Bottom bar** — three technical specs, always one line, never wrapped/stacked.
     `specsFull` ("01 / Ratio 1:0.8 optimizado", "02 / Meteorología en vivo", "03 / Mezcla
     casera") renders at `sm:` and up; below it, `specsShort` ("01 / Ratio 1:0.8", "02 /
@@ -1704,7 +1711,36 @@ keypad; shared input classes across `page.tsx`/`fueling-planner.tsx`/
 `post-ride-analysis.tsx` use `py-2.5` rather than `py-2` for a more comfortable touch
 target. `app/layout.tsx`'s `<body>` carries `overflow-x-hidden` as a defensive backstop
 against any stray horizontal overflow, on top of (not instead of) fixing the actual
-layouts above.
+layouts above. Both `<html>` and `<body>` also carry `overscroll-x-none` (`overscroll-
+behavior-x: none`, set both via these Tailwind classes and, redundantly, in `app/
+globals.css`'s `@layer base` — belt-and-suspenders, since this property has no visual
+effect of its own to verify beyond "the gesture no longer fires") — this is what stops
+iOS Safari from interpreting a horizontal swipe on the page as its native "swipe back to
+the previous page" gesture, which would otherwise fire even where nothing is actually
+scrollable horizontally.
+
+**Sidebar drawer: swipe-to-open/close (`components/dashboard-shell.tsx`).** Below
+`lg:` (1024px — the drawer doesn't exist above it, the sidebar is always visible), the
+drawer responds to a real touch drag rather than only the hamburger button/backdrop tap:
+edge-swiping right from within `EDGE_SWIPE_ZONE_PX` (24px) of the left edge opens it while
+closed, swiping left anywhere closes it while open. `onTouchStart`/`onTouchMove`/
+`onTouchEnd` on the shell's outer wrapping div track a `dragX` state (0-256px,
+`DRAWER_WIDTH_PX`) applied as an inline `transform: translateX(...)` on the `<aside>` and
+as the backdrop's opacity — both track the finger in real time while dragging, snapping
+fully open or closed on release (past `SWIPE_COMMIT_FRACTION`, 35% of the drawer's width)
+rather than only reacting to the gesture's end. A `DIRECTION_LOCK_PX` (10px) dead zone
+decides horizontal-vs-vertical intent before committing to either: if the first 10px of
+movement is more vertical than horizontal, tracking stops entirely and the touch falls
+through to whatever native scroll was already happening — verified live with a purely
+vertical touch-drag starting right at the edge, which left the drawer fully closed
+(`aside.getBoundingClientRect().left === -256`), confirming the direction lock actually
+discriminates rather than opening on every edge touch. The handlers never call
+`preventDefault`, so this was never capable of blocking a real scroll gesture in the
+first place — the lock exists purely to stop the drawer from visually flickering partway
+open during an unrelated vertical scroll near the edge, not to un-block anything.
+Guarded to below `lg:` via a `window.innerWidth` check at `touchstart` time, since the
+`<aside>`'s `lg:translate-x-0` override would otherwise conflict with the drag's own
+inline `transform` on a touch-capable laptop.
 
 **Mobile dashboard priority reorder.** A brand-new athlete's first useful action is
 calculating a fueling strategy, not reading a week of stats they don't have yet — so on
