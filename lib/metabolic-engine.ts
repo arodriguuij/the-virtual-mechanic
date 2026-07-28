@@ -433,19 +433,22 @@ export function getPocketFoodTotalCarbsG(selection: PocketFoodSelection): number
 export type FuelingMode = "optimal" | "inventory" | "hybrid";
 
 /**
- * "Modo Óptimo" — below ~2.5h there's nothing to gain from solid food at
- * all (an all-liquid DIY bottle is cheaper and just as effective, see
- * `getMoneySavedVsGels`); past that, a little solid variety fights flavor
- * fatigue and gives the gut something other than liquid to work with,
- * without meaningfully denting the bottle's cost advantage — a fixed,
- * modest allowance that scales with duration rather than a full
- * combinatorial optimizer (this file's "heuristic, not clinical"
- * convention throughout).
+ * "Modo Óptimo" — a high-digestive-efficiency strategy composed *exclusively*
+ * of the DIY bottle plus fast-absorption gels, never solid food: solids
+ * (banana, energy bar, rice cake, dates) slow gastric emptying relative to a
+ * gel or liquid carb source, which matters more the harder/longer the ride
+ * gets — exactly the rides this mode targets. Below ~2.5h there's nothing to
+ * gain from any pocket food at all (an all-liquid DIY bottle is cheaper and
+ * just as effective, see `getMoneySavedVsGels`); past that, gel count/tier
+ * scales with duration as a proxy for total carb demand — a fixed, modest
+ * allowance, not a full combinatorial optimizer (this file's "heuristic, not
+ * clinical" convention throughout).
  */
 export function getOptimalPocketFoodSelection(durationHours: number): PocketFoodSelection {
   if (durationHours < 2.5) return {};
   if (durationHours < 4) return { gel_standard: 1 };
-  return { gel_standard: 1, rice_cake: 1 };
+  if (durationHours < 6) return { gel_standard: 2 };
+  return { gel_standard: 1, gel_high: 1 };
 }
 
 /**

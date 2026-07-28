@@ -466,21 +466,25 @@ anywhere else in Supabase:
 - **Mi Inventario (`'inventory'`, the default)** — the athlete's own manual catalog
   selection, used exactly as-is. This was this app's only behavior before modes existed,
   so nothing changed here except giving it an explicit name alongside the other two.
-- **Óptimo (`'optimal'`)** — the athlete makes no choice at all;
+- **Óptimo (`'optimal'`)** — a high-digestive-efficiency strategy composed *exclusively* of
+  the DIY bottle plus fast-absorption gels, never solid food (banana/energy bar/rice cake/
+  dates) — solids slow gastric emptying relative to a gel, which matters more on the
+  harder/longer rides this mode targets. The athlete makes no choice at all;
   `getOptimalPocketFoodSelection(durationHours)` picks automatically once `durationHours`
   is known server-side (the route ignores whatever `pocketFood` the client sent for this
   mode and recomputes it, same "server never trusts client-computed values" convention as
-  re-fetching the athlete profile). Below ~2.5h there's nothing to gain from solid food at
-  all — an all-liquid DIY bottle is cheaper and just as effective (see
-  `getMoneySavedVsGels`) — so the selection is empty; from 2.5-4h it adds one standard gel
-  for palate variety; past 4h, one standard gel plus one rice cake — a fixed, modest,
-  duration-scaled allowance, not a full combinatorial optimizer (this file's
-  "heuristic, not clinical" convention throughout). `components/fueling-planner.tsx`
-  disables (visually greys out, `disabled` prop threaded into `PocketFoodStepperRow`) every
-  pocket-food stepper and the custom-carbs input in this mode, and once a result comes
-  back, reads the *server's* chosen quantities from `result.pocketFood` to display what was
-  actually picked (the disabled steppers would otherwise still show the athlete's last
-  manual selection, not the auto-selected one).
+  re-fetching the athlete profile). Below ~2.5h there's nothing to gain from any pocket food
+  at all — an all-liquid DIY bottle is cheaper and just as effective (see
+  `getMoneySavedVsGels`) — so the selection is empty; 2.5-4h adds one standard gel, 4-6h two
+  standard gels, past 6h one standard + one high-carb "hydro" gel — gel count/tier scaling
+  with duration as a proxy for total carb demand, a fixed, modest allowance, not a full
+  combinatorial optimizer (this file's "heuristic, not clinical" convention throughout).
+  `components/fueling-planner.tsx` hides the solid-food catalog rows and the custom-carbs
+  input entirely in this mode (rather than just disabling them — they're categorically
+  excluded, not merely locked to the last manual value), showing only the three gel rows
+  (disabled, `PocketFoodStepperRow`'s `disabled` prop) reading the *server's* chosen
+  quantities from `result.pocketFood` once a result comes back (the disabled steppers would
+  otherwise still show the athlete's last manual selection, not the auto-selected one).
 - **Híbrido (`'hybrid'`)** — the athlete's manual selection is treated as a fixed base
   (used as-is, exactly like `'inventory'`), and `getHybridGelSuggestion(remainingCarbsG)`
   additionally computes how many standard gels (30g each, a simple greedy fill with one

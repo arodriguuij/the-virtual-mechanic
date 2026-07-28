@@ -68,7 +68,7 @@ const FUELING_MODE_OPTIONS: { value: FuelingMode; label: string }[] = [
 
 const FUELING_MODE_DESCRIPTIONS: Record<FuelingMode, string> = {
   optimal:
-    "Recomendación de laboratorio — la app elige automáticamente geles, barritas y bidón según tu ruta.",
+    "Estrategia de alta eficiencia digestiva recomendada para rendimiento: formulada únicamente con bidón de hidratación y geles de rápida absorción.",
   inventory:
     "Selecciona los productos disponibles en tu inventario personal — el bidón DIY ajustará su concentración para cubrir el déficit.",
   hybrid:
@@ -830,11 +830,11 @@ export function FuelingPlanner({
           <span className={eyebrow}>Comida de bolsillo que llevarás encima</span>
           {fuelingMode === "optimal" && (
             <p className="text-xs text-neutral-500">
-              Selección automática según duración e intensidad — desactivada en modo Óptimo.
+              Automático — solo geles y bidón en modo Óptimo, sin alimentos sólidos.
             </p>
           )}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {ALL_POCKET_FOOD_TYPES.map((type) => (
+            {(fuelingMode === "optimal" ? GEL_DOSE_TYPES : ALL_POCKET_FOOD_TYPES).map((type) => (
               <PocketFoodStepperRow
                 key={type}
                 type={type}
@@ -847,28 +847,27 @@ export function FuelingPlanner({
                 disabled={fuelingMode === "optimal"}
               />
             ))}
-            <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5">
-              <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
-                Personalizado
-              </label>
-              <div className="flex items-center gap-1.5">
-                <input
-                  id="custom-carbs"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={MAX_CUSTOM_CARBS_G}
-                  value={
-                    fuelingMode === "optimal" ? "" : customCarbsG || ""
-                  }
-                  onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
-                  disabled={fuelingMode === "optimal"}
-                  placeholder="0"
-                  className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-                <span className="font-mono text-xs text-neutral-500">g HC</span>
+            {fuelingMode !== "optimal" && (
+              <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5">
+                <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
+                  Personalizado
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    id="custom-carbs"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={MAX_CUSTOM_CARBS_G}
+                    value={customCarbsG || ""}
+                    onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
+                    placeholder="0"
+                    className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                  />
+                  <span className="font-mono text-xs text-neutral-500">g HC</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
