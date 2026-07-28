@@ -1473,6 +1473,23 @@ sesión") instead of a made-up bio line.
   equipment, not a physiology field, but persisted on the same row since it changes about
   as often as FTP does.
 
+### Page header typography (H1)
+
+Every top-level route's `<h1>` shares one exact class string —
+`text-xl font-bold font-mono text-neutral-900 uppercase tracking-tight sm:text-2xl` — and
+every subtitle paragraph below it shares `text-xs font-mono text-neutral-500 mt-1
+leading-relaxed`. Before this, `/perfil` and `/estadisticas` hardcoded a bare `text-2xl`
+with no smaller mobile step, and `/estadisticas`'s own title ("Análisis de metabolismo &
+cumplimiento") was long enough to wrap onto 3 lines at that fixed size on a narrow phone —
+verified live via Playwright at a 390px viewport, both regressions are gone (all three
+routes render their `<h1>` on a single line at 20px/`text-xl`, matching the Dashboard's
+own header, which already used the responsive pair). `/estadisticas`'s title was also
+shortened to "Análisis & cumplimiento" so it reads cleanly at the smaller mobile size
+without relying on wrapping. `app/page.tsx`'s Dashboard header keeps its own slightly
+different structure (a greeting eyebrow line above the `<h1>`, no subtitle line below it)
+since that's a deliberate, already-compact pattern, not the `<h1>` + subtitle shape the
+other two routes use.
+
 ### Route dynamic rendering
 
 Both `app/page.tsx` and `app/perfil/page.tsx` export `dynamic = "force-dynamic"` because

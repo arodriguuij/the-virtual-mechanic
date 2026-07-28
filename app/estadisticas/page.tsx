@@ -256,10 +256,10 @@ export default function EstadisticasPage() {
     >
       <div className="flex flex-col gap-6">
         <header className="border-b border-neutral-200 pb-6">
-          <h1 className="font-mono text-2xl font-bold tracking-tight text-neutral-900 uppercase">
-            Análisis de metabolismo &amp; cumplimiento
+          <h1 className="text-xl font-bold font-mono text-neutral-900 uppercase tracking-tight sm:text-2xl">
+            Análisis &amp; cumplimiento
           </h1>
-          <p className="mt-1 font-mono text-xs text-neutral-500">
+          <p className="text-xs font-mono text-neutral-500 mt-1 leading-relaxed">
             Rendimiento semanal, cumplimiento real y recomendaciones a partir de tus datos
           </p>
         </header>

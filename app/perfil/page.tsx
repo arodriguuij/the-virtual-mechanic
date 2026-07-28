@@ -284,10 +284,10 @@ export default async function PerfilPage({
       {profileSaved && <ProfileSavedToast />}
       <div className="flex flex-col gap-6">
         <header className="border-b border-neutral-200 pb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-neutral-900 uppercase font-mono">
+          <h1 className="text-xl font-bold font-mono text-neutral-900 uppercase tracking-tight sm:text-2xl">
             Perfil fisiológico
           </h1>
-          <p className="mt-1 font-mono text-xs text-neutral-500">
+          <p className="text-xs font-mono text-neutral-500 mt-1 leading-relaxed">
             Línea base metabólica, parámetros fijos y capacidad digestiva
           </p>
         </header>
