@@ -28,10 +28,15 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col px-6 py-8">
       <div className="mb-6 flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
-        <div className="flex items-center gap-2 text-xs font-bold tracking-wider whitespace-nowrap text-neutral-900 uppercase">
+        <Link
+          href="/"
+          onClick={onNavigate}
+          aria-label="Ir al Dashboard"
+          className="flex cursor-pointer items-center gap-2 text-xs font-bold tracking-wider whitespace-nowrap text-neutral-900 uppercase transition-opacity duration-150 hover:opacity-80 focus:outline-none"
+        >
           <AppLogo className="size-6 shrink-0" />
           Motor Metabólico
-        </div>
+        </Link>
         <button
           type="button"
           onClick={onClose}
@@ -126,10 +131,14 @@ export function DashboardShell({
           >
             <Menu className="size-5" />
           </button>
-          <span className="flex items-center gap-2 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
+          <Link
+            href="/"
+            aria-label="Ir al Dashboard"
+            className="flex cursor-pointer items-center gap-2.5 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase transition-opacity duration-150 hover:opacity-80 focus:outline-none"
+          >
             <AppLogo className="size-7 shrink-0" />
             Motor Metabólico
-          </span>
+          </Link>
         </header>
 
         <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-10 sm:px-8 sm:py-14">

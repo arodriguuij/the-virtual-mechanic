@@ -1,7 +1,7 @@
 import { TriangleAlert } from "lucide-react";
 import { Suspense } from "react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ProfileSavedToast } from "@/components/profile-saved-toast";
@@ -20,6 +20,13 @@ import { cn } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
+// Distinct from the generic `eyebrow` above — this page's three numbered
+// section headers ("01 · MÉTRICAS...") read as a technical step sequence,
+// which is what earns them the monospace treatment; every other card title
+// in this app stays in the plain geometric sans (see CLAUDE.md's "Code
+// style" section on `font-mono` being reserved for numeric readouts and,
+// now, this one numbered-header exception).
+const cardNumberHeading = "font-mono text-xs font-bold tracking-widest text-neutral-500 uppercase";
 
 // Shared with every other field/button across the app (`lib/ui-classes.ts`).
 const profileInputClass = fieldClass;
@@ -29,18 +36,15 @@ async function PhysiologicalProfileCard() {
   const profile = await getAthleteProfile();
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Perfil fisiológico</CardTitle>
-        <CardDescription className={eyebrow}>
-          {profile
-            ? "Tu línea base metabólica — peso sincronizado desde Strava al conectar"
-            : "Todavía no has configurado tu perfil de atleta"}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-6">
-        <form action="/api/athlete-profile/update" method="POST" className="flex flex-col gap-5">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+    <form
+      action="/api/athlete-profile/update"
+      method="POST"
+      className="flex flex-col gap-6"
+    >
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          <span className={cardNumberHeading}>01 · Métricas físicas y equipamiento</span>
+          <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="weight_kg" className={eyebrow}>
                 Peso (kg)
@@ -73,42 +77,6 @@ async function PhysiologicalProfileCard() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="sweat_rate" className={eyebrow}>
-                Sudoración
-              </label>
-              <select
-                id="sweat_rate"
-                name="sweat_rate"
-                defaultValue={profile?.sweat_rate ?? "medium"}
-                className={selectableProfileInputClass}
-              >
-                {(Object.keys(sweatRateLabels) as (keyof typeof sweatRateLabels)[]).map((rate) => (
-                  <option key={rate} value={rate}>
-                    {sweatRateLabels[rate]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="gut_training_level" className={eyebrow}>
-                Gut training
-              </label>
-              <select
-                id="gut_training_level"
-                name="gut_training_level"
-                defaultValue={profile?.gut_training_level ?? "intermediate"}
-                className={selectableProfileInputClass}
-              >
-                {(
-                  Object.keys(gutTrainingLevelLabels) as (keyof typeof gutTrainingLevelLabels)[]
-                ).map((level) => (
-                  <option key={level} value={level}>
-                    {gutTrainingLevelLabels[level]} ({gutTrainingLevelRanges[level]})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
               <label htmlFor="bottle_count" className={eyebrow}>
                 Soportes de bidón
               </label>
@@ -139,6 +107,12 @@ async function PhysiologicalProfileCard() {
               </select>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          <span className={cardNumberHeading}>02 · Fenotipo metabólico y sudoración</span>
 
           <div className="flex flex-col gap-1.5">
             <span className={eyebrow}>Fenotipo metabólico (VLaMax)</span>
@@ -147,7 +121,7 @@ async function PhysiologicalProfileCard() {
                 (type) => (
                   <label
                     key={type}
-                    className="flex cursor-pointer flex-col gap-1 rounded-lg border border-neutral-200 px-3 py-2.5 transition-colors duration-150 has-checked:border-terracotta has-checked:bg-terracotta/5"
+                    className="flex cursor-pointer flex-col gap-1 rounded-lg border border-neutral-200 px-3 py-2.5 transition-colors duration-150 has-checked:border-terracotta has-checked:bg-[#FDF8F6]"
                   >
                     <span className="flex items-center gap-2">
                       <input
@@ -170,6 +144,24 @@ async function PhysiologicalProfileCard() {
             </div>
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="sweat_rate" className={eyebrow}>
+              Tasa de sudoración
+            </label>
+            <select
+              id="sweat_rate"
+              name="sweat_rate"
+              defaultValue={profile?.sweat_rate ?? "medium"}
+              className={cn(selectableProfileInputClass, "sm:w-1/2")}
+            >
+              {(Object.keys(sweatRateLabels) as (keyof typeof sweatRateLabels)[]).map((rate) => (
+                <option key={rate} value={rate}>
+                  {sweatRateLabels[rate]}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <label className="flex cursor-pointer items-start gap-2 text-sm text-neutral-700">
             <input
               type="checkbox"
@@ -185,52 +177,73 @@ async function PhysiologicalProfileCard() {
               </span>
             </span>
           </label>
+        </CardContent>
+      </Card>
 
-          <button type="submit" className={cn(primaryButtonClass, "w-full sm:w-fit")}>
-            Guardar
-          </button>
-        </form>
-
-        <div className="border-t border-neutral-200 pt-4">
-          <span className={eyebrow}>Escala de adaptación digestiva (Gut Training)</span>
-          <p className="mt-1.5 text-sm text-neutral-500">
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          <span className={cardNumberHeading}>03 · Adaptación digestiva (gut training)</span>
+          <p className="text-sm text-neutral-500">
             El intestino se entrena igual que las piernas — tolerar más carbohidratos por hora
             en ruta es una capacidad que se gana progresivamente. Tu nivel actual limita el
-            máximo que el planificador te recomendará, aunque la intensidad de la ruta pida
-            más.
+            máximo que el planificador te recomendará, aunque la intensidad de la ruta pida más.
           </p>
-          <ul className="mt-3 grid grid-cols-2 gap-2 text-sm text-neutral-700 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {(
               Object.keys(gutTrainingLevelLabels) as (keyof typeof gutTrainingLevelLabels)[]
             ).map((level) => (
-              <li key={level} className="flex flex-col gap-0.5 border border-neutral-200 px-3 py-2">
-                <span className="font-medium text-neutral-900">{gutTrainingLevelLabels[level]}</span>
-                <span className="text-xs text-neutral-500">{gutTrainingLevelRanges[level]}</span>
-              </li>
+              <label
+                key={level}
+                className="flex cursor-pointer flex-col gap-1 rounded-lg border border-neutral-200 px-3 py-2.5 text-neutral-700 transition-colors duration-150 has-checked:border-2 has-checked:border-terracotta has-checked:bg-[#FDF8F6] has-checked:text-neutral-900 hover:border-neutral-400"
+              >
+                <span className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="gut_training_level"
+                    value={level}
+                    defaultChecked={(profile?.gut_training_level ?? "intermediate") === level}
+                    className="size-3.5 cursor-pointer accent-terracotta"
+                  />
+                  <span className="text-sm font-semibold">{gutTrainingLevelLabels[level]}</span>
+                </span>
+                <span className="font-mono text-xs text-neutral-500">
+                  {gutTrainingLevelRanges[level]}
+                </span>
+              </label>
             ))}
-          </ul>
-        </div>
-      </CardContent>
-    </Card>
+          </div>
+        </CardContent>
+      </Card>
+
+      <button
+        type="submit"
+        className={cn(
+          primaryButtonClass,
+          "w-full rounded-lg py-3.5 text-xs shadow-sm"
+        )}
+      >
+        Guardar cambios
+      </button>
+    </form>
   );
 }
 
 function PhysiologicalProfileSkeleton() {
   return (
-    <Card>
-      <CardHeader>
-        <Skeleton className="h-4 w-40" />
-        <Skeleton className="h-3 w-56" />
-      </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="flex flex-col gap-2">
-            <Skeleton className="h-3 w-14" />
-            <Skeleton className="h-9 w-full" />
-          </div>
-        ))}
-      </CardContent>
-    </Card>
+    <div className="flex flex-col gap-6">
+      {Array.from({ length: 3 }).map((_, cardIndex) => (
+        <Card key={cardIndex}>
+          <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex flex-col gap-2">
+                <Skeleton className="h-3 w-14" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 }
 
@@ -272,10 +285,12 @@ export default async function PerfilPage({
       {profileSaved && <ProfileSavedToast />}
       <div className="flex flex-col gap-10">
         <header className="border-b border-neutral-200 pb-6">
-          <p className={eyebrow}>Línea base metabólica</p>
-          <h1 className="mt-1 text-2xl font-bold tracking-wide text-neutral-900 uppercase">
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900 uppercase font-mono">
             Perfil fisiológico
           </h1>
+          <p className="mt-1 font-mono text-xs text-neutral-500">
+            Línea base metabólica, parámetros fijos y capacidad digestiva
+          </p>
         </header>
 
         {profileError && (

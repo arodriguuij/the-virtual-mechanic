@@ -242,15 +242,28 @@ as its `strava_athlete_id` matches).
     as the old wear model's neutral-placeholder fallback.
   - Skipped entirely when the activity already exists, so re-clicking "Sincronizar rutas"
     never double-counts nutrition cost or re-derives weather for the same ride.
-- The Dashboard header shows "Conectar Strava" or "Sincronizar rutas" depending on
+- The Dashboard header shows "Conectar Strava" or "Sincronizar Strava" depending on
   whether `profiles.strava_athlete_id` is set (`getProfile()` in `lib/dashboard-data.ts`).
   The sync button (`components/sync-button.tsx`, `"use client"`) still hits the exact same
   `POST /api/strava/sync` route as a native form would, but through a client action
   function instead of a plain string `action` — `useFormStatus` only tracks pending state
-  for function actions, so this is what makes the "Sincronizando…" spinner text real.
-  Since the route always redirects (to `/` or `/?strava_error=<code>`), the action follows
-  that via `fetch`'s default redirect behavior and navigates to `res.url` itself,
-  preserving the same error-surfacing behavior a native submit would have had.
+  for function actions, so this is what makes the "Sincronizando..." spinner text real.
+  **The route is a plain JSON API** (`{ error: code }` with a 4xx/401/404 status, or
+  `{ success: true, activityName, isNew }`), not a redirect — it used to redirect (to `/`
+  or `/?strava_error=<code>`) and the client followed that via `window.location.href`,
+  which was a real bug: a full page navigation on every sync click, discarding whatever
+  the athlete was mid-typing into the Fueling Planner (pocket food selections, departure
+  time, an already-calculated result) and causing a visible flash. Fixed by having the
+  action call `router.refresh()` on success instead — the App Router's own "re-run every
+  Server Component on this route, patch the result into the tree, no full reload"
+  primitive, so `getRecentActivities()`/the Weekly Performance Panel re-fetch the freshly
+  synced data while every client component below (`FuelingPlanner` chief among them) keeps
+  its own React state completely untouched, since `router.refresh()` never remounts them.
+  A self-dismissing toast (same visual pattern as `ProfileSavedToast`) reports success or
+  a per-error-code message, replacing the old `?strava_error=` query-param banner on this
+  page entirely (that mechanism, and `app/page.tsx`'s own `stravaErrorMessages` map, existed
+  *only* to surface this route's redirect errors — now dead code once the route stopped
+  redirecting, so both were removed rather than left stubbed out).
 
 #### Geographic microclimate sampling
 

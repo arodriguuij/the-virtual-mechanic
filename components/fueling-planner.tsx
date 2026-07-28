@@ -272,7 +272,7 @@ function PocketFoodStepperRow({
           type="button"
           onClick={() => onChange(qty - 1)}
           disabled={disabled}
-          className="flex size-6 cursor-pointer items-center justify-center rounded-sm bg-neutral-100 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-200 hover:text-neutral-900 disabled:cursor-not-allowed disabled:hover:bg-neutral-100 disabled:hover:text-neutral-600"
+          className="flex size-6 cursor-pointer items-center justify-center rounded-sm border border-neutral-300 bg-white text-sm text-neutral-600 shadow-sm transition-colors duration-150 hover:border-neutral-400 hover:bg-neutral-50 hover:text-neutral-900 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:hover:bg-white disabled:hover:text-neutral-600"
           aria-label={`Quitar ${pocketFoodLabels[type]}`}
         >
           −
@@ -284,7 +284,7 @@ function PocketFoodStepperRow({
           type="button"
           onClick={() => onChange(qty + 1)}
           disabled={disabled}
-          className="flex size-6 cursor-pointer items-center justify-center rounded-sm bg-neutral-100 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-200 hover:text-neutral-900 disabled:cursor-not-allowed disabled:hover:bg-neutral-100 disabled:hover:text-neutral-600"
+          className="flex size-6 cursor-pointer items-center justify-center rounded-sm border border-neutral-300 bg-white text-sm text-neutral-600 shadow-sm transition-colors duration-150 hover:border-neutral-400 hover:bg-neutral-50 hover:text-neutral-900 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:hover:bg-white disabled:hover:text-neutral-600"
           aria-label={`Añadir ${pocketFoodLabels[type]}`}
         >
           +
@@ -950,7 +950,7 @@ export function FuelingPlanner({
                       value={customCarbsG || ""}
                       onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
                       placeholder="0"
-                      className="w-16 border border-neutral-300 bg-background px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                      className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                     />
                     <span className="font-mono text-xs text-neutral-500">g HC</span>
                   </div>

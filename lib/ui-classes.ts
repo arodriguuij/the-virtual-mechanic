@@ -23,9 +23,14 @@ export const secondaryButtonClass =
   "inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 font-mono text-xs font-medium tracking-wider text-neutral-700 uppercase transition-all duration-150 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50";
 
 /** Every plain `<input>`/`<select>` — profile form fields, quick-mode
- * duration/watts, GPX duration override. */
+ * duration/watts, GPX duration override. White by default (not `bg-surface`,
+ * which is reserved for genuinely read-only/calculated containers — see
+ * that token's own comment in `app/globals.css`) so an editable field never
+ * reads as disabled/read-only next to the surrounding beige page chrome; a
+ * visible `border-neutral-300` (darker than the old `neutral-200`) plus
+ * `shadow-sm` is what gives it definition against a white card instead. */
 export const fieldClass =
-  "w-full rounded-lg border border-neutral-200 bg-surface px-3.5 py-2.5 text-sm font-sans text-neutral-900 transition-all duration-150 focus:border-neutral-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-neutral-900";
+  "w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-2.5 text-sm font-sans text-neutral-900 shadow-sm transition-all duration-150 hover:border-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900";
 
 /** Same field treatment plus a pointer cursor — `<select>`s and the
  * `datetime-local` inputs are "pick one" controls, unlike a free-typed

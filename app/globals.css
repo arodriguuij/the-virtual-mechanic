@@ -102,8 +102,12 @@
   --status-warning: #8f5f58;
   --status-critical: #7a342b;
 
-  /* Secondary surface — input backgrounds, subdued containers, one layer above
-     `--background` and one below `--card`'s pure white. */
+  /* Secondary surface — read-only/calculated containers (weather cards, the
+     objetivo/cubierto/déficit summary, alert banners), one layer above
+     `--background` and one below `--card`'s pure white. Deliberately NOT used
+     for editable form fields anymore — `fieldClass` (`lib/ui-classes.ts`) is
+     `bg-white`, since a beige editable input next to a beige read-only card
+     of the same tone read as disabled/non-interactive to users. */
   --surface: #f1efea;
   /* Primary action accent — CALCULAR/ANALIZAR/GUARDAR/active tabs & pills. */
   --terracotta: #c85231;

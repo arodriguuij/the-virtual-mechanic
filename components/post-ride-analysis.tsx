@@ -269,7 +269,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                         setConsumptionSaved(false);
                       }}
                       placeholder="0"
-                      className="w-16 rounded-md border border-neutral-200 bg-surface px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900 focus:bg-white focus:ring-1 focus:ring-neutral-900"
+                      className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                     />
                     <span className="font-mono text-xs text-neutral-500">g</span>
                   </div>
@@ -291,7 +291,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                         setConsumptionSaved(false);
                       }}
                       placeholder="0"
-                      className="w-16 rounded-md border border-neutral-200 bg-surface px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900 focus:bg-white focus:ring-1 focus:ring-neutral-900"
+                      className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                     />
                     <span className="font-mono text-xs text-neutral-500">L</span>
                   </div>
@@ -312,7 +312,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                         setConsumptionSaved(false);
                       }}
                       placeholder="0"
-                      className="w-16 rounded-md border border-neutral-200 bg-surface px-2 py-1 text-right font-mono text-sm text-neutral-900 outline-none focus:border-neutral-900 focus:bg-white focus:ring-1 focus:ring-neutral-900"
+                      className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                     />
                     <span className="font-mono text-xs text-neutral-500">mg</span>
                   </div>

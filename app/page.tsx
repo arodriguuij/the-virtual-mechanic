@@ -1,4 +1,4 @@
-import { Droplets, ExternalLink, Flame, Link2, TriangleAlert } from "lucide-react";
+import { Droplets, ExternalLink, Flame, Link2 } from "lucide-react";
 import NextLink from "next/link";
 import { Suspense } from "react";
 
@@ -377,28 +377,12 @@ function StravaButtonSkeleton() {
   return <Skeleton className="h-7 w-28 rounded-lg" />;
 }
 
-// Login-time Strava errors (from `/api/auth/strava/callback`) now surface
-// on `/login` instead — the proxy never lets a logged-out visitor reach
-// this page, so only errors from an already-logged-in action (the
-// "Sincronizar rutas" button hitting `/api/strava/sync`) land here.
-const stravaErrorMessages: Record<string, string> = {
-  not_connected: "Conecta Strava antes de sincronizar rutas.",
-  no_rides: "No se encontró ninguna actividad de ciclismo reciente en Strava.",
-};
-
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
-  const params = await searchParams;
-
-  const stravaErrorCode = params.strava_error;
-  const stravaError =
-    typeof stravaErrorCode === "string"
-      ? (stravaErrorMessages[stravaErrorCode] ?? "No se pudo completar la operación con Strava.")
-      : null;
-
+// Login-time Strava errors (from `/api/auth/strava/callback`) surface on
+// `/login` instead — the proxy never lets a logged-out visitor reach this
+// page. The "Sincronizar rutas" button's own errors (`/api/strava/sync`) no
+// longer round-trip through a query param either — `SyncForm` reports them
+// via its own toast now, since the sync flow no longer navigates at all.
+export default async function Home() {
   return (
     <DashboardShell
       identitySlot={
@@ -419,13 +403,6 @@ export default async function Home({
             <StravaButton />
           </Suspense>
         </header>
-
-        {stravaError && (
-          <div className="flex items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-sm text-status-warning">
-            <TriangleAlert className="size-4 shrink-0" />
-            {stravaError}
-          </div>
-        )}
 
         <Suspense fallback={null}>
           <ProfileCheckBannerSection />
