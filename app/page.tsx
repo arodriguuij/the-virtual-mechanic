@@ -21,7 +21,7 @@ import {
   getWeeklyPerformance,
 } from "@/lib/dashboard-data";
 import { gutTrainingLevelLabels, gutTrainingLevelRanges } from "@/lib/metabolic-engine";
-import { badgeClass, primaryButtonClass, secondaryButtonClass } from "@/lib/ui-classes";
+import { primaryButtonClass, secondaryButtonClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -237,6 +237,11 @@ const weeklyStatValue = "font-mono text-xl font-bold text-neutral-900 tabular-nu
 
 async function WeeklyPerformancePanel() {
   const weekly = await getWeeklyPerformance();
+  // "60-75 g/h" -> value/unit split, so the range renders in the same
+  // big-number-plus-small-unit shape as the other 3 weekly stat cards
+  // (Cumplimiento/Promedio ingesta/Balance hídrico) instead of a badge pill.
+  const [gutTrainingRangeValue, gutTrainingRangeUnit] =
+    gutTrainingLevelRanges[weekly.gutTrainingLevel].split(" ");
 
   return (
     <div className="border border-neutral-200 bg-neutral-50/60 px-4 py-4 sm:px-6">
@@ -295,11 +300,12 @@ async function WeeklyPerformancePanel() {
 
           <div className="flex flex-col gap-1">
             <span className={statLabel}>Gut training</span>
-            <span className={cn(badgeClass, "w-fit text-sm font-semibold tracking-wide uppercase")}>
-              {gutTrainingLevelLabels[weekly.gutTrainingLevel]}
+            <span className={weeklyStatValue}>
+              {gutTrainingRangeValue}
+              <span className="ml-1 text-sm font-normal text-neutral-500">{gutTrainingRangeUnit}</span>
             </span>
-            <span className="text-xs text-neutral-500">
-              {gutTrainingLevelRanges[weekly.gutTrainingLevel]}
+            <span className="text-xs text-neutral-500 uppercase">
+              {gutTrainingLevelLabels[weekly.gutTrainingLevel]}
             </span>
           </div>
 
