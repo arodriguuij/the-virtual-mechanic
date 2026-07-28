@@ -1,8 +1,8 @@
 "use client";
 
-import { Flame } from "lucide-react";
 import { useEffect, useRef } from "react";
 
+import { AppLogo } from "@/components/app-logo";
 import { StravaMark } from "@/components/strava-mark";
 
 /**
@@ -46,7 +46,7 @@ export default function AuthCallbackPage() {
       <div className="flex w-full max-w-md flex-col items-center gap-6 rounded-2xl border border-neutral-200/80 bg-white p-8 text-center shadow-sm sm:p-10">
         <div className="flex flex-wrap items-center justify-center gap-3">
           <div className="flex items-center gap-2 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
-            <Flame className="size-5" strokeWidth={1.5} />
+            <AppLogo className="size-5" />
             Motor Metabólico
           </div>
 

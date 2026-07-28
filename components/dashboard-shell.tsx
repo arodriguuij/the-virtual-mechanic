@@ -1,10 +1,11 @@
 "use client";
 
-import { Flame, LayoutDashboard, LogOut, Menu, UserRound, X } from "lucide-react";
+import { LayoutDashboard, LogOut, Menu, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
+import { AppLogo } from "@/components/app-logo";
 import { logout } from "@/lib/auth-actions";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +26,7 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col gap-10 px-6 py-8">
       <div className="flex items-center gap-2 border-b border-neutral-200 pb-6 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
-        <Flame className="size-4" strokeWidth={1.5} />
+        <AppLogo className="size-4" />
         Motor Metabólico
       </div>
 
@@ -110,7 +111,8 @@ export function DashboardShell({
           >
             <Menu className="size-5" />
           </button>
-          <span className="text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
+          <span className="flex items-center gap-2 text-xs font-bold tracking-[0.2em] text-neutral-900 uppercase">
+            <AppLogo className="size-4" />
             Motor Metabólico
           </span>
         </header>

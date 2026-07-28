@@ -1,5 +1,6 @@
-import { Flame, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 
+import { AppLogo } from "@/components/app-logo";
 import { StravaLoginButton } from "@/components/strava-login-button";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export default async function LoginPage({
       <div className="w-full max-w-md rounded-2xl border border-neutral-200/80 bg-white p-8 text-center shadow-sm sm:p-10">
         <div className="flex flex-col items-center gap-8">
           <div className="flex items-center gap-2 text-sm font-bold tracking-[0.2em] text-neutral-900 uppercase">
-            <Flame className="size-5" strokeWidth={1.5} />
+            <AppLogo className="size-5" />
             Motor Metabólico
           </div>
 
