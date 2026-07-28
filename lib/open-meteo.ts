@@ -15,6 +15,22 @@ const ARCHIVE_THRESHOLD_DAYS = 5;
 // than a real "it rained here" signal for the ride.
 const WET_THRESHOLD_MM = 0.1;
 
+// Open-Meteo's forecast endpoint only reliably covers roughly the next two
+// weeks — a departure planned further out than this (an event or trip
+// planned weeks/months ahead) has no real forecast to query yet, so this is
+// the switch point for falling back to `getSeasonalAverageWeather` below
+// instead of firing a forecast request that has nothing to return.
+export const FORECAST_RANGE_DAYS = 14;
+
+export function isBeyondForecastRange(departureIso: string): boolean {
+  const daysAhead = (new Date(departureIso).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+  return daysAhead > FORECAST_RANGE_DAYS;
+}
+
+function average(values: number[]): number {
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
 export type RouteWeather = {
   humidityAvg: number;
   temperatureAvgC: number;
@@ -202,5 +218,86 @@ export async function getWeatherForDeparture(
     humidityAvg: humidities.length > 0 ? humidities.reduce((a, b) => a + b, 0) / humidities.length : 50,
     windSpeedKmhAvg:
       windSpeeds.length > 0 ? windSpeeds.reduce((a, b) => a + b, 0) / windSpeeds.length : 0,
+  };
+}
+
+// How many past years' readings to average into a "climate normal" for a
+// given calendar day — enough to smooth out one unusually hot/cold/wet year
+// without needing decades of data.
+const SEASONAL_AVERAGE_YEARS_BACK = 5;
+
+type SeasonalDaySample = { temperatureC: number; humidity: number; windSpeedKmh: number };
+
+/** Every hourly reading for one full calendar day, from the archive
+ * (reanalysis) endpoint — used to build one year's data point for the
+ * seasonal average below, never for a real forecast. */
+async function getArchiveDayAverage(
+  lat: number,
+  lng: number,
+  dateStr: string
+): Promise<SeasonalDaySample | null> {
+  const url = new URL(ARCHIVE_URL);
+  url.searchParams.set("latitude", String(lat));
+  url.searchParams.set("longitude", String(lng));
+  url.searchParams.set("start_date", dateStr);
+  url.searchParams.set("end_date", dateStr);
+  url.searchParams.set("hourly", "relative_humidity_2m,temperature_2m,wind_speed_10m");
+  url.searchParams.set("timezone", "UTC");
+
+  const res = await fetch(url);
+  if (!res.ok) return null;
+
+  const data: OpenMeteoHourlyResponse = await res.json();
+  const hourly = data.hourly;
+  if (!hourly || hourly.time.length === 0) return null;
+
+  const temps = hourly.temperature_2m.filter((v): v is number => v != null);
+  const humidities = hourly.relative_humidity_2m.filter((v): v is number => v != null);
+  const windSpeeds = (hourly.wind_speed_10m ?? []).filter((v): v is number => v != null);
+  if (temps.length === 0) return null;
+
+  return {
+    temperatureC: average(temps),
+    humidity: humidities.length > 0 ? average(humidities) : 50,
+    windSpeedKmh: windSpeeds.length > 0 ? average(windSpeeds) : 0,
+  };
+}
+
+/**
+ * "Clima estimado mediante medias históricas estacionales" — for a departure
+ * planned further out than Open-Meteo's forecast horizon (`FORECAST_RANGE_DAYS`),
+ * there's no real forecast to query yet, so this builds a "climate normal"
+ * instead: the same calendar day (month/day) across the last
+ * `SEASONAL_AVERAGE_YEARS_BACK` years, averaged. A single representative
+ * point (the route's start) rather than a multi-point sample — a day-level
+ * historical average isn't precise enough for point-by-point geographic
+ * sampling to add real signal the way it does for a genuine forecast. Rain
+ * isn't part of this estimate (a historical day's rain is far too noisy a
+ * signal to average meaningfully across years) — callers should treat this
+ * as dry. Returns `null` only if every year's request failed.
+ */
+export async function getSeasonalAverageWeather(
+  lat: number,
+  lng: number,
+  referenceDate: Date
+): Promise<DepartureWeather | null> {
+  const month = referenceDate.getUTCMonth() + 1;
+  const day = referenceDate.getUTCDate();
+  const currentYear = referenceDate.getUTCFullYear();
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  const dateStrs = Array.from(
+    { length: SEASONAL_AVERAGE_YEARS_BACK },
+    (_, i) => `${currentYear - 1 - i}-${pad(month)}-${pad(day)}`
+  );
+
+  const results = await Promise.all(dateStrs.map((d) => getArchiveDayAverage(lat, lng, d)));
+  const samples = results.filter((s): s is SeasonalDaySample => s != null);
+  if (samples.length === 0) return null;
+
+  return {
+    temperatureAvgC: average(samples.map((s) => s.temperatureC)),
+    humidityAvg: average(samples.map((s) => s.humidity)),
+    windSpeedKmhAvg: average(samples.map((s) => s.windSpeedKmh)),
   };
 }

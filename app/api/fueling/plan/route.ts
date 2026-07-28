@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
-import { getWeatherForDeparture, getWeatherForRoute } from "@/lib/open-meteo";
+import {
+  getSeasonalAverageWeather,
+  getWeatherForDeparture,
+  getWeatherForRoute,
+  isBeyondForecastRange,
+} from "@/lib/open-meteo";
 import { fetchRoutePeakPoint } from "@/lib/strava-routes";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { logFuelingPlan } from "@/lib/fueling-logs";
@@ -190,7 +195,7 @@ export async function POST(request: NextRequest) {
   let humidityPct = PLANNING_HUMIDITY_PCT;
   let temperatureMaxC: number | null = null;
   let windSpeedKmh = 0;
-  let weatherSource: "dynamic" | "planning_default" = "planning_default";
+  let weatherSource: "dynamic" | "planning_default" | "seasonal_average" = "planning_default";
   // True only once a real 3-point sample (start/summit/finish) succeeds —
   // that's a genuine altitude-based reading at the actual high point, which
   // makes the elevation-gain lapse-rate *approximation* below redundant.
@@ -211,46 +216,60 @@ export async function POST(request: NextRequest) {
     typeof body.peakDistanceFraction === "number" ? body.peakDistanceFraction : null;
 
   if (startLat != null && startLng != null && departureIso) {
-    if (endLat != null && endLng != null) {
-      let peak: { lat: number; lng: number; distanceFraction: number } | null =
-        clientPeakLat != null && clientPeakLng != null && clientPeakFraction != null
-          ? { lat: clientPeakLat, lng: clientPeakLng, distanceFraction: clientPeakFraction }
-          : null;
-      if (!peak && routeId) {
-        const accessToken = await getValidStravaAccessToken(supabase, userId);
-        peak = accessToken ? await fetchRoutePeakPoint(accessToken, routeId) : null;
-      }
-      if (peak) {
-        const start = new Date(departureIso);
-        const durationMs = durationHours * 60 * 60 * 1000;
-        const weather = await getWeatherForRoute([
-          { lat: startLat, lng: startLng, atDate: start },
-          {
-            lat: peak.lat,
-            lng: peak.lng,
-            atDate: new Date(start.getTime() + durationMs * peak.distanceFraction),
-          },
-          { lat: endLat, lng: endLng, atDate: new Date(start.getTime() + durationMs) },
-        ]);
-        if (weather) {
-          temperatureC = weather.temperatureAvgC;
-          temperatureMaxC = weather.temperatureMaxC;
-          humidityPct = weather.humidityAvg;
-          windSpeedKmh = weather.windSpeedKmhAvg;
-          weatherSource = "dynamic";
-          sampledAtRealAltitude = true;
-          peakFractionForTimeline = peak.distanceFraction;
-        }
-      }
-    }
-
-    if (!sampledAtRealAltitude) {
-      const weather = await getWeatherForDeparture(startLat, startLng, departureIso, durationHours);
+    // A departure planned further out than Open-Meteo's forecast horizon has
+    // no real forecast to query yet — skip the point-by-point forecast
+    // sampling entirely (it would just fail per-point) and fall back to a
+    // seasonal historical average for the route's start coordinates instead.
+    if (isBeyondForecastRange(departureIso)) {
+      const weather = await getSeasonalAverageWeather(startLat, startLng, new Date(departureIso));
       if (weather) {
         temperatureC = weather.temperatureAvgC;
         humidityPct = weather.humidityAvg;
         windSpeedKmh = weather.windSpeedKmhAvg;
-        weatherSource = "dynamic";
+        weatherSource = "seasonal_average";
+      }
+    } else {
+      if (endLat != null && endLng != null) {
+        let peak: { lat: number; lng: number; distanceFraction: number } | null =
+          clientPeakLat != null && clientPeakLng != null && clientPeakFraction != null
+            ? { lat: clientPeakLat, lng: clientPeakLng, distanceFraction: clientPeakFraction }
+            : null;
+        if (!peak && routeId) {
+          const accessToken = await getValidStravaAccessToken(supabase, userId);
+          peak = accessToken ? await fetchRoutePeakPoint(accessToken, routeId) : null;
+        }
+        if (peak) {
+          const start = new Date(departureIso);
+          const durationMs = durationHours * 60 * 60 * 1000;
+          const weather = await getWeatherForRoute([
+            { lat: startLat, lng: startLng, atDate: start },
+            {
+              lat: peak.lat,
+              lng: peak.lng,
+              atDate: new Date(start.getTime() + durationMs * peak.distanceFraction),
+            },
+            { lat: endLat, lng: endLng, atDate: new Date(start.getTime() + durationMs) },
+          ]);
+          if (weather) {
+            temperatureC = weather.temperatureAvgC;
+            temperatureMaxC = weather.temperatureMaxC;
+            humidityPct = weather.humidityAvg;
+            windSpeedKmh = weather.windSpeedKmhAvg;
+            weatherSource = "dynamic";
+            sampledAtRealAltitude = true;
+            peakFractionForTimeline = peak.distanceFraction;
+          }
+        }
+      }
+
+      if (!sampledAtRealAltitude) {
+        const weather = await getWeatherForDeparture(startLat, startLng, departureIso, durationHours);
+        if (weather) {
+          temperatureC = weather.temperatureAvgC;
+          humidityPct = weather.humidityAvg;
+          windSpeedKmh = weather.windSpeedKmhAvg;
+          weatherSource = "dynamic";
+        }
       }
     }
   }

@@ -26,7 +26,7 @@ export function WeatherImpactCard({
   temperatureMaxC: number | null;
   humidityPct: number;
   windSpeedKmh: number;
-  source: "dynamic" | "planning_default";
+  source: "dynamic" | "planning_default" | "seasonal_average";
   multiPointSample: boolean;
   lapseRateAdjustmentC: number;
   fluidLossMlPerHour: number;
@@ -41,7 +41,9 @@ export function WeatherImpactCard({
             ? multiPointSample
               ? "previsión real de Open-Meteo · inicio/puerto/llegada"
               : "previsión real de Open-Meteo"
-            : "estimación genérica"}
+            : source === "seasonal_average"
+              ? "media histórica estacional"
+              : "estimación genérica"}
           {lapseRateAdjustmentC !== 0 && (
             <span className="inline-flex items-center gap-1">
               {" "}
@@ -89,6 +91,12 @@ export function WeatherImpactCard({
         Hidratación objetivo: <span className="font-mono font-semibold text-neutral-900">{fluidLossMlPerHour} ml/h</span>
         {" · "}Sodio objetivo: <span className="font-mono font-semibold text-neutral-900">{sodiumMgPerHour} mg/h</span>
       </p>
+      {source === "seasonal_average" && (
+        <p className="text-[11px] text-neutral-500">
+          Clima estimado mediante medias históricas estacionales — la fecha elegida está
+          fuera del rango de previsión en vivo (14 días).
+        </p>
+      )}
     </div>
   );
 }

@@ -650,6 +650,37 @@ plus "−X°C por altitud" next to the weather summary whenever it's non-zero, a
 `weather.multiPointSample` drives an "inicio/puerto/llegada" note in that same summary
 line when `true`.
 
+### Seasonal average weather (departures beyond the forecast horizon)
+
+The planner's `DeparturePicker` (see "Fueling planner" below) lets an athlete pick any
+future date via "Elegir fecha," not just today/tomorrow — planning a target event or trip
+weeks or months out is a real use case, and Open-Meteo's forecast endpoint has nothing to
+say about a date that far out (`isBeyondForecastRange(departureIso)`, `lib/open-meteo.ts`,
+`FORECAST_RANGE_DAYS` 14). `POST /api/fueling/plan` checks this *before* attempting any of
+the 3-point/single-point forecast sampling above — for a departure beyond that horizon, it
+skips forecast sampling entirely (which would otherwise just fail per-point against dates
+Open-Meteo can't forecast) and calls `getSeasonalAverageWeather(lat, lng, referenceDate)`
+instead: a "climate normal" built from the *same calendar day* (month/day) across the last
+`SEASONAL_AVERAGE_YEARS_BACK` (5) years, queried from Open-Meteo's archive/reanalysis
+endpoint in parallel and averaged — real historical data for that location and time of
+year, not a fabricated placeholder. Deliberately a single representative point (the
+route's start) rather than a multi-point sample, and rain is excluded from the estimate
+entirely (a single historical day's rain is far too noisy a signal to average meaningfully
+across only 5 years) — callers should treat this as dry. Returns `null` only if every
+year's archive request failed, in which case the response falls through to the existing
+fixed planning-default temperature/humidity, same graceful-degradation convention as
+every other weather fallback in this codebase.
+
+The response's `weather.source` gains a third value, `"seasonal_average"` (alongside the
+existing `"dynamic"`/`"planning_default"`), which `WeatherImpactCard` reads to show "media
+histórica estacional" in its summary line and an explicit micro-text below the stat grid
+("Clima estimado mediante medias históricas estacionales — la fecha elegida está fuera del
+rango de previsión en vivo (14 días).") rather than silently presenting a historical
+average as if it were a real forecast. The elevation-gain lapse-rate correction (see
+"3-point route weather sampling" above) still applies on top of this baseline exactly as
+it would for any other single-point estimate, since a seasonal average is no more
+altitude-aware than the single start-point forecast fallback it replaces in this branch.
+
 ### Weather Impact Card & dynamic thermal note
 
 `components/weather-impact-card.tsx` (`WeatherImpactCard`) replaces the pre-ride planner's
@@ -797,17 +828,22 @@ recipe for that specific ride's real forecast conditions.
 - **`components/fueling-planner.tsx`** (`"use client"`) — the interactive planner UI:
   a route/quick/GPX mode toggle (see "GPX Híbrido parser" below for the third), a route
   `<select>` (built from the routes passed down as props) or duration+watts inputs, a
-  `DeparturePicker` quick-select (a `Hoy`/`Mañana` day-pill pair plus a plain hour
-  `<select>` — `DEPARTURE_HOUR_OPTIONS`, 05:00-20:00 hourly — replacing an earlier
-  `datetime-local` input; `buildDepartureLocal(dayOffset, hour)` combines the two into the
-  same local datetime string the calculation request expects, so nothing downstream of
-  `departureLocal` needed to change), the pocket-food catalog (see "Hybrid nutrition"
+  `DeparturePicker` quick-select — a 3-way `Hoy`/`Mañana`/`Elegir fecha` segmented control
+  (`DepartureDayMode`) plus a plain hour `<select>` (`DEPARTURE_HOUR_OPTIONS`, 05:00-20:00
+  hourly), replacing an earlier plain `datetime-local` input. The two quick pills only ever
+  cover the next day, which doesn't fit planning a real event or trip weeks/months out —
+  `Elegir fecha` reveals a native `<input type="date">` (`min` floored at today) for that
+  case, with no upper bound on how far out it can be set. `buildDepartureLocal(dayMode,
+  customDate, hour)` combines whichever mode is active into the same local datetime string
+  the calculation request expects, so nothing downstream of `departureLocal` needed to
+  change — the pocket-food catalog (see "Hybrid nutrition"
   above), an optional "Ruta objetivo / Competición" checkbox (`isTargetEvent`, with a
   micro-text explaining its real effect once checked — see "Carb-loading protocol" above),
   and a result panel rendering whatever `/api/fueling/plan` returns — carb/sodium targets,
   the DIY recipe with its bottle architecture and pocket-food coverage line, the Net Carb
   Deficit breakdown (see "Net Carb Deficit" above), the reload-strategy block when
-  applicable, which weather source was used (`dynamic` vs `planning_default`, plus the
+  applicable, which weather source was used (`dynamic` vs `planning_default` vs
+  `seasonal_average` — see "Seasonal average weather" below, plus the
   lapse-rate note when non-zero), a "Gut Training" warning banner whenever
   `gutTraining.isGutLimited` is true, the collapsible carb-loading module when applicable,
   and the nutrition-export button (see "Nutrition export" below) — see "Result panel visual

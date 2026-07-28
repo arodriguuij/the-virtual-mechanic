@@ -161,7 +161,7 @@ type PlanResult = {
     temperatureMaxC: number | null;
     humidityPct: number;
     windSpeedKmh: number;
-    source: "dynamic" | "planning_default";
+    source: "dynamic" | "planning_default" | "seasonal_average";
     multiPointSample: boolean;
     lapseRateAdjustmentC: number;
   };
@@ -216,11 +216,31 @@ type PlanResult = {
   } | null;
 };
 
-/** Combines a day pill (0 = hoy, 1 = mañana) and an "HH:mm" hour selection
- * into the same local datetime string the calculation request expects. */
-function buildDepartureLocal(dayOffset: 0 | 1, hour: string): string {
-  const date = new Date();
-  date.setDate(date.getDate() + dayOffset);
+type DepartureDayMode = "today" | "tomorrow" | "custom";
+
+const DEPARTURE_DAY_MODE_OPTIONS: { value: DepartureDayMode; label: string }[] = [
+  { value: "today", label: "Hoy" },
+  { value: "tomorrow", label: "Mañana" },
+  { value: "custom", label: "Elegir fecha" },
+];
+
+/** `YYYY-MM-DD` for today — the `<input type="date">`'s `min` (no planning
+ * into the past) and the initial value when switching into "Elegir fecha". */
+function todayIsoDate(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** Combines a day mode (today/tomorrow/a specific `YYYY-MM-DD`) and an
+ * "HH:mm" hour selection into the local datetime string the calculation
+ * request expects. Planning a ride weeks or months out (an event, a trip)
+ * is exactly what "Elegir fecha" is for — unlike the two quick pills, it
+ * isn't bounded to the next day. */
+function buildDepartureLocal(dayMode: DepartureDayMode, customDate: string, hour: string): string {
+  const date =
+    dayMode === "custom" && customDate ? new Date(`${customDate}T00:00:00`) : new Date();
+  if (dayMode === "tomorrow") date.setDate(date.getDate() + 1);
   const [h, m] = hour.split(":").map(Number);
   date.setHours(h, m, 0, 0);
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -228,36 +248,50 @@ function buildDepartureLocal(dayOffset: 0 | 1, hour: string): string {
 }
 
 function DeparturePicker({
-  dayOffset,
-  onDayOffsetChange,
+  dayMode,
+  onDayModeChange,
+  customDate,
+  onCustomDateChange,
   hour,
   onHourChange,
 }: {
-  dayOffset: 0 | 1;
-  onDayOffsetChange: (offset: 0 | 1) => void;
+  dayMode: DepartureDayMode;
+  onDayModeChange: (mode: DepartureDayMode) => void;
+  customDate: string;
+  onCustomDateChange: (date: string) => void;
   hour: string;
   onHourChange: (hour: string) => void;
 }) {
   return (
     <div className="flex w-full min-w-0 max-w-full flex-col gap-1.5">
       <span className={eyebrow}>Salida</span>
-      <div className="grid grid-cols-2 gap-1.5">
-        {([0, 1] as const).map((offset) => (
+      <div className="grid grid-cols-3 gap-1.5">
+        {DEPARTURE_DAY_MODE_OPTIONS.map((opt) => (
           <button
-            key={offset}
+            key={opt.value}
             type="button"
-            onClick={() => onDayOffsetChange(offset)}
+            onClick={() => onDayModeChange(opt.value)}
             className={cn(
-              "cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold tracking-wide uppercase transition-colors duration-150",
-              dayOffset === offset
+              "cursor-pointer rounded-lg border px-2 py-2 text-[11px] font-semibold tracking-wide uppercase transition-colors duration-150 sm:text-xs",
+              dayMode === opt.value
                 ? "border-terracotta bg-terracotta text-white"
                 : "border-neutral-300 bg-white text-neutral-600 hover:border-neutral-400"
             )}
           >
-            {offset === 0 ? "Hoy" : "Mañana"}
+            {opt.label}
           </button>
         ))}
       </div>
+      {dayMode === "custom" && (
+        <input
+          type="date"
+          aria-label="Fecha de salida"
+          min={todayIsoDate()}
+          value={customDate}
+          onChange={(e) => onCustomDateChange(e.target.value)}
+          className={fieldClass}
+        />
+      )}
       <select
         aria-label="Hora de salida"
         className={selectableFieldClass}
@@ -337,11 +371,12 @@ export function FuelingPlanner({
   const [intensity, setIntensity] = useState<IntensityLevel>("endurance");
   const [quickDurationHours, setQuickDurationHours] = useState(2);
   const [quickAverageWatts, setQuickAverageWatts] = useState(180);
-  const [departureDayOffset, setDepartureDayOffset] = useState<0 | 1>(1);
+  const [departureDayMode, setDepartureDayMode] = useState<DepartureDayMode>("tomorrow");
+  const [departureCustomDate, setDepartureCustomDate] = useState(todayIsoDate);
   const [departureHour, setDepartureHour] = useState("08:00");
   const departureLocal = useMemo(
-    () => buildDepartureLocal(departureDayOffset, departureHour),
-    [departureDayOffset, departureHour]
+    () => buildDepartureLocal(departureDayMode, departureCustomDate, departureHour),
+    [departureDayMode, departureCustomDate, departureHour]
   );
   const [isTargetEvent, setIsTargetEvent] = useState(false);
   const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
@@ -701,8 +736,10 @@ export function FuelingPlanner({
                 </select>
               </div>
               <DeparturePicker
-                dayOffset={departureDayOffset}
-                onDayOffsetChange={setDepartureDayOffset}
+                dayMode={departureDayMode}
+                onDayModeChange={setDepartureDayMode}
+                customDate={departureCustomDate}
+                onCustomDateChange={setDepartureCustomDate}
                 hour={departureHour}
                 onHourChange={setDepartureHour}
               />
@@ -744,8 +781,10 @@ export function FuelingPlanner({
               />
             </div>
             <DeparturePicker
-              dayOffset={departureDayOffset}
-              onDayOffsetChange={setDepartureDayOffset}
+              dayMode={departureDayMode}
+              onDayModeChange={setDepartureDayMode}
+              customDate={departureCustomDate}
+              onCustomDateChange={setDepartureCustomDate}
               hour={departureHour}
               onHourChange={setDepartureHour}
             />
@@ -827,8 +866,10 @@ export function FuelingPlanner({
                     </select>
                   </div>
                   <DeparturePicker
-                    dayOffset={departureDayOffset}
-                    onDayOffsetChange={setDepartureDayOffset}
+                    dayMode={departureDayMode}
+                    onDayModeChange={setDepartureDayMode}
+                    customDate={departureCustomDate}
+                    onCustomDateChange={setDepartureCustomDate}
                     hour={departureHour}
                     onHourChange={setDepartureHour}
                   />
@@ -1001,8 +1042,9 @@ export function FuelingPlanner({
           </div>
           {isTargetEvent && (
             <p className="text-[11px] text-neutral-500">
-              Ajustado a ratio Fructosa:Maltodextrina 1:0.8 y límite máximo de absorción por
-              alta intensidad.
+              Ajusta la pauta al máximo límite de absorción intestinal (hasta 120g/h) y
+              aplica un ratio Fructosa:Maltodextrina de 1:0.8 optimizado para alta
+              intensidad.
             </p>
           )}
         </div>
