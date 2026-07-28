@@ -33,9 +33,6 @@ import {
   fieldClass,
   primaryButtonClass,
   secondaryButtonClass,
-  segmentedControlButtonActiveClass,
-  segmentedControlButtonClass,
-  segmentedControlClass,
   selectableFieldClass,
 } from "@/lib/ui-classes";
 import {
@@ -268,16 +265,17 @@ function DeparturePicker({
   return (
     <div className="flex w-full min-w-0 max-w-full flex-col gap-1.5">
       <span className={eyebrow}>Salida</span>
-      <div className={segmentedControlClass}>
+      <div className="grid grid-cols-3 gap-1.5">
         {DEPARTURE_DAY_MODE_OPTIONS.map((opt) => (
           <button
             key={opt.value}
             type="button"
             onClick={() => onDayModeChange(opt.value)}
             className={cn(
-              segmentedControlButtonClass,
-              "uppercase tracking-wide",
-              dayMode === opt.value && segmentedControlButtonActiveClass
+              "cursor-pointer rounded-lg border px-2 py-2 text-[11px] font-semibold tracking-wide uppercase transition-colors duration-150 sm:text-xs",
+              dayMode === opt.value
+                ? "border-terracotta bg-terracotta text-white"
+                : "border-neutral-300 bg-white text-neutral-600 hover:border-neutral-400"
             )}
           >
             {opt.label}
@@ -306,43 +304,6 @@ function DeparturePicker({
           </option>
         ))}
       </select>
-    </div>
-  );
-}
-
-/** "Intensidad objetivo" as a segmented control rather than a `<select>` —
- * 5 options is more than the other 2-3 option toggles in this file, so
- * `whitespace-normal` lets a longer label (e.g. "Recuperación") wrap onto a
- * second line inside its own slim column instead of forcing the row to
- * overflow or truncating it. */
-function IntensityControl({
-  value,
-  onChange,
-  idPrefix,
-}: {
-  value: IntensityLevel;
-  onChange: (level: IntensityLevel) => void;
-  idPrefix: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className={eyebrow}>Intensidad objetivo</span>
-      <div className={segmentedControlClass}>
-        {INTENSITY_OPTIONS.map((level) => (
-          <button
-            key={`${idPrefix}-${level}`}
-            type="button"
-            onClick={() => onChange(level)}
-            className={cn(
-              segmentedControlButtonClass,
-              "whitespace-normal text-center leading-tight",
-              value === level && segmentedControlButtonActiveClass
-            )}
-          >
-            {intensityLabels[level]}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
@@ -692,28 +653,44 @@ export function FuelingPlanner({
           Estrategia de bolsillo y receta DIY para tu próxima salida
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-6">
-        <div className={segmentedControlClass}>
-          {(
-            [
-              { value: "route", label: "Ruta Strava" },
-              { value: "quick", label: "Calculadora" },
-              { value: "gpx", label: "Subir GPX" },
-            ] as const
-          ).map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setMode(opt.value)}
-              className={cn(
-                segmentedControlButtonClass,
-                "uppercase tracking-wide",
-                mode === opt.value && segmentedControlButtonActiveClass
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
+      <CardContent className="flex flex-col gap-5">
+        <div className="grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1 text-[11px] font-mono">
+          <button
+            type="button"
+            onClick={() => setMode("route")}
+            className={cn(
+              "cursor-pointer rounded-md px-2 py-2 font-semibold tracking-wide uppercase transition-colors duration-150",
+              mode === "route"
+                ? "bg-terracotta text-white shadow-sm"
+                : "text-neutral-500 hover:text-neutral-900"
+            )}
+          >
+            Ruta Strava
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("quick")}
+            className={cn(
+              "cursor-pointer rounded-md px-2 py-2 font-semibold tracking-wide uppercase transition-colors duration-150",
+              mode === "quick"
+                ? "bg-terracotta text-white shadow-sm"
+                : "text-neutral-500 hover:text-neutral-900"
+            )}
+          >
+            Calculadora
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("gpx")}
+            className={cn(
+              "cursor-pointer rounded-md px-2 py-2 font-semibold tracking-wide uppercase transition-colors duration-150",
+              mode === "gpx"
+                ? "bg-terracotta text-white shadow-sm"
+                : "text-neutral-500 hover:text-neutral-900"
+            )}
+          >
+            Subir GPX
+          </button>
         </div>
 
         {mode === "route" ? (
@@ -741,7 +718,23 @@ export function FuelingPlanner({
                   elevationGainM={selectedRoute?.elevationGainM ?? null}
                 />
               </div>
-              <IntensityControl value={intensity} onChange={setIntensity} idPrefix="route" />
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="intensity" className={eyebrow}>
+                  Intensidad objetivo
+                </label>
+                <select
+                  id="intensity"
+                  className={selectableInputClass}
+                  value={intensity}
+                  onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
+                >
+                  {INTENSITY_OPTIONS.map((level) => (
+                    <option key={level} value={level}>
+                      {intensityLabels[level]}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <DeparturePicker
                 dayMode={departureDayMode}
                 onDayModeChange={setDepartureDayMode}
@@ -855,7 +848,23 @@ export function FuelingPlanner({
             {parsedGpx && (
               <>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <IntensityControl value={intensity} onChange={setIntensity} idPrefix="gpx" />
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="intensity-gpx" className={eyebrow}>
+                      Intensidad objetivo
+                    </label>
+                    <select
+                      id="intensity-gpx"
+                      className={selectableInputClass}
+                      value={intensity}
+                      onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
+                    >
+                      {INTENSITY_OPTIONS.map((level) => (
+                        <option key={level} value={level}>
+                          {intensityLabels[level]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <DeparturePicker
                     dayMode={departureDayMode}
                     onDayModeChange={setDepartureDayMode}
@@ -898,16 +907,17 @@ export function FuelingPlanner({
 
         <div className="flex flex-col gap-1.5">
           <span className={eyebrow}>Modo de fueling</span>
-          <div className={segmentedControlClass}>
+          <div className="flex flex-wrap gap-1.5">
             {FUELING_MODE_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => setFuelingMode(opt.value)}
                 className={cn(
-                  segmentedControlButtonClass,
-                  "uppercase tracking-wide",
-                  fuelingMode === opt.value && segmentedControlButtonActiveClass
+                  "cursor-pointer rounded-sm border px-3 py-1.5 text-[11px] font-semibold tracking-widest uppercase transition-colors duration-150",
+                  fuelingMode === opt.value
+                    ? "border-terracotta bg-terracotta text-white"
+                    : "border-neutral-300 text-neutral-600 hover:border-terracotta hover:text-terracotta"
                 )}
               >
                 {opt.label}

@@ -399,8 +399,10 @@ only applies the multiplier (diesel ×0.85, balanced ×1.0, explosive ×1.15) wh
 already uses internally for its own bands — at/above it, every phenotype converges to the
 unadjusted rate. `athleteTypeLabels`/`athleteTypeDescriptions` hold the plain-text
 display copy (no emoji — the interface is monochrome throughout) for the Physiological
-Profile tab's one-click selector (3 selection cards, see "Segmented controls & selection
-cards" above for the current `has-checked:`/`group-has-checked:` styling — no JS needed).
+Profile tab's one-click selector (3 radio-styled cards using Tailwind's `has-checked:`
+variant, no JS needed; the selected card's `has-checked:border-neutral-900
+has-checked:bg-neutral-100` gives a fine dark border plus a subtle fill rather than a
+heavy block color).
 
 ### Net Carb Deficit (replacing the old glycogen-battery simulator)
 
@@ -1464,15 +1466,14 @@ sesión") instead of a made-up bio line.
   rather than a tab panel. `PhysiologicalProfileCard` reads `getAthleteProfile()` and
   renders an inline edit form (weight/FTP/sweat rate/gut training level/bottle
   count/bottle capacity/salty-sweater checkbox, pre-filled with current values) POSTing to
-  `/api/athlete-profile/update`, plus a full-width 1-click metabolic phenotype selector
-  (see "Metabolic phenotype" below and "Segmented controls & selection cards" above for
-  its current styling). The "Sudo mucha sal" checkbox (`is_salty_sweater`) feeds
+  `/api/athlete-profile/update`, plus a static reference table of the four Gut Training
+  levels and their g/h ranges (see "Gut Training Scale" above), plus a full-width 1-click
+  metabolic phenotype selector (three `has-checked:`-styled radio cards, see "Metabolic
+  phenotype" below). The "Sudo mucha sal" checkbox (`is_salty_sweater`) feeds
   `getSodiumLossMgPerHour`'s elevated concentration tier (see "Metabolic engine" above).
-  Sweat rate and bottle count/capacity are all segmented controls now (formerly plain
-  `<select>`s — see "Segmented controls & selection cards" above); the bottle ones feed
-  "Bottle architecture & osmolarity control" and "Reload strategy" above — real bike
-  equipment, not a physiology field, but persisted on the same row since it changes about
-  as often as FTP does.
+  The bottle count/capacity selects feed "Bottle architecture &
+  osmolarity control" and "Reload strategy" above — real bike equipment, not a physiology
+  field, but persisted on the same row since it changes about as often as FTP does.
 
 ### Page header typography (H1)
 
@@ -1526,18 +1527,19 @@ greeting/title in their own `min-w-0` truncating column and the sync button coll
 an icon + short "Sync" label below `sm:` — an earlier `flex-col`-wrapping version let a
 long "Sincronizar Strava" label clip the greeting text on a narrow phone; truncating each
 side independently instead of wrapping the whole row fixed that. The planner's
-route/quick/GPX mode toggle (along with every other segmented control and selection card —
-see "Segmented controls & selection cards" above) fits three-plus options in one row even
-on a narrow phone rather than a wrapping flex row of individually bordered pill buttons.
-Numeric inputs carry `inputMode="decimal"` (weight, duration — anything with a fractional
-step) or `inputMode="numeric"` (FTP, watts — integers only) so mobile keyboards show the
-right keypad; every shared button/field/segmented-control class in `lib/ui-classes.ts`
-carries `min-h-11` (44px) for a comfortable thumb target regardless of its own
-padding/text size, and the shared `Card` component's `--card-spacing` custom property
-(`components/ui/card.tsx`) is `--spacing(5)` by default, `--spacing(6)` at `sm:` — every
-card's internal padding grows on larger screens rather than staying fixed. `app/layout.tsx`'s
-`<body>` carries `overflow-x-hidden` as a defensive backstop against any stray horizontal
-overflow, on top of (not instead of) fixing the actual layouts above.
+route/quick/GPX mode toggle is a compact
+`grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1` segmented control (an inner
+`rounded-md bg-neutral-900 shadow-sm` pill marks the active mode) rather than a row of
+individually bordered, wrapping pill buttons — three columns fit in one row even on a
+narrow phone, which a wrapping flex row of longer labels didn't reliably do. Numeric inputs
+carry
+`inputMode="decimal"` (weight, duration — anything with a fractional step) or
+`inputMode="numeric"` (FTP, watts — integers only) so mobile keyboards show the right
+keypad; shared input classes across `page.tsx`/`fueling-planner.tsx`/
+`post-ride-analysis.tsx` use `py-2.5` rather than `py-2` for a more comfortable touch
+target. `app/layout.tsx`'s `<body>` carries `overflow-x-hidden` as a defensive backstop
+against any stray horizontal overflow, on top of (not instead of) fixing the actual
+layouts above.
 
 **Mobile dashboard priority reorder.** A brand-new athlete's first useful action is
 calculating a fueling strategy, not reading a week of stats they don't have yet — so on
@@ -1591,10 +1593,8 @@ status bar blends with the page instead of showing a mismatched color.
   and secondary containers. Earth-tone technical accents replace the old monochrome
   black-on-white for anything "active"/"primary": `--terracotta` (`#c85231`,
   `bg-terracotta`/`text-terracotta`/`border-terracotta`, `--terracotta-hover` on hover) is
-  the one accent for every primary action button and active tab, and marks the selected
-  state on multi-card selectors (a border + corner dot, not a fill — see "Segmented
-  controls & selection cards" below for why segmented-control pills deliberately *don't*
-  use it); `--sage` (`#526553`) marks carb-coverage "cubierto"/positive-progress state,
+  the one accent for every primary action button, active tab, and active segmented-control
+  pill; `--sage` (`#526553`) marks carb-coverage "cubierto"/positive-progress state,
   distinct from the older, more muted `--status-good` (`#526553` too, same hex, kept as a
   separate token since status banners and the carb-coverage meter may need to diverge
   later); `--sand` (`#d5cfbf`) is the "restante/déficit" tone — deliberately not a second
@@ -1609,64 +1609,12 @@ status bar blends with the page instead of showing a mismatched color.
   (terracotta fill, `rounded-lg`, `font-mono` uppercase — CALCULAR ESTRATEGIA, ANALIZAR,
   GUARDAR, GUARDAR CONSUMO REAL), `secondaryButtonClass` (white/outline counterpart —
   Copiar receta, Descargar GPX, Sincronizar), `fieldClass`/`selectableFieldClass` (every
-  plain input vs. every select/date field), `badgeClass`, or the segmented-control/
-  selection-card classes described below — plain exported strings composed via `cn()` at
-  each call site for its own state-dependent classes (disabled, active, etc.), not a
-  wrapping component, since every call site already needs that composition anyway. A
-  file-local `const inputClass = fieldClass` alias is fine where a file already had many
-  call sites under that name; don't invent a *second* set of near-identical classes for a
-  new button/field — import from here. Every button/field also carries `min-h-11` (44px) —
-  a comfortable mobile thumb target regardless of its own padding/text size.
-
-### Segmented controls & selection cards
-
-An Apple Fitness/Fuelin-inspired pass replaced this app's older `<select>`-for-a-short-list
-and terracotta-filled-pill conventions with two new shared patterns, both plain exported
-class strings in `lib/ui-classes.ts` (same "compose with `cn()` at the call site"
-convention as every other shared class):
-
-- **Segmented control** (`segmentedControlClass`/`segmentedControlButtonClass`/
-  `segmentedControlButtonActiveClass`) — despite the name (kept for historical/import
-  continuity), this is no longer an Apple/Fuelin-style tinted `bg-[#EAE7DF]` rounded
-  container with pills lifting off it — that read as too soft/consumer-app for this app's
-  sober, technical identity. Replaced with a Pas Normal Studios-style editorial pattern: a
-  transparent `flex flex-wrap gap-2` row of fully independent bordered buttons
-  (`border-neutral-300 bg-white`, `rounded-md`), each its own discrete control rather than
-  sharing a common tinted track. The active option is a solid `bg-neutral-900 text-white`
-  fill (`font-bold`, no shadow) — deliberately monochrome, not terracotta, so the accent
-  color stays reserved for primary actions (CALCULAR ESTRATEGIA, etc.) rather than being
-  spent on every selected toggle state too. Used for every exclusive choice with a handful
-  of options that used to be either a `<select>` or a terracotta-filled pill row: the
-  Fueling Planner's route/quick/GPX mode toggle, fueling
-  mode (Óptimo/Mi Inventario/Híbrido), departure day (`DeparturePicker`), ride intensity
-  (`IntensityControl`, 5 options — `flex-wrap` on the container lets it wrap to a second
-  row on a narrow phone, and its buttons add `whitespace-normal` so a longer label like
-  "Recuperación" wraps within its own column instead of forcing the row wider), and on
-  `/perfil`, sweat rate and bottle count/capacity (both formerly plain `<select>`s). The
-  Physiological Profile form has no client JS at all (a plain `<form action="...">` POST),
-  so its three segmented controls are built from real radio `<input>`s with an `sr-only`
-  input inside each `<label>` — `segmentedControlButtonActiveHasCheckedClass` expresses the
-  same active look as `segmentedControlButtonActiveClass` via `has-checked:` variants
-  instead of a JS-computed class, so the "active" pill is still a real, submittable native
-  control with zero JavaScript. The Fueling Planner's own segmented controls (client-side
-  state) use the plain JS-conditional version instead, since that component is already
-  `"use client"`.
-- **Selection card** (`selectionCardClass`/`selectionCardActiveClass`/
-  `selectionCardDotClass`) — for multi-card selectors (Fenotipo metabólico VLaMax, Gut
-  Training level) rather than a segmented control, since each option carries its own
-  description line a pill can't fit. Every card stays `bg-white` regardless of state —
-  only a `border-2 border-terracotta shadow-md` (replacing the older tinted-background
-  `bg-[#FDF8F6]` approach) plus a small `absolute` terracotta corner dot mark the selected
-  one, so "selected" reads as a clean UI state rather than a colored block. Gut Training
-  (`components/gut-training-selector.tsx`, `"use client"`) applies the active classes and
-  renders the dot conditionally from React state directly. Athlete Type
-  (`app/perfil/page.tsx`, no client JS) uses the same `has-checked:` trick as the
-  segmented controls above for the card's own border/shadow, but the dot needs a different
-  mechanism since `has-checked:` only reaches an element's own descendants, not a sibling —
-  each `<label>` carries a plain (unnamed) `group` class, and the dot `<span>` uses
-  `hidden group-has-checked:block`, Tailwind's variant for "show this element whenever its
-  nearest `group` ancestor has a checked descendant." Verified live: clicking a different
-  radio moves the border/shadow/dot to the newly-checked card with no JavaScript at all.
+  plain input vs. every select/date field), or `badgeClass` — plain exported strings
+  composed via `cn()` at each call site for its own state-dependent classes (disabled,
+  active, etc.), not a wrapping component, since every call site already needs that
+  composition anyway. A file-local `const inputClass = fieldClass` alias is fine where a
+  file already had many call sites under that name; don't invent a *second* set of
+  near-identical classes for a new button/field — import from here.
 - Bold uppercase tracked headers (`CardTitle`'s default, the page `<h1>`, `TabsTrigger`
   labels) stay in the same clean geometric sans as everything else — never a monospace/
   retro face for names or labels — with `font-mono` reserved strictly for *displayed

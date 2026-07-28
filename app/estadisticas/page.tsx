@@ -254,7 +254,7 @@ export default function EstadisticasPage() {
         </Suspense>
       }
     >
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-10">
         <header className="border-b border-neutral-200 pb-6">
           <h1 className="text-xl font-bold font-mono text-neutral-900 uppercase tracking-tight sm:text-2xl">
             Análisis &amp; cumplimiento
