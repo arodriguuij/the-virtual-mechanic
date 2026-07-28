@@ -165,9 +165,9 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply overscroll-x-none bg-background text-foreground;
+    @apply bg-background text-foreground;
   }
   html {
-    @apply overscroll-x-none font-sans;
+    @apply font-sans;
   }
 }

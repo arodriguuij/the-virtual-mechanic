@@ -3,7 +3,7 @@
 import { BarChart3, History, LayoutDashboard, LogOut, Menu, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { AppLogo } from "@/components/app-logo";
 import { logout } from "@/lib/auth-actions";
@@ -15,14 +15,6 @@ const NAV_ITEMS = [
   { href: "/historial", label: "Historial", icon: History },
   { href: "/perfil", label: "Perfil fisiológico", icon: UserRound },
 ];
-
-const DRAWER_WIDTH_PX = 256; // w-64
-const LG_BREAKPOINT_PX = 1024; // Tailwind's `lg:` — the drawer concept doesn't exist above it
-const EDGE_SWIPE_ZONE_PX = 24; // how close to the left edge a touch must start to open the drawer
-const SWIPE_COMMIT_FRACTION = 0.35; // fraction of the drawer's width a drag must cross to snap open
-const DIRECTION_LOCK_PX = 10; // px of movement before deciding this is a horizontal swipe, not a vertical scroll
-
-type TouchDragState = { startX: number; startY: number; locked: boolean; horizontal: boolean };
 
 /**
  * Clicking the brand mark while already on the Dashboard shouldn't navigate at
@@ -128,91 +120,22 @@ export function DashboardShell({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  // Non-null only while a horizontal drag is actively in progress — the drawer's
-  // position while dragging (0 = closed, DRAWER_WIDTH_PX = fully open), tracked
-  // separately from `mobileOpen` so the drawer can visually follow the finger
-  // before either snapping open or back closed on release.
-  const [dragX, setDragX] = useState<number | null>(null);
-  const touchStateRef = useRef<TouchDragState | null>(null);
-
-  function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
-    if (typeof window !== "undefined" && window.innerWidth >= LG_BREAKPOINT_PX) {
-      touchStateRef.current = null;
-      return;
-    }
-    const touch = e.touches[0];
-    // Only track a gesture that's plausibly meant for the drawer: closing (swipe
-    // anywhere) while it's open, or opening (edge-swipe) while it's closed — never
-    // hijacks an arbitrary horizontal touch elsewhere on the page.
-    const eligible = mobileOpen || touch.clientX <= EDGE_SWIPE_ZONE_PX;
-    touchStateRef.current = eligible
-      ? { startX: touch.clientX, startY: touch.clientY, locked: false, horizontal: false }
-      : null;
-  }
-
-  function handleTouchMove(e: React.TouchEvent<HTMLDivElement>) {
-    const state = touchStateRef.current;
-    if (!state) return;
-    const touch = e.touches[0];
-    const deltaX = touch.clientX - state.startX;
-    const deltaY = touch.clientY - state.startY;
-
-    if (!state.locked) {
-      if (Math.abs(deltaX) < DIRECTION_LOCK_PX && Math.abs(deltaY) < DIRECTION_LOCK_PX) return;
-      state.locked = true;
-      state.horizontal = Math.abs(deltaX) > Math.abs(deltaY);
-      if (!state.horizontal) {
-        // A vertical scroll, not a drawer swipe — stop tracking and let the
-        // native scroll proceed untouched (this handler never calls
-        // preventDefault, so it was never blocking it anyway).
-        touchStateRef.current = null;
-        return;
-      }
-    }
-    if (!state.horizontal) return;
-
-    const baseline = mobileOpen ? DRAWER_WIDTH_PX : 0;
-    setDragX(Math.min(DRAWER_WIDTH_PX, Math.max(0, baseline + deltaX)));
-  }
-
-  function handleTouchEnd() {
-    const state = touchStateRef.current;
-    touchStateRef.current = null;
-    if (!state?.horizontal || dragX == null) {
-      setDragX(null);
-      return;
-    }
-    setMobileOpen(dragX >= DRAWER_WIDTH_PX * SWIPE_COMMIT_FRACTION);
-    setDragX(null);
-  }
-
-  const isDragging = dragX != null;
-  const backdropOpacity = isDragging ? dragX / DRAWER_WIDTH_PX : mobileOpen ? 1 : 0;
 
   return (
-    <div
-      className="min-h-screen bg-background"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
+    <div className="min-h-screen bg-background">
       <div
         className={cn(
-          "fixed inset-0 z-9999 bg-black/30 lg:hidden",
-          !isDragging && "transition-opacity",
-          backdropOpacity === 0 && "pointer-events-none"
+          "fixed inset-0 z-9999 bg-black/30 transition-opacity lg:hidden",
+          mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
         )}
-        style={{ opacity: backdropOpacity }}
         onClick={() => setMobileOpen(false)}
       />
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-10000 w-64 border-r border-neutral-200 bg-background lg:translate-x-0",
-          !isDragging && "transition-transform",
-          !isDragging && (mobileOpen ? "translate-x-0" : "-translate-x-full")
+          "fixed inset-y-0 left-0 z-10000 w-64 border-r border-neutral-200 bg-background transition-transform lg:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
-        style={isDragging ? { transform: `translateX(${dragX - DRAWER_WIDTH_PX}px)` } : undefined}
       >
         <SidebarContent
           onNavigate={() => setMobileOpen(false)}
