@@ -1638,12 +1638,38 @@ sesión") instead of a made-up bio line.
     `/historial` route (see below), so this tab now holds only the just-finished ride's
     analysis.
 - **`app/historial/page.tsx`** — its own `DashboardShell`-wrapped page (own header,
-  reached from the sidebar's `Historial` nav item, `History` `lucide-react` icon). Fetches
-  `getRecentActivities(20)` — a larger limit than the old in-tab card (8), since this
-  view has no other content competing for space — and renders the same ride-lookbook card
-  (numbered rows, hairline dividers, no per-row card chrome) that used to sit at the
-  bottom of the Dashboard's "Al llegar" tab: each row shows distance, a humidity/rain
-  weather label, and carbs burned when available.
+  reached from the sidebar's `Historial` nav item, `History` `lucide-react` icon).
+  Redesigned from a plain Strava ride lookbook (name/distance/weather, no nutrition
+  angle) into a "Diario de Rendimiento Nutricional" — two numbered cards, same
+  `01 · .../02 · ...` convention as `/perfil` and `/estadisticas`:
+  - **`01 · Resumen nutricional`** — 3 all-time KPIs from `getNutritionDiary()`
+    (`lib/dashboard-data.ts`): **Cumplimiento medio** (average consumed/target ratio,
+    capped per-ride before averaging, across *every* logged `post_ride` entry with real
+    consumption data — not just the displayed page); **HC procesados** (total carbs
+    actually consumed across every logged ride, `formatCarbsTotal()` switching to kg
+    display above 1000g); **Gut training** — a `Nivel 1/2/3` badge (`30-45` / `60-75` /
+    `90+` g/h) derived from real average logged intake. Deliberately a *different* scale
+    from `athlete_profiles.gut_training_level` (the 4-tier self-reported
+    Principiante/Intermedio/Avanzado/Pro field shown elsewhere) — this one reflects
+    demonstrated real intake across logged rides, not a category the athlete picked once.
+    All three collapse to a single "sin datos aún" line when nothing's logged yet, same
+    "never fabricate" convention as `getWeeklyPerformance`.
+  - **`02 · Diario de rutas`** — one `NutritionRideCard` per synced activity (`getNutritionDiary`'s
+    `displayLimit`, default 20). A ride with logged consumption shows a color-coded
+    compliance badge (`≥90%` emerald "X% cumplido", `60-89%` amber "Sub-nutrido", `<60%`
+    red "Déficit crítico" — plain bordered pills, no emoji glyphs, matching this app's
+    monochrome-chrome-plus-accent-color convention rather than literal 🟢/🟡/🔴) plus
+    Ingesta (g/h) / Hidratación (L) / Sodio (mg) for that specific ride, uncapped (a ride
+    can genuinely show >100% if the athlete over-fueled — verified live: a real
+    "118% cumplido" case rendered correctly, not clamped). A ride with no consumption
+    logged yet renders a muted variant instead — name/date/distance plus a "Sin datos de
+    consumo — analiza esta ruta en 'Al llegar'" note — so every synced ride is still
+    listed, just visually distinguished by whether it has a nutrition angle yet. Every
+    card keeps a small external-link icon through to the real Strava activity.
+  - `getNutritionDiary()` queries `activities`/`fueling_logs` with **no limit** for the
+    summary KPIs specifically (only slicing to `displayLimit` for the rendered card list
+    afterward) — an athlete with more synced rides than the display limit would otherwise
+    get an all-time figure skewed toward only their most recent few.
 - **`app/perfil/page.tsx`** — its own `DashboardShell`-wrapped page (own header, own
   `profile_saved`/`profile_error` query-param handling — see "Athlete profile" above)
   rather than a tab panel. `PhysiologicalProfileCard` reads `getAthleteProfile()` and
@@ -1796,15 +1822,6 @@ symmetric padding that looked fine on desktop was tight enough on an iPhone to h
 real bottom bar overlap the last card/button (verified against real device screenshots).
 Mobile gets the larger value since that chrome only exists there; desktop keeps a smaller
 `pb-16` since there's no floating bar to clear.
-
-**Historial's redundant title, removed.** `RideHistorySection`'s `Card` used to open with
-its own `CardHeader` (`CardTitle` "Historial de rutas" + a `CardDescription` subtitle) —
-directly redundant with the page's own `<h1>Historial</h1>` immediately above it, the
-same title appearing twice in a row. Removed entirely (in both the populated and
-`RideHistorySkeleton` variants) so the card starts directly with the numbered activity
-list (`01 Activation Ride`, etc.); the empty-state variant keeps its "Sin actividades
-registradas todavía" message as a plain `CardContent` paragraph, no title needed above a
-single sentence.
 
 **Normalized header-to-first-card spacing (`gap-6` everywhere).** The outer page wrapper
 governing the gap between each route's `<header>` and its first content block had drifted

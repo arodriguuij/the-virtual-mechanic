@@ -293,6 +293,172 @@ export const getRecentIntakeBreakdown = cache(
   }
 );
 
+export type NutritionDiaryEntry = {
+  activityId: string;
+  activityName: string;
+  activityDate: string;
+  distanceKm: number;
+  /** False whenever this ride has no `post_ride` consumption logged yet —
+   * the card renders a muted "sin datos" variant instead of fabricating a
+   * compliance figure for a ride nobody ever analyzed. */
+  hasConsumptionData: boolean;
+  intakeGPerHour: number | null;
+  fluidConsumedL: number | null;
+  sodiumConsumedMg: number | null;
+  /** Real consumed/target ratio as a percentage, uncapped (a ride can
+   * genuinely show >100% if the athlete over-fueled) — only the *averaged*
+   * summary figure below gets capped per-ride before averaging. */
+  compliancePct: number | null;
+};
+
+export type GutTrainingTier = { level: 1 | 2 | 3; rangeLabel: string };
+
+export type NutritionDiarySummary = {
+  avgCompliancePct: number | null;
+  totalCarbsConsumedG: number;
+  gutTrainingTier: GutTrainingTier | null;
+};
+
+export type NutritionDiary = {
+  entries: NutritionDiaryEntry[];
+  summary: NutritionDiarySummary;
+};
+
+// Deliberately its own ad-hoc 3-tier scale, distinct from the 4-level
+// self-reported `athlete_profiles.gut_training_level` (Principiante/
+// Intermedio/Avanzado/Pro) — this one is derived from real logged intake
+// across every ride, not a category the athlete picked once on their
+// profile. Checked in descending order; the first match wins.
+const GUT_TRAINING_TIERS: { minGPerHour: number; level: 1 | 2 | 3; rangeLabel: string }[] = [
+  { minGPerHour: 90, level: 3, rangeLabel: "90+ g/h" },
+  { minGPerHour: 60, level: 2, rangeLabel: "60-75 g/h" },
+  { minGPerHour: 30, level: 1, rangeLabel: "30-45 g/h" },
+];
+
+function gutTrainingTierFromIntake(avgGPerHour: number | null): GutTrainingTier | null {
+  if (avgGPerHour == null) return null;
+  for (const tier of GUT_TRAINING_TIERS) {
+    if (avgGPerHour >= tier.minGPerHour) return { level: tier.level, rangeLabel: tier.rangeLabel };
+  }
+  return null;
+}
+
+/**
+ * Powers `/historial`'s "Diario de Rendimiento Nutricional" — unlike
+ * `getWeeklyPerformance` (scoped to the last 7 days for the Dashboard's
+ * glance-back panel), every summary figure here is a genuine all-time
+ * aggregate across *every* logged ride with real consumption data, not just
+ * whatever's in the displayed page. That's why activities/logs are fetched
+ * with no limit and the `displayLimit` param only slices the rendered
+ * `entries` afterward — an athlete with more synced rides than the display
+ * limit would otherwise get a skewed "all-time" figure computed from only
+ * their most recent few. Two queries joined client-side via a `Map`, same
+ * convention as `getWeeklyPerformance`/`getRecentIntakeBreakdown` above.
+ */
+export const getNutritionDiary = cache(
+  async (displayLimit: number = 20): Promise<NutritionDiary> => {
+    const supabase = await getAuthenticatedSupabaseClient();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    const userId = authData.user?.id;
+    const empty: NutritionDiary = {
+      entries: [],
+      summary: { avgCompliancePct: null, totalCarbsConsumedG: 0, gutTrainingTier: null },
+    };
+    if (!userId) return empty;
+
+    const [{ data: activities, error: activitiesError }, { data: logs, error: logsError }] =
+      await Promise.all([
+        supabase
+          .from("activities")
+          .select("id, name, distance, moving_time, activity_date")
+          .eq("profile_id", userId)
+          .order("activity_date", { ascending: false }),
+        supabase
+          .from("fueling_logs")
+          .select(
+            "activity_id, total_carbs_g, fluid_ml, sodium_mg, carbs_consumed_g, fluid_consumed_ml, sodium_consumed_mg"
+          )
+          .eq("profile_id", userId)
+          .eq("kind", "post_ride")
+          .not("carbs_consumed_g", "is", null),
+      ]);
+    if (activitiesError) throw activitiesError;
+    if (logsError) throw logsError;
+
+    const activityRows = activities ?? [];
+    if (activityRows.length === 0) return empty;
+
+    const durationByActivityId = new Map(activityRows.map((a) => [a.id, a.moving_time]));
+    const logByActivityId = new Map((logs ?? []).map((l) => [l.activity_id, l]));
+
+    function toEntry(activity: (typeof activityRows)[number]): NutritionDiaryEntry {
+      const log = logByActivityId.get(activity.id);
+      const hasData = Boolean(log);
+      const durationHours = activity.moving_time / 3600;
+      const intakeGPerHour =
+        hasData && durationHours > 0 ? Math.round((log!.carbs_consumed_g ?? 0) / durationHours) : null;
+      const compliancePct =
+        hasData && log!.total_carbs_g > 0
+          ? Math.round(((log!.carbs_consumed_g ?? 0) / log!.total_carbs_g) * 100)
+          : null;
+      return {
+        activityId: activity.id,
+        activityName: activity.name,
+        activityDate: activity.activity_date,
+        distanceKm: Math.round((activity.distance / 1000) * 10) / 10,
+        hasConsumptionData: hasData,
+        intakeGPerHour,
+        fluidConsumedL:
+          hasData && log!.fluid_consumed_ml != null
+            ? Math.round((log!.fluid_consumed_ml / 1000) * 10) / 10
+            : null,
+        sodiumConsumedMg: hasData ? (log!.sodium_consumed_mg ?? null) : null,
+        compliancePct,
+      };
+    }
+
+    const entries = activityRows.slice(0, displayLimit).map(toEntry);
+
+    // Summary KPIs below deliberately reuse *all* logs joined against a
+    // known ride duration, not just the sliced `entries` above.
+    const logsWithDuration = (logs ?? [])
+      .map((log) => ({ log, durationSeconds: durationByActivityId.get(log.activity_id) }))
+      .filter((x): x is { log: NonNullable<typeof logs>[number]; durationSeconds: number } =>
+        Boolean(x.durationSeconds)
+      );
+
+    const complianceRatios = logsWithDuration
+      .filter((x) => x.log.total_carbs_g > 0)
+      .map((x) => Math.min(1, (x.log.carbs_consumed_g ?? 0) / x.log.total_carbs_g));
+    const avgCompliancePct =
+      complianceRatios.length > 0
+        ? Math.round(
+            (complianceRatios.reduce((sum, r) => sum + r, 0) / complianceRatios.length) * 100
+          )
+        : null;
+
+    const totalCarbsConsumedG = Math.round(
+      logsWithDuration.reduce((sum, x) => sum + (x.log.carbs_consumed_g ?? 0), 0)
+    );
+
+    const intakeRates = logsWithDuration.map(
+      (x) => (x.log.carbs_consumed_g ?? 0) / (x.durationSeconds / 3600)
+    );
+    const avgIntakeGPerHour =
+      intakeRates.length > 0 ? intakeRates.reduce((sum, r) => sum + r, 0) / intakeRates.length : null;
+
+    return {
+      entries,
+      summary: {
+        avgCompliancePct,
+        totalCarbsConsumedG,
+        gutTrainingTier: gutTrainingTierFromIntake(avgIntakeGPerHour),
+      },
+    };
+  }
+);
+
 /**
  * The athlete's saved/starred Strava cycling routes, for the fueling
  * planner's route selector. `[]` (not an error) whenever Strava isn't
