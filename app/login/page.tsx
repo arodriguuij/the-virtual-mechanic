@@ -34,11 +34,11 @@ export default async function LoginPage({
 
   return (
     <AuthPageShell>
-      <h1 className="mb-6 max-w-lg text-center font-mono text-2xl font-bold tracking-tight text-neutral-900 uppercase sm:text-3xl">
+      <h1 className="mb-4 max-w-lg px-4 text-center font-mono text-xl font-bold tracking-tight text-neutral-900 uppercase sm:mb-6 sm:text-3xl">
         Nutrición de precisión para ciclistas
       </h1>
 
-      <ul className="mx-auto mb-8 max-w-xs space-y-3 font-mono text-xs text-neutral-700">
+      <ul className="mx-auto mb-6 max-w-xs space-y-2 px-2 font-mono text-xs text-neutral-700 sm:mb-8 sm:space-y-3">
         {benefits.map((benefit) => (
           <li key={benefit} className="flex items-start gap-2">
             <span className="text-terracotta">&#10003;</span>
@@ -54,11 +54,9 @@ export default async function LoginPage({
         </div>
       )}
 
-      <div className="mx-auto w-full max-w-xs">
-        <StravaLoginButton />
-      </div>
+      <StravaLoginButton />
 
-      <p className="mt-4 text-center font-mono text-[11px] text-neutral-500">
+      <p className="mt-2 text-center font-mono text-[10px] text-neutral-500 sm:mt-3 sm:text-[11px]">
         Acceso seguro mediante OAuth. Solo lectura de rutas.
       </p>
     </AuthPageShell>

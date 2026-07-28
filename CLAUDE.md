@@ -224,14 +224,40 @@ can never reach that page to see them.
     the Carbos/Carbohidratos stat label elsewhere in this app — was the fix that actually
     fits with room to spare (measured: exactly 342px of 342px available).
   `components/strava-login-button.tsx` is a solid `bg-neutral-900`/`hover:bg-black`
-  technical button (`rounded-md`, `py-3.5 px-6`), wrapped in a `max-w-xs mx-auto` div by
-  the page rather than sizing itself, with `StravaMark` left at its default corporate-
-  orange fill (`#FC4C02`) — the icon is the only spot of color on an otherwise monochrome
-  button, same "one accent color, used deliberately" restraint as the rest of this app's
-  palette. Verified live at both a 390×844 mobile viewport (zero scroll, with and without
-  the error banner) and desktop — no element on the page carries a `box-shadow` anywhere,
-  confirmed via computed style, and the old `public/login-road-bg.svg` asset was deleted
-  once nothing referenced it.
+  technical button (`rounded-md`, `py-3 px-5`), sizing itself (`max-w-xs mx-auto w-full`
+  directly on the `<a>`, no wrapping div needed at the call site) with `StravaMark` left
+  at its default corporate-orange fill (`#FC4C02`) — the icon is the only spot of color on
+  an otherwise monochrome button, same "one accent color, used deliberately" restraint as
+  the rest of this app's palette. Verified live at both a 390×844 mobile viewport (zero
+  scroll, with and without the error banner) and desktop — no element on the page carries
+  a `box-shadow` anywhere, confirmed via computed style, and the old
+  `public/login-road-bg.svg` asset was deleted once nothing referenced it.
+
+**Root-level scroll lock (`h-dvh` + `overflow-hidden`, not `min-h-screen`).** An earlier
+version of `AuthPageShell` used `min-h-screen`, which measures against the *largest*
+possible viewport iOS Safari can report — the moment a touch-drag revealed/hid Safari's
+address-bar chrome (which resizes the *visual* viewport without the page re-rendering),
+the page's own fixed height no longer matched the now-shrunk `100vh`, leaving a sliver of
+extra scrollable height and letting one stray swipe scroll the whole screen by a few
+pixels. `h-dvh` (the *dynamic* viewport height unit, which iOS Safari itself keeps in
+sync as its chrome shows/hides) plus `overflow-hidden` on the same root element closes
+that gap outright — verified live at a 390×844 viewport (`html.scrollHeight ===
+html.clientHeight`, `canScroll: false`) and additionally at a smaller 360×640 viewport,
+since the failure mode here is specifically about *tight* vertical budgets. `justify-
+between` on the root flex column with `flex-none` on both the header and footer is what
+keeps `<main>` (the sole `flex-1`) as the only region that actually flexes — the bars
+never grow/shrink regardless of their own content's natural height.
+
+**Footer spec row, bullet-separated.** The three specs render as one `•`-separated line
+at every viewport now (`01 / Ratio 1:0.8 • 02 / Meteo en vivo • 03 / Mezcla casera`,
+already the shortened mobile-friendly wording from the previous pass) rather than two
+separate `sm:hidden`/`hidden sm:flex` rows — simpler markup, one row instead of two. The
+`gap` between items had to shrink further than expected to actually guarantee zero
+overflow at every real phone width: `gap-2` fit at 390px but measurably overflowed
+(330px of content against 328px available) at a smaller 360px viewport — narrow enough
+that Android devices still ship at it. Settled on `gap-0.5` below `sm:` (`sm:gap-8` once
+there's real room), verified to fit with zero overflow (`scrollWidth === clientWidth`)
+at both 360px and 390px.
 
 **`components/auth-page-shell.tsx`**'s `AuthPageShell` holds the top bar/hero-wrapper/
 bottom bar frame described above as a single shared component, once `/auth/callback`'s
