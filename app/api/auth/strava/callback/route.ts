@@ -10,13 +10,6 @@ import { stravaRoutesCacheTag, STRAVA_ROUTES_REVALIDATE_SECONDS } from "@/lib/da
 
 export const dynamic = "force-dynamic";
 
-// Placeholder physiological defaults for a brand-new athlete_profiles row —
-// Strava only ever gives us weight, never FTP or sweat rate, so a first-time
-// connection still needs *something* non-null to satisfy the table's
-// NOT NULL columns until the athlete edits their real numbers.
-const DEFAULT_FTP = 200;
-const DEFAULT_SWEAT_RATE = "medium";
-
 /** Strava isn't a supported Supabase Auth OAuth provider (it doesn't even
  * implement OpenID Connect, so it can't be bridged as a generic OIDC
  * provider either) — this domain never receives mail, it exists purely as
@@ -132,30 +125,23 @@ export async function GET(request: NextRequest) {
   }
 
   // Zero-friction weight sync: pull it straight from the athlete's own
-  // Strava profile instead of asking them to type it in. Best-effort — a
-  // failure here shouldn't undo an otherwise-successful login.
+  // Strava profile instead of asking them to type it in — but only into an
+  // *existing* `athlete_profiles` row. This deliberately no longer creates a
+  // brand-new row on the athlete's behalf: FTP and sweat rate have no real
+  // Strava-sourced equivalent, and a fabricated `ftp: 200`/`sweat_rate:
+  // "medium"` placeholder — inserted the instant someone connects Strava,
+  // before they've ever opened the Physiological Profile form — is exactly
+  // the kind of invented data this app must never show as if it were real
+  // (see CLAUDE.md's "Eliminating profile fallbacks"). A first-time athlete
+  // now simply has no `athlete_profiles` row until they submit the real form
+  // themselves; `getStravaAthleteWeightKg()` (`lib/dashboard-data.ts`) still
+  // prefills that form's weight field from this same Strava reading, without
+  // persisting anything early. Best-effort — a failure here shouldn't undo
+  // an otherwise-successful login.
   try {
     const athlete = await fetchAthlete(token.access_token);
     if (athlete.weight) {
-      const { data: existingAthleteProfile } = await supabase
-        .from("athlete_profiles")
-        .select("id")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (existingAthleteProfile) {
-        await supabase
-          .from("athlete_profiles")
-          .update({ weight_kg: athlete.weight })
-          .eq("id", userId);
-      } else {
-        await supabase.from("athlete_profiles").insert({
-          id: userId,
-          weight_kg: athlete.weight,
-          ftp: DEFAULT_FTP,
-          sweat_rate: DEFAULT_SWEAT_RATE,
-        });
-      }
+      await supabase.from("athlete_profiles").update({ weight_kg: athlete.weight }).eq("id", userId);
     }
   } catch (error) {
     console.error("No se pudo sincronizar el peso del atleta desde Strava:", error);

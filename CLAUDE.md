@@ -357,14 +357,18 @@ as its `strava_athlete_id` matches).
   to `/`. On any failure it redirects to `/login?strava_error=<code>` instead of
   pretending it worked — see `stravaLoginErrorMessages` in `app/login/page.tsx` for the
   human-readable copy per code. Also does a best-effort, zero-friction weight sync:
-  fetches `/athlete` (`fetchAthlete()`
-  in `lib/strava.ts`) and upserts its `weight` (kg) into `athlete_profiles.weight_kg` —
-  `UPDATE` if the athlete already has a profile row (never overwrites their own `ftp`/
-  `sweat_rate`), otherwise `INSERT`s a fresh row with placeholder `ftp: 200` /
-  `sweat_rate: 'medium'` (Strava has no concept of either) so the row satisfies the
-  table's `NOT NULL` columns until the athlete edits their real numbers via the
-  Physiological Profile form. A failure here is logged but never undoes an otherwise-
-  successful Strava connection.
+  fetches `/athlete` (`fetchAthlete()` in `lib/strava.ts`) and, if the athlete already has
+  an `athlete_profiles` row, `UPDATE`s its `weight_kg` (never overwrites their own `ftp`/
+  `sweat_rate`). **Deliberately does *not* `INSERT` a brand-new row** — an earlier version
+  did, filling `ftp`/`sweat_rate` with a placeholder pair (`200`/`'medium'`, since Strava
+  has no concept of either) just to satisfy the table's `NOT NULL` columns; removed because
+  a fabricated row materializing the instant someone connects Strava, before they've ever
+  opened the Physiological Profile form, is exactly the kind of invented data this app must
+  never present as real (see "Eliminating profile fallbacks" below). A first-time athlete
+  now has no `athlete_profiles` row at all until they submit the real form themselves —
+  `getStravaAthleteWeightKg()` (`lib/dashboard-data.ts`) still prefills that form's weight
+  field from this same Strava reading, without persisting anything early. A failure here is
+  logged but never undoes an otherwise-successful Strava connection.
 
   **First-login onboarding bootstrap** — immediately after the token/weight-sync work
   above, and only when `isNewAccount` is `true` (a Strava athlete genuinely never seen
@@ -1831,6 +1835,65 @@ border-amber-200 text-amber-700` banner, deliberately *not* this app's usual
 `status-warning` brick-red token (that one reads as "something went wrong"; this is a
 plain "here's the one next step" nudge, a different enough register to keep visually
 distinct) with a "[ COMPLETAR PERFIL → ]" link to `/perfil`.
+
+### Eliminating profile fallbacks
+
+Confirmed root cause of "data still shows up after deleting the athlete's row": several
+spots silently substituted a plausible-looking placeholder (`"medium"`, `"intermediate"`,
+a fabricated DB row) whenever `weight_kg`/`ftp`/`sweat_rate`/`gut_training_level` were
+missing, instead of a genuine empty state — so a deleted-then-recreated profile (or a
+brand-new athlete who's never opened `/perfil`) could still read as "already configured."
+Fixed at every layer:
+
+- **The real root cause** — `app/api/auth/strava/callback/route.ts`'s "zero-friction
+  weight sync" used to `INSERT` a brand-new `athlete_profiles` row the instant *any*
+  athlete connected Strava with a known weight, filling `ftp`/`sweat_rate` with a
+  hardcoded `200`/`"medium"` placeholder pair just to satisfy the table's `NOT NULL`
+  columns — a fully-formed-looking profile the athlete never actually entered. Now only
+  ever `UPDATE`s an *existing* row's `weight_kg`; a first-time athlete has no
+  `athlete_profiles` row at all until they submit the real Physiological Profile form
+  themselves (see "Strava OAuth" above).
+- **The one legitimate exception** — Strava's own real weight reading is still used to
+  *prefill* `/perfil`'s weight input (never persisted early): **`getStravaAthleteWeightKg()`**
+  (`lib/dashboard-data.ts`) re-derives a live Strava access token and calls `fetchAthlete()`,
+  returning `null` on anything (not connected, no weight on file, an API hiccup) — same
+  best-effort convention as every other Strava read in this file.
+  `PhysiologicalProfileCard` (`app/(app)/perfil/page.tsx`) only calls it when
+  `getAthleteProfile()` returned `null`, and only ever feeds the result into the weight
+  input's `defaultValue` (`profile?.weight_kg ?? stravaWeightKg ?? ""`) — an athlete who
+  already has a row already has their own real `weight_kg`, so there's nothing to prefill.
+- **`/perfil`'s form defaults** — the sweat-rate cards (`defaultChecked={profile?.sweat_rate
+  === rate}`, no `?? "medium"`) and **`GutTrainingSelector`** (`defaultLevel:
+  GutTrainingLevel | null`, `useState<GutTrainingLevel | null>`) now start with genuinely
+  *no* card selected when there's no profile, rather than one silently pre-checked as if
+  the athlete had already chosen it. `gut_training_level` is `NOT NULL` in the DB, so
+  submitting with nothing picked already redirects to `invalid_gut_training_level` via
+  `/api/athlete-profile/update`'s existing validation — no new client-side `required`
+  needed. The FTP/weight number inputs already used `?? ""` before this pass (an empty
+  field, not a fabricated number) and needed no change.
+- **The calculation engines never fabricated a value in the first place** — `POST
+  /api/fueling/plan` and `POST /api/post-ride/analysis` both already return
+  `{ error: "no_profile" }` (400) outright when `athlete_profiles` has no row, rather than
+  computing against a stand-in; `lib/strava-sync.ts`'s nutrition figures are `null` unless
+  a real `ftp` is present. Two genuinely *unreachable* defensive fallbacks were still
+  removed for consistency with this pass: `post-ride/analysis`'s `FALLBACK_WEIGHT_KG = 70`
+  (dead code — the route's own `no_profile` check above it already guarantees a real,
+  `NOT NULL` `weight_kg` by the time it's read) and `strava-sync.ts`'s `sweat_rate ?? "medium"`
+  (same reasoning — reachable only once `athleteProfile.ftp` is already confirmed truthy,
+  meaning the whole row, sweat rate included, is real).
+- **`WeeklyPerformance.gutTrainingLevel`** (`lib/dashboard-data.ts`, feeds `/estadisticas`'
+  `RecommendationCard`) used to fall back to `"intermediate"` whenever there was no
+  `athlete_profiles` row — now `GutTrainingLevel | null`, `null` when there's genuinely no
+  profile. **`getIntakeRecommendationNote()`** (`lib/metabolic-engine.ts`) accepts that
+  `null` and returns a plain "configura tu nivel de Adaptación Digestiva..." prompt instead
+  of silently comparing real intake against a level the athlete never chose.
+- **Deliberately out of scope**: `bottle_count`/`bottle_capacity_ml`/`athlete_type`'s own
+  form defaults (`?? 2`/`?? 750`/`?? "balanced"`) — these are real bike-equipment/phenotype
+  fields with genuine DB-level defaults, not fabricated physiological calibration data, and
+  weren't part of what was reported. `scripts/seed.ts`'s fixture profile (FTP 250W, 72kg,
+  medium sweat rate) is unaffected too — explicitly local dev-only tooling, documented as a
+  "plausible amateur-racer fixture, not this specific user's real numbers," not a runtime
+  code path a real athlete could ever hit.
 
 ### Athlete profile
 

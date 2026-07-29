@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { GutTrainingSelector } from "@/components/gut-training-selector";
 import { InfoTooltip } from "@/components/info-tooltip";
 import { ProfileSavedToast } from "@/components/profile-saved-toast";
-import { getAthleteProfile } from "@/lib/dashboard-data";
+import { getAthleteProfile, getStravaAthleteWeightKg } from "@/lib/dashboard-data";
 import {
   athleteTypeDescriptions,
   athleteTypeLabels,
@@ -33,6 +33,13 @@ const selectableProfileInputClass = selectableFieldClass;
 
 async function PhysiologicalProfileCard() {
   const profile = await getAthleteProfile();
+  // The one legitimate exception to "never fabricate a value": Strava's own
+  // real weight reading for this athlete, used purely to prefill the form
+  // field below — never persisted on the athlete's behalf (see
+  // `getStravaAthleteWeightKg`'s own doc comment). Only fetched when there's
+  // no profile row yet; an athlete who already has one already has a real
+  // `weight_kg` of their own, so there's nothing to prefill.
+  const stravaWeightKg = profile ? null : await getStravaAthleteWeightKg();
 
   return (
     <form
@@ -56,7 +63,7 @@ async function PhysiologicalProfileCard() {
                 step="0.1"
                 min="1"
                 required
-                defaultValue={profile?.weight_kg ?? ""}
+                defaultValue={profile?.weight_kg ?? stravaWeightKg ?? ""}
                 className={profileInputClass}
               />
             </div>
@@ -168,7 +175,7 @@ async function PhysiologicalProfileCard() {
                       type="radio"
                       name="sweat_rate"
                       value={rate}
-                      defaultChecked={(profile?.sweat_rate ?? "medium") === rate}
+                      defaultChecked={profile?.sweat_rate === rate}
                       className="size-3.5 cursor-pointer accent-terracotta"
                     />
                     <span className="text-sm font-semibold">{sweatRateLabels[rate]}</span>
@@ -213,7 +220,7 @@ async function PhysiologicalProfileCard() {
             en ruta es una capacidad que se gana progresivamente. Tu nivel actual limita el
             máximo que el planificador te recomendará, aunque la intensidad de la ruta pida más.
           </p>
-          <GutTrainingSelector defaultLevel={profile?.gut_training_level ?? "intermediate"} />
+          <GutTrainingSelector defaultLevel={profile?.gut_training_level ?? null} />
         </CardContent>
       </Card>
 

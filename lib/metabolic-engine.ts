@@ -270,8 +270,11 @@ const INTAKE_HEADROOM_FRACTION = 0.85;
  */
 export function getIntakeRecommendationNote(
   avgIntakeGPerHour: number | null,
-  gutTrainingLevel: GutTrainingLevel
+  gutTrainingLevel: GutTrainingLevel | null
 ): string {
+  if (gutTrainingLevel == null) {
+    return "Configura tu nivel de Adaptación Digestiva en el Perfil Fisiológico para desbloquear una recomendación personalizada.";
+  }
   const capGPerHour = getGutTrainingCapGPerHour(gutTrainingLevel);
   if (avgIntakeGPerHour == null) {
     return "Todavía no hay suficientes datos de consumo real — registra tu ingesta tras cada salida para desbloquear una recomendación personalizada.";

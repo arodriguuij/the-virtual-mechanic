@@ -90,8 +90,11 @@ export async function syncLatestActivity(
       carbsBurnedG = getGlycogenBurnedGrams(relativeIntensity, activity.moving_time, athleteType);
       const hours = activity.moving_time / 3600;
 
-      const sweatRate = athleteProfile.sweat_rate ?? "medium";
-      const fluidLossMlPerHour = getFluidLossMlPerHour(sweatRate, temperatureAvgC, humidityAvg);
+      const fluidLossMlPerHour = getFluidLossMlPerHour(
+        athleteProfile.sweat_rate,
+        temperatureAvgC,
+        humidityAvg
+      );
       fluidLossMl = Math.round(fluidLossMlPerHour * hours);
       sodiumLossMg = Math.round(
         getSodiumLossMgPerHour(fluidLossMlPerHour, athleteProfile.is_salty_sweater ?? false) * hours

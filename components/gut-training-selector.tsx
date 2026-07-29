@@ -30,9 +30,18 @@ const LEVELS = Object.keys(gutTrainingLevelLabels) as GutTrainingLevel[];
  * group. Selection is already driven by real `level` state here (not CSS
  * `has-checked:`), so the secondary text's active-state color is a plain
  * ternary rather than a `group-has-checked:` variant.
+ *
+ * `defaultLevel` accepts `null` — a brand-new athlete with no
+ * `athlete_profiles` row yet must start with *no* card selected, never a
+ * silently pre-checked "Intermedio" that reads as if they'd already
+ * configured something they haven't (see CLAUDE.md's "Eliminating profile
+ * fallbacks" section). `gut_training_level` is `NOT NULL` in the DB, so the
+ * form's own required-field validation in `/api/athlete-profile/update`
+ * already redirects with `invalid_gut_training_level` if the athlete submits
+ * with nothing picked — no client-side `required` needed here beyond that.
  */
-export function GutTrainingSelector({ defaultLevel }: { defaultLevel: GutTrainingLevel }) {
-  const [level, setLevel] = useState<GutTrainingLevel>(defaultLevel);
+export function GutTrainingSelector({ defaultLevel }: { defaultLevel: GutTrainingLevel | null }) {
+  const [level, setLevel] = useState<GutTrainingLevel | null>(defaultLevel);
 
   return (
     <div className="flex flex-col gap-3">
@@ -76,8 +85,9 @@ export function GutTrainingSelector({ defaultLevel }: { defaultLevel: GutTrainin
         })}
       </div>
       <p className="text-xs text-neutral-500">
-        El motor limitará las recomendaciones a un máximo de {getGutTrainingCapGPerHour(level)} g/h
-        para evitar molestias estomacales.
+        {level
+          ? `El motor limitará las recomendaciones a un máximo de ${getGutTrainingCapGPerHour(level)} g/h para evitar molestias estomacales.`
+          : "Selecciona tu nivel actual para calibrar el límite de carbohidratos por hora que el motor te recomendará."}
       </p>
     </div>
   );

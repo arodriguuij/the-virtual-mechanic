@@ -96,6 +96,37 @@ export function isProfileComplete(profile: AthleteProfile | null): boolean {
   );
 }
 
+/**
+ * Live Strava weight, for prefilling `/perfil`'s weight input only — never
+ * written to the database on the athlete's behalf (see `app/api/auth/strava/
+ * callback/route.ts`: the callback itself only ever *updates* an
+ * already-existing `athlete_profiles` row's weight, it never fabricates a
+ * brand-new row with a placeholder FTP/sweat rate to go with it anymore).
+ * A brand-new athlete with no profile row yet still shouldn't have to
+ * re-type a weight Strava already knows, so `PhysiologicalProfileCard`
+ * calls this only when `getAthleteProfile()` returned `null`, and uses the
+ * result purely as the form field's `defaultValue`. `null` on anything —
+ * not connected to Strava, no weight on their Strava profile, an API
+ * hiccup — same "best-effort, never blocks the page" convention as every
+ * other Strava read in this file.
+ */
+export async function getStravaAthleteWeightKg(): Promise<number | null> {
+  try {
+    const supabase = await getAuthenticatedSupabaseClient();
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData.user?.id;
+    if (!userId) return null;
+
+    const accessToken = await getValidStravaAccessToken(supabase, userId);
+    if (!accessToken) return null;
+
+    const athlete = await fetchAthlete(accessToken);
+    return athlete.weight;
+  } catch {
+    return null;
+  }
+}
+
 export const getAthleteProfile = cache(async (): Promise<AthleteProfile | null> => {
   const supabase = await getAuthenticatedSupabaseClient();
 
@@ -127,7 +158,10 @@ export type WeeklyPerformance = {
   /** Average consumed-carbs rate across those same rides — real intake,
    * not the planned target. */
   avgIntakeGPerHour: number | null;
-  gutTrainingLevel: GutTrainingLevel;
+  /** `null` when there's no `athlete_profiles` row at all yet — never a
+   * fabricated level standing in for one the athlete hasn't actually
+   * chosen. */
+  gutTrainingLevel: GutTrainingLevel | null;
   /** Average % of fluid+sodium loss actually replaced (capped at 100% per
    * ride, per metric), scaled to a /10 score — same real-data-only
    * convention as `compliancePct`. */
@@ -158,7 +192,7 @@ export const getWeeklyPerformance = cache(async (): Promise<WeeklyPerformance> =
     totalKmThisWeek: 0,
     compliancePct: null,
     avgIntakeGPerHour: null,
-    gutTrainingLevel: "intermediate",
+    gutTrainingLevel: null,
     hydrationScore: null,
   };
   if (!userId) return emptyResult;
@@ -227,7 +261,7 @@ export const getWeeklyPerformance = cache(async (): Promise<WeeklyPerformance> =
     avgIntakeGPerHour: average(intakeRatesGPerHour)
       ? Math.round(average(intakeRatesGPerHour)!)
       : null,
-    gutTrainingLevel: athleteProfile?.gut_training_level ?? "intermediate",
+    gutTrainingLevel: athleteProfile?.gut_training_level ?? null,
     hydrationScore: hydrationRatioAvg != null ? Math.round(hydrationRatioAvg * 100) / 10 : null,
   };
 });

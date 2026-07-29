@@ -29,12 +29,6 @@ function isValidRpeLevel(value: unknown): value is IntensityLevel {
   return typeof value === "string" && (VALID_RPE_LEVELS as readonly string[]).includes(value);
 }
 
-// A safe fallback for a genuinely bodyweight-less edge case — should never
-// actually fire, since `athlete_profiles.weight_kg` is NOT NULL, but this
-// keeps the energy-estimate formula below from ever dividing/multiplying
-// against `null`/`undefined` and producing a NaN on screen.
-const FALLBACK_WEIGHT_KG = 70;
-
 export async function POST(request: NextRequest) {
   const supabase = await getAuthenticatedSupabaseClient();
   const { data: authData } = await supabase.auth.getUser();
@@ -74,7 +68,12 @@ export async function POST(request: NextRequest) {
   }
 
   const hours = activity.moving_time / 3600;
-  const weightKg = athleteProfile.weight_kg ?? FALLBACK_WEIGHT_KG;
+  // Guaranteed real: the `!athleteProfile` check above already means this
+  // row exists, and `weight_kg` is `NOT NULL` — no fallback needed, and none
+  // should ever be added here (see CLAUDE.md's "Eliminating profile
+  // fallbacks" — a fabricated weight would silently skew every downstream
+  // energy/glycogen figure on this response).
+  const weightKg = athleteProfile.weight_kg;
 
   // Prefers, in order: real time-in-power-zone data; a heart-rate-based
   // estimate when there's no power meter at all (device_watts false/absent —
