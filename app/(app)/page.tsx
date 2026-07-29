@@ -1,19 +1,16 @@
 import { Link2 } from "lucide-react";
-import NextLink from "next/link";
 import { Suspense } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FtpRequiredNotice } from "@/components/ftp-required-notice";
 import { FuelingPlanner } from "@/components/fueling-planner";
 import { PostRideAnalysis } from "@/components/post-ride-analysis";
-import { ProfileCheckBanner } from "@/components/profile-check-banner";
+import { ProfileRequiredCard } from "@/components/profile-required-card";
 import { SyncForm } from "@/components/sync-button";
 import {
   getAthleteAverageSpeedKmh,
   getAthleteProfile,
-  getMissingProfileFields,
   getProfile,
   getRecentActivities,
   getStravaRoutes,
@@ -36,8 +33,8 @@ function getGreetingPrefix(hour: number): string {
   return "Buenas noches";
 }
 
-// Its own Suspense boundary (like `StravaButton`/`ProfileCheckBannerSection`
-// below) so the greeting's Strava round-trip via `getViewerIdentity()` never
+// Its own Suspense boundary (like `StravaButton` below) so the greeting's
+// Strava round-trip via `getViewerIdentity()` never
 // blocks the rest of the Dashboard from rendering — `getViewerIdentity` is
 // `cache()`-deduped, so this costs no extra query beyond what the sidebar's
 // own `ViewerIdentity` already fetches this request.
@@ -57,7 +54,7 @@ function GreetingSkeleton() {
 }
 
 // Split into two stages so the profile check is the *only* thing this outer
-// Suspense boundary waits on — the decision between "configure tu perfil"
+// Suspense boundary waits on — the decision between the "sin perfil" card
 // and the real planner happens here, atomically, before anything commits to
 // a particular skeleton shape. Previously this single async function did
 // both the profile check *and* the routes/avg-speed fetch, all behind one
@@ -76,18 +73,10 @@ async function FuelingPlannerSection() {
 
   if (!profile) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Planificador de nutrición</CardTitle>
-          <CardDescription className={eyebrow}>
-            Configura tu{" "}
-            <NextLink href="/perfil" className="underline underline-offset-2 hover:text-neutral-900">
-              perfil fisiológico
-            </NextLink>{" "}
-            para planificar tus bidones
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <ProfileRequiredCard
+        title="Planificador de nutrición"
+        description="Completa tu FTP, Peso, Tolerancia Digestiva y Sudoración para calcular la estrategia de ingesta (g/h) y las mezclas exactas para tus bidones."
+      />
     );
   }
 
@@ -133,12 +122,6 @@ function DashboardSectionSkeleton() {
       <Skeleton className="h-20 w-full rounded-lg bg-terracotta/10" />
     </div>
   );
-}
-
-async function ProfileCheckBannerSection() {
-  const profile = await getAthleteProfile();
-  const missingFields = getMissingProfileFields(profile);
-  return <ProfileCheckBanner missingFields={missingFields} />;
 }
 
 // Mirrors the real `FuelingPlanner` shell (mode toggle, "Ruta" select, the
@@ -211,7 +194,12 @@ function FuelingPlannerSkeleton() {
 async function PostRideAnalysisSection() {
   const [activities, profile] = await Promise.all([getRecentActivities(8), getAthleteProfile()]);
   if (!profile?.ftp) {
-    return <FtpRequiredNotice />;
+    return (
+      <ProfileRequiredCard
+        title="Análisis post-ruta"
+        description="Completa tu Perfil Fisiológico para calcular la deuda de glucógeno real, la tasa de sudoración y la pauta de recuperación por macronutrientes al terminar tus rutas."
+      />
+    );
   }
   return (
     <PostRideAnalysis
@@ -266,10 +254,6 @@ export default async function Home() {
           <StravaButton />
         </Suspense>
       </header>
-
-      <Suspense fallback={null}>
-        <ProfileCheckBannerSection />
-      </Suspense>
 
       <Tabs defaultValue="pre-ride">
         <TabsList variant="line" className="w-full justify-start border-b border-neutral-200">

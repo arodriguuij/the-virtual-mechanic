@@ -1770,51 +1770,32 @@ datos de consumo aún" stat blocks — Gut Training and Balance Hídrico still r
 own cells regardless, since gut training is always real data independent of any week's
 rides.
 
-### Onboarding banner (Perfil incompleto)
-
-`components/profile-check-banner.tsx`'s `ProfileCheckBanner` is a dismissible top-of-
-Dashboard nudge whenever `athlete_profiles` still looks untouched, so a new athlete
-understands *why* their fueling numbers might look generic before they've ever opened the
-Physiological Profile form. `getMissingProfileFields(profile)` (`lib/dashboard-data.ts` —
-not the banner component itself, since it's a `"use client"` file and a Server Component
-can't call a function exported from one) returns `["ftp", "sweat_rate", "weight"]`
-outright when there's no `athlete_profiles` row at all yet, or `["ftp", "sweat_rate"]`
-when the row exists but still carries the *exact* zero-friction Strava-sync placeholder
-pair (`ftp === 200 && sweat_rate === "medium"` — the literal values
-`app/api/auth/strava/callback/route.ts`'s `DEFAULT_FTP`/`DEFAULT_SWEAT_RATE` insert for a
-brand-new athlete with no physiological data yet). Checking *both* together, not either
-field alone, is deliberate: a real athlete whose genuine sweat rate happens to be "medium"
-would otherwise get flagged forever. `app/(app)/page.tsx`'s `ProfileCheckBannerSection` calls
-`getAthleteProfile()` (already `cache()`-deduped, so this costs no extra query) and passes
-the result straight to `ProfileCheckBanner`, which shows a single fixed message whenever
-that array is non-empty ("Tu estrategia actual usa valores estimados. Configura tu FTP y
-Peso en Perfil Fisiológico." — deliberately not built per-missing-field, since the
-actionable takeaway is the same regardless of which exact fields are still placeholders),
-a link to `/perfil`, and a dismiss (`×`) button. The dismiss preference is
-`localStorage`-only (`profile_check_banner_dismissed`, same convention as the planner's
-offline-strategy
-cache) — a private-browsing/quota failure just means the dismiss doesn't persist across
-sessions, never a broken banner.
-
 ### Hard gate on an incomplete profile ("Calcular estrategia" / "Guardar consumo real")
 
-The onboarding banner above is a dismissible nudge — an athlete can ignore it and keep
-using the app with placeholder figures. The Fueling Planner's "Calcular estrategia
-nutricional" button and the Post-Ride "Guardar consumo real" button are stricter: both
-depend directly on the athlete's real weight/FTP/sweat-rate/gut-training figures (a
-calculation or a logged consumption row computed against an empty profile would be
-computed against whatever stand-in value the form/engine falls back to, not a genuine
-result), so both are hard-disabled rather than merely nudged. **`isProfileComplete(profile)`**
-(`lib/dashboard-data.ts`, next to `getMissingProfileFields`) is a plain
-`Boolean(profile?.weight_kg && profile?.ftp && profile?.gut_training_level &&
-profile?.sweat_rate)` — every one of those four columns is `NOT NULL` in `athlete_profiles`
-once a row exists, so in today's schema this only ever differs from a bare `profile !==
-null` check if a future migration ever relaxes one of them; kept as an explicit
-field-by-field check rather than a null check so it stays correct if that changes. This is
-a deliberately simpler, blunter check than `getMissingProfileFields`'s own Strava-placeholder
-detection (`ftp === 200 && sweat_rate === "medium"`) — that one flags a row that *exists*
-but still looks unconfigured, this one only cares whether every required field has *any*
-real value at all.
+There used to *also* be a dismissible top-of-Dashboard nudge here
+(`components/profile-check-banner.tsx`'s `ProfileCheckBanner`, backed by
+`getMissingProfileFields()`) for whenever `athlete_profiles` still looked like the old
+zero-friction Strava placeholder pair. Deleted outright once the whole planner/analysis
+section started hard-blocking on an incomplete profile (see `ProfileRequiredCard` below) —
+keeping both a dismissible banner *and* a blocked section for the same underlying problem
+was pure visual duplication, and the banner's own copy ("Tu estrategia actual usa valores
+estimados") had gone stale anyway: the planner isn't just "using estimated values" anymore,
+it's fully locked. `getMissingProfileFields`/`MissingProfileField`/the
+`PLACEHOLDER_FTP`/`PLACEHOLDER_SWEAT_RATE` constants were all deleted alongside it as dead
+code — nothing else called them.
+
+The Fueling Planner's "Calcular estrategia nutricional" button and the Post-Ride "Guardar
+consumo real" button are the stricter, non-dismissible gate: both depend directly on the
+athlete's real weight/FTP/sweat-rate/gut-training figures (a calculation or a logged
+consumption row computed against an empty profile would be computed against whatever
+stand-in value the form/engine falls back to, not a genuine result), so both are
+hard-disabled rather than merely nudged. **`isProfileComplete(profile)`**
+(`lib/dashboard-data.ts`) is a plain `Boolean(profile?.weight_kg && profile?.ftp &&
+profile?.gut_training_level && profile?.sweat_rate)` — every one of those four columns is
+`NOT NULL` in `athlete_profiles` once a row exists, so in today's schema this only ever
+differs from a bare `profile !== null` check if a future migration ever relaxes one of
+them; kept as an explicit field-by-field check rather than a null check so it stays
+correct if that changes.
 
 `app/(app)/page.tsx` computes it once per section (`FuelingPlannerSection`/
 `PostRideAnalysisSection`, both already calling `getAthleteProfile()` — `cache()`-deduped,
@@ -1910,13 +1891,35 @@ for what's actually a single, fixable cause. Every glycogen-debt tier in `POST
 self-reported RPE), still needs *some* `athlete_profiles` row to read weight/sweat-rate/
 athlete-type from — and since that row only exists once the athlete has submitted the real
 form (see above), a missing FTP here always means a missing profile entirely.
-`PostRideAnalysisSection` (`app/(app)/page.tsx`) now checks `!profile?.ftp` (reusing the
-same `getAthleteProfile()` call `isProfileComplete` already needed, no extra query) and
-renders **`FtpRequiredNotice`** (`components/ftp-required-notice.tsx`) instead of
-`PostRideAnalysis` entirely when true — a `Lock` icon (not a literal 🔒, same convention as
-`ProfileRequiredBanner`'s button), "Análisis restringido," a one-line explanation, and a
-"Configurar FTP →" button to `/perfil`. Same shape as `FuelingPlannerSection`'s existing
-`!profile` early-return card, just for the Post-Ride tab specifically.
+`PostRideAnalysisSection` (`app/(app)/page.tsx`) checks `!profile?.ftp` (reusing the same
+`getAthleteProfile()` call `isProfileComplete` already needed, no extra query) and renders
+`ProfileRequiredCard` (see below) instead of `PostRideAnalysis` entirely when true.
+
+**Unified `ProfileRequiredCard`.** "Antes de salir" and "Al llegar" originally showed two
+independently-built, differently-worded/-styled blocked states — `FuelingPlannerSection`'s
+own inline plain-white `Card` ("Configura tu perfil fisiológico para planificar tus
+bidones", just a link, no button) and a standalone `FtpRequiredNotice` component
+("Análisis restringido," a `Lock` icon, a real CTA button). Reporting the exact same
+underlying problem two visually inconsistent ways read as a design bug in its own right, so
+both were replaced with one shared **`components/profile-required-card.tsx`**'s
+`ProfileRequiredCard({ title, description })` — a bordered, cream-tinted block
+(`border-terracotta/30 bg-surface/80`, reusing this app's own tokens rather than a
+hardcoded hex pair) with a `Lock` + "Calibración fisiológica requerida" eyebrow, the
+section's own `title` (rendered uppercase via CSS — the prop itself stays plain sentence
+case, same "never hand-type shouty caps into copy" convention as every other button/label
+in this app), a `description` paragraph, and a single "Completar perfil fisiológico →"
+button (`primaryButtonClass`) to `/perfil`. `FuelingPlannerSection` passes `title="Planificador
+de nutrición"`, `PostRideAnalysisSection` passes `title="Análisis post-ruta"` — each with
+its own section-specific `description` explaining what completing the profile actually
+unlocks for *that* tab. `components/ftp-required-notice.tsx` was deleted outright once
+nothing referenced it anymore.
+
+Left untouched: `ProfileRequiredBanner` (`components/profile-required-banner.tsx`) and the
+`isProfileComplete` prop/lock-button logic inside `FuelingPlanner`/`PostRideAnalysis`
+themselves (see above) — now practically unreachable through these two Dashboard call
+sites specifically, since the whole section is replaced by `ProfileRequiredCard` before
+either component ever mounts with an incomplete profile, but still a correct, harmless
+defensive layer for either component being reused elsewhere in the future.
 
 **Two-stage profile gate (no shape-mismatched skeleton flash).** Both Dashboard tabs used
 to hang a single `<Suspense fallback={<FuelingPlannerSkeleton /> | <PostRideAnalysisSkeleton />}>`
@@ -1978,7 +1981,14 @@ separate view/edit toggle). Validates `athlete_type` against `VALID_ATHLETE_TYPE
 750 | 950`), redirecting the matching `invalid_*` code on anything else.
 `is_salty_sweater` has no validation branch of its own — an unchecked HTML checkbox
 simply isn't present in `FormData` at all, so `formData.get("is_salty_sweater") != null`
-is the entire check (checked or not, never invalid). Uses `.upsert({ id: userId,
+is the entire check (checked or not, never invalid). The "Capacidad por bidón" `<select>`'s
+own JS `defaultValue={profile?.bottle_capacity_ml ?? 500}` (`app/(app)/perfil/page.tsx`) —
+a plain product decision, a smaller starting assumption than the DB column's own `750`
+default — diverges from that DB-level default on purpose: since a profile row is now only
+ever created via this same form's real submission (see "Eliminating profile fallbacks"
+above), the DB column default is never actually the value that lands in a new row; whatever
+this form's own `<select>` shows pre-selected is. "Soportes de bidón" keeps its existing `2`
+default — only the capacity default changed. Uses `.upsert({ id: userId,
 ... })` rather than a select-then-update/insert branch, since `athlete_profiles.id` is the
 primary key and Supabase's upsert already handles "create if missing, update if present"
 in one call. On success, redirects to `/perfil?profile_saved=1` (same query-param
@@ -2279,9 +2289,9 @@ Date().getHours())` (`05:00-11:59` "Buenos días", `12:00-19:59` "Buenas tardes"
 `getViewerIdentity()` (`lib/dashboard-data.ts` — the same Strava-backed identity source
 `components/viewer-identity.tsx`'s sidebar card already uses; `cache()`-deduped, so
 calling it a second time this request costs no extra Strava round-trip). It's its own
-`Suspense` boundary (`GreetingSkeleton` fallback), same pattern as `StravaButton`/
-`ProfileCheckBannerSection` below, so the greeting's Strava-dependent fetch never blocks
-the rest of the Dashboard from rendering. Computed and rendered entirely server-side with
+`Suspense` boundary (`GreetingSkeleton` fallback), same pattern as `StravaButton` below, so
+the greeting's Strava-dependent fetch never blocks the rest of the Dashboard from
+rendering. Computed and rendered entirely server-side with
 no client component involved, so there's no hydration mismatch risk — the server-rendered
 markup is the only markup, never re-computed client-side against a possibly different
 `Date()`.
@@ -2435,7 +2445,7 @@ pulsing placeholder, in roughly the same position/size the real value will occup
   `CardTitle`/`CardDescription` plus a muted "Analizando tu última salida…" status line.
   Deleted outright once it became the exact kind of shape-mismatched fallback "Two-stage
   profile gate" below fixes — `PostRideAnalysisSection` can resolve into either
-  `PostRideAnalysis` or the very differently-shaped `FtpRequiredNotice`, so a fallback
+  `PostRideAnalysis` or the very differently-shaped `ProfileRequiredCard`, so a fallback
   mirroring only one of those two outcomes was never actually safe to show while the
   profile check was still in flight.
 - **`components/post-ride-analysis.tsx`'s own `loading && !result` branch** — used to be a

@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 import {
   getGutTrainingCapGPerHour,
   gutTrainingLevelDescriptions,
@@ -14,40 +12,51 @@ import { cn } from "@/lib/utils";
 const LEVELS = Object.keys(gutTrainingLevelLabels) as GutTrainingLevel[];
 
 /**
- * The 4 Gut Training level cards on `/perfil` — a `"use client"` island
- * inside an otherwise plain server-rendered `<form action="...">`, needed
- * only so the helper line below ("El motor limitará...") can update live as
- * the athlete clicks between levels, before they ever hit "Guardar cambios".
- * Still a genuine native radio group (`name="gut_training_level"`,
- * `checked`/`value` on each `<input>`), so it submits with the surrounding
- * form exactly like the plain server-rendered version it replaces.
+ * The 4 Gut Training level cards on `/perfil` — fully controlled. `value`/
+ * `onChange` are owned by the parent `PhysiologicalProfileForm`, which needs
+ * to read this field's current selection to compute the form's overall
+ * `isFormValid` and drive the unified "Campo obligatorio" inline-error
+ * treatment every required field on that form now uses (see its own doc
+ * comment). This component used to own its `level` state privately via
+ * `useState` — fine for its own live helper-text update, but it left the
+ * parent form with no way to see the selection at all.
  *
- * The selected card fills solid (`bg-terracotta text-white`) rather than the
- * lighter outline+tint treatment the "Fenotipo metabólico" cards above it on
- * the same page still use — a deliberate, scoped visual upgrade for this
- * selector and the sweat-rate one right below it (see
- * `app/(app)/perfil/page.tsx`), not a page-wide restyle of every radio-card
- * group. Selection is already driven by real `level` state here (not CSS
- * `has-checked:`), so the secondary text's active-state color is a plain
- * ternary rather than a `group-has-checked:` variant.
- *
- * `defaultLevel` accepts `null` — a brand-new athlete with no
- * `athlete_profiles` row yet must start with *no* card selected, never a
- * silently pre-checked "Intermedio" that reads as if they'd already
- * configured something they haven't (see CLAUDE.md's "Eliminating profile
- * fallbacks" section). `gut_training_level` is `NOT NULL` in the DB, so the
- * form's own required-field validation in `/api/athlete-profile/update`
- * already redirects with `invalid_gut_training_level` if the athlete submits
- * with nothing picked — no client-side `required` needed here beyond that.
+ * `value` accepts `null` — a brand-new athlete with no `athlete_profiles`
+ * row yet must start with *no* card selected, never a silently pre-checked
+ * "Intermedio" that reads as if they'd already configured something they
+ * haven't (see CLAUDE.md's "Eliminating profile fallbacks" section).
+ * `invalid` (the parent's "touched AND still empty" check for this field)
+ * drives the red ring + "Campo obligatorio" treatment. `onBlur` on the
+ * wrapping grid, not on each individual radio, is what lets the parent
+ * detect "focus left this whole group" (via `e.currentTarget.contains
+ * (e.relatedTarget)`) rather than firing on every click between cards.
  */
-export function GutTrainingSelector({ defaultLevel }: { defaultLevel: GutTrainingLevel | null }) {
-  const [level, setLevel] = useState<GutTrainingLevel | null>(defaultLevel);
-
+export function GutTrainingSelector({
+  value,
+  onChange,
+  onGroupBlur,
+  invalid,
+}: {
+  value: GutTrainingLevel | null;
+  onChange: (level: GutTrainingLevel) => void;
+  onGroupBlur: () => void;
+  invalid: boolean;
+}) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div
+        className={cn(
+          "grid grid-cols-2 gap-2 rounded-lg sm:grid-cols-4",
+          invalid && "ring-1 ring-red-500"
+        )}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) {
+            onGroupBlur();
+          }
+        }}
+      >
         {LEVELS.map((lvl) => {
-          const active = level === lvl;
+          const active = value === lvl;
           return (
             <label
               key={lvl}
@@ -64,7 +73,7 @@ export function GutTrainingSelector({ defaultLevel }: { defaultLevel: GutTrainin
                   name="gut_training_level"
                   value={lvl}
                   checked={active}
-                  onChange={() => setLevel(lvl)}
+                  onChange={() => onChange(lvl)}
                   className="size-3.5 cursor-pointer accent-terracotta"
                 />
                 <span className="text-sm font-semibold">{gutTrainingLevelLabels[lvl]}</span>
@@ -84,11 +93,15 @@ export function GutTrainingSelector({ defaultLevel }: { defaultLevel: GutTrainin
           );
         })}
       </div>
-      <p className="text-xs text-neutral-500">
-        {level
-          ? `El motor limitará las recomendaciones a un máximo de ${getGutTrainingCapGPerHour(level)} g/h para evitar molestias estomacales.`
-          : "Selecciona tu nivel actual para calibrar el límite de carbohidratos por hora que el motor te recomendará."}
-      </p>
+      {invalid ? (
+        <span className="font-mono text-[11px] text-red-500">Campo obligatorio</span>
+      ) : (
+        <p className="text-xs text-neutral-500">
+          {value
+            ? `El motor limitará las recomendaciones a un máximo de ${getGutTrainingCapGPerHour(value)} g/h para evitar molestias estomacales.`
+            : "Selecciona tu nivel actual para calibrar el límite de carbohidratos por hora que el motor te recomendará."}
+        </p>
+      )}
     </div>
   );
 }

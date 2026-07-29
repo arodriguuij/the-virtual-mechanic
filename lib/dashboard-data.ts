@@ -42,39 +42,6 @@ export type Profile = {
   strava_athlete_id: string | null;
 };
 
-export type MissingProfileField = "ftp" | "sweat_rate" | "weight";
-
-// The Strava→Supabase auth bridge inserts a fresh `athlete_profiles` row with
-// this exact placeholder pair (`ftp: 200`, `sweat_rate: 'medium'`) whenever it
-// syncs a new athlete's weight with no prior physiological data — see
-// `app/api/auth/strava/callback/route.ts`'s `DEFAULT_FTP`/`DEFAULT_SWEAT_RATE`.
-// Checking *both* together (rather than either alone) avoids flagging a real
-// athlete whose genuine sweat rate happens to be "medium" — only the exact
-// untouched pair is a reliable "never configured" signal.
-const PLACEHOLDER_FTP = 200;
-const PLACEHOLDER_SWEAT_RATE = "medium";
-
-/**
- * "Banner de Onboarding Dinámico" — which critical fields still look like
- * the zero-friction Strava-sync placeholder rather than a real, athlete-
- * entered value. `null` (no `athlete_profiles` row at all yet) flags
- * everything. Pure (no I/O) despite living in this otherwise all-I/O file —
- * kept alongside `AthleteProfile` since it's the type this operates on, and
- * plain enough that `components/profile-check-banner.tsx` (a client
- * component) can't host it directly: calling a function exported from a
- * `"use client"` module from a Server Component throws at runtime, so this
- * lives here and the client component only imports its return *type*.
- */
-export function getMissingProfileFields(
-  profile: Pick<AthleteProfile, "ftp" | "sweat_rate"> | null
-): MissingProfileField[] {
-  if (!profile) return ["ftp", "sweat_rate", "weight"];
-  if (profile.ftp === PLACEHOLDER_FTP && profile.sweat_rate === PLACEHOLDER_SWEAT_RATE) {
-    return ["ftp", "sweat_rate"];
-  }
-  return [];
-}
-
 /**
  * Hard gate for the Fueling Planner's "Calcular estrategia" and the
  * Post-Ride "Guardar consumo real" buttons — both compute or log against the
@@ -85,10 +52,7 @@ export function getMissingProfileFields(
  * once a row exists, so in today's schema this only ever differs from a bare
  * `profile !== null` check if a future migration relaxes one of them — kept
  * as an explicit field-by-field check rather than a null check so it stays
- * correct if that ever changes. Distinct from `getMissingProfileFields`
- * above: that one flags the Strava zero-friction *placeholder* pair
- * specifically (a row exists but still looks unconfigured); this one is a
- * simple "is there a real value in every required field" check.
+ * correct if that ever changes.
  */
 export function isProfileComplete(profile: AthleteProfile | null): boolean {
   return Boolean(
