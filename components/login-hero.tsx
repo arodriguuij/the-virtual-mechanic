@@ -129,8 +129,16 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
               icons, no emoji, not even a colored-dot "synced" indicator.
               Every figure here is illustrative/static — this exists purely
               to preview the *shape* of a real result, not to claim it's
-              live data. */}
-          <div className="text-left">
+              live data.
+
+              The block's own `my-*`/`py-*`/`border-y` (on top of the
+              existing internal `my-4 sm:my-6` spacing between the route
+              line/stat grid/prescription block, left untouched) is what
+              actually separates this whole readout from the spec line above
+              and the CTA below — at every breakpoint, not just desktop,
+              since a phone-width card is exactly where the un-padded
+              version read cramped. */}
+          <div className="my-6 w-full border-y border-neutral-200/60 py-5 text-left sm:my-10 sm:py-8">
             <p className="truncate font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">
               Sa Calobra — Coll dels Reis
             </p>

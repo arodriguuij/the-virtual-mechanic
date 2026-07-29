@@ -160,12 +160,14 @@ reach for — simply cannot work. Instead:
   the session on every request, so a Server Component's own write attempt silently
   no-op'ing is safe); Route Handlers and Server Actions, which *can* set cookies, apply
   normally.
-- **`lib/supabase-browser.ts`** — the only client-side Supabase client in the app
-  (`createBrowserClient`, anon key), used exclusively by the sidebar's logout button.
 - **`lib/auth-actions.ts`** — `logout()`, a `"use server"` Server Action
-  (`supabase.auth.signOut()` then `redirect("/login")`) wired directly as a `<form
+  (`supabase.auth.signOut()` then `redirect("/login")`) wired as a `<form
   action={logout}>` in `components/dashboard-shell.tsx`'s sidebar, below the identity
-  card.
+  card. There's no separate client-side Supabase client anywhere in this app (an earlier
+  `lib/supabase-browser.ts` existed for this exact purpose but was already dead — no
+  longer imported once the logout button moved to the Server Action above — and has since
+  been deleted) — sign-out is entirely server-side. See "Immediate logout feedback" below
+  for the click→redirect UX built on top of this same action, unchanged.
 ### Login & loading screens (`app/login/page.tsx`, `app/auth/callback/page.tsx`)
 
 **`app/loading.tsx`** is Next's route-level `loading.tsx` boundary at the true app root —
@@ -267,6 +269,16 @@ structure:
   on the whole page remains the Strava icomark on the CTA button
   (`components/strava-login-button.tsx`, `w-full`, no `max-w-70` cap) — Strava's API
   Agreement requires it for brand identification (see "Strava API compliance" below).
+  **Vertical spacing** — the whole readout carries its own `my-6 border-y
+  border-neutral-200/60 py-5 sm:my-10 sm:py-8` (on top of, not instead of, the existing
+  internal `my-4 sm:my-6` spacing between the route line/stat grid/prescription block) —
+  an earlier version had none of this, so the readout sat immediately against the spec line
+  above and the CTA below with no breathing room, most visible on a phone-width card where
+  there's no surrounding whitespace to compensate. The `border-y` reads as a clean top/
+  bottom rule bounding the whole block rather than just more empty space, at every
+  breakpoint — verified live via Playwright at 320/390px and 1280px: the gap between the
+  spec line and the route name grew from ~0 to 45px on mobile / 73px on desktop, and
+  similarly between the prescription block and the CTA button.
 - **`app/layout.tsx` deliberately untouched.** The brief also asked for the shared root
   layout's background to go dark, aimed at the same iOS Safari white-strip class of bug —
   not implemented, and deliberately so: `app/layout.tsx` wraps every route in the app, and
@@ -1913,6 +1925,31 @@ the currently-authenticated user's identity; otherwise it falls back to the auth
 own email local-part — never a hardcoded placeholder name — with a subtitle that states
 the real connection status ("Conectado con Strava" / "Cuenta de desarrollo" / "Sin
 sesión") instead of a made-up bio line.
+
+**Immediate logout feedback.** Clicking "Cerrar sesión" used to give zero visual feedback
+for however long `logout()`'s own `supabase.auth.signOut()` + `redirect("/login")` took to
+resolve server-side — up to ~2s with nothing on screen acknowledging the click at all.
+`DashboardShell` now holds an `isLoggingOut` boolean, flipped by `SidebarContent`'s form via
+`onSubmit={onLogoutStart}` — `onSubmit` fires synchronously the instant the button is
+clicked, well before the Server Action itself has resolved, so the feedback is genuinely
+immediate rather than waiting on any network round-trip. No separate client-side
+`supabase.auth.signOut()` call was added for this: `logout()` already performs the real
+sign-out and its own `redirect()` already *is* the clean redirect to `/login` — calling
+`signOut()` a second time from the client would just race the same work the server action
+is already doing. While `isLoggingOut` is true: the button swaps its `LogOut` icon for a
+spinning ring (`size-3.5 border-2 border-current border-t-transparent animate-spin
+rounded-full`), its label changes to "Cerrando sesión...", and it's `disabled` with
+`cursor-wait`/`opacity-70` — and, one level up, `DashboardShell`'s own root div gains
+`pointer-events-none opacity-80 transition-opacity duration-300`, dimming and freezing the
+*entire* shell (sidebar, header, main content) so nothing else is clickable while cookies
+are being cleared server-side. There's no matching `setIsLoggingOut(false)` anywhere — the
+action's `redirect()` navigates away and unmounts this component entirely, so the dimmed
+state is only ever visible for the brief window before that navigation completes. Verified
+live via a temporary unauthenticated route rendering `DashboardShell` directly with the
+Server Action's own request intercepted/stalled (same Playwright pattern used elsewhere in
+this file) — confirmed the button text/disabled/cursor/spinner and the root's
+opacity/pointer-events all flip correctly before the (stalled) redirect would otherwise
+fire; route removed again before committing.
 
 - **`app/(app)/page.tsx`** — the Weekly Performance Panel (see above) sits above two
   `components/ui/tabs.tsx` (`@base-ui/react/tabs`) panels, labeled "Antes de salir"/"Al

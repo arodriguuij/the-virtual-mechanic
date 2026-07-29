@@ -34,10 +34,14 @@ function SidebarContent({
   onNavigate,
   onClose,
   identitySlot,
+  isLoggingOut,
+  onLogoutStart,
 }: {
   onNavigate?: () => void;
   onClose?: () => void;
   identitySlot: ReactNode;
+  isLoggingOut: boolean;
+  onLogoutStart: () => void;
 }) {
   const pathname = usePathname();
 
@@ -92,13 +96,38 @@ function SidebarContent({
         {identitySlot}
 
         <div className="mt-4 border-t border-neutral-200/80 pt-3">
-          <form action={logout}>
+          {/* `onSubmit` fires synchronously the instant the button is
+              clicked — well before `logout()` (the real Server Action,
+              which calls `supabase.auth.signOut()` then `redirect("/login")`
+              server-side) ever resolves — so `isLoggingOut` flips true
+              immediately for the spinner/disabled state below and the
+              full-page dim in `DashboardShell`. No separate client-side
+              `supabase.auth.signOut()` call is needed: the existing action
+              already performs the real sign-out and its own `redirect()` is
+              already the "clean redirect to /login" — duplicating that
+              client-side would just race the same work twice. The action
+              itself unmounts this component via navigation, so there's no
+              matching `setIsLoggingOut(false)` to write. */}
+          <form action={logout} onSubmit={onLogoutStart}>
             <button
               type="submit"
-              className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 font-mono text-xs font-semibold tracking-wider text-neutral-500 uppercase transition-all duration-150 hover:bg-red-50/80 hover:text-red-600"
+              disabled={isLoggingOut}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 font-mono text-xs font-semibold tracking-wider uppercase transition-all duration-150",
+                isLoggingOut
+                  ? "cursor-wait text-neutral-500 opacity-70"
+                  : "cursor-pointer text-neutral-500 hover:bg-red-50/80 hover:text-red-600"
+              )}
             >
-              <LogOut className="size-3.5" strokeWidth={1.5} />
-              Cerrar sesión
+              {isLoggingOut ? (
+                <span
+                  className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  aria-hidden="true"
+                />
+              ) : (
+                <LogOut className="size-3.5 shrink-0" strokeWidth={1.5} />
+              )}
+              {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
             </button>
           </form>
         </div>
@@ -120,9 +149,15 @@ export function DashboardShell({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div
+      className={cn(
+        "min-h-screen bg-background transition-opacity duration-300",
+        isLoggingOut && "pointer-events-none opacity-80"
+      )}
+    >
       <div
         className={cn(
           "fixed inset-0 z-9999 bg-black/30 transition-opacity lg:hidden",
@@ -141,6 +176,8 @@ export function DashboardShell({
           onNavigate={() => setMobileOpen(false)}
           onClose={() => setMobileOpen(false)}
           identitySlot={identitySlot}
+          isLoggingOut={isLoggingOut}
+          onLogoutStart={() => setIsLoggingOut(true)}
         />
       </aside>
 
