@@ -184,156 +184,76 @@ A second, differently-styled copy of this same fallback lives at
 authenticated Dashboard shell needed its own route group and its own nested `loading.tsx`
 rather than reusing this root one as-is.
 
-**Dashboard preview — "Tarjeta Técnica" (`DashboardPreviewCard`).** Between the header
-pills and the Strava button, `/login` shows a real mockup of the app's own visual
-language — not an abstract graphic — so a brand-new visitor sees the *shape* of a real
-result before connecting an account. Went through two passes: first a hand-drawn inline
-SVG "route squiggle" over three loose numbers (hidden below `sm:` for lack of room,
-replaced for reading as too abstract to build credibility), then a richer card reusing the
-telemetry card's badge/stat-grid pattern and the Fueling Planner's terracotta recommendation
-block — but that version still had a small colored-dot "synced" indicator and icon-styled
-touches, which a later pass removed for a **strictly 100% typographic** card: no icons, no
-emoji, not even the dot — every visual cue is text weight/color/borders only. The one
-deliberate exception on the whole page is the Strava icomark on the CTA button
-(`components/strava-login-button.tsx`) — Strava's API Agreement requires it for brand
-identification (see "Strava API compliance" below), so that single icon stays even though
-the preview card and header pills are text-only. The old bullet-point benefits checklist
-was also replaced with three horizontal pill tags (`Ratio 1:0.8` / `Meteo en vivo` / `Mezcla
-casera`, plain bordered `rounded-full` text, no icons) in a `flex flex-wrap justify-center`
-row. Every figure in the card is static/illustrative — a plausible NP/glycogen/sweat-rate/
-carb-target set, not live data — so it needs no network round-trip or Strava connection,
-appropriate for a page every logged-out visitor hits.
+**`/login`'s Pas Normal Studios-style split layout.** `app/login/page.tsx` no longer shares
+`AuthPageShell` with `/auth/callback` — it now has its own bespoke full-bleed layout, since
+forcing a photo-background/floating-card design into that shell's boxed top-bar/hero/
+bottom-bar bands would fight the whole point of it. (`/auth/callback` still uses
+`AuthPageShell` unchanged — see below.) This replaced an earlier flat, card-free editorial
+version (a single `bg-[#FDFCF9]` band with a centered hero and thin hairline dividers, no
+image at all) once the brief shifted toward a media-forward look:
 
-Fitting a card this rich into `AuthPageShell`'s zero-scroll budget (tuned to exactly zero
-vertical slack at 360×640 — see "Root-level scroll lock" below; content that doesn't fit
-isn't scrollable, it's silently clipped by that frame's `overflow-hidden`) took real
-trimming elsewhere on the page, not just compact card sizing: the pill row is `my-2`
-compact, the card's own mobile margin is `my-2`, and the `strava_error` banner shrank too
-(`mb-4 px-4 py-3 text-sm` → `mb-2 px-3 py-2 text-xs` on mobile) once it turned out the
-error state — banner *and* card both present — clipped by a few px even after the other
-trims alone. Verified live via direct `main.parentElement.scrollHeight` vs. `clientHeight`
-measurement (not `document.documentElement`, which stays pinned to the viewport regardless
-of internal clipping since `AuthPageShell`'s own root div is the actual `overflow-hidden`
-boundary) — zero overflow at 320×568 through 1280×900 without an error banner, and at
-360×640 and up *with* the error banner showing. The one remaining edge case — 320×568
-(iPhone SE 1st gen, a device outside this app's documented 360×640 baseline) with the
-error banner showing simultaneously — still clips by ~40px; not chased further since it
-stacks the oldest/smallest supported device with an already-rare state, beyond what
-"Root-level scroll lock" originally committed to.
+- **Mobile (below `lg:`)** — `BackgroundMedia` renders full-bleed behind everything
+  (`absolute inset-0`), and the actual content sits in a single floating card (`bg-white/95
+  backdrop-blur-md border border-neutral-200/80 rounded-xl shadow-2xl`) centered over it.
+  The brand mark is a small translucent chip (`bg-white/90 backdrop-blur-sm rounded-full`,
+  top-left, `absolute` so it floats over the image) rather than a boxed header band — using
+  `AppLogo` directly here would be unreadable against a dark photo/gradient, since its fills
+  are hardcoded (not `currentColor`; see `components/app-logo.tsx`'s own doc comment), so the
+  white chip behind it is what actually guarantees contrast regardless of what's behind it.
+- **Desktop (`lg:` and up)** — a real 50/50 split: `BackgroundMedia` becomes a normal flex
+  child (`lg:static lg:h-full lg:w-1/2`) instead of an absolutely-positioned full-bleed
+  layer, and the content column sits beside it (`lg:w-1/2 lg:bg-[#FDFCF9]`) with the outer
+  floating-card chrome stripped off (`lg:border-0 lg:bg-transparent lg:shadow-none
+  lg:backdrop-blur-none`) — on desktop the column's own solid cream background already
+  provides the contrast a floating card exists for on mobile, so keeping both would be
+  double chrome.
+- **`BackgroundMedia`** is a moody dark-to-terracotta gradient (`radial-gradient` glow +
+  `linear-gradient` base, built entirely from this app's own palette), standing in for a
+  real cycling photo/video — there is no way for a coding session to source or generate an
+  actual high-resolution photo/video asset (no stock-media access, no image generation, and
+  fetching a random image off the internet would carry unknown licensing), so this is a
+  deliberate, honest placeholder rather than a fabricated "real" photo. Swapping in a real
+  `<img>`/`<video>` later is a one-line change — replace the gradient `<div>` with the real
+  media element inside the same `absolute inset-0` (mobile) / `lg:static lg:h-full lg:w-1/2`
+  (desktop) wrapper.
+- **Scroll behavior changed too**: the content column is `overflow-y-auto` (not
+  `overflow-hidden`) — if the floating card is ever taller than the viewport (verified: only
+  at 320×568, iPhone SE 1st gen, outside this app's documented 360×640 baseline), the
+  athlete can scroll *within* that column to see the rest, rather than content being
+  silently clipped the way `AuthPageShell`'s old `overflow-hidden` root would have. Verified
+  live with zero internal scroll needed at 360×640 through 1280×900, with and without the
+  `strava_error` banner showing; the outer page itself never scrolls (`h-dvh overflow-
+  hidden` on the root), only the content column can, and only when genuinely necessary.
+- **`stravaLoginErrorMessages`** (`missing_code`, `token_exchange_failed`,
+  `missing_athlete_id`, `auth_bridge_failed`, `save_failed`) is unchanged — still distinct
+  from `app/(app)/page.tsx`'s own `stravaErrorMessages`, which only covers errors from the
+  already-logged-in "Sincronizar rutas" action, since a logged-out visitor can never reach
+  that page to see them.
+- **`DashboardPreviewCard`** (the "Tarjeta Técnica" mockup inside the floating card) stays
+  strictly 100% typographic — no icons, no emoji, not even a colored-dot "synced"
+  indicator — every visual cue is text weight/color/borders only: an emerald `STRAVA
+  SYNCED` badge, a realistic route name/distance/elevation/date line, a `divide-x`
+  3-column telemetry grid (Potencia NP / Glucógeno / Sudor), and a left-accent-bordered
+  (`border-l-2 border-l-[#D9532F]`) "Pauta de ingesta recomendada" block. The one
+  deliberate exception on the whole page is the Strava icomark on the CTA button
+  (`components/strava-login-button.tsx`, unchanged — still a solid `bg-neutral-900`/
+  `hover:bg-black` button with `StravaMark` at its default corporate-orange fill) — Strava's
+  API Agreement requires it for brand identification (see "Strava API compliance" below),
+  so that single icon stays even though the card and header pills are text-only. The old
+  bullet-point benefits checklist is three horizontal pill tags (`Ratio 1:0.8` / `Meteo en
+  vivo` / `Mezcla casera`, plain bordered `rounded-full` text, no icons). Every figure in
+  the card is static/illustrative, not live data, so it needs no network round-trip or
+  Strava connection — appropriate for a page every logged-out visitor hits.
 
-**`app/login/page.tsx`** is the only entry point when `proxy.ts` finds no session: a
-centered screen (value prop + a single "Conectar con Strava" CTA linking to
-`/api/strava/connect`) with its own `stravaLoginErrorMessages` map for login-time
-failures (`missing_code`, `token_exchange_failed`, `missing_athlete_id`,
-`auth_bridge_failed`, `save_failed`) — distinct from `app/(app)/page.tsx`'s own
-`stravaErrorMessages`, which now only covers errors from the already-logged-in
-"Sincronizar rutas" action (`not_connected`, `no_rides`), since a logged-out visitor
-can never reach that page to see them.
-  A Pas Normal Studios-inspired redesign pass went through three iterations before
-  landing on the current **full-bleed, card-free editorial layout** (no floating white
-  box, no shadow, no background pattern at all — a single flat `bg-[#FDFCF9]` for the
-  entire viewport): a first attempt tried a full-bleed illustrated road-perspective SVG
-  behind a `bg-[#FDFCF9]/90 backdrop-blur-sm` overlay, but the overlay opacity needed to
-  keep the page's light/cream palette left the image all but invisible on a phone (a
-  flat blurred smudge, not a recognizable texture); a second attempt replaced it with a
-  faint CSS dot-grid (`radial-gradient`) behind a floating white `Card`, but the result
-  read as a generic SaaS/Google-login template rather than this app's editorial identity
-  — floating boxes with shadows are exactly the "consumer SaaS" look this app's whole
-  design system otherwise avoids. The current version has no card and no texture at all:
-  three horizontal bands (top bar, centered hero, bottom bar) stacked in one `flex-col`
-  page, divided only by thin `border-neutral-300/80` rules — structure communicated
-  through typography and hairlines, not containers.
-  - **Top bar** — brand mark + "Motor Metabólico" **centered** (`justify-center` on the
-    header itself, not a `justify-between` split) with the "V1.0 · Nutrición de precisión"
-    badge `absolute right-6`, hidden below `sm:` entirely rather than collapsing to just
-    "V1.0" — an earlier version kept the badge on mobile at a shortened "V1.0", but a
-    left-aligned brand competing with a right-aligned badge is exactly the asymmetric,
-    "cargado" look this pass was meant to fix, and dropping the badge on mobile lets the
-    brand mark sit genuinely centered instead of visually off-center against an invisible
-    counterweight. `components/dashboard-shell.tsx`'s own mobile sticky header got the
-    identical treatment — the hamburger button moved from an inline flex item (which
-    pushed the brand mark left, `Menu` icon + logo + text reading as one lopsided cluster)
-    to `absolute left-6` against a `justify-center` header, so the authenticated app's
-    header now uses the same centered-brand language as the logged-out screens.
-  - **Hero** — centered via `flex-1 items-center justify-center` in the remaining space
-    between the two bars. "NUTRICIÓN DE PRECISIÓN PARA CICLISTAS" replaces the old
-    shorter title now that there's no card width constraining it. The old paragraph-style
-    value prop is a 3-line checkmark list (`✓ Recetas exactas de glucosa y fructosa` /
-    `✓ Ajuste por meteorología en tiempo real` / `✓ Pautas listas para tu mezcla casera`,
-    `font-mono text-xs`) — terser and more scannable, matching the PNS convention of short
-    declarative benefit lines over descriptive prose. Every checkmark is `font-bold
-    text-terracotta` (the design-system accent token, `#c85231` — not a hardcoded hex,
-    per this app's own "reuse tokens" convention) rather than the muted default text
-    color, so the three benefits read as a deliberately branded list rather than plain
-    body copy. The checklist, error banner, and Strava button all share one fixed
-    `max-w-70` (280px, the canonical Tailwind spelling of `max-w-[280px]`) block width —
-    narrower than the `max-w-xs` (320px) used everywhere else in this app, specifically so
-    this one screen's central column reads as a tight, deliberate column rather than
-    stretching to an arbitrary utility width never chosen for this exact layout. The error
-    banner (`stravaLoginErrorMessages`) renders inline here, no card chrome around it.
-  - **Bottom bar** — three technical specs, always one line, never wrapped/stacked.
-    `specsFull` ("01 / Ratio 1:0.8 optimizado", "02 / Meteorología en vivo", "03 / Mezcla
-    casera") renders at `sm:` and up; below it, `specsShort` ("01 / Ratio 1:0.8", "02 /
-    Clima en vivo", "03 / Mezcla casera") — two entirely separate rows (`sm:hidden` /
-    `hidden sm:flex`), not one row whose text swaps, since the two variants need different
-    `gap`s to each fit their own viewport. This exists because the full specs measured
-    388px of content against only 342px available at a 390px viewport — every version
-    tried before this one either wrapped unevenly (a bare `flex-wrap` row, one spec alone
-    on its own line) or silently clipped both edges (`justify-center` truncating an
-    overflowing row from both sides equally, verified live: "01 / Ratio 1:0.8 optimizado"
-    losing its "01 / Ratio 1:" and "03 / Mezcla casera" losing its "asera"). Shortened
-    labels below `sm:` — same "shorter label on mobile" convention as the Sync button and
-    the Carbos/Carbohidratos stat label elsewhere in this app — was the fix that actually
-    fits with room to spare (measured: exactly 342px of 342px available).
-  `components/strava-login-button.tsx` is a solid `bg-neutral-900`/`hover:bg-black`
-  technical button (`rounded-md`, `py-3 px-5`), sizing itself (`max-w-xs mx-auto w-full`
-  directly on the `<a>`, no wrapping div needed at the call site) with `StravaMark` left
-  at its default corporate-orange fill (`#FC4C02`) — the icon is the only spot of color on
-  an otherwise monochrome button, same "one accent color, used deliberately" restraint as
-  the rest of this app's palette. Verified live at both a 390×844 mobile viewport (zero
-  scroll, with and without the error banner) and desktop — no element on the page carries
-  a `box-shadow` anywhere, confirmed via computed style, and the old
-  `public/login-road-bg.svg` asset was deleted once nothing referenced it.
-
-**Root-level scroll lock (`h-dvh` + `overflow-hidden`, not `min-h-screen`).** An earlier
-version of `AuthPageShell` used `min-h-screen`, which measures against the *largest*
-possible viewport iOS Safari can report — the moment a touch-drag revealed/hid Safari's
-address-bar chrome (which resizes the *visual* viewport without the page re-rendering),
-the page's own fixed height no longer matched the now-shrunk `100vh`, leaving a sliver of
-extra scrollable height and letting one stray swipe scroll the whole screen by a few
-pixels. `h-dvh` (the *dynamic* viewport height unit, which iOS Safari itself keeps in
-sync as its chrome shows/hides) plus `overflow-hidden` on the same root element closes
-that gap outright — verified live at a 390×844 viewport (`html.scrollHeight ===
-html.clientHeight`, `canScroll: false`) and additionally at a smaller 360×640 viewport,
-since the failure mode here is specifically about *tight* vertical budgets. `justify-
-between` on the root flex column with `flex-none` on both the header and footer is what
-keeps `<main>` (the sole `flex-1`) as the only region that actually flexes — the bars
-never grow/shrink regardless of their own content's natural height.
-
-**Footer spec row, bullet-separated.** The three specs render as one `•`-separated line
-at every viewport now (`01 / Ratio 1:0.8 • 02 / Meteo en vivo • 03 / Mezcla casera`,
-already the shortened mobile-friendly wording from the previous pass) rather than two
-separate `sm:hidden`/`hidden sm:flex` rows — simpler markup, one row instead of two. The
-`gap` between items had to shrink further than expected to actually guarantee zero
-overflow at every real phone width: `gap-2` fit at 390px but measurably overflowed
-(330px of content against 328px available) at a smaller 360px viewport — narrow enough
-that Android devices still ship at it. Settled on `gap-0.5` below `sm:` (`sm:gap-8` once
-there's real room), verified to fit with zero overflow (`scrollWidth === clientWidth`)
-at both 360px and 390px.
-
-**`components/auth-page-shell.tsx`**'s `AuthPageShell` holds the top bar/hero-wrapper/
-bottom bar frame described above as a single shared component, once `/auth/callback`'s
-own transition screen needed the *identical* bars — extracted so a future copy or style
-change to either only has to happen in one place rather than two copies drifting apart. A
-plain component (no `"use client"`, no server-only APIs), so it's safe to import from
-`/login`'s `async` Server Component and from `/auth/callback`'s `"use client"` one alike;
-each page passes only its own hero content as `children`. **`app/auth/callback/page.tsx`**
-now renders `AuthPageShell` with a pulsing `AppLogo`, a "Conectando con Strava..." status
-title, and a "Sincronizando perfil fisiológico y recalculando datos de rutas recientes."
-subtitle in place of the old standalone dual-logo card (`AppLogo` + three sequenced
-pulsing dots + `StravaMark` inside its own `rounded-2xl` white card) — the transition
-screen and the login screen it leads into (or back to, on failure) now read as the exact
-same surface rather than two differently-styled auth screens.
+**`components/auth-page-shell.tsx`**'s `AuthPageShell` (the top-bar/hero/bottom-bar frame,
+`h-dvh overflow-hidden` zero-scroll lock) is now used by **`/auth/callback` only** —
+`/login` moved to its own layout above. `app/auth/callback/page.tsx` still renders it with
+a pulsing `AppLogo`, a "Conectando con Strava..." status title, and a "Sincronizando perfil
+fisiológico y recalculando datos de rutas recientes." subtitle. Its own `h-dvh` +
+`overflow-hidden` root-level scroll lock (chosen over `min-h-screen`, which measures
+against the *largest* possible viewport iOS Safari can report and left a scrollable sliver
+once its chrome resized mid-session) is unchanged and still verified zero-overflow at
+390×844 and 360×640.
 
 ### Seeding dev data
 

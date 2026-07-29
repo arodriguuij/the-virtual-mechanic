@@ -1,7 +1,7 @@
 import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
 
-import { AuthPageShell } from "@/components/auth-page-shell";
+import { AppLogo } from "@/components/app-logo";
 import { StravaLoginButton } from "@/components/strava-login-button";
 
 export const dynamic = "force-dynamic";
@@ -24,49 +24,65 @@ const telemetryStats = [
 ];
 
 /**
+ * Full-bleed background — a moody dawn-ride gradient (dark neutral fading to
+ * a warm terracotta glow) standing in for the real cycling photo/video this
+ * layout is built for. There's no way for this session to source or
+ * generate an actual high-resolution photo/video asset (no stock-media
+ * access, no image generation), so rather than fabricate one or reach for a
+ * random internet image of unknown license, this is a deliberate, tasteful
+ * placeholder built entirely from this app's own color tokens — swapping in
+ * a real `<img>`/`<video>` here later is a one-line change (replace this
+ * `<div>` with the real media element, same `absolute inset-0 object-cover`
+ * sizing already applied to its wrapper).
+ */
+function BackgroundMedia() {
+  return (
+    <div className="absolute inset-0 lg:static lg:h-full lg:w-1/2 lg:shrink-0">
+      <div
+        className="h-full w-full bg-[radial-gradient(circle_at_30%_25%,rgba(253,90,8,0.28),transparent_55%),linear-gradient(140deg,#161514_0%,#2a221d_45%,#3d2a1f_100%)]"
+        aria-hidden="true"
+      />
+      <div
+        className="absolute inset-0 bg-linear-to-t from-black/55 via-black/10 to-black/25"
+        aria-hidden="true"
+      />
+    </div>
+  );
+}
+
+/**
  * "Tarjeta Técnica" — a real mockup of the app's own visual language (the
  * Post-Ride telemetry card's badge/stat-grid pattern, the Fueling Planner's
  * terracotta-accented recommendation block), not an abstract illustration.
- * Deliberately 100% typographic — no icons, no emoji, not even the small
- * colored-dot "synced" indicator an earlier version had next to the badge —
- * every visual cue here is text weight/color/borders only, matching this
- * pass's "sobria" brief more strictly than the rest of the app (which does
- * use `lucide-react` icons elsewhere). The one deliberate exception on this
- * whole page is the Strava icomark on the CTA button below — Strava's API
- * Agreement requires it for brand identification (see "Strava API
- * compliance" in CLAUDE.md), so that one icon stays even though everything
- * else here goes text-only.
+ * Deliberately 100% typographic — no icons, no emoji, not even a colored-dot
+ * "synced" indicator — every visual cue here is text weight/color/borders
+ * only. The one deliberate exception on this whole page is the Strava
+ * icomark on the CTA button below — Strava's API Agreement requires it for
+ * brand identification (see "Strava API compliance" in CLAUDE.md).
  *
  * Every figure here is illustrative/static (a real route name, a plausible
  * NP/glycogen/sweat-rate/carb-target set of numbers) — this card exists
  * purely to preview the *shape* of a real result, not to claim it's live
  * data, so nothing here needs a network round-trip or Strava connection.
- *
- * Sizing is mobile-first and deliberately compact by default: `AuthPageShell`
- * is a zero-scroll `h-dvh overflow-hidden` frame tuned to exactly zero
- * vertical slack at a 360×640 viewport (see "Root-level scroll lock" in
- * CLAUDE.md) — content that doesn't fit isn't scrollable, it's silently
- * clipped by that `overflow-hidden`.
  */
 function DashboardPreviewCard() {
   return (
-    <div className="mx-auto my-2 w-full max-w-md rounded-xl border border-neutral-200 bg-white p-3.5 text-left shadow-sm sm:my-3 sm:p-5">
+    <div className="my-2 rounded-lg border border-neutral-300/90 bg-white p-3.5 text-left shadow-none sm:p-4">
       <div className="flex items-center justify-between gap-2">
-        <span className="rounded-md border border-emerald-200/60 bg-emerald-50 px-2 py-0.5 font-mono text-[9px] font-bold tracking-wider text-emerald-700 uppercase">
+        <span className="rounded border border-emerald-200/80 bg-emerald-50 px-2 py-0.5 font-mono text-[9px] font-bold tracking-wider text-emerald-800 uppercase">
           Strava Synced
         </span>
-        <span className="font-mono text-[9px] text-neutral-400 sm:text-[10px]">27°C</span>
+        <span className="font-mono text-[9px] text-neutral-400">28 JUL · 27°C</span>
       </div>
 
-      <div className="mt-1.5 sm:mt-2">
+      <div className="mt-1.5">
         <p className="truncate font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">
           Puig Major &amp; Sa Calobra
         </p>
         <p className="font-mono text-[9px] text-neutral-500 sm:text-xs">84.5 km · 1.650m D+</p>
-        <p className="font-mono text-[8px] text-neutral-400 sm:text-[10px]">Martes 28 de julio</p>
       </div>
 
-      <div className="my-2.5 grid grid-cols-3 gap-1.5 rounded-lg border border-neutral-100 bg-[#FDFCF9] p-2 text-center">
+      <div className="my-2.5 grid grid-cols-3 divide-x divide-neutral-200 rounded-md border border-neutral-200/60 bg-[#FBF9F5] py-2 text-center">
         {telemetryStats.map((stat) => (
           <div key={stat.label}>
             <p className="truncate font-mono text-[7px] font-semibold tracking-wide text-neutral-500 uppercase sm:text-[9px]">
@@ -77,11 +93,11 @@ function DashboardPreviewCard() {
         ))}
       </div>
 
-      <div className="rounded-lg border border-terracotta/30 bg-terracotta/5 p-2 sm:p-3">
-        <p className="font-mono text-[7px] font-bold tracking-wide text-neutral-500 uppercase sm:text-[9px]">
+      <div className="my-1.5 rounded-r-md border-y border-r border-l-2 border-neutral-200/80 border-l-[#D9532F] bg-[#F9F7F2] p-2.5">
+        <span className="mb-0.5 block font-mono text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
           Pauta de ingesta recomendada
-        </p>
-        <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 font-mono text-neutral-900">
+        </span>
+        <p className="flex flex-wrap items-baseline gap-x-1.5 font-mono text-neutral-900">
           <span className="text-base font-bold sm:text-xl">85</span>
           <span className="text-[10px] font-normal text-neutral-500 sm:text-xs">g/h</span>
           <span className="text-[8px] font-normal text-neutral-500 sm:text-[10px]">
@@ -109,40 +125,59 @@ export default async function LoginPage({
       : null;
 
   return (
-    <AuthPageShell>
-      <h1 className="max-w-lg px-4 text-center font-mono text-xl font-bold tracking-tight text-neutral-900 uppercase sm:text-3xl">
-        Nutrición de precisión para ciclistas
-      </h1>
+    <div className="relative h-dvh w-full overflow-hidden lg:flex lg:flex-row">
+      <BackgroundMedia />
 
-      <div className="my-2 flex flex-wrap justify-center gap-1.5">
-        {headerPills.map((pill) => (
-          <span
-            key={pill}
-            className="rounded-full border border-neutral-300/80 px-2.5 py-1 font-mono text-[10px] text-neutral-600 uppercase tracking-wide sm:text-xs"
-          >
-            {pill}
+      {/* Brand mark — a translucent white chip rather than plain text/logo
+          directly on the image, since `AppLogo`'s fills are fixed (not
+          `currentColor`) and would otherwise be unreadable against a dark
+          photo/gradient background. */}
+      <div className="absolute top-4 left-4 z-20 lg:top-8 lg:left-8">
+        <div className="inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur-sm">
+          <AppLogo className="size-4 shrink-0" />
+          <span className="font-mono text-[11px] font-bold tracking-wider text-neutral-900 uppercase">
+            Motor Metabólico
           </span>
-        ))}
+        </div>
       </div>
 
-      <DashboardPreviewCard />
+      <div className="relative z-10 flex h-full w-full items-center justify-center overflow-y-auto px-4 py-6 lg:w-1/2 lg:shrink-0 lg:bg-[#FDFCF9] lg:px-10">
+        <div className="my-auto w-full max-w-md rounded-xl border border-neutral-200/80 bg-white/95 p-5 text-center shadow-2xl backdrop-blur-md lg:max-w-sm lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none">
+          <h1 className="mb-1 font-mono text-xl font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
+            Nutrición de precisión para ciclistas
+          </h1>
 
-      {error && (
-        <div className="mx-auto mb-2 flex w-full max-w-70 items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-left text-xs text-status-warning sm:mb-3 sm:px-4 sm:py-3 sm:text-sm">
-          <TriangleAlert className="size-4 shrink-0" />
-          {error}
+          <div className="mb-3 flex flex-wrap justify-center gap-1.5">
+            {headerPills.map((pill) => (
+              <span
+                key={pill}
+                className="rounded-full border border-neutral-300/80 px-2.5 py-1 font-mono text-[10px] text-neutral-600 uppercase tracking-wide sm:text-xs"
+              >
+                {pill}
+              </span>
+            ))}
+          </div>
+
+          <DashboardPreviewCard />
+
+          {error && (
+            <div className="mx-auto mb-2 flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-left text-xs text-status-warning sm:mb-3 sm:px-4 sm:py-3 sm:text-sm">
+              <TriangleAlert className="size-4 shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <StravaLoginButton />
+
+          <p className="mt-2 text-center font-mono text-[10px] text-neutral-500 sm:mt-3 sm:text-[11px]">
+            Acceso seguro mediante OAuth. Solo lectura de rutas — nunca vendemos ni compartimos
+            tus datos.{" "}
+            <Link href="/privacidad" className="underline underline-offset-2 hover:text-neutral-700">
+              Política de Privacidad
+            </Link>
+          </p>
         </div>
-      )}
-
-      <StravaLoginButton />
-
-      <p className="mt-2 text-center font-mono text-[10px] text-neutral-500 sm:mt-3 sm:text-[11px]">
-        Acceso seguro mediante OAuth. Solo lectura de rutas — nunca vendemos ni compartimos
-        tus datos.{" "}
-        <Link href="/privacidad" className="underline underline-offset-2 hover:text-neutral-700">
-          Política de Privacidad
-        </Link>
-      </p>
-    </AuthPageShell>
+      </div>
+    </div>
   );
 }
