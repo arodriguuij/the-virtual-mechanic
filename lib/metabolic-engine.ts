@@ -40,14 +40,44 @@ export function getRelativeIntensity(averageWatts: number, ftp: number): number 
   return averageWatts / ftp;
 }
 
+/** A typical road bike + bottles/accessories — used only to convert the
+ * athlete's own bodyweight into a total-system W/kg for the VAM estimate
+ * below. Not a real per-athlete field yet (no bike-weight column exists on
+ * `athlete_profiles`); a fixed assumption is close enough given every other
+ * input here (average climb gradient, descent speed) is already a fixed
+ * assumption too. */
+const ESTIMATED_BIKE_WEIGHT_KG = 8;
+/** Average gradient assumed for the climbing portion of a route, used only
+ * to split total distance into climb/descent/flat segments — real routes
+ * vary, but ~6% is a reasonable stand-in for a mountain-pass-style climb. */
+const AVG_CLIMB_GRADIENT = 0.06;
+/** Fixed average descent speed (km/h) — a real descent's safe speed depends
+ * heavily on technical difficulty/visibility/traffic, none of which this
+ * app has data for, so a single conservative-but-realistic figure stands in
+ * for the whole descent segment. */
+const DESCENT_SPEED_KMH = 42;
+/** Flat +3% covers junctions, traffic lights, and brief braking/regrouping
+ * that a pure moving-time physics model doesn't otherwise account for. */
+const STOPPAGE_MARGIN = 1.03;
+
 /**
  * Estimated ride moving time from distance + elevation + the rider's own
- * FTP-derived target power — a simplified two-term heuristic, not a full
- * physical simulation of aerodynamic drag, rolling resistance, or gradient:
- * a flat-road speed estimated from W/kg, plus a Naismith's-rule-style
- * climbing time bonus from an estimated VAM (vertical meters/hour), both
- * scaling with the same W/kg figure. Used to size the fueling window for a
- * saved Strava route, which has no real moving-time data of its own yet.
+ * FTP-derived target power — decomposes the route into climb/descent/flat
+ * segments (via `AVG_CLIMB_GRADIENT`, mirroring the climb distance for the
+ * descent, a reasonable stand-in for a circular/out-and-back ride) rather
+ * than one blended distance-plus-elevation-bonus figure, since a ride's
+ * intensity (selected `IntensityLevel`, hence target watts) genuinely
+ * changes total duration by tens of minutes depending on whether it's an
+ * easy Z2 spin or a full-gas group ride at the same FTP — sizing bottles/
+ * grams off a stale distance-only or historical-average-speed estimate
+ * would silently under- or over-fuel the athlete. Climb time comes from an
+ * estimated VAM (vertical meters/hour) scaling with total-system W/kg
+ * (rider + `ESTIMATED_BIKE_WEIGHT_KG`); flat time comes from a simplified
+ * aerodynamic power law (`v ∝ P^(1/3)`, calibrated so ~200W lands around
+ * ~30km/h flat — roughly matching a CdA≈0.3-0.4 flat-road estimate at that
+ * power); descent time uses the fixed `DESCENT_SPEED_KMH`. Used to size the
+ * fueling window for a saved Strava route (or an uploaded GPX track), which
+ * has no real moving-time data of its own yet.
  */
 export function estimateRideDurationHours({
   distanceKm,
@@ -63,18 +93,27 @@ export function estimateRideDurationHours({
   intensity?: IntensityLevel;
 }): number {
   const targetWatts = ftp * getRelativeIntensityFromLevel(intensity);
-  const wPerKg = weightKg > 0 ? targetWatts / weightKg : 0;
+  const totalWeightKg = weightKg + ESTIMATED_BIKE_WEIGHT_KG;
+  const wPerKg = totalWeightKg > 0 ? targetWatts / totalWeightKg : 0;
 
-  // ~22km/h flat at 2.5 W/kg, +5km/h per extra W/kg, clamped to a plausible
-  // range for a road ride.
-  const flatSpeedKmh = Math.min(45, Math.max(15, 22 + (wPerKg - 2.5) * 5));
-  // ~700 vertical meters/hour at 2.5 W/kg, scaling with W/kg, clamped
+  // ~700-800 vertical meters/hour at 2.5 W/kg, scaling with W/kg, clamped
   // between a gentle spin and a pro-level sustained climb.
-  const vamMPerHour = Math.min(1800, Math.max(300, wPerKg * 280));
-
-  const flatTimeHours = distanceKm / flatSpeedKmh;
+  const vamMPerHour = Math.min(1800, Math.max(300, wPerKg * 285));
   const climbTimeHours = elevationGainM / vamMPerHour;
-  return flatTimeHours + climbTimeHours;
+
+  // Split total distance into climb/descent/flat via the average climb
+  // gradient assumption, each side capped at half the total distance so a
+  // short, very steep route can't imply a climb longer than the ride itself.
+  const climbDistanceKm = Math.min(distanceKm / 2, elevationGainM / (AVG_CLIMB_GRADIENT * 1000));
+  const descentDistanceKm = climbDistanceKm;
+  const flatDistanceKm = Math.max(0, distanceKm - climbDistanceKm - descentDistanceKm);
+
+  const flatSpeedKmh = Math.min(50, Math.max(15, 24 * Math.pow(Math.max(targetWatts, 1) / 100, 0.33)));
+  const flatTimeHours = flatDistanceKm / flatSpeedKmh;
+  const descentTimeHours = descentDistanceKm / DESCENT_SPEED_KMH;
+
+  const rawTotalHours = climbTimeHours + flatTimeHours + descentTimeHours;
+  return rawTotalHours * STOPPAGE_MARGIN;
 }
 
 /**

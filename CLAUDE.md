@@ -569,12 +569,25 @@ guidance rather than a clinical or individually-calibrated model:
   and sodium targets are the net debt figures directly). See "Net recovery debt" under
   "Post-Ride Analysis" below for where each input comes from and why it's split this way.
 - **`estimateRideDurationHours({ distanceKm, elevationGainM, ftp, weightKg, intensity })`**
-  — sizes the fueling window for a saved Strava route, which has no real moving-time of
-  its own. A simplified two-term heuristic, not a physical simulation: a flat-road speed
-  estimated from W/kg (~22km/h at 2.5 W/kg, +5km/h per extra W/kg) plus a
-  Naismith's-rule-style climbing time bonus from an estimated VAM (~700 vertical m/h at
-  2.5 W/kg, scaling with W/kg) — `flatTimeHours + climbTimeHours`, both clamped to
-  plausible ranges.
+  — sizes the fueling window for a saved Strava route (or an uploaded GPX track), which has
+  no real moving-time of its own. Decomposes the route into climb/descent/flat segments
+  (rather than one blended distance-plus-elevation-bonus figure) since the selected
+  `IntensityLevel` — hence target watts — genuinely changes total duration by tens of
+  minutes at the same FTP (an easy Z2 spin vs. a full-gas group ride), and sizing bottles/
+  grams off a stale distance-only or historical-average-speed figure would silently
+  under- or over-fuel the athlete: `climbDistanceKm = elevationGainM / (AVG_CLIMB_GRADIENT ×
+  1000)` (a fixed ~6% average gradient assumption), `descentDistanceKm` mirrors the climb
+  distance (a reasonable stand-in for a circular/out-and-back ride), each capped at half the
+  total distance so a short, very steep route can't imply a climb longer than the ride
+  itself, and `flatDistanceKm` is the remainder. Climb time comes from an estimated VAM
+  (vertical m/h, ~700-800 at 2.5 W/kg, scaling with W/kg) against **total-system** W/kg —
+  target watts over rider weight *plus* a fixed `ESTIMATED_BIKE_WEIGHT_KG` (8kg; there's no
+  real per-athlete bike-weight field yet, so a typical-road-bike constant stands in). Flat
+  time comes from a simplified aerodynamic power law (`v ∝ P^(1/3)`, calibrated so ~200W
+  lands around ~30km/h flat — roughly matching a CdA≈0.3-0.4 flat-road estimate at that
+  power) rather than the older pure-W/kg linear speed guess. Descent time uses a fixed
+  `DESCENT_SPEED_KMH` (42). The three segment times sum and get a flat `STOPPAGE_MARGIN`
+  (+3%, junctions/traffic lights/brief regrouping) applied on top.
 - **`getGlycogenBurnedFromPowerZones(buckets, ftp, athleteType?)`** — sums oxidation rate ×
   time across real Strava time-in-power-zone buckets instead of one ride-average watts
   figure, since oxidation isn't linear in power: a ride spent half at recovery pace and
