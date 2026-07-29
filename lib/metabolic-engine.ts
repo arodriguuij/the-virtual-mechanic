@@ -1300,7 +1300,7 @@ export function formatRecipeForSharing({
   bottlePlan: Pick<BottlePlan, "fuelBottles" | "waterBottles">;
 }): string {
   const lines = [
-    "🚴 RECETA CASERA — MOTOR METABÓLICO",
+    "🚴 RECETA CASERA — RATIO",
     `Duración: ${durationHours}h · ${carbsGPerHour}g/h HC · ${sodiumMgPerHour}mg/h sodio`,
     "",
   ];
@@ -1342,7 +1342,7 @@ export function formatGarminExportText({
   reloadStrategy: ReloadStrategy | null;
 }): string {
   const lines = [
-    "📟 FICHA DE NUTRICIÓN — MOTOR METABÓLICO",
+    "📟 FICHA DE NUTRICIÓN — RATIO",
     "",
     "⏰ ALERTA DE FRECUENCIA",
     "Configura una alarma cada 15 min: 3 sorbos de Fuel + 1 sorbo de agua.",

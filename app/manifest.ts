@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Motor Metabólico",
-    short_name: "Motor Metabólico",
+    name: "RATIO",
+    short_name: "RATIO",
     description:
       "Planificador de nutrición y fisiología para ciclistas — alimentación y recuperación a partir de tu FTP, peso y datos reales de Strava.",
     start_url: "/",

@@ -12,13 +12,28 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const title = "RATIO — Nutrición Ciclista de Precisión";
+const description =
+  "Estrategia nutricional y de hidratación de precisión para ciclistas basada en fisiología, potencia y datos métricos.";
+
 export const metadata: Metadata = {
-  title: "Motor Metabólico — Nutrición Ciclista de Precisión",
-  description:
-    "Planificación nutricional, estrategias de bolsillo y recetas caseras para ciclismo.",
+  title,
+  description,
   appleWebApp: {
-    title: "Motor Metabólico",
+    title: "RATIO",
     statusBarStyle: "default",
+  },
+  openGraph: {
+    title,
+    description,
+    siteName: "RATIO",
+    locale: "es_ES",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title,
+    description,
   },
 };
 

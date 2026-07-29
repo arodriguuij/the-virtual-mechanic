@@ -8,7 +8,7 @@ const stravaLoginErrorMessages: Record<string, string> = {
   missing_code: "Strava no envió un código de autorización válido.",
   token_exchange_failed: "No se pudo intercambiar el código con Strava.",
   missing_athlete_id: "Strava no devolvió tu identidad de atleta — inténtalo de nuevo.",
-  auth_bridge_failed: "No se pudo iniciar sesión en Motor Metabólico. Inténtalo de nuevo.",
+  auth_bridge_failed: "No se pudo iniciar sesión en RATIO. Inténtalo de nuevo.",
   save_failed: "No se pudieron guardar los tokens de Strava.",
 };
 

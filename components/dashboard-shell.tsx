@@ -54,7 +54,7 @@ function SidebarContent({
           className="flex cursor-pointer items-center gap-2 text-xs font-bold tracking-wider whitespace-nowrap text-neutral-900 uppercase transition-opacity duration-150 hover:opacity-80 focus:outline-none"
         >
           <AppLogo className="size-6 shrink-0" />
-          Motor Metabólico
+          RATIO
         </Link>
         <button
           type="button"
@@ -105,7 +105,7 @@ function SidebarContent({
       </div>
 
       <div className="mt-4 pt-3 text-center font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
-        Motor Metabólico v1.0 · Nutrición de precisión
+        RATIO v1.0 · Nutrición de precisión
       </div>
     </div>
   );
@@ -160,7 +160,7 @@ export function DashboardShell({
             className="flex cursor-pointer items-center gap-2 text-xs font-bold whitespace-nowrap text-neutral-900 uppercase tracking-wider transition-opacity duration-150 hover:opacity-80 focus:outline-none"
           >
             <AppLogo className="size-6 shrink-0" />
-            Motor Metabólico
+            RATIO
           </Link>
         </header>
 

@@ -66,8 +66,8 @@ function BrandMark() {
   return (
     <div className="mb-6 flex items-center justify-center gap-3">
       <AppLogo className="size-8 text-neutral-900" />
-      <span className="font-mono text-xs font-bold tracking-[0.3em] text-neutral-900 uppercase sm:text-sm">
-        Motor Metabólico
+      <span className="font-mono text-sm font-bold tracking-[0.35em] whitespace-nowrap text-neutral-900 uppercase sm:text-base">
+        RATIO
       </span>
     </div>
   );

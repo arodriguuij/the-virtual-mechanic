@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AppLogo } from "@/components/app-logo";
 
 export const metadata = {
-  title: "Política de Privacidad — Motor Metabólico",
+  title: "Política de Privacidad — RATIO",
 };
 
 const h2Class = "font-mono text-sm font-bold tracking-wide text-neutral-900 uppercase";
@@ -15,10 +15,10 @@ const h2Class = "font-mono text-sm font-bold tracking-wide text-neutral-900 uppe
  * — Strava's API Agreement requires a published privacy policy describing
  * what's collected via their API and how it's used, reachable *before* a
  * visitor connects their account, not only after logging in. Deliberately
- * not built on `components/auth-page-shell.tsx`: that shell locks the whole
- * viewport to `h-dvh overflow-hidden` for its own single-screen hero layout,
- * which is wrong for a long-form policy document that needs to scroll
- * normally. Plain top bar + a normal scrolling `<article>`.
+ * not built on `components/login-hero.tsx`'s shared `LoginHeroLayout`: that
+ * layout is built around a single compact hero card/video, which is wrong
+ * for a long-form policy document that needs to scroll normally. Plain top
+ * bar + a normal scrolling `<article>`.
  */
 export default function PrivacyPolicyPage() {
   return (
@@ -29,7 +29,7 @@ export default function PrivacyPolicyPage() {
           className="flex items-center gap-2 font-mono text-sm font-bold tracking-wider whitespace-nowrap text-neutral-900 uppercase"
         >
           <AppLogo className="size-5 shrink-0" />
-          Motor Metabólico
+          RATIO
         </Link>
       </header>
 
@@ -51,9 +51,9 @@ export default function PrivacyPolicyPage() {
         </div>
 
         <section className="flex flex-col gap-3">
-          <h2 className={h2Class}>Qué es Motor Metabólico</h2>
+          <h2 className={h2Class}>Qué es RATIO</h2>
           <p className="text-sm leading-relaxed text-neutral-700">
-            Motor Metabólico es una herramienta de planificación nutricional para ciclistas:
+            RATIO es una herramienta de planificación nutricional para ciclistas:
             convierte tu FTP, tu peso y las condiciones reales de cada ruta (meteorología,
             desnivel) en un plan de hidratación y carbohidratos. Strava es el único método de
             acceso a la aplicación — no existe registro con email y contraseña propio.
@@ -88,7 +88,7 @@ export default function PrivacyPolicyPage() {
             </li>
           </ul>
           <p className="text-sm leading-relaxed text-neutral-700">
-            Nunca solicitamos permisos de escritura. Motor Metabólico no puede crear, editar,
+            Nunca solicitamos permisos de escritura. RATIO no puede crear, editar,
             eliminar ni publicar nada en tu cuenta de Strava, bajo ninguna circunstancia.
           </p>
         </section>
@@ -127,7 +127,7 @@ export default function PrivacyPolicyPage() {
         <section className="flex flex-col gap-3">
           <h2 className={h2Class}>Cómo revocar el acceso</h2>
           <p className="text-sm leading-relaxed text-neutral-700">
-            Puedes desconectar Motor Metabólico en cualquier momento desde{" "}
+            Puedes desconectar RATIO en cualquier momento desde{" "}
             <a
               href="https://www.strava.com/settings/apps"
               target="_blank"

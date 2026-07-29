@@ -1,8 +1,10 @@
 @AGENTS.md
 
-# Motor Metabólico
+# RATIO
 
-Nutrition and physiology planner for cyclists — turns FTP, weight, and self-reported sweat
+Rebranded from "Motor Metabólico" — same app, same domain, new name (see git history for
+the rename commit). Nutrition and physiology planner for cyclists — turns FTP, weight, and
+self-reported sweat
 rate plus real ride/weather data from Strava and Open-Meteo into a fueling and recovery
 plan. Pivoted from an earlier bike-component-wear tracker of the same codebase (see git
 history — the Strava/Open-Meteo/Supabase-Auth infrastructure survived the pivot, the
@@ -123,8 +125,8 @@ reach for — simply cannot work. Instead:
      the athlete's existing data (activities, fueling logs, physiological profile) is
      preserved instead of silently forking into a new, empty identity. Only a genuinely
      new Strava athlete gets the deterministic synthetic email,
-     `strava-{athleteId}@strava.users.motormetabolico.internal` — a domain that never
-     receives mail, existing purely as a stable dedup key.
+     `strava-{athleteId}@strava.users.ratio.internal` — a domain that never receives mail,
+     existing purely as a stable dedup key.
   3. **The returned `verification_type` must be read from the response, not assumed.**
      A brand-new user's link comes back as `verification_type: "signup"`; a returning
      user's comes back as `"magiclink"` — verified against the live API while building
@@ -513,7 +515,7 @@ together:
   Strava's API anywhere, and no analytics/ads SDK or data-export mechanism exists) rather
   than aspirational copy. The contact email (`arodriguuij@gmail.com`) is the developer's
   real address, not a placeholder — asked explicitly rather than inventing a
-  `@motormetabolico.app` address that domain doesn't actually have configured.
+  `@ratio.app` address that domain doesn't actually have configured.
 
 ### Metabolic engine
 
@@ -1864,7 +1866,7 @@ already (it owns the mobile drawer's `mobileOpen` state), so this needed no new
 `"use client"` boundary. Each `Link` takes an `onNavigate` callback that closes the mobile
 drawer (`setMobileOpen(false)`) on click, since without it a mobile visitor tapping a nav
 item would navigate underneath a still-open overlay. The same `SidebarContent` header
-(`AppLogo` + "Motor Metabólico") and the mobile top header's own logo+text are both
+(`AppLogo` + "RATIO") and the mobile top header's own logo+text are both
 wrapped in a `<Link href="/">` (the sidebar one also firing `onNavigate` to close the
 drawer) so clicking the brand mark always returns to the Dashboard, a near-universal web
 convention this app was missing. **Clicking it while already on the Dashboard** doesn't

@@ -21,9 +21,13 @@ const DEFAULT_SWEAT_RATE = "medium";
  * implement OpenID Connect, so it can't be bridged as a generic OIDC
  * provider either) — this domain never receives mail, it exists purely as
  * a stable, unique key so the same Strava athlete always maps back to the
- * same Supabase Auth user across logins. */
+ * same Supabase Auth user across logins. Safe to rename on a rebrand: an
+ * existing account is only ever matched via `profiles.strava_athlete_id` →
+ * `getUserById()` (see below), never by reconstructing this string from an
+ * athlete id, so a domain change only affects brand-new signups going
+ * forward — no already-created account's real stored email changes. */
 function syntheticEmailFor(stravaAthleteId: number): string {
-  return `strava-${stravaAthleteId}@strava.users.motormetabolico.internal`;
+  return `strava-${stravaAthleteId}@strava.users.ratio.internal`;
 }
 
 export async function GET(request: NextRequest) {
