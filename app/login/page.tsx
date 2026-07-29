@@ -45,20 +45,37 @@ const telemetryStats = [
  * belt-and-suspenders floor under `h-dvh` and is harmless on a `fixed`
  * element even if it computes taller than the current visual viewport,
  * since a `fixed`, `overflow-hidden` box simply clips to whatever's
- * currently visible rather than affecting page scroll. At `lg:` this
- * reverts to a normal in-flow flex column (`lg:static`), matching the
- * desktop split-layout sizing that already worked correctly.
+ * currently visible rather than affecting page scroll.
+ *
+ * At `lg:` the wrapper switches to `lg:relative` (not `lg:static`) — still a
+ * normal in-flow flex column exactly like `lg:static` would give, but
+ * `position: relative` additionally makes this wrapper the containing block
+ * for the `bg-black/20` overlay's `absolute inset-0` below, so that overlay
+ * stays scoped to this column rather than resolving against the root's own
+ * `relative` and bleeding across the whole page. `lg:flex lg:items-center
+ * lg:justify-center` centers the video, which matters once the video itself
+ * switches to `lg:object-contain` (see below) and can render narrower than
+ * its box.
+ *
+ * The source clip is a 9:16 vertical recording — `object-cover` (mobile)
+ * correctly fills the full-bleed portrait background, but the same crop
+ * applied to the landscape `lg:w-1/2` desktop column zoomed in hard on the
+ * footage, cropping most of the frame. `lg:object-contain` shows the whole
+ * frame uncropped and unscaled-past-native-resolution instead, letterboxed
+ * against the column's own `bg-neutral-950` (a video element's own
+ * unfilled `object-contain` gutter is transparent, so the parent's
+ * background is what actually shows through there).
  */
 function BackgroundMedia() {
   return (
-    <div className="fixed inset-0 z-0 h-dvh min-h-screen w-full overflow-hidden bg-neutral-900 lg:static lg:z-auto lg:h-full lg:min-h-0 lg:w-1/2 lg:shrink-0">
+    <div className="fixed inset-0 z-0 h-dvh min-h-screen w-full overflow-hidden bg-neutral-950 lg:relative lg:z-auto lg:flex lg:h-full lg:min-h-0 lg:w-1/2 lg:shrink-0 lg:items-center lg:justify-center">
       <video
         autoPlay
         loop
         muted
         playsInline
         preload="auto"
-        className="absolute inset-0 h-full w-full object-cover"
+        className="h-full w-full object-cover opacity-90 transition-opacity duration-500 lg:object-contain"
         aria-hidden="true"
       >
         <source src="/login-bg.mp4" type="video/mp4" />
@@ -69,24 +86,26 @@ function BackgroundMedia() {
 }
 
 /**
- * Centered "MOTOR METABÓLICO" wordmark — PNS's own header treatment: plain
- * centered text, no pill/chip/border/background of its own. Rendered as the
- * first element inside the floating card (not floating loose over the video)
- * specifically for contrast: `AppLogo`'s fills are hardcoded, not
- * `currentColor` (see its own doc comment), and the wordmark's `text-neutral-900`
- * would be unreadable directly over the dark video on mobile. The card is
- * `bg-white/95` on mobile and sits on the cream `lg:bg-[#FDFCF9]` column on
- * desktop, so this reads as the mobile card's own header and the desktop
- * panel's top-center mark in one shared markup path — no separate mobile/
- * desktop branch needed.
+ * Fixed, full-width, top-center brand masthead — PNS's own convention: the
+ * wordmark floats over the page rather than living inside the card, and
+ * stays put while the card's content column scrolls beneath it. The outer
+ * bar is `pointer-events-none` full-width so its empty space never blocks
+ * clicks/scroll to whatever's underneath; only the pill itself is
+ * `pointer-events-auto`. The pill keeps the translucent `bg-white/90
+ * backdrop-blur-md` treatment (not plain text) since `AppLogo`'s fills are
+ * hardcoded, not `currentColor` (see its own doc comment) — over the video
+ * on mobile especially, the white pill is what guarantees contrast
+ * regardless of whatever's playing behind it.
  */
-function BrandMark() {
+function BrandMasthead() {
   return (
-    <div className="flex items-center justify-center gap-2 py-4">
-      <AppLogo className="size-4 shrink-0" />
-      <span className="text-center font-mono text-sm font-bold tracking-[0.3em] text-neutral-900 uppercase sm:text-base">
-        Motor Metabólico
-      </span>
+    <div className="pointer-events-none fixed top-0 right-0 left-0 z-50 flex items-center justify-center px-6 py-4">
+      <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white/90 px-4 py-1.5 shadow-sm backdrop-blur-md">
+        <AppLogo className="h-5 w-5 shrink-0" />
+        <span className="font-mono text-xs font-bold tracking-[0.25em] text-neutral-900 uppercase sm:text-sm">
+          Motor Metabólico
+        </span>
+      </div>
     </div>
   );
 }
@@ -105,25 +124,33 @@ function BrandMark() {
  * NP/glycogen/sweat-rate/carb-target set of numbers) — this card exists
  * purely to preview the *shape* of a real result, not to claim it's live
  * data, so nothing here needs a network round-trip or Strava connection.
+ * The one genuinely live value is the date pill, computed at request time
+ * (`LoginPage` is a Server Component, `dynamic = "force-dynamic"` already
+ * set) via `Intl`/`toLocaleDateString` rather than hardcoded — a static date
+ * would read as stale the day after it was written.
  */
 function DashboardPreviewCard() {
+  const dateLabel = new Date()
+    .toLocaleDateString("es-ES", { day: "numeric", month: "short" })
+    .toUpperCase();
+
   return (
-    <div className="my-2 rounded-md border border-neutral-300/90 bg-white p-3.5 text-left shadow-none sm:p-4">
+    <div className="my-2 rounded-md border border-neutral-300/80 bg-white p-4 text-left shadow-none sm:p-5">
       <div className="flex items-center justify-between gap-2">
-        <span className="rounded border border-emerald-200/80 bg-emerald-50 px-2 py-0.5 font-mono text-[9px] font-bold tracking-wider text-emerald-800 uppercase">
+        <span className="rounded-sm border border-emerald-200/80 bg-emerald-50 px-2 py-0.5 font-mono text-[9px] font-bold tracking-widest text-emerald-800 uppercase">
           Strava Synced
         </span>
-        <span className="font-mono text-[9px] text-neutral-400">28 JUL · 27°C</span>
+        <span className="font-mono text-[9px] text-neutral-400">{dateLabel} · 27°C</span>
       </div>
 
       <div className="mt-1.5">
         <p className="truncate font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">
-          Puig Major &amp; Sa Calobra
+          Sa Calobra — Coll dels Reis
         </p>
-        <p className="font-mono text-[9px] text-neutral-500 sm:text-xs">84.5 km · 1.650m D+</p>
+        <p className="font-mono text-[9px] text-neutral-500 sm:text-xs">9.5 km · 670m D+ · 7% avg</p>
       </div>
 
-      <div className="my-2.5 grid grid-cols-3 divide-x divide-neutral-200 rounded-md border border-neutral-200/60 bg-[#FBF9F5] py-2 text-center">
+      <div className="my-3 grid grid-cols-3 divide-x divide-neutral-200 rounded-sm border border-neutral-200 bg-[#FAF9F5] py-2.5 text-center">
         {telemetryStats.map((stat) => (
           <div key={stat.label}>
             <p className="truncate font-mono text-[7px] font-semibold tracking-wide text-neutral-500 uppercase sm:text-[9px]">
@@ -134,7 +161,7 @@ function DashboardPreviewCard() {
         ))}
       </div>
 
-      <div className="my-1.5 rounded-r-md border-y border-r border-l-2 border-neutral-200/80 border-l-[#D9532F] bg-[#F9F7F2] p-2.5">
+      <div className="my-2 rounded-r-sm border-y border-r border-l-2 border-neutral-200/80 border-l-[#D9532F] bg-[#F7F5F0] p-3">
         <span className="mb-0.5 block font-mono text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
           Pauta de ingesta recomendada
         </span>
@@ -166,27 +193,19 @@ export default async function LoginPage({
       : null;
 
   return (
-    <div className="relative h-dvh w-full overflow-hidden lg:flex lg:flex-row">
+    <div className="relative h-dvh w-full overflow-hidden bg-neutral-950 lg:flex lg:flex-row">
       <BackgroundMedia />
+      <BrandMasthead />
 
       <div className="relative z-10 flex min-h-dvh w-full flex-col items-center justify-center overflow-y-auto px-4 py-6 lg:h-full lg:min-h-0 lg:w-1/2 lg:shrink-0 lg:bg-[#FDFCF9] lg:px-10">
-        <div className="my-auto w-full max-w-md rounded-xl border border-neutral-200/80 bg-white/95 p-5 text-center shadow-2xl backdrop-blur-md lg:max-w-sm lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none">
-          <BrandMark />
-
-          <h1 className="mb-1 font-mono text-xl font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
+        <div className="my-auto w-full max-w-md rounded-xl border border-neutral-200/80 bg-white/95 p-5 pt-16 text-center shadow-2xl backdrop-blur-md lg:max-w-sm lg:border-0 lg:bg-transparent lg:p-0 lg:pt-16 lg:shadow-none lg:backdrop-blur-none">
+          <h1 className="my-2 text-center font-mono text-base font-bold tracking-tight text-neutral-800 uppercase sm:text-lg">
             Nutrición de precisión para ciclistas
           </h1>
 
-          <div className="mb-3 flex flex-wrap justify-center gap-1.5">
-            {headerPills.map((pill, i) => (
-              <span
-                key={pill}
-                className="rounded-sm border border-neutral-300/80 bg-neutral-100/80 px-2.5 py-1 font-mono text-[10px] font-bold text-neutral-700 uppercase tracking-wide"
-              >
-                {String(i + 1).padStart(2, "0")} / {pill}
-              </span>
-            ))}
-          </div>
+          <p className="my-3 block text-center font-mono text-[10px] font-bold tracking-widest text-neutral-500 uppercase sm:text-xs">
+            {headerPills.join("  •  ")}
+          </p>
 
           <DashboardPreviewCard />
 
