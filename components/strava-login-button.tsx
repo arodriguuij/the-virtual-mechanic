@@ -31,7 +31,7 @@ export function StravaLoginButton() {
         setConnecting(true);
       }}
       className={cn(
-        "mx-auto flex w-full max-w-70 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 py-3.5 font-mono text-xs font-bold text-white uppercase transition-all duration-150",
+        "flex w-full items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 py-4 font-mono text-xs font-bold tracking-wider text-white uppercase transition-colors duration-150 sm:text-sm",
         connecting ? "pointer-events-none opacity-80" : "cursor-pointer hover:bg-black"
       )}
     >

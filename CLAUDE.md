@@ -186,136 +186,104 @@ rather than reusing this root one as-is.
 
 **`/login`'s Pas Normal Studios-style split layout.** `app/login/page.tsx` no longer shares
 `AuthPageShell` with `/auth/callback` — it now has its own bespoke full-bleed layout, since
-forcing a photo-background/floating-card design into that shell's boxed top-bar/hero/
-bottom-bar bands would fight the whole point of it. (`/auth/callback` still uses
-`AuthPageShell` unchanged — see below.) This replaced an earlier flat, card-free editorial
-version (a single `bg-[#FDFCF9]` band with a centered hero and thin hairline dividers, no
-image at all) once the brief shifted toward a media-forward look:
+forcing a photo-background design into that shell's boxed top-bar/hero/bottom-bar bands
+would fight the whole point of it. (`/auth/callback` still uses `AuthPageShell` unchanged —
+see below.) This page went through several iterations in the same session before landing on
+a genuine PNS split-screen with **no floating card anywhere, at any breakpoint** — earlier
+passes tried a full-bleed video with a centered floating white card on top (mobile) plus a
+50/50 flex split (desktop), a fixed global masthead pill, and a letterboxed
+`lg:object-contain` video — all reverted once the brief explicitly called for zero
+rounded/shadowed containers and a video that fills its column edge-to-edge with no visible
+bars. The current structure:
 
-- **Mobile (below `lg:`)** — `BackgroundMedia` renders full-bleed behind everything
-  (`fixed inset-0`), and the actual content sits in a single floating card (`bg-white/95
-  backdrop-blur-md border border-neutral-200/80 rounded-xl shadow-2xl`) centered over it.
-- **`BrandMasthead`** — a fixed, full-width, top-center "MOTOR METABÓLICO" pill
-  (`AppLogo` at `h-5 w-5` plus letter-spaced `tracking-[0.25em]` uppercase text in a
-  `bg-white/90 backdrop-blur-md rounded-full` chip), floating over the page at every
-  breakpoint rather than living inside the card — PNS's own masthead convention. The outer
-  bar is `pointer-events-none fixed top-0 inset-x-0` so its empty space never blocks
-  clicks/scroll to whatever's underneath it; only the pill itself is `pointer-events-auto`.
-  This replaced two earlier iterations in sequence: first a translucent chip pinned
-  `absolute` top-*left* over the raw video, then briefly a plain-text (no
-  pill/border/background) wordmark rendered as the first child *inside* the floating card
-  — reverted back to a floating pill once the brief specifically asked for a global,
-  always-fixed masthead rather than a mark that scrolls away with the card's own content.
-  The pill treatment (not plain text) is still required for contrast: `AppLogo`'s fills are
-  hardcoded, not `currentColor` (see `components/app-logo.tsx`'s own doc comment), so
-  without an opaque-ish backing the wordmark would be unreadable directly over the video.
-  The card itself gained `pt-16`/`lg:pt-16` specifically to keep its own content clear of
-  this now-fixed masthead sitting on top of it.
-- **Desktop (`lg:` and up)** — a real 50/50 split: `BackgroundMedia` becomes a normal flex
-  child (`lg:relative lg:h-full lg:w-1/2`) instead of a full-bleed fixed layer, and the
-  content column sits beside it (`lg:w-1/2 lg:bg-[#FDFCF9]`) with the outer floating-card
-  chrome stripped off (`lg:border-0 lg:bg-transparent lg:shadow-none lg:backdrop-blur-none`)
-  — on desktop the column's own solid cream background already provides the contrast a
-  floating card exists for on mobile, so keeping both would be double chrome.
-- **`BackgroundMedia`** renders the real `public/login-bg.mp4` loop (a cycling/mountain-road
-  clip the user supplied) via a plain `<video autoPlay loop muted playsInline preload="auto">`
-  — `autoPlay`/`muted`/`playsInline` all have to be present together for mobile Safari/Chrome
-  to actually allow autoplay at all; missing any one of them silently blocks it. `preload="auto"`
-  requests the video eagerly rather than lazily, and the wrapper carries `bg-neutral-950`
-  underneath it — together these avoid a flash of the page's own light background showing
-  through before the first frame decodes. A flat `bg-black/20` tint sits on top for contrast
-  rather than a blurred overlay — the floating card (mobile) already has its own
-  `backdrop-blur-md` immediately in front of the video, so blurring the overlay too would
-  compound with that instead of adding anything. An earlier version of this component was a
-  moody dark-to-terracotta CSS gradient standing in for the real video, built while no real
-  asset existed yet and no stock-media/image-generation access was available in that session —
-  replaced outright once the real clip arrived.
-- **`object-cover` (mobile) vs. `lg:object-contain` (desktop) — fixing the desktop zoom.**
-  The source clip is a 9:16 vertical recording. `object-cover` correctly fills the full-bleed
-  portrait mobile background, but applying that same crop to the landscape `lg:w-1/2` desktop
-  column zoomed in hard on the footage, cropping most of the frame out. `lg:object-contain`
-  shows the whole frame at its native aspect ratio instead — verified live via canvas pixel
-  sampling of the actual rendered (not raw decoded) frame at 1280×900: the video's own box is
-  640×900, its 1080×1920 source at `object-contain` computes to a centered ~506px-wide visible
-  frame with ~67px letterbox gutters on each side, and sampling those gutter pixels returned a
-  flat `rgb(8,8,8)` — matching `bg-neutral-950` (not a stretched/cropped image artifact) —
-  while pixels inside the visible band returned real varying grayscale video content. A
-  video element's own unfilled `object-contain` gutter is transparent, so it's genuinely the
-  parent wrapper's `bg-neutral-950` showing through, not a separate letterbox layer.
-- **`lg:relative`, not `lg:static`, for the desktop background wrapper's positioning.** Needed
-  for two independent reasons: it makes the wrapper the containing block for the
-  `bg-black/20` overlay's `absolute inset-0` (see next bullet), and it lets `lg:flex
-  lg:items-center lg:justify-center` meaningfully center the video now that
-  `lg:object-contain` can render it narrower than its own box.
-- **`fixed`, not `absolute`, for the mobile background wrapper.** The very first version of
-  `BackgroundMedia` used `absolute inset-0`, which sizes against its *containing block* —
-  on a real iOS Safari device this left a black strip at the very bottom once the browser's
-  own floating toolbar settled into its collapsed state, since that containing-block
-  measurement doesn't reliably keep pace with the toolbar's own collapse/expand animation.
-  Switched to `fixed inset-0 h-dvh min-h-screen` (mobile only; `lg:relative` reverts to a
-  normal in-flow flex column on desktop, just no longer un-positioned — see above) — `fixed`
-  anchors directly to the true viewport instead, the same mechanism `AuthPageShell`'s own
-  `h-dvh` root already relies on for this exact class of iOS-chrome-resize bug (see
-  "Root-level scroll lock" below). `min-h-screen` is a harmless belt-and-suspenders floor:
-  even if it computes taller than the current visual viewport, a `fixed`+`overflow-hidden`
-  box just clips to whatever's currently visible rather than affecting page scroll. This
-  class of bug is specific to a real device's dynamic toolbar animation and isn't
-  reproducible in headless Chromium, so this was verified via the well-established
-  `fixed`-vs-`absolute` fix pattern plus a static `getBoundingClientRect()` edge-to-edge check
-  (`video.bottom === window.innerHeight` at every tested width) rather than an actual
-  toolbar-collapse simulation. **Bug caught by the `lg:relative` fix above**: with the prior
-  `lg:static` wrapper, the overlay's `absolute inset-0` had no positioned ancestor to resolve
-  against at that breakpoint other than the page root (itself `relative`), which would have
-  let the tint bleed across the *entire* viewport on desktop — including the content column
-  — rather than staying scoped to the video column alone; verified live via
-  `getBoundingClientRect()` that the overlay's box now exactly matches its column's box, not
-  the full page, at both 1024 and 1280px.
-- **Content column scroll behavior**: `overflow-y-auto` (not `overflow-hidden`), now sized
-  `min-h-dvh` rather than a hard `h-full` cap (a leftover from when it had to compete for
-  height against the background as an `absolute` sibling in the same flow — no longer
-  necessary now that the background is `fixed` and fully out of flow) — if the floating card
-  is ever taller than the viewport, the athlete can scroll *within* that column to see the
-  rest, rather than content being silently clipped the way `AuthPageShell`'s old
-  `overflow-hidden` root would have. Verified live with zero internal scroll needed at
-  360×640 through 1280×900, with and without the `strava_error` banner showing; the outer
-  page itself never scrolls, only the content column can, and only when genuinely
-  necessary — in fact switching to `min-h-dvh` incidentally resolved the one previously-
-  known edge case too (320×568 no longer needs any scrolling at all, page or column).
-- **Root-level `bg-neutral-950`** on the page's outermost div — a dark base rather than the
-  app's usual cream `bg-background`, scoped to this one page only (not a change to
-  `app/layout.tsx`'s shared `<body>`, which every other route still relies on). Whatever
-  briefly shows at the edges during an iOS Safari elastic-overscroll bounce, or in the instant
-  before the video/card paint, is now near-black rather than the globally cream page
-  background flashing through.
-- **`stravaLoginErrorMessages`** (`missing_code`, `token_exchange_failed`,
-  `missing_athlete_id`, `auth_bridge_failed`, `save_failed`) is unchanged — still distinct
-  from `app/(app)/page.tsx`'s own `stravaErrorMessages`, which only covers errors from the
-  already-logged-in "Sincronizar rutas" action, since a logged-out visitor can never reach
-  that page to see them.
-- **`DashboardPreviewCard`** (the "Tarjeta Técnica" mockup inside the floating card, corners
-  `rounded-md` — the straighter/minimal PNS corner treatment, not the softer `rounded-lg` used
-  elsewhere on this page) stays strictly 100% typographic — no icons, no emoji, not even a
-  colored-dot "synced" indicator — every visual cue is text weight/color/borders only: an
-  emerald `STRAVA SYNCED` badge, a route name/distance/elevation/gradient line ("Sa Calobra —
-  Coll dels Reis", the segment more recognizable to Mallorca cyclists than the earlier full
-  "Puig Major & Sa Calobra" loop), a `divide-x` 3-column telemetry grid (Potencia NP /
-  Glucógeno / Sudor), and a left-accent-bordered (`border-l-2 border-l-[#D9532F]`) "Pauta de
-  ingesta recomendada" block. The date pill (top-right of the card) is the one genuinely live
-  value on the page — `new Date().toLocaleDateString("es-ES", { day: "numeric", month:
-  "short" }).toUpperCase()`, computed at request time since `LoginPage` is already a
-  `dynamic = "force-dynamic"` Server Component — replacing an earlier hardcoded date string
-  that would otherwise read as stale the day after it was written. The one deliberate icon
-  exception on the whole page is the Strava icomark on the CTA button
-  (`components/strava-login-button.tsx`, unchanged — still a solid `bg-neutral-900`/
-  `hover:bg-black` button with `StravaMark` at its default corporate-orange fill) — Strava's
-  API Agreement requires it for brand identification (see "Strava API compliance" below).
-  The header spec line is now a single sober line with mid-dot separators — `RATIO 1:0.8 •
-  METEO EN VIVO • MEZCLA CASERA` (`headerPills.join("  •  ")`) — replacing a brief prior
-  iteration of squared, individually-numbered `01 / ... `/`02 / ...` badges, which itself had
-  replaced the original plain `rounded-full` pill-tag row; numbering was dropped once the
-  brief called for one continuous technical spec line instead of discrete tags. Every figure
-  in the card besides the date is static/illustrative, not live data, so it needs no network
-  round-trip or Strava connection — appropriate for a page every logged-out visitor hits.
+- **Root**: `grid grid-cols-1 lg:grid-cols-2 min-h-dvh bg-neutral-950 lg:bg-[#FDFCF9]` — a
+  real CSS grid, one column on mobile (where `BackgroundMedia` is pulled out of flow via
+  `fixed`, so the content column is the only element actually participating in the grid),
+  two equal columns at `lg:`. The root's own `bg-neutral-950` is a dark fallback scoped to
+  this one page (not a change to `app/layout.tsx`'s shared `<body>`, which every other route
+  still relies on for its cream `bg-background` — see below for why that shared file was
+  deliberately left alone) — whatever briefly shows at the edges during an iOS Safari
+  elastic-overscroll bounce, or in the instant before the video paints, is near-black rather
+  than a cream flash.
+- **`BackgroundMedia`** — `fixed inset-0 h-dvh min-h-screen` on mobile (out of grid flow
+  entirely, full-bleed behind everything), `lg:relative lg:h-full` at `lg:` (a normal grid
+  column, taking the grid's first implicit track). The video itself is
+  `absolute inset-0 h-full w-full object-cover opacity-90` at **every** breakpoint — no
+  `lg:object-contain` letterboxing (a prior pass's approach, which avoided cropping the 9:16
+  source clip but left visible dark bars down the sides of the desktop column); the current
+  brief explicitly prioritizes an edge-to-edge fill with zero visible bars over showing the
+  full uncropped frame. `fixed` rather than `absolute` on mobile, and `lg:relative` rather
+  than `lg:static` at `lg:`, are both deliberate holdovers from earlier passes: `fixed`
+  anchors against the true viewport rather than a containing block that doesn't reliably
+  track iOS Safari's toolbar collapse/expand animation (see "Root-level scroll lock" below
+  for the same underlying bug class), and `lg:relative` makes this wrapper the containing
+  block for the `bg-black/20` contrast overlay's `absolute inset-0`, keeping that tint
+  scoped to the video column instead of resolving against the grid root and bleeding across
+  the whole split screen.
+- **Content column** — `flex flex-col justify-between`, two direct children (a top group:
+  brand mark, slogan, spec line, the telemetry card, the conditional error banner; a bottom
+  group: the Strava CTA and the privacy footnote) so `justify-between` reads as "hero
+  content pinned top, CTA pinned bottom" rather than evenly gapping every individual element
+  — a flat list of ~7 children under `justify-between` would space them apart with equal
+  (and visually arbitrary) gaps regardless of how tightly related they are. At `lg:` the
+  column is a solid `lg:bg-[#FDFCF9]` panel (the split screen's right half, no border, no
+  shadow, no rounded corners — content sits directly on the panel's own background). On
+  mobile it's `bg-white/60` with no `backdrop-blur`, sitting directly over the fixed video —
+  this opacity was tuned live against the real clip, not guessed: `/85` fully fogged the
+  video out (read as a flat gray page with no motion visible at all); `/45` let the video
+  through clearly but left the small spec line under-contrast at 320px, where it wraps onto
+  a busier stretch of frame; `/60` is the middle ground, verified via screenshot at
+  320/390px — the clip stays clearly recognizable while text stays legible. No
+  `backdrop-blur` at any opacity tested — blurring the video underneath consistently read as
+  "foggy," not "PNS."
+- **Brand mark** — plain text, `block font-mono text-xs sm:text-sm font-bold
+  tracking-[0.3em] uppercase text-neutral-900`, no icon, no pill, no border, no background
+  of its own — it relies entirely on the content column's own background (the mobile
+  translucent layer or the desktop cream panel) for contrast, rather than carrying its own
+  chip. This is the first genuinely "plain text" version to survive — two earlier passes
+  each added their own containing chip (first an `absolute` top-left translucent chip over
+  the raw video, then a `fixed` full-width top-center masthead pill) specifically because
+  `AppLogo`'s SVG fills are hardcoded, not `currentColor` (see `components/app-logo.tsx`'s
+  own doc comment) — those chips existed to guarantee contrast when the mark could
+  potentially sit directly over raw, unpredictable video content. The current layout no
+  longer needs that: the mark always sits inside the content column, which always has its
+  own background (translucent or solid) behind it, so a chip of its own became redundant
+  once that was true, and the icon was dropped too (plain text is all the current brief
+  actually asks for).
+- **`DashboardPreviewCard`** (the "Tarjeta Técnica," `rounded-md border border-neutral-300/80`
+  — this is the one deliberately structured/bordered element on the page, not a stray
+  regression of the "no cards" rule above; the brief calls it out explicitly as the single
+  exception) stays strictly 100% typographic otherwise — no icons, no emoji, not even a
+  colored-dot "synced" indicator. An emerald `STRAVA SYNCED` badge, a route name/distance/
+  elevation/gradient line ("Sa Calobra — Coll dels Reis"), a `divide-x` 3-column telemetry
+  grid (Potencia NP / Glucógeno / Sudor), and a left-accent-bordered
+  (`border-l-2 border-l-[#D9532F]`) "Pauta de ingesta recomendada" block. The date pill
+  reads a literal `"HOY · 27°C"` — a brief prior iteration computed a real
+  `toLocaleDateString` value here, reverted once the brief asked specifically for the
+  relative "HOY" label, which needs no server-side computation to stay accurate (unlike an
+  actual formatted date, it never goes stale). The one deliberate icon exception on the
+  whole page is the Strava icomark on the CTA button (`components/strava-login-button.tsx`
+  — its own className was widened from a `max-w-70`-capped pill to a plain `w-full` button,
+  since there's no longer an outer card constraining the content column's width) — Strava's
+  API Agreement requires the icomark for brand identification (see "Strava API compliance"
+  below). The header spec line is one sober line with mid-dot separators —
+  `RATIO 1:0.8 • METEO EN VIVO • MEZCLA CASERA` (`headerPills.join(" • ")`) — every prior
+  badge/pill treatment (a plain `rounded-full` pill row, then squared numbered
+  `01 / .../02 / ...` tags) was dropped once the brief called for one continuous technical
+  line instead of discrete tags. Every figure in the card is static/illustrative, not live
+  data, so it needs no network round-trip or Strava connection — appropriate for a page
+  every logged-out visitor hits.
+- **`app/layout.tsx` deliberately untouched.** The brief also asked for the shared root
+  layout's background to go dark, aimed at the same iOS Safari white-strip class of bug —
+  not implemented, and deliberately so: `app/layout.tsx` wraps every route in the app, and
+  its `<body>` currently has no explicit background of its own beyond `bg-background`
+  (cream), which is what every other page's own viewport-bounce color already relies on.
+  Setting `<body>` to `bg-neutral-950` globally would flip that fallback to near-black on
+  every authenticated route too (Dashboard, Perfil, Estadísticas, Historial), not just this
+  one page — a large, highly visible regression against this app's own extensively
+  documented cream design-system baseline, for a bug that's specific to this one page's
+  full-bleed video. The fix stays scoped to `/login`'s own root div (`bg-neutral-950`) plus
+  the proven `fixed`/`h-dvh`/`min-h-screen` video-wrapper technique above.
 
 **`components/auth-page-shell.tsx`**'s `AuthPageShell` (the top-bar/hero/bottom-bar frame,
 `h-dvh overflow-hidden` zero-scroll lock) is now used by **`/auth/callback` only** —
