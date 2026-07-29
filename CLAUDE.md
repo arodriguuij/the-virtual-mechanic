@@ -193,7 +193,7 @@ version (a single `bg-[#FDFCF9]` band with a centered hero and thin hairline div
 image at all) once the brief shifted toward a media-forward look:
 
 - **Mobile (below `lg:`)** — `BackgroundMedia` renders full-bleed behind everything
-  (`absolute inset-0`), and the actual content sits in a single floating card (`bg-white/95
+  (`fixed inset-0`), and the actual content sits in a single floating card (`bg-white/95
   backdrop-blur-md border border-neutral-200/80 rounded-xl shadow-2xl`) centered over it.
   The brand mark is a small translucent chip (`bg-white/90 backdrop-blur-sm rounded-full`,
   top-left, `absolute` so it floats over the image) rather than a boxed header band — using
@@ -201,12 +201,11 @@ image at all) once the brief shifted toward a media-forward look:
   are hardcoded (not `currentColor`; see `components/app-logo.tsx`'s own doc comment), so the
   white chip behind it is what actually guarantees contrast regardless of what's behind it.
 - **Desktop (`lg:` and up)** — a real 50/50 split: `BackgroundMedia` becomes a normal flex
-  child (`lg:static lg:h-full lg:w-1/2`) instead of an absolutely-positioned full-bleed
-  layer, and the content column sits beside it (`lg:w-1/2 lg:bg-[#FDFCF9]`) with the outer
-  floating-card chrome stripped off (`lg:border-0 lg:bg-transparent lg:shadow-none
-  lg:backdrop-blur-none`) — on desktop the column's own solid cream background already
-  provides the contrast a floating card exists for on mobile, so keeping both would be
-  double chrome.
+  child (`lg:static lg:h-full lg:w-1/2`) instead of a full-bleed fixed layer, and the content
+  column sits beside it (`lg:w-1/2 lg:bg-[#FDFCF9]`) with the outer floating-card chrome
+  stripped off (`lg:border-0 lg:bg-transparent lg:shadow-none lg:backdrop-blur-none`) — on
+  desktop the column's own solid cream background already provides the contrast a floating
+  card exists for on mobile, so keeping both would be double chrome.
 - **`BackgroundMedia`** renders the real `public/login-bg.mp4` loop (a cycling/mountain-road
   clip the user supplied) via a plain `<video autoPlay loop muted playsInline>` —
   `autoPlay`/`muted`/`playsInline` all have to be present together for mobile Safari/Chrome
@@ -216,17 +215,34 @@ image at all) once the brief shifted toward a media-forward look:
   blurring the overlay too would compound with that instead of adding anything. An earlier
   version of this component was a moody dark-to-terracotta CSS gradient standing in for the
   real video, built while no real asset existed yet and no stock-media/image-generation
-  access was available in that session — replaced outright once the real clip arrived,
-  same wrapper (`absolute inset-0` mobile / `lg:static lg:h-full lg:w-1/2` desktop), just
-  the inner `<div>` swapped for a real `<video>`.
-- **Scroll behavior changed too**: the content column is `overflow-y-auto` (not
-  `overflow-hidden`) — if the floating card is ever taller than the viewport (verified: only
-  at 320×568, iPhone SE 1st gen, outside this app's documented 360×640 baseline), the
-  athlete can scroll *within* that column to see the rest, rather than content being
-  silently clipped the way `AuthPageShell`'s old `overflow-hidden` root would have. Verified
-  live with zero internal scroll needed at 360×640 through 1280×900, with and without the
-  `strava_error` banner showing; the outer page itself never scrolls (`h-dvh overflow-
-  hidden` on the root), only the content column can, and only when genuinely necessary.
+  access was available in that session — replaced outright once the real clip arrived.
+- **`fixed`, not `absolute`, for the mobile background wrapper.** The very first version of
+  `BackgroundMedia` used `absolute inset-0`, which sizes against its *containing block* —
+  on a real iOS Safari device this left a black strip at the very bottom once the browser's
+  own floating toolbar settled into its collapsed state, since that containing-block
+  measurement doesn't reliably keep pace with the toolbar's own collapse/expand animation.
+  Switched to `fixed inset-0 h-dvh min-h-screen` (mobile only; `lg:static` reverts to a
+  normal in-flow flex column on desktop) — `fixed` anchors directly to the true viewport
+  instead, the same mechanism `AuthPageShell`'s own `h-dvh` root already relies on for this
+  exact class of iOS-chrome-resize bug (see "Root-level scroll lock" below). `min-h-screen`
+  is a harmless belt-and-suspenders floor: even if it computes taller than the current
+  visual viewport, a `fixed`+`overflow-hidden` box just clips to whatever's currently
+  visible rather than affecting page scroll. This class of bug is specific to a real
+  device's dynamic toolbar animation and isn't reproducible in headless Chromium, so this
+  was verified via the well-established `fixed`-vs-`absolute` fix pattern plus a static
+  `getBoundingClientRect()` edge-to-edge check (`video.bottom === window.innerHeight` at
+  every tested width) rather than an actual toolbar-collapse simulation.
+- **Content column scroll behavior**: `overflow-y-auto` (not `overflow-hidden`), now sized
+  `min-h-dvh` rather than a hard `h-full` cap (a leftover from when it had to compete for
+  height against the background as an `absolute` sibling in the same flow — no longer
+  necessary now that the background is `fixed` and fully out of flow) — if the floating card
+  is ever taller than the viewport, the athlete can scroll *within* that column to see the
+  rest, rather than content being silently clipped the way `AuthPageShell`'s old
+  `overflow-hidden` root would have. Verified live with zero internal scroll needed at
+  360×640 through 1280×900, with and without the `strava_error` banner showing; the outer
+  page itself never scrolls, only the content column can, and only when genuinely
+  necessary — in fact switching to `min-h-dvh` incidentally resolved the one previously-
+  known edge case too (320×568 no longer needs any scrolling at all, page or column).
 - **`stravaLoginErrorMessages`** (`missing_code`, `token_exchange_failed`,
   `missing_athlete_id`, `auth_bridge_failed`, `save_failed`) is unchanged — still distinct
   from `app/(app)/page.tsx`'s own `stravaErrorMessages`, which only covers errors from the

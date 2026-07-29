@@ -32,16 +32,32 @@ const telemetryStats = [
  * floating card itself (mobile) already has its own `backdrop-blur-md`, so
  * this overlay stays a plain tint rather than also blurring, which would
  * double up with the card's own blur right behind it.
+ *
+ * `fixed` (not `absolute`) + explicit `h-dvh`/`min-h-screen` on mobile —
+ * an `absolute inset-0` wrapper sizes against its *containing block*, and on
+ * iOS Safari that measurement doesn't reliably keep up with the toolbar's
+ * own collapse/expand animation, leaving a black strip at the very bottom
+ * once the toolbar settled into its collapsed state (reported live on a
+ * real device). `fixed` positions against the true viewport directly
+ * instead, which is what `AuthPageShell`'s own `h-dvh` root already relies
+ * on for the exact same class of iOS-Safari-chrome-resize bug (see
+ * "Root-level scroll lock" in CLAUDE.md) — `min-h-screen` is added as a
+ * belt-and-suspenders floor under `h-dvh` and is harmless on a `fixed`
+ * element even if it computes taller than the current visual viewport,
+ * since a `fixed`, `overflow-hidden` box simply clips to whatever's
+ * currently visible rather than affecting page scroll. At `lg:` this
+ * reverts to a normal in-flow flex column (`lg:static`), matching the
+ * desktop split-layout sizing that already worked correctly.
  */
 function BackgroundMedia() {
   return (
-    <div className="absolute inset-0 lg:static lg:h-full lg:w-1/2 lg:shrink-0">
+    <div className="fixed inset-0 z-0 h-dvh min-h-screen w-full overflow-hidden lg:static lg:z-auto lg:h-full lg:min-h-0 lg:w-1/2 lg:shrink-0">
       <video
         autoPlay
         loop
         muted
         playsInline
-        className="h-full w-full object-cover"
+        className="absolute inset-0 h-full w-full object-cover"
         aria-hidden="true"
       >
         <source src="/login-bg.mp4" type="video/mp4" />
@@ -142,7 +158,7 @@ export default async function LoginPage({
         </div>
       </div>
 
-      <div className="relative z-10 flex h-full w-full items-center justify-center overflow-y-auto px-4 py-6 lg:w-1/2 lg:shrink-0 lg:bg-[#FDFCF9] lg:px-10">
+      <div className="relative z-10 flex min-h-dvh w-full flex-col items-center justify-center overflow-y-auto px-4 py-6 lg:h-full lg:min-h-0 lg:w-1/2 lg:shrink-0 lg:bg-[#FDFCF9] lg:px-10">
         <div className="my-auto w-full max-w-md rounded-xl border border-neutral-200/80 bg-white/95 p-5 text-center shadow-2xl backdrop-blur-md lg:max-w-sm lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none">
           <h1 className="mb-1 font-mono text-xl font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
             Nutrición de precisión para ciclistas
