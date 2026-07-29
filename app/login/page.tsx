@@ -51,18 +51,42 @@ const telemetryStats = [
  */
 function BackgroundMedia() {
   return (
-    <div className="fixed inset-0 z-0 h-dvh min-h-screen w-full overflow-hidden lg:static lg:z-auto lg:h-full lg:min-h-0 lg:w-1/2 lg:shrink-0">
+    <div className="fixed inset-0 z-0 h-dvh min-h-screen w-full overflow-hidden bg-neutral-900 lg:static lg:z-auto lg:h-full lg:min-h-0 lg:w-1/2 lg:shrink-0">
       <video
         autoPlay
         loop
         muted
         playsInline
+        preload="auto"
         className="absolute inset-0 h-full w-full object-cover"
         aria-hidden="true"
       >
         <source src="/login-bg.mp4" type="video/mp4" />
       </video>
       <div className="absolute inset-0 bg-black/20" aria-hidden="true" />
+    </div>
+  );
+}
+
+/**
+ * Centered "MOTOR METABÓLICO" wordmark — PNS's own header treatment: plain
+ * centered text, no pill/chip/border/background of its own. Rendered as the
+ * first element inside the floating card (not floating loose over the video)
+ * specifically for contrast: `AppLogo`'s fills are hardcoded, not
+ * `currentColor` (see its own doc comment), and the wordmark's `text-neutral-900`
+ * would be unreadable directly over the dark video on mobile. The card is
+ * `bg-white/95` on mobile and sits on the cream `lg:bg-[#FDFCF9]` column on
+ * desktop, so this reads as the mobile card's own header and the desktop
+ * panel's top-center mark in one shared markup path — no separate mobile/
+ * desktop branch needed.
+ */
+function BrandMark() {
+  return (
+    <div className="flex items-center justify-center gap-2 py-4">
+      <AppLogo className="size-4 shrink-0" />
+      <span className="text-center font-mono text-sm font-bold tracking-[0.3em] text-neutral-900 uppercase sm:text-base">
+        Motor Metabólico
+      </span>
     </div>
   );
 }
@@ -84,7 +108,7 @@ function BackgroundMedia() {
  */
 function DashboardPreviewCard() {
   return (
-    <div className="my-2 rounded-lg border border-neutral-300/90 bg-white p-3.5 text-left shadow-none sm:p-4">
+    <div className="my-2 rounded-md border border-neutral-300/90 bg-white p-3.5 text-left shadow-none sm:p-4">
       <div className="flex items-center justify-between gap-2">
         <span className="rounded border border-emerald-200/80 bg-emerald-50 px-2 py-0.5 font-mono text-[9px] font-bold tracking-wider text-emerald-800 uppercase">
           Strava Synced
@@ -145,32 +169,21 @@ export default async function LoginPage({
     <div className="relative h-dvh w-full overflow-hidden lg:flex lg:flex-row">
       <BackgroundMedia />
 
-      {/* Brand mark — a translucent white chip rather than plain text/logo
-          directly on the image, since `AppLogo`'s fills are fixed (not
-          `currentColor`) and would otherwise be unreadable against a dark
-          photo/gradient background. */}
-      <div className="absolute top-4 left-4 z-20 lg:top-8 lg:left-8">
-        <div className="inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur-sm">
-          <AppLogo className="size-4 shrink-0" />
-          <span className="font-mono text-[11px] font-bold tracking-wider text-neutral-900 uppercase">
-            Motor Metabólico
-          </span>
-        </div>
-      </div>
-
       <div className="relative z-10 flex min-h-dvh w-full flex-col items-center justify-center overflow-y-auto px-4 py-6 lg:h-full lg:min-h-0 lg:w-1/2 lg:shrink-0 lg:bg-[#FDFCF9] lg:px-10">
         <div className="my-auto w-full max-w-md rounded-xl border border-neutral-200/80 bg-white/95 p-5 text-center shadow-2xl backdrop-blur-md lg:max-w-sm lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none">
+          <BrandMark />
+
           <h1 className="mb-1 font-mono text-xl font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
             Nutrición de precisión para ciclistas
           </h1>
 
           <div className="mb-3 flex flex-wrap justify-center gap-1.5">
-            {headerPills.map((pill) => (
+            {headerPills.map((pill, i) => (
               <span
                 key={pill}
-                className="rounded-full border border-neutral-300/80 px-2.5 py-1 font-mono text-[10px] text-neutral-600 uppercase tracking-wide sm:text-xs"
+                className="rounded-sm border border-neutral-300/80 bg-neutral-100/80 px-2.5 py-1 font-mono text-[10px] font-bold text-neutral-700 uppercase tracking-wide"
               >
-                {pill}
+                {String(i + 1).padStart(2, "0")} / {pill}
               </span>
             ))}
           </div>

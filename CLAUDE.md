@@ -195,11 +195,17 @@ image at all) once the brief shifted toward a media-forward look:
 - **Mobile (below `lg:`)** — `BackgroundMedia` renders full-bleed behind everything
   (`fixed inset-0`), and the actual content sits in a single floating card (`bg-white/95
   backdrop-blur-md border border-neutral-200/80 rounded-xl shadow-2xl`) centered over it.
-  The brand mark is a small translucent chip (`bg-white/90 backdrop-blur-sm rounded-full`,
-  top-left, `absolute` so it floats over the image) rather than a boxed header band — using
-  `AppLogo` directly here would be unreadable against a dark photo/gradient, since its fills
-  are hardcoded (not `currentColor`; see `components/app-logo.tsx`'s own doc comment), so the
-  white chip behind it is what actually guarantees contrast regardless of what's behind it.
+- **`BrandMark`** — the "MOTOR METABÓLICO" wordmark (`AppLogo` at `size-4` plus
+  letter-spaced `tracking-[0.3em]` uppercase text) is PNS's own header treatment: plain
+  centered text, no pill/chip/border/background of its own, replacing an earlier translucent
+  `bg-white/90 backdrop-blur-sm rounded-full` chip pinned `absolute` top-left over the raw
+  video. Rendered as the *first child inside the floating card* rather than floating loose
+  over the image — `AppLogo`'s fills are hardcoded, not `currentColor` (see
+  `components/app-logo.tsx`'s own doc comment), so the wordmark's `text-neutral-900` would be
+  unreadable directly over the dark video; the card's own `bg-white/95` (mobile) /
+  `lg:bg-[#FDFCF9]` column background (desktop) is what guarantees contrast now, letting one
+  shared markup path read as both "mobile card header" and "desktop panel top-center mark"
+  with no separate mobile/desktop branch.
 - **Desktop (`lg:` and up)** — a real 50/50 split: `BackgroundMedia` becomes a normal flex
   child (`lg:static lg:h-full lg:w-1/2`) instead of a full-bleed fixed layer, and the content
   column sits beside it (`lg:w-1/2 lg:bg-[#FDFCF9]`) with the outer floating-card chrome
@@ -207,15 +213,18 @@ image at all) once the brief shifted toward a media-forward look:
   desktop the column's own solid cream background already provides the contrast a floating
   card exists for on mobile, so keeping both would be double chrome.
 - **`BackgroundMedia`** renders the real `public/login-bg.mp4` loop (a cycling/mountain-road
-  clip the user supplied) via a plain `<video autoPlay loop muted playsInline>` —
-  `autoPlay`/`muted`/`playsInline` all have to be present together for mobile Safari/Chrome
-  to actually allow autoplay at all; missing any one of them silently blocks it. A flat
-  `bg-black/20` tint sits on top for contrast rather than a blurred overlay — the floating
-  card (mobile) already has its own `backdrop-blur-md` immediately in front of the video, so
-  blurring the overlay too would compound with that instead of adding anything. An earlier
-  version of this component was a moody dark-to-terracotta CSS gradient standing in for the
-  real video, built while no real asset existed yet and no stock-media/image-generation
-  access was available in that session — replaced outright once the real clip arrived.
+  clip the user supplied) via a plain `<video autoPlay loop muted playsInline preload="auto">`
+  — `autoPlay`/`muted`/`playsInline` all have to be present together for mobile Safari/Chrome
+  to actually allow autoplay at all; missing any one of them silently blocks it. `preload="auto"`
+  requests the video eagerly rather than lazily, and the wrapper carries `bg-neutral-900`
+  underneath it — together these avoid a flash of the page's own light background showing
+  through before the first frame decodes. A flat `bg-black/20` tint sits on top for contrast
+  rather than a blurred overlay — the floating card (mobile) already has its own
+  `backdrop-blur-md` immediately in front of the video, so blurring the overlay too would
+  compound with that instead of adding anything. An earlier version of this component was a
+  moody dark-to-terracotta CSS gradient standing in for the real video, built while no real
+  asset existed yet and no stock-media/image-generation access was available in that session —
+  replaced outright once the real clip arrived.
 - **`fixed`, not `absolute`, for the mobile background wrapper.** The very first version of
   `BackgroundMedia` used `absolute inset-0`, which sizes against its *containing block* —
   on a real iOS Safari device this left a black strip at the very bottom once the browser's
@@ -248,21 +257,24 @@ image at all) once the brief shifted toward a media-forward look:
   from `app/(app)/page.tsx`'s own `stravaErrorMessages`, which only covers errors from the
   already-logged-in "Sincronizar rutas" action, since a logged-out visitor can never reach
   that page to see them.
-- **`DashboardPreviewCard`** (the "Tarjeta Técnica" mockup inside the floating card) stays
-  strictly 100% typographic — no icons, no emoji, not even a colored-dot "synced"
-  indicator — every visual cue is text weight/color/borders only: an emerald `STRAVA
-  SYNCED` badge, a realistic route name/distance/elevation/date line, a `divide-x`
-  3-column telemetry grid (Potencia NP / Glucógeno / Sudor), and a left-accent-bordered
-  (`border-l-2 border-l-[#D9532F]`) "Pauta de ingesta recomendada" block. The one
+- **`DashboardPreviewCard`** (the "Tarjeta Técnica" mockup inside the floating card, corners
+  `rounded-md` — the straighter/minimal PNS corner treatment, not the softer `rounded-lg` used
+  elsewhere on this page) stays strictly 100% typographic — no icons, no emoji, not even a
+  colored-dot "synced" indicator — every visual cue is text weight/color/borders only: an
+  emerald `STRAVA SYNCED` badge, a realistic route name/distance/elevation/date line, a
+  `divide-x` 3-column telemetry grid (Potencia NP / Glucógeno / Sudor), and a left-accent-
+  bordered (`border-l-2 border-l-[#D9532F]`) "Pauta de ingesta recomendada" block. The one
   deliberate exception on the whole page is the Strava icomark on the CTA button
   (`components/strava-login-button.tsx`, unchanged — still a solid `bg-neutral-900`/
   `hover:bg-black` button with `StravaMark` at its default corporate-orange fill) — Strava's
   API Agreement requires it for brand identification (see "Strava API compliance" below),
-  so that single icon stays even though the card and header pills are text-only. The old
-  bullet-point benefits checklist is three horizontal pill tags (`Ratio 1:0.8` / `Meteo en
-  vivo` / `Mezcla casera`, plain bordered `rounded-full` text, no icons). Every figure in
-  the card is static/illustrative, not live data, so it needs no network round-trip or
-  Strava connection — appropriate for a page every logged-out visitor hits.
+  so that single icon stays even though the card and header pills are text-only. The header
+  pills are now PNS-style numbered spec badges (`01 / RATIO 1:0.8`, `02 / METEO EN VIVO`,
+  `03 / MEZCLA CASERA` — squared `rounded-sm border border-neutral-300/80 bg-neutral-100/80`
+  tags, index generated via `String(i + 1).padStart(2, "0")` rather than hardcoded per-pill
+  strings), replacing an earlier plain `rounded-full` pill-tag treatment with no numbering.
+  Every figure in the card is static/illustrative, not live data, so it needs no network
+  round-trip or Strava connection — appropriate for a page every logged-out visitor hits.
 
 **`components/auth-page-shell.tsx`**'s `AuthPageShell` (the top-bar/hero/bottom-bar frame,
 `h-dvh overflow-hidden` zero-scroll lock) is now used by **`/auth/callback` only** —
