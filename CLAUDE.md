@@ -1887,13 +1887,36 @@ Fixed at every layer:
   profile. **`getIntakeRecommendationNote()`** (`lib/metabolic-engine.ts`) accepts that
   `null` and returns a plain "configura tu nivel de Adaptación Digestiva..." prompt instead
   of silently comparing real intake against a level the athlete never chose.
-- **Deliberately out of scope**: `bottle_count`/`bottle_capacity_ml`/`athlete_type`'s own
-  form defaults (`?? 2`/`?? 750`/`?? "balanced"`) — these are real bike-equipment/phenotype
-  fields with genuine DB-level defaults, not fabricated physiological calibration data, and
-  weren't part of what was reported. `scripts/seed.ts`'s fixture profile (FTP 250W, 72kg,
-  medium sweat rate) is unaffected too — explicitly local dev-only tooling, documented as a
-  "plausible amateur-racer fixture, not this specific user's real numbers," not a runtime
-  code path a real athlete could ever hit.
+- **"Fenotipo metabólico" cards, follow-up pass** — a first pass left these three cards'
+  own `defaultChecked={(profile?.athlete_type ?? "balanced") === type}` untouched, reasoned
+  as real equipment/phenotype data with a genuine DB-level default rather than fabricated
+  physiological calibration. Revisited: even with a real DB default, silently pre-selecting
+  "Balanced" for an athlete who has no profile row at all yet still reads as "already
+  configured" when it isn't — now a plain `defaultChecked={profile?.athlete_type === type}`,
+  same treatment as the sweat-rate cards. `athlete_type` is `NOT NULL` with no way to
+  literally store "unset," so — like sweat rate and gut training level — submitting the
+  form with no phenotype card picked simply omits the field from `FormData`, which
+  `/api/athlete-profile/update`'s existing validation already redirects as
+  `invalid_athlete_type`. `bottle_count`/`bottle_capacity_ml` remain untouched — genuine
+  bike-equipment config, not physiological calibration, and still outside what's been
+  reported. `scripts/seed.ts`'s fixture profile is unaffected too — local dev-only tooling,
+  not a runtime code path a real athlete could ever hit.
+
+**FTP-gated "Al llegar" tab.** A missing FTP used to let `PostRideAnalysis` mount anyway,
+auto-analyze on load, and surface the API's generic fetch-failure copy ("No se pudo
+analizar la ruta.") — technically honest (no fabricated result), but an opaque dead end
+for what's actually a single, fixable cause. Every glycogen-debt tier in `POST
+/api/post-ride/analysis`, even the ones that don't need a power meter (heart-rate,
+self-reported RPE), still needs *some* `athlete_profiles` row to read weight/sweat-rate/
+athlete-type from — and since that row only exists once the athlete has submitted the real
+form (see above), a missing FTP here always means a missing profile entirely.
+`PostRideAnalysisSection` (`app/(app)/page.tsx`) now checks `!profile?.ftp` (reusing the
+same `getAthleteProfile()` call `isProfileComplete` already needed, no extra query) and
+renders **`FtpRequiredNotice`** (`components/ftp-required-notice.tsx`) instead of
+`PostRideAnalysis` entirely when true — a `Lock` icon (not a literal 🔒, same convention as
+`ProfileRequiredBanner`'s button), "Análisis restringido," a one-line explanation, and a
+"Configurar FTP →" button to `/perfil`. Same shape as `FuelingPlannerSection`'s existing
+`!profile` early-return card, just for the Post-Ride tab specifically.
 
 ### Athlete profile
 

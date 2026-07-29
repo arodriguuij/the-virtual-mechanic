@@ -134,7 +134,7 @@ async function PhysiologicalProfileCard() {
                         type="radio"
                         name="athlete_type"
                         value={type}
-                        defaultChecked={(profile?.athlete_type ?? "balanced") === type}
+                        defaultChecked={profile?.athlete_type === type}
                         className="size-3.5 cursor-pointer accent-terracotta"
                       />
                       <span className="text-sm font-medium text-neutral-900">

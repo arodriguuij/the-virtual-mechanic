@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FtpRequiredNotice } from "@/components/ftp-required-notice";
 import { FuelingPlanner } from "@/components/fueling-planner";
 import { PostRideAnalysis } from "@/components/post-ride-analysis";
 import { ProfileCheckBanner } from "@/components/profile-check-banner";
@@ -159,6 +160,9 @@ function FuelingPlannerSkeleton() {
 
 async function PostRideAnalysisSection() {
   const [activities, profile] = await Promise.all([getRecentActivities(8), getAthleteProfile()]);
+  if (!profile?.ftp) {
+    return <FtpRequiredNotice />;
+  }
   return (
     <PostRideAnalysis
       activities={activities.map((a) => ({
