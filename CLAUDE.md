@@ -207,15 +207,18 @@ image at all) once the brief shifted toward a media-forward look:
   lg:backdrop-blur-none`) — on desktop the column's own solid cream background already
   provides the contrast a floating card exists for on mobile, so keeping both would be
   double chrome.
-- **`BackgroundMedia`** is a moody dark-to-terracotta gradient (`radial-gradient` glow +
-  `linear-gradient` base, built entirely from this app's own palette), standing in for a
-  real cycling photo/video — there is no way for a coding session to source or generate an
-  actual high-resolution photo/video asset (no stock-media access, no image generation, and
-  fetching a random image off the internet would carry unknown licensing), so this is a
-  deliberate, honest placeholder rather than a fabricated "real" photo. Swapping in a real
-  `<img>`/`<video>` later is a one-line change — replace the gradient `<div>` with the real
-  media element inside the same `absolute inset-0` (mobile) / `lg:static lg:h-full lg:w-1/2`
-  (desktop) wrapper.
+- **`BackgroundMedia`** renders the real `public/login-bg.mp4` loop (a cycling/mountain-road
+  clip the user supplied) via a plain `<video autoPlay loop muted playsInline>` —
+  `autoPlay`/`muted`/`playsInline` all have to be present together for mobile Safari/Chrome
+  to actually allow autoplay at all; missing any one of them silently blocks it. A flat
+  `bg-black/20` tint sits on top for contrast rather than a blurred overlay — the floating
+  card (mobile) already has its own `backdrop-blur-md` immediately in front of the video, so
+  blurring the overlay too would compound with that instead of adding anything. An earlier
+  version of this component was a moody dark-to-terracotta CSS gradient standing in for the
+  real video, built while no real asset existed yet and no stock-media/image-generation
+  access was available in that session — replaced outright once the real clip arrived,
+  same wrapper (`absolute inset-0` mobile / `lg:static lg:h-full lg:w-1/2` desktop), just
+  the inner `<div>` swapped for a real `<video>`.
 - **Scroll behavior changed too**: the content column is `overflow-y-auto` (not
   `overflow-hidden`) — if the floating card is ever taller than the viewport (verified: only
   at 320×568, iPhone SE 1st gen, outside this app's documented 360×640 baseline), the

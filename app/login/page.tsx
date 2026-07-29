@@ -24,28 +24,29 @@ const telemetryStats = [
 ];
 
 /**
- * Full-bleed background — a moody dawn-ride gradient (dark neutral fading to
- * a warm terracotta glow) standing in for the real cycling photo/video this
- * layout is built for. There's no way for this session to source or
- * generate an actual high-resolution photo/video asset (no stock-media
- * access, no image generation), so rather than fabricate one or reach for a
- * random internet image of unknown license, this is a deliberate, tasteful
- * placeholder built entirely from this app's own color tokens — swapping in
- * a real `<img>`/`<video>` here later is a one-line change (replace this
- * `<div>` with the real media element, same `absolute inset-0 object-cover`
- * sizing already applied to its wrapper).
+ * Full-bleed background — the real `public/login-bg.mp4` loop (replacing an
+ * earlier CSS-gradient placeholder built while no real asset existed yet).
+ * `autoPlay`/`muted`/`playsInline` together are what actually let this
+ * autoplay on mobile Safari/Chrome — any one missing and the browser blocks
+ * autoplay outright. A flat `bg-black/20` tint sits on top for contrast; the
+ * floating card itself (mobile) already has its own `backdrop-blur-md`, so
+ * this overlay stays a plain tint rather than also blurring, which would
+ * double up with the card's own blur right behind it.
  */
 function BackgroundMedia() {
   return (
     <div className="absolute inset-0 lg:static lg:h-full lg:w-1/2 lg:shrink-0">
-      <div
-        className="h-full w-full bg-[radial-gradient(circle_at_30%_25%,rgba(253,90,8,0.28),transparent_55%),linear-gradient(140deg,#161514_0%,#2a221d_45%,#3d2a1f_100%)]"
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="h-full w-full object-cover"
         aria-hidden="true"
-      />
-      <div
-        className="absolute inset-0 bg-linear-to-t from-black/55 via-black/10 to-black/25"
-        aria-hidden="true"
-      />
+      >
+        <source src="/login-bg.mp4" type="video/mp4" />
+      </video>
+      <div className="absolute inset-0 bg-black/20" aria-hidden="true" />
     </div>
   );
 }
