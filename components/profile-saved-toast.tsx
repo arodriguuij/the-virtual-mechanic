@@ -1,8 +1,9 @@
 "use client";
 
-import { Check } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+
+import { Toast } from "@/components/toast";
 
 /**
  * Confirms a successful `/api/athlete-profile/update` save. The route's
@@ -13,6 +14,13 @@ import { useEffect, useState } from "react";
  * stays correct if it's ever reused from another page) after a few seconds
  * so a page refresh doesn't keep re-showing a save confirmation for an
  * action that already happened.
+ *
+ * Renders through the shared `Toast` component (`components/toast.tsx`) —
+ * the same fixed bottom-center white pill `SyncForm`'s Strava-sync
+ * confirmation already uses — rather than its own one-off `fixed bottom-6
+ * right-6` box. The two used to look and behave differently despite both
+ * being "the app's toast," which is exactly the kind of drift this shared
+ * component exists to prevent.
  */
 export function ProfileSavedToast() {
   const [visible, setVisible] = useState(true);
@@ -30,9 +38,12 @@ export function ProfileSavedToast() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 border border-status-good/30 bg-status-good/10 px-4 py-3 text-sm text-status-good shadow-sm">
-      <Check className="size-4 shrink-0" />
-      Guardado automáticamente
-    </div>
+    <Toast
+      toast={{
+        kind: "success",
+        title: "Perfil actualizado",
+        message: "Guardado automáticamente",
+      }}
+    />
   );
 }

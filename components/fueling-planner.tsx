@@ -1123,7 +1123,7 @@ export function FuelingPlanner({
         {error && <p className="text-sm text-status-warning">{error}</p>}
 
         {result && (
-          <div ref={resultRef} className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
+          <div ref={resultRef} className="flex scroll-mt-20 flex-col gap-4 border-t border-neutral-200 pt-4">
             {isOfflineCache && (
               <div className="flex items-center gap-1.5 border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-700">
                 <Zap className="size-3.5 shrink-0" />

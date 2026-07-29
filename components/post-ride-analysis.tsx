@@ -2,7 +2,7 @@
 
 import { ChevronDown, Sun, Utensils, Zap } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -209,19 +209,15 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
   const [savingConsumption, setSavingConsumption] = useState(false);
   const [consumptionSaved, setConsumptionSaved] = useState(false);
   const [consumptionError, setConsumptionError] = useState<string | null>(null);
-  const resultRef = useRef<HTMLDivElement>(null);
 
-  // A freshly computed "Deuda de Glucógeno" renders below the fold on most
-  // phones — without this, a fresh analysis appears to do nothing until the
-  // athlete notices they need to scroll down themselves. Skipped on the very
-  // first auto-load below (`result` still `null` at that point anyway), so
-  // opening this tab never yanks the viewport before the athlete has
-  // scrolled to it themselves.
-  useEffect(() => {
-    if (result) {
-      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [result]);
+  // Deliberately no scroll-into-view here (or anywhere else in this
+  // component) — an earlier version nudged the viewport to the fresh result
+  // on every analysis, which made sense back when a manual "Analizar" click
+  // triggered it, but now that the tab auto-loads on mount and "Cambiar
+  // salida" re-analyzes in place, the same effect meant the page jumped
+  // around on its own the moment the tab opened or the athlete picked a
+  // different ride. The result renders in place; the athlete's scroll
+  // position is never touched by data loading.
 
   // Auto-loads the athlete's most recent synced ride the moment this
   // component mounts — "Cambiar salida" (inside the telemetry card below) is
@@ -418,7 +414,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
         )}
 
         {result && (
-          <div ref={resultRef} className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
+          <div className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
             <div className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-surface px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200/60 bg-emerald-50 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-emerald-700 uppercase">

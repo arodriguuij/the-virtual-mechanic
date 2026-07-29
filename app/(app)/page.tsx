@@ -162,7 +162,7 @@ function StravaButtonSkeleton() {
 // via its own toast now, since the sync flow no longer navigates at all.
 export default async function Home() {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 sm:gap-6">
       <header className="flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
         <div className="mr-2 flex min-w-0 flex-col">
           <Suspense fallback={<GreetingSkeleton />}>
@@ -198,7 +198,7 @@ export default async function Home() {
         </TabsList>
 
         <TabsContent value="pre-ride">
-          <div className="flex flex-col gap-10 pt-6">
+          <div className="flex flex-col gap-10 pt-4 sm:pt-6">
             <Suspense fallback={<FuelingPlannerSkeleton />}>
               <FuelingPlannerSection />
             </Suspense>
@@ -206,7 +206,7 @@ export default async function Home() {
         </TabsContent>
 
         <TabsContent value="post-ride">
-          <div className="flex flex-col gap-10 pt-6">
+          <div className="flex flex-col gap-10 pt-4 sm:pt-6">
             <Suspense fallback={<PostRideAnalysisSkeleton />}>
               <PostRideAnalysisSection />
             </Suspense>

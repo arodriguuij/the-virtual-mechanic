@@ -184,40 +184,42 @@ A second, differently-styled copy of this same fallback lives at
 authenticated Dashboard shell needed its own route group and its own nested `loading.tsx`
 rather than reusing this root one as-is.
 
-**Dashboard preview — "Tarjeta Técnica" (`DashboardPreviewCard`).** Between the benefits
-checklist and the Strava button, `/login` shows a real mockup of the app's own visual
+**Dashboard preview — "Tarjeta Técnica" (`DashboardPreviewCard`).** Between the header
+pills and the Strava button, `/login` shows a real mockup of the app's own visual
 language — not an abstract graphic — so a brand-new visitor sees the *shape* of a real
-result before connecting an account. An earlier version was a hand-drawn inline SVG "route
-squiggle" over three loose numbers, hidden below `sm:` for lack of room; replaced outright
-for reading as too abstract/generic to build credibility, and this version is visible at
-every width instead of being mobile-hidden. The card reuses patterns straight from the
-authenticated app rather than inventing new ones: an emerald "Strava Synced" status pill
-(same colored-dot convention as the Post-Ride telemetry card's "Ruta sincronizada..."
-badge), a realistic route name/distance/elevation/date block, a 3-stat
-`bg-[#FDFCF9]` mini-grid (Potencia NP / Glucógeno / Sudoración — the telemetry card's own
-stat-cell pattern), and a terracotta-bordered "Pauta de ingesta recomendada" block (the
-Fueling Planner's own recommendation-highlight styling). Every figure is static/
-illustrative — a plausible NP/glycogen/sweat-rate/carb-target set, not live data — so the
-card needs no network round-trip or Strava connection, appropriate for a page every
-logged-out visitor hits.
+result before connecting an account. Went through two passes: first a hand-drawn inline
+SVG "route squiggle" over three loose numbers (hidden below `sm:` for lack of room,
+replaced for reading as too abstract to build credibility), then a richer card reusing the
+telemetry card's badge/stat-grid pattern and the Fueling Planner's terracotta recommendation
+block — but that version still had a small colored-dot "synced" indicator and icon-styled
+touches, which a later pass removed for a **strictly 100% typographic** card: no icons, no
+emoji, not even the dot — every visual cue is text weight/color/borders only. The one
+deliberate exception on the whole page is the Strava icomark on the CTA button
+(`components/strava-login-button.tsx`) — Strava's API Agreement requires it for brand
+identification (see "Strava API compliance" below), so that single icon stays even though
+the preview card and header pills are text-only. The old bullet-point benefits checklist
+was also replaced with three horizontal pill tags (`Ratio 1:0.8` / `Meteo en vivo` / `Mezcla
+casera`, plain bordered `rounded-full` text, no icons) in a `flex flex-wrap justify-center`
+row. Every figure in the card is static/illustrative — a plausible NP/glycogen/sweat-rate/
+carb-target set, not live data — so it needs no network round-trip or Strava connection,
+appropriate for a page every logged-out visitor hits.
 
 Fitting a card this rich into `AuthPageShell`'s zero-scroll budget (tuned to exactly zero
 vertical slack at 360×640 — see "Root-level scroll lock" below; content that doesn't fit
 isn't scrollable, it's silently clipped by that frame's `overflow-hidden`) took real
-trimming elsewhere on the page, not just compact card sizing: the benefits checklist
-shrank (`my-6`→`my-3`, `space-y-2.5`→`space-y-1.5`, smaller text), the card's own mobile
-margin went to `my-2`, and the `strava_error` banner shrank too (`mb-4 px-4 py-3 text-sm`
-→ `mb-2 px-3 py-2 text-xs` on mobile) once it turned out the error state — banner *and*
-card both present — clipped by a few px even after the checklist/card trims alone.
-Verified live via direct `main.parentElement.scrollHeight` vs. `clientHeight` measurement
-(not `document.documentElement`, which stays pinned to the viewport regardless of internal
-clipping since `AuthPageShell`'s own root div is the actual `overflow-hidden` boundary) —
-zero overflow at 320×568 through 1280×900 without an error banner, and at 360×640 and up
-*with* the error banner showing. The one remaining edge case — 320×568 (iPhone SE 1st
-gen, a device outside this app's documented 360×640 baseline) with the error banner
-showing simultaneously — still clips by ~40px; not chased further since it stacks the
-oldest/smallest supported device with an already-rare state, beyond what "Root-level
-scroll lock" originally committed to.
+trimming elsewhere on the page, not just compact card sizing: the pill row is `my-2`
+compact, the card's own mobile margin is `my-2`, and the `strava_error` banner shrank too
+(`mb-4 px-4 py-3 text-sm` → `mb-2 px-3 py-2 text-xs` on mobile) once it turned out the
+error state — banner *and* card both present — clipped by a few px even after the other
+trims alone. Verified live via direct `main.parentElement.scrollHeight` vs. `clientHeight`
+measurement (not `document.documentElement`, which stays pinned to the viewport regardless
+of internal clipping since `AuthPageShell`'s own root div is the actual `overflow-hidden`
+boundary) — zero overflow at 320×568 through 1280×900 without an error banner, and at
+360×640 and up *with* the error banner showing. The one remaining edge case — 320×568
+(iPhone SE 1st gen, a device outside this app's documented 360×640 baseline) with the
+error banner showing simultaneously — still clips by ~40px; not chased further since it
+stacks the oldest/smallest supported device with an already-rare state, beyond what
+"Root-level scroll lock" originally committed to.
 
 **`app/login/page.tsx`** is the only entry point when `proxy.ts` finds no session: a
 centered screen (value prop + a single "Conectar con Strava" CTA linking to
@@ -1809,20 +1811,33 @@ primary key and Supabase's upsert already handles "create if missing, update if 
 in one call. On success, redirects to `/perfil?profile_saved=1` (same query-param
 convention as `profile_error`/`strava_error`) rather than a bare `/perfil`, which
 `components/profile-saved-toast.tsx` (`"use client"`) reads to render a self-dismissing
-confirmation toast ("✓ Guardado automáticamente") — fixed bottom-right,
-`--status-good` toned, auto-hides after 3s and strips the query param via
-`router.replace(pathname)` (the *current* path via `usePathname()`, not a hardcoded one,
-so the same component stays correct if it's ever reused from another page) so a manual
-refresh doesn't keep re-showing a stale confirmation. On invalid input or an RLS block,
-redirects to `/perfil?profile_error=<code>` instead, same non-silent-failure convention as
-everywhere else. `PhysiologicalProfileCard` itself is already a Server Component that
-`await getAthleteProfile()`s on every request (`app/(app)/perfil/page.tsx` exports `dynamic =
+confirmation toast ("Perfil actualizado" / "Guardado automáticamente"). This used to be a
+one-off `fixed bottom-6 right-6` box — which, in practice, could read as overlapping the
+form content it floated near rather than a clearly-separate global notification — and now
+renders through the shared `Toast` component (`components/toast.tsx`, see "Shared `Toast`
+component" below) instead: the same fixed bottom-center white pill `SyncForm`'s Strava-sync
+confirmation already used, so both toasts in the app now look and behave identically.
+Auto-hides after 3s and strips the query param via `router.replace(pathname)` (the
+*current* path via `usePathname()`, not a hardcoded one, so the same component stays
+correct if it's ever reused from another page) so a manual refresh doesn't keep re-showing
+a stale confirmation. On invalid input or an RLS block, redirects to
+`/perfil?profile_error=<code>` instead, same non-silent-failure convention as everywhere
+else. `PhysiologicalProfileCard` itself is already a Server Component that `await
+getAthleteProfile()`s on every request (`app/(app)/perfil/page.tsx` exports `dynamic =
 "force-dynamic"`, and this Next.js version's `fetch` calls are uncached by default — see
 "Route dynamic rendering" below) and pre-fills every form field via `defaultValue`/
 `defaultChecked`, so a save is immediately reflected on the next load; there is no
-separate client-side fetch-on-mount step to keep in sync. `components/profile-saved-toast.tsx`
-reads that same query param to render its self-dismissing "Perfil metabólico actualizado
-correctamente" toast.
+separate client-side fetch-on-mount step to keep in sync.
+
+### Shared `Toast` component
+
+`components/toast.tsx` extracts the fixed bottom-center white-pill toast presentation —
+icon chip (`Check`/`TriangleAlert`, emerald/red soft tint background) + two-line title/
+message — out of `components/sync-button.tsx`'s `SyncForm`, where it was first built, so
+every toast in the app renders through one component instead of near-identical copies
+drifting apart. `ProfileSavedToast` and `SyncForm` both now just supply their own `{ kind,
+title, message }` and let `<Toast toast={...} />` handle presentation. Any *new* toast this
+app adds should render through this component too, rather than a third hand-rolled one.
 
 `/perfil` is split into 3 numbered `Card`s (`01 · Métricas físicas y equipamiento`,
 `02 · Fenotipo metabólico y sudoración`, `03 · Adaptación digestiva (gut training)`) all
@@ -2186,29 +2201,29 @@ target. `app/layout.tsx`'s `<body>` carries `overflow-x-hidden` as a defensive b
 against any stray horizontal overflow, on top of (not instead of) fixing the actual
 layouts above.
 
-**Bottom safe-area padding for iOS Safari's floating bottom bar.** `components/
-dashboard-shell.tsx`'s shared `<main>` — used by every interior route (Dashboard,
-`/perfil`, `/estadisticas`, `/historial`) — carries `pb-28 sm:pb-16` (split from the
-previous single `py-10 sm:py-14`, top padding unchanged) rather than a symmetric
-top/bottom value. iOS Safari's floating bottom chrome (the address bar/tab-switcher
-strip) sits *over* page content rather than reserving its own layout space, so a
-symmetric padding that looked fine on desktop was tight enough on an iPhone to have the
-real bottom bar overlap the last card/button (verified against real device screenshots).
-Mobile gets the larger value since that chrome only exists there; desktop keeps a smaller
-`pb-16` since there's no floating bar to clear. `pb-24` still wasn't quite enough on some
-devices/OS versions and was bumped once more to `pb-28`.
+**Bottom padding, corrected.** `components/dashboard-shell.tsx`'s shared `<main>` — used by
+every interior route (Dashboard, `/perfil`, `/estadisticas`, `/historial`) — went through a
+misdiagnosis: an iOS Safari floating-bottom-bar overlap was blamed on insufficient bottom
+padding and pushed from `pb-24` up to `pb-28`/`pb-32` across a couple of passes, which just
+left a large empty "desert" at the bottom of every page instead. The real overlap was
+Safari's floating chrome *at the top* of the viewport (its own well-known behavior when at
+the very top of a scrolled page), unrelated to `<main>`'s bottom padding at all — corrected
+back down to a plain `pb-12 sm:pb-16`, no special extra safe-area allowance.
 
-**Normalized header-to-first-card spacing (`gap-6` everywhere).** The outer page wrapper
-governing the gap between each route's `<header>` and its first content block had drifted
-to three different values across four routes that all use the exact same visual
-pattern: `/perfil` and `/estadisticas` were `gap-10` (40px), the Dashboard was `gap-4`
-(16px), and only `/historial` already matched the intended `gap-6` (24px). All four now
-use `gap-6` — chosen because it was already correct on the newest route rather than
-picking a new value none of them had. Note this outer gap is deliberately a *different*
-concern from the inner `gap-6` that already existed inside `/perfil` and `/estadisticas`
-(which spaces their own multiple sibling `Card`s apart from each other) — both happen to
-be the same 24px value, but they're two independent spacings that were never in conflict,
-only the outer one needed changing.
+**Normalized header-to-first-card spacing (`gap-6` everywhere, Dashboard tighter on
+mobile).** The outer page wrapper governing the gap between each route's `<header>` and
+its first content block had drifted to three different values across four routes that all
+use the exact same visual pattern: `/perfil` and `/estadisticas` were `gap-10` (40px), the
+Dashboard was `gap-4` (16px), and only `/historial` already matched the intended `gap-6`
+(24px). All four were normalized to `gap-6`. The Dashboard's own wrapper later gained a
+mobile-specific exception, `gap-4 sm:gap-6` (plus its `TabsContent` inner padding, `pt-4
+sm:pt-6`) — tightened specifically to fit more of the Fueling Planner/Post-Ride content
+above the fold on a phone, at the cost of no longer matching the other three routes'
+spacing exactly on mobile only; `sm:` and up still use the shared `gap-6`. Note this outer
+gap is deliberately a *different* concern from the inner `gap-6` that already existed
+inside `/perfil` and `/estadisticas` (which spaces their own multiple sibling `Card`s apart
+from each other) — both happen to be the same 24px value at `sm:`, but they're two
+independent spacings that were never in conflict, only the outer one needed changing.
 
 **Sidebar drawer: click/tap only, no touch-gesture layer.** The drawer opens and closes
 exclusively via explicit taps — the hamburger button, the `X` close button, and the
@@ -2232,6 +2247,27 @@ sm:order-0` on the Weekly panel's wrapper, `order-1 sm:order-0` on the Tabs wrap
 the page's outer `flex flex-col` container — plain CSS `order` on two siblings, not a DOM
 restructure, so neither component needed to change and the Tabs' internal Pre-Ride/Post-Ride
 behavior is untouched.
+
+**Auto-scroll: fixed in the Fueling Planner, removed entirely from Post-Ride Analysis.**
+Both tabs had a `resultRef`/`scrollIntoView({ block: "start" })` effect nudging the viewport
+to a freshly computed result, but they needed opposite fixes:
+- **Fueling Planner ("Antes de salir")** — the ref was already on the *correct* element (the
+  results container, whose very first child is the "Estrategia de bolsillo & receta casera"
+  eyebrow label), but `block: "start"` aligns that element's top edge with the viewport's
+  top edge with no allowance for the app's own sticky header sitting on top of it — so the
+  scroll landed with the eyebrow label hidden *behind* the header, and the dark Hero card's
+  "Dosis casera por bidón" line (the next visible thing below the header) read as if the
+  scroll had jumped past the section title entirely. Fixed with `scroll-mt-20` on the
+  results container — native `scrollIntoView` already honors `scroll-margin-top`, so this
+  needed no JS change, just the one Tailwind class.
+- **Post-Ride Analysis ("Al llegar")** — this scrollIntoView effect made sense back when a
+  manual "Analizar" click triggered a fresh result the athlete needed to be nudged toward.
+  Once this tab switched to auto-loading the latest ride on mount and re-analyzing in place
+  the moment "Cambiar salida" picks a different one (see "Sidebar navigation..." above), the
+  same effect meant the page jumped around on its own every time the tab opened or a ride was
+  switched — removed entirely, along with the now-unused `resultRef`. Verified live: `window.
+  scrollY` stays at whatever the athlete scrolled to, both on the initial auto-load and after
+  switching activities via "Cambiar salida."
 
 ### PWA / "Add to Home Screen"
 

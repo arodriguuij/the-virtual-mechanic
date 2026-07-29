@@ -1,11 +1,12 @@
 "use client";
 
-import { Check, RefreshCw, TriangleAlert } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { cn } from "@/lib/utils";
+import { Toast, type ToastData } from "@/components/toast";
 
 /**
  * `useFormStatus` only tracks pending state when the enclosing `<form>`'s
@@ -55,14 +56,13 @@ const syncErrorMessages: Record<string, string> = {
  * the client components below it, so `FuelingPlanner`'s own in-progress
  * state (pocket food selections, departure time, calculated result) survives
  * completely untouched. A toast (self-dismissing, same visual pattern as
- * `ProfileSavedToast`) reports success or failure without needing a
+ * `ProfileSavedToast`, which now renders through the same shared `Toast`
+ * component this one does) reports success or failure without needing a
  * query-param round-trip through a page navigation.
  */
-type Toast = { kind: "success" | "error"; title: string; message: string };
-
 export function SyncForm() {
   const router = useRouter();
-  const [toast, setToast] = useState<Toast | null>(null);
+  const [toast, setToast] = useState<ToastData | null>(null);
 
   async function syncAction() {
     try {
@@ -98,30 +98,7 @@ export function SyncForm() {
       <form action={syncAction}>
         <SyncButton />
       </form>
-      {toast && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 pointer-events-auto fixed bottom-6 left-1/2 z-10000 flex w-[90%] max-w-md -translate-x-1/2 items-center gap-3 rounded-xl border border-neutral-200/90 bg-white px-4 py-3 text-neutral-900 shadow-xl duration-200">
-          <div
-            className={cn(
-              "flex size-7 shrink-0 items-center justify-center rounded-full border",
-              toast.kind === "success"
-                ? "border-emerald-200/60 bg-emerald-50 text-emerald-600"
-                : "border-red-200/60 bg-red-50 text-red-600"
-            )}
-          >
-            {toast.kind === "success" ? (
-              <Check className="size-4 stroke-[2.5]" />
-            ) : (
-              <TriangleAlert className="size-4 stroke-[2.5]" />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="font-mono text-xs font-bold tracking-wider text-neutral-900 uppercase">
-              {toast.title}
-            </p>
-            <p className="mt-0.5 truncate font-sans text-xs text-neutral-600">{toast.message}</p>
-          </div>
-        </div>
-      )}
+      {toast && <Toast toast={toast} />}
     </>
   );
 }
