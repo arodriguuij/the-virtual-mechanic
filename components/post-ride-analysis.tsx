@@ -1,12 +1,13 @@
 "use client";
 
-import { ChevronDown, Sun, Utensils, Zap } from "lucide-react";
+import { ChevronDown, Lock, Sun, Utensils, Zap } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProfileRequiredBanner } from "@/components/profile-required-banner";
 import { SyncForm } from "@/components/sync-button";
 import {
   getBiphasicRecoveryTarget,
@@ -188,7 +189,13 @@ const sourceLabels: Record<AnalysisResult["source"], string> = {
   rpe: "sin potenciómetro ni pulsómetro — calculado a partir de tu esfuerzo percibido",
 };
 
-export function PostRideAnalysis({ activities }: { activities: ActivityOption[] }) {
+export function PostRideAnalysis({
+  activities,
+  isProfileComplete,
+}: {
+  activities: ActivityOption[];
+  isProfileComplete: boolean;
+}) {
   const [selectedId, setSelectedId] = useState(activities[0]?.id ?? "");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -708,10 +715,26 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                 <button
                   type="button"
                   onClick={handleSaveConsumption}
-                  disabled={savingConsumption}
-                  className={cn(primaryButtonClass, "w-fit px-4 py-1.5 text-[11px] shadow-none")}
+                  disabled={savingConsumption || !isProfileComplete}
+                  className={cn(
+                    "w-fit px-4 py-1.5 text-[11px]",
+                    isProfileComplete
+                      ? cn(primaryButtonClass, "shadow-none")
+                      : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-neutral-200 font-mono font-semibold tracking-wider text-neutral-400 uppercase"
+                  )}
                 >
-                  {savingConsumption ? "Guardando…" : "Guardar consumo real"}
+                  {isProfileComplete ? (
+                    savingConsumption ? (
+                      "Guardando…"
+                    ) : (
+                      "Guardar consumo real"
+                    )
+                  ) : (
+                    <>
+                      <Lock className="size-3.5 shrink-0" />
+                      Guardar consumo (perfil incompleto)
+                    </>
+                  )}
                 </button>
                 {consumptionSaved && (
                   <span className="text-xs text-status-good">✓ Guardado</span>
@@ -720,6 +743,7 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
                   <span className="text-xs text-status-warning">{consumptionError}</span>
                 )}
               </div>
+              {!isProfileComplete && <ProfileRequiredBanner />}
             </div>
 
             {recoveryDebt && (

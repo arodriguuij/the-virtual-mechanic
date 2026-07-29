@@ -17,6 +17,7 @@ import {
   getRecentActivities,
   getStravaRoutes,
   getViewerIdentity,
+  isProfileComplete,
 } from "@/lib/dashboard-data";
 import { primaryButtonClass, selectableFieldClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
@@ -74,7 +75,13 @@ async function FuelingPlannerSection() {
   }
 
   const [routes, avgSpeedKmh] = await Promise.all([getStravaRoutes(), getAthleteAverageSpeedKmh()]);
-  return <FuelingPlanner routes={routes} avgSpeedKmh={avgSpeedKmh} />;
+  return (
+    <FuelingPlanner
+      routes={routes}
+      avgSpeedKmh={avgSpeedKmh}
+      isProfileComplete={isProfileComplete(profile)}
+    />
+  );
 }
 
 async function ProfileCheckBannerSection() {
@@ -151,7 +158,7 @@ function FuelingPlannerSkeleton() {
 }
 
 async function PostRideAnalysisSection() {
-  const activities = await getRecentActivities(8);
+  const [activities, profile] = await Promise.all([getRecentActivities(8), getAthleteProfile()]);
   return (
     <PostRideAnalysis
       activities={activities.map((a) => ({
@@ -159,6 +166,7 @@ async function PostRideAnalysisSection() {
         name: a.name,
         activity_date: a.activity_date,
       }))}
+      isProfileComplete={isProfileComplete(profile)}
     />
   );
 }

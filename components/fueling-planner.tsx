@@ -9,6 +9,7 @@ import {
   Droplet,
   FlaskConical,
   Fuel,
+  Lock,
   MapPin,
   Pencil,
   RefreshCw,
@@ -32,6 +33,7 @@ import { decodePolyline } from "@/lib/polyline";
 import { refreshStravaRoutes } from "@/lib/strava-actions";
 import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
+import { ProfileRequiredBanner } from "@/components/profile-required-banner";
 import {
   fieldClass,
   primaryButtonClass,
@@ -390,9 +392,11 @@ function PocketFoodStepperRow({
 export function FuelingPlanner({
   routes,
   avgSpeedKmh,
+  isProfileComplete,
 }: {
   routes: StravaRoute[];
   avgSpeedKmh: number | null;
+  isProfileComplete: boolean;
 }) {
   const [mode, setMode] = useState<"route" | "quick" | "gpx">(routes.length > 0 ? "route" : "quick");
   const [selectedRouteId, setSelectedRouteId] = useState(routes[0]?.id ?? "");
@@ -1114,13 +1118,28 @@ export function FuelingPlanner({
               onClick={handleCalculate}
               disabled={
                 loading ||
+                !isProfileComplete ||
                 (mode === "route" && !selectedRoute) ||
                 (mode === "gpx" && !parsedGpx)
               }
-              className={cn(primaryButtonClass, "mt-4 w-full py-3.5 text-sm")}
+              className={cn(
+                "mt-4 w-full py-3.5 text-sm",
+                isProfileComplete
+                  ? primaryButtonClass
+                  : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
+              )}
             >
-              <Zap className="size-4 shrink-0" />
-              {loading ? "Calculando…" : "Calcular estrategia nutricional"}
+              {isProfileComplete ? (
+                <>
+                  <Zap className="size-4 shrink-0" />
+                  {loading ? "Calculando…" : "Calcular estrategia nutricional"}
+                </>
+              ) : (
+                <>
+                  <Lock className="size-4 shrink-0" />
+                  Calcular estrategia (requiere perfil completo)
+                </>
+              )}
             </button>
             <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-600">
               <input
@@ -1132,6 +1151,7 @@ export function FuelingPlanner({
               Ruta objetivo / Competición
             </label>
           </div>
+          {!isProfileComplete && <ProfileRequiredBanner />}
           {isTargetEvent && (
             <p className="text-[11px] text-neutral-500">
               Ajusta la pauta al máximo límite de absorción intestinal (hasta 120g/h) y

@@ -1792,6 +1792,46 @@ offline-strategy
 cache) — a private-browsing/quota failure just means the dismiss doesn't persist across
 sessions, never a broken banner.
 
+### Hard gate on an incomplete profile ("Calcular estrategia" / "Guardar consumo real")
+
+The onboarding banner above is a dismissible nudge — an athlete can ignore it and keep
+using the app with placeholder figures. The Fueling Planner's "Calcular estrategia
+nutricional" button and the Post-Ride "Guardar consumo real" button are stricter: both
+depend directly on the athlete's real weight/FTP/sweat-rate/gut-training figures (a
+calculation or a logged consumption row computed against an empty profile would be
+computed against whatever stand-in value the form/engine falls back to, not a genuine
+result), so both are hard-disabled rather than merely nudged. **`isProfileComplete(profile)`**
+(`lib/dashboard-data.ts`, next to `getMissingProfileFields`) is a plain
+`Boolean(profile?.weight_kg && profile?.ftp && profile?.gut_training_level &&
+profile?.sweat_rate)` — every one of those four columns is `NOT NULL` in `athlete_profiles`
+once a row exists, so in today's schema this only ever differs from a bare `profile !==
+null` check if a future migration ever relaxes one of them; kept as an explicit
+field-by-field check rather than a null check so it stays correct if that changes. This is
+a deliberately simpler, blunter check than `getMissingProfileFields`'s own Strava-placeholder
+detection (`ftp === 200 && sweat_rate === "medium"`) — that one flags a row that *exists*
+but still looks unconfigured, this one only cares whether every required field has *any*
+real value at all.
+
+`app/(app)/page.tsx` computes it once per section (`FuelingPlannerSection`/
+`PostRideAnalysisSection`, both already calling `getAthleteProfile()` — `cache()`-deduped,
+so `PostRideAnalysisSection` picking it up too costs no extra query) and passes it down as
+a plain `isProfileComplete: boolean` prop — `FuelingPlanner`/`PostRideAnalysis` never fetch
+or re-derive it client-side. In both components, when it's `false`: the button swaps its
+label to a "requiere perfil completo" variant with a `Lock` icon (`lucide-react`, not a
+literal 🔒 — this app's no-emoji-in-chrome convention applies here too), its `disabled`
+prop is set, and its className swaps from the shared `primaryButtonClass` to a flat
+`bg-neutral-200 text-neutral-400 cursor-not-allowed` treatment — deliberately *not* just
+`primaryButtonClass`'s own built-in `disabled:opacity-50` (a washed-out terracotta, already
+used for the ordinary "mid-request" disabled state on the same button), since a
+profile-incomplete lock is a different, longer-lived condition worth reading as visually
+distinct from "request in flight." **`ProfileRequiredBanner`** (`components/
+profile-required-banner.tsx`, shared by both call sites so the copy/link can't drift
+between them) renders directly below the button whenever it's locked — a `bg-amber-50
+border-amber-200 text-amber-700` banner, deliberately *not* this app's usual
+`status-warning` brick-red token (that one reads as "something went wrong"; this is a
+plain "here's the one next step" nudge, a different enough register to keep visually
+distinct) with a "[ COMPLETAR PERFIL → ]" link to `/perfil`.
+
 ### Athlete profile
 
 **`app/api/athlete-profile/update`** — the plain-form-POST route behind the

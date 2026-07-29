@@ -75,6 +75,27 @@ export function getMissingProfileFields(
   return [];
 }
 
+/**
+ * Hard gate for the Fueling Planner's "Calcular estrategia" and the
+ * Post-Ride "Guardar consumo real" buttons — both compute or log against the
+ * athlete's real weight/FTP/sweat-rate/gut-training figures, so either
+ * running against a still-empty profile would silently fall back to
+ * whatever placeholder the form/engine defaults to instead of a genuine
+ * result. Every one of these four columns is `NOT NULL` in `athlete_profiles`
+ * once a row exists, so in today's schema this only ever differs from a bare
+ * `profile !== null` check if a future migration relaxes one of them — kept
+ * as an explicit field-by-field check rather than a null check so it stays
+ * correct if that ever changes. Distinct from `getMissingProfileFields`
+ * above: that one flags the Strava zero-friction *placeholder* pair
+ * specifically (a row exists but still looks unconfigured); this one is a
+ * simple "is there a real value in every required field" check.
+ */
+export function isProfileComplete(profile: AthleteProfile | null): boolean {
+  return Boolean(
+    profile?.weight_kg && profile?.ftp && profile?.gut_training_level && profile?.sweat_rate
+  );
+}
+
 export const getAthleteProfile = cache(async (): Promise<AthleteProfile | null> => {
   const supabase = await getAuthenticatedSupabaseClient();
 
