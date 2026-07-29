@@ -28,7 +28,7 @@ export default function PrivacyPolicyPage() {
           href="/login"
           className="flex items-center gap-2 font-mono text-sm font-bold tracking-wider whitespace-nowrap text-neutral-900 uppercase"
         >
-          <RatioLogo className="size-5 shrink-0 text-neutral-900" />
+          <RatioLogo className="size-5 shrink-0 text-terracotta" />
           RATIO
         </Link>
       </header>

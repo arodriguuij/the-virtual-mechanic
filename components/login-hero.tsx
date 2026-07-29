@@ -65,7 +65,7 @@ function BackgroundMedia() {
 function BrandMark() {
   return (
     <div className="mb-6 flex items-center justify-center gap-3">
-      <RatioLogo className="size-8 text-neutral-900" />
+      <RatioLogo className="size-8 text-terracotta" />
       <span className="font-mono text-sm font-bold tracking-[0.35em] whitespace-nowrap text-neutral-900 uppercase sm:text-base">
         RATIO
       </span>

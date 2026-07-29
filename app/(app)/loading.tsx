@@ -13,7 +13,7 @@ import { RatioLogo } from "@/components/icons/RatioLogo";
 export default function AppLoading() {
   return (
     <div className="flex min-h-[50vh] w-full flex-1 flex-col items-center justify-center py-12">
-      <RatioLogo className="animate-logo-breathe size-14 text-neutral-900" />
+      <RatioLogo className="animate-logo-breathe size-14 text-terracotta" />
     </div>
   );
 }

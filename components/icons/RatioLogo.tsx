@@ -5,9 +5,12 @@ import type { SVGProps } from "react";
  * placeholder `AppLogo` (a two-tone dark/orange asset with fixed,
  * non-`currentColor` fills) everywhere it appeared. Unlike `AppLogo`, every
  * path here uses `fill="currentColor"` — a themeable single-tone icon that
- * takes on whatever `text-*` color its call site sets, matching how this
- * mark is actually used (`text-neutral-900` on the login screen,
- * `text-[#827B66]` PNS bronze in the sidebar).
+ * takes on whatever `text-*` color its call site sets. Defaults to
+ * `text-terracotta` (this app's "PNS Bronze" token, `#827b66` in
+ * `app/globals.css`) — the mark itself is champagne/bronze everywhere in the
+ * UI now, not just the sidebar's active-accent spots; call sites reuse the
+ * same `terracotta` token rather than hardcoding `#827B66` a second time, so
+ * a future palette tweak only ever needs to change one CSS variable.
  *
  * `viewBox="238 228 548 568"` is a cropped view of the source artwork's real
  * bounding box (measured via `getBBox()` on the actual paths — same
@@ -23,7 +26,7 @@ import type { SVGProps } from "react";
  * here before this ever shipped; verified by rendering both variants and
  * comparing.
  */
-export function RatioLogo({ className = "w-7 h-7 text-current", ...props }: SVGProps<SVGSVGElement>) {
+export function RatioLogo({ className = "w-7 h-7 text-terracotta", ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="238 228 548 568" fill="none" className={className} {...props}>
       <path
