@@ -184,19 +184,40 @@ A second, differently-styled copy of this same fallback lives at
 authenticated Dashboard shell needed its own route group and its own nested `loading.tsx`
 rather than reusing this root one as-is.
 
-**Dashboard preview mockup.** Between the benefits checklist and the Strava button,
-`/login` now shows a small illustrative preview — a hand-drawn inline SVG "route" squiggle
-(a plain `<path>`, terracotta stroke, no real geodata) over three mock stat readouts
-(`48.2 KM` / `620 KCAL` / `38 G HC/H`) — so a brand-new visitor gets a sense of what the
-Dashboard actually produces before connecting an account, rather than a blind leap of
-faith. Deliberately a static SVG sketch, not a live `RouteMapPreview`/Leaflet instance —
-this page renders for every logged-out visitor, and there's no real route to show them
-yet anyway. `hidden sm:flex`: `AuthPageShell` is deliberately zero-scroll and was tuned to
-exactly zero vertical slack at a 360×640 viewport (see "Root-level scroll lock" below) —
-there's no room to add a new element on the smallest phones without either clipping
-content or reintroducing scroll, so the mockup only appears once there's real height to
-spare (verified live: hidden and zero-overflow at 390×844, visible and correctly laid out
-at 1280px wide).
+**Dashboard preview — "Tarjeta Técnica" (`DashboardPreviewCard`).** Between the benefits
+checklist and the Strava button, `/login` shows a real mockup of the app's own visual
+language — not an abstract graphic — so a brand-new visitor sees the *shape* of a real
+result before connecting an account. An earlier version was a hand-drawn inline SVG "route
+squiggle" over three loose numbers, hidden below `sm:` for lack of room; replaced outright
+for reading as too abstract/generic to build credibility, and this version is visible at
+every width instead of being mobile-hidden. The card reuses patterns straight from the
+authenticated app rather than inventing new ones: an emerald "Strava Synced" status pill
+(same colored-dot convention as the Post-Ride telemetry card's "Ruta sincronizada..."
+badge), a realistic route name/distance/elevation/date block, a 3-stat
+`bg-[#FDFCF9]` mini-grid (Potencia NP / Glucógeno / Sudoración — the telemetry card's own
+stat-cell pattern), and a terracotta-bordered "Pauta de ingesta recomendada" block (the
+Fueling Planner's own recommendation-highlight styling). Every figure is static/
+illustrative — a plausible NP/glycogen/sweat-rate/carb-target set, not live data — so the
+card needs no network round-trip or Strava connection, appropriate for a page every
+logged-out visitor hits.
+
+Fitting a card this rich into `AuthPageShell`'s zero-scroll budget (tuned to exactly zero
+vertical slack at 360×640 — see "Root-level scroll lock" below; content that doesn't fit
+isn't scrollable, it's silently clipped by that frame's `overflow-hidden`) took real
+trimming elsewhere on the page, not just compact card sizing: the benefits checklist
+shrank (`my-6`→`my-3`, `space-y-2.5`→`space-y-1.5`, smaller text), the card's own mobile
+margin went to `my-2`, and the `strava_error` banner shrank too (`mb-4 px-4 py-3 text-sm`
+→ `mb-2 px-3 py-2 text-xs` on mobile) once it turned out the error state — banner *and*
+card both present — clipped by a few px even after the checklist/card trims alone.
+Verified live via direct `main.parentElement.scrollHeight` vs. `clientHeight` measurement
+(not `document.documentElement`, which stays pinned to the viewport regardless of internal
+clipping since `AuthPageShell`'s own root div is the actual `overflow-hidden` boundary) —
+zero overflow at 320×568 through 1280×900 without an error banner, and at 360×640 and up
+*with* the error banner showing. The one remaining edge case — 320×568 (iPhone SE 1st
+gen, a device outside this app's documented 360×640 baseline) with the error banner
+showing simultaneously — still clips by ~40px; not chased further since it stacks the
+oldest/smallest supported device with an already-rare state, beyond what "Root-level
+scroll lock" originally committed to.
 
 **`app/login/page.tsx`** is the only entry point when `proxy.ts` finds no session: a
 centered screen (value prop + a single "Conectar con Strava" CTA linking to
