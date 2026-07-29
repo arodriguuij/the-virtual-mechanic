@@ -168,8 +168,9 @@ reach for — simply cannot work. Instead:
 
 **`app/loading.tsx`** is Next's route-level `loading.tsx` boundary at the true app root —
 the fallback for `/login`, `/auth/callback`, and `/privacidad`, none of which have a
-persistent shell of their own (each renders its own full-bleed `AuthPageShell` or, for
-`/privacidad`, a plain top bar), so a full-screen fallback is correct here: `min-h-screen
+persistent shell of their own (`/login` and `/auth/callback` each render the shared
+full-bleed `LoginHeroLayout`, see below; `/privacidad` renders a plain top bar), so a
+full-screen fallback is correct here: `min-h-screen
 w-full flex items-center justify-center bg-[#FDFCF9]`, just the brand mark, no
 "Cargando..."/status text — a purist loading state that reads as part of the app's own
 chrome rather than a generic spinner screen. The mark (`size-14`) uses a custom
@@ -184,15 +185,24 @@ A second, differently-styled copy of this same fallback lives at
 authenticated Dashboard shell needed its own route group and its own nested `loading.tsx`
 rather than reusing this root one as-is.
 
-**`/login`'s Pas Normal Studios-style layout.** `app/login/page.tsx` no longer shares
-`AuthPageShell` with `/auth/callback` — it now has its own bespoke full-bleed layout, since
-forcing a photo-background design into that shell's boxed top-bar/hero/bottom-bar bands
-would fight the whole point of it. (`/auth/callback` still uses `AuthPageShell` unchanged —
-see below.) This page went through several iterations before landing on its current
-mobile-card/desktop-split shape — an earlier pass tried a `fixed`, globally-pinned pill-
-shaped brand mark plus a fully unwrapped, no-card content panel at every breakpoint; that
-was reverted once the brief called for the opposite structure on mobile specifically — an
-elevated white modal card over the video, not a translucent full-bleed panel. The current
+**`LoginHeroLayout`'s Pas Normal Studios-style layout** (`components/login-hero.tsx`) is the
+shared full-bleed frame for **both** `/login` and the Strava OAuth transition at
+`/auth/callback` — the two screens render the *exact same* background video, brand mark,
+hero copy, and illustrative telemetry readout, differing only in the CTA slot (a real
+"Conectar con Strava" button vs. a disabled "Conectando..." state, see "Strava OAuth"
+below), so extracting one shared component rather than two independent copies means the
+two screens can never accidentally drift apart on a future layout change. Plain component
+— no `"use client"`, no server-only APIs — safe to import from `/login`'s async Server
+Component or `/auth/callback`'s Client Component alike. This layout went through several
+iterations before landing on its current mobile-card/desktop-split shape — an earlier pass
+tried a `fixed`, globally-pinned pill-shaped brand mark plus a fully unwrapped, no-card
+content panel at every breakpoint; that was reverted once the brief called for the
+opposite structure on mobile specifically — an elevated white modal card over the video,
+not a translucent full-bleed panel. Before this, `/auth/callback` rendered its own distinct
+`AuthPageShell` frame (a boxed top-bar/hero/bottom-bar shell, since deleted along with the
+component itself) with a pulsing `AppLogo` and "Conectando con Strava..." status copy —
+replaced entirely so the OAuth transition reads as a continuation of the same screen the
+athlete just clicked from, not a jarring switch to a different frame. The current
 structure:
 
 - **Root**: `grid grid-cols-1 lg:grid-cols-2 min-h-dvh bg-neutral-950 lg:bg-[#FDFCF9]` — a
@@ -267,15 +277,17 @@ structure:
   full-bleed video. The fix stays scoped to `/login`'s own root div (`bg-neutral-950`) plus
   the proven `fixed`/`h-dvh`/`min-h-screen` video-wrapper technique above.
 
-**`components/auth-page-shell.tsx`**'s `AuthPageShell` (the top-bar/hero/bottom-bar frame,
-`h-dvh overflow-hidden` zero-scroll lock) is now used by **`/auth/callback` only** —
-`/login` moved to its own layout above. `app/auth/callback/page.tsx` still renders it with
-a pulsing `AppLogo`, a "Conectando con Strava..." status title, and a "Sincronizando perfil
-fisiológico y recalculando datos de rutas recientes." subtitle. Its own `h-dvh` +
-`overflow-hidden` root-level scroll lock (chosen over `min-h-screen`, which measures
-against the *largest* possible viewport iOS Safari can report and left a scrollable sliver
-once its chrome resized mid-session) is unchanged and still verified zero-overflow at
-390×844 and 360×640.
+**`ConnectingButton`** (a local component inside `app/auth/callback/page.tsx`, not
+exported/shared — single call site, no abstraction needed) is the one thing that differs
+between the two `LoginHeroLayout` screens: a `disabled`, `cursor-wait` button
+(`bg-neutral-800 text-neutral-300 opacity-90 shadow-none`, no hover states — it can never
+be clicked) reading "Conectando con Strava..." with a small `animate-spin` ring
+(`border-white/30 border-t-[#FD5A08]`, the brand's terracotta accent as the spinner's
+leading edge) instead of a plain `border-t-white` spin — a deliberate small brand touch on
+an otherwise monochrome loading state. `app/auth/callback/page.tsx` itself keeps its
+pre-existing token-forwarding `useEffect`/`hasStartedRef` logic entirely unchanged (see
+"Strava OAuth" below) — only the rendered JSX changed, from the deleted `AuthPageShell` to
+`<LoginHeroLayout cta={<ConnectingButton />} />`.
 
 ### Seeding dev data
 
@@ -298,9 +310,9 @@ as its `strava_athlete_id` matches).
 - **`/auth/callback`** (`app/auth/callback/page.tsx`) — `getStravaRedirectUri()` points
   Strava's redirect here rather than straight at the Route Handler below, so the browser
   has a real page to render (a "Conectando con Strava..." transition screen, sharing the
-  exact same full-bleed `AuthPageShell` frame as `/login` — see "Login & loading screens"
-  below — with a pulsing `AppLogo` and status copy in place of the login CTA) for however
-  long the token-exchange/Supabase-bridge work below takes, instead of a blank tab.
+  exact same `LoginHeroLayout` frame as `/login` — see "Login & loading screens" above —
+  with a disabled `ConnectingButton` in place of the login CTA) for however long the
+  token-exchange/Supabase-bridge work below takes, instead of a blank tab.
   Strava's "Authorization Callback Domain" setting only ever validates the *domain*, never
   the path, so this needed no change on Strava's side. The page does no work itself: a
   `useEffect` (guarded by a `hasStartedRef` against React Strict Mode's dev-only double
@@ -484,12 +496,12 @@ together:
   `PUBLIC_PATH_PREFIXES` in `proxy.ts` so it's reachable with *no session at all* (the
   requirement is specifically that a visitor can read it *before* connecting their
   account, not only after logging in). Deliberately not built on `components/
-  auth-page-shell.tsx` despite living alongside `/login` conceptually — that shell locks
-  the whole viewport to `h-dvh overflow-hidden` for its own single-screen hero layout,
-  which would be wrong for a long-form policy document that needs to scroll normally
-  (verified live: `/privacidad`'s `scrollHeight` is ~1891px against an 844px viewport,
-  genuinely scrollable, unlike every `AuthPageShell` screen). Plain top bar (brand mark +
-  a "Volver" link back to `/login`) plus a normal scrolling `<article>`-style `<main>`.
+  login-hero.tsx`'s shared `LoginHeroLayout` despite living alongside `/login`
+  conceptually — that layout is built around a single compact hero card/video, which would
+  be wrong for a long-form policy document that needs to scroll normally (verified live:
+  `/privacidad`'s `scrollHeight` is ~1891px against an 844px viewport, genuinely
+  scrollable). Plain top bar (brand mark + a "Volver" link back to `/login`) plus a normal
+  scrolling `<article>`-style `<main>`.
   Linked from `/login`'s own footer note ("Acceso seguro mediante OAuth. Solo lectura de
   rutas — nunca vendemos ni compartimos tus datos. **Política de Privacidad**") — verified
   the added text doesn't reintroduce mobile scroll on the login screen itself.
