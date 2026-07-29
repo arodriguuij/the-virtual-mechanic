@@ -1,6 +1,6 @@
 import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 
 import { RatioLogo } from "@/components/icons/RatioLogo";
 
@@ -37,8 +37,26 @@ const telemetryStats = [
  * the `bg-black/20` overlay's `absolute inset-0` below, keeping that tint
  * scoped to this column instead of resolving against the page root and
  * bleeding across the whole split screen.
+ *
+ * Wrapped in `memo` and takes zero props — a guardrail against ever clicking
+ * "Conectar con Strava" restarting the loop from frame 0. Verified via a real
+ * click (with the actual OAuth navigation blocked so the page stays mounted):
+ * the video's own DOM node identity and `currentTime` are both untouched by
+ * `StravaLoginButton`'s `setConnecting(true)` call — this component and the
+ * CTA button already sit in fully independent parts of the tree (this file
+ * has no `"use client"` directive at all, so its output is server-rendered,
+ * static HTML that React never re-renders on the client; `StravaLoginButton`
+ * is the one Client Component here, and a Client Component's own state
+ * update only ever re-renders that component's own subtree, never a sibling
+ * passed in through a parent's `cta` prop). `memo` costs nothing given that,
+ * but makes the "must never re-render alongside the CTA" contract explicit
+ * rather than implicit in the file structure, in case a future edit ever
+ * moves this component somewhere that isn't naturally isolated. The one
+ * thing that *does* stop this video is the real, unavoidable browser
+ * navigation away from `/login` once the OAuth redirect actually completes —
+ * that's the same tab leaving for Strava's own domain, not a bug.
  */
-function BackgroundMedia() {
+const BackgroundMedia = memo(function BackgroundMedia() {
   return (
     <div className="fixed inset-0 z-0 h-dvh min-h-screen w-full overflow-hidden bg-neutral-950 lg:relative lg:z-auto lg:h-full lg:min-h-dvh lg:w-full">
       <video
@@ -55,7 +73,7 @@ function BackgroundMedia() {
       <div className="absolute inset-0 bg-black/20" aria-hidden="true" />
     </div>
   );
-}
+});
 
 /**
  * Brand mark — plain icon + wordmark in flow, no pill/capsule. Sits as the

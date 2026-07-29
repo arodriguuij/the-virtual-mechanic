@@ -237,6 +237,16 @@ structure:
   and `lg:relative` makes this wrapper the containing block for the `bg-black/20` contrast
   overlay's `absolute inset-0`, keeping that tint scoped to the video column instead of
   resolving against the grid root and bleeding across the whole split screen.
+  Wrapped in `memo` and takes zero props — a guardrail so clicking "Conectar con Strava"
+  can never restart the loop from frame 0. Verified live (a real click, with the OAuth
+  navigation itself blocked so the page stayed mounted): the video's DOM node identity and
+  `currentTime` are both untouched by `StravaLoginButton`'s own `setConnecting(true)` call,
+  since that button is the one Client Component here and its state update only re-renders
+  its own subtree — `BackgroundMedia` sits in an entirely separate, server-rendered part of
+  the tree, passed into `LoginHeroLayout` alongside it, not as its parent or child. The one
+  thing that does stop the video is the real, unavoidable browser navigation away from
+  `/login` once the OAuth redirect actually completes (the tab leaving for Strava's own
+  domain) — not a bug, just leaving the page.
 - **`BrandMark`** — a plain in-flow icon+wordmark lockup (`flex items-center justify-center
   gap-3`, `RatioLogo` at `size-8`, no pill/capsule background on the text), the first child
   inside the centered content block itself rather than a separate globally-`fixed` overlay.

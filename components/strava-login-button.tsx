@@ -15,6 +15,14 @@ import { cn } from "@/lib/utils";
  * (`pointer-events-none`, `aria-disabled`) for the brief window before the
  * browser actually navigates away, so a double-click can't fire the OAuth
  * handshake twice.
+ *
+ * `connecting` is `useState` owned entirely by this component — the parent
+ * (`LoginHeroLayout`, a Server Component) only ever receives this whole
+ * component as an opaque `cta` prop, so this state update re-renders nothing
+ * but this button's own subtree. In particular it can never touch
+ * `BackgroundMedia`'s looping video (see that component's own doc comment in
+ * `components/login-hero.tsx`) — the two are siblings in fully separate
+ * parts of the render tree, not a parent/child relationship.
  */
 export function StravaLoginButton() {
   const [connecting, setConnecting] = useState(false);
