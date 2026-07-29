@@ -172,8 +172,9 @@ reach for — simply cannot work. Instead:
 
 **`app/loading.tsx`** is Next's route-level `loading.tsx` boundary at the true app root —
 the fallback for `/login`, `/auth/callback`, and `/privacidad`, none of which have a
-persistent shell of their own (`/login` and `/auth/callback` each render the shared
-full-bleed `LoginHeroLayout`, see below; `/privacidad` renders a plain top bar), so a
+persistent shell of their own (`/login` renders the full-bleed `LoginHeroLayout`, see
+below; `/auth/callback` renders its own minimal cream+mark screen, see "Strava OAuth"
+below; `/privacidad` renders a plain top bar), so a
 full-screen fallback is correct here: `min-h-screen
 w-full flex items-center justify-center bg-[#FDFCF9]`, just the brand mark, no
 "Cargando..."/status text — a purist loading state that reads as part of the app's own
@@ -190,14 +191,15 @@ authenticated Dashboard shell needed its own route group and its own nested `loa
 rather than reusing this root one as-is.
 
 **`LoginHeroLayout`'s Pas Normal Studios-style layout** (`components/login-hero.tsx`) is the
-shared full-bleed frame for **both** `/login` and the Strava OAuth transition at
-`/auth/callback` — the two screens render the *exact same* background video, brand mark,
-hero copy, and illustrative telemetry readout, differing only in the CTA slot (a real
-"Conectar con Strava" button vs. a disabled "Conectando..." state, see "Strava OAuth"
-below), so extracting one shared component rather than two independent copies means the
-two screens can never accidentally drift apart on a future layout change. Plain component
-— no `"use client"`, no server-only APIs — safe to import from `/login`'s async Server
-Component or `/auth/callback`'s Client Component alike. This layout went through several
+full-bleed frame for `/login` — the background video, brand mark, hero copy, and
+illustrative telemetry readout, with the CTA slot taking the real "Conectar con Strava"
+button. Plain component — no `"use client"`, no server-only APIs. It originally also
+rendered the Strava OAuth transition at `/auth/callback` (differing only in the CTA slot —
+a disabled "Conectando..." state in place of the login button), on the reasoning that one
+shared component can't accidentally drift from itself the way two independent copies
+could; that screen has since moved to its own minimal, non-`LoginHeroLayout` design (a
+static cream field with a breathing bronze mark, no video/card/CTA at all) — see "Strava
+OAuth" below for why. This layout went through several
 iterations before landing on its current mobile-card/desktop-split shape — an earlier pass
 tried a `fixed`, globally-pinned pill-shaped brand mark plus a fully unwrapped, no-card
 content panel at every breakpoint; that was reverted once the brief called for the
@@ -261,7 +263,7 @@ structure:
   gradient line ("Sa Calobra — Coll dels Reis" · "9.5 km · 670m D+ · 7% avg · HOY · 27°C"), a
   `divide-x`/`border-y` 3-column telemetry grid (Potencia NP / Glucógeno / Sudor, just thin
   `divide-neutral-300/80`/`border-neutral-300/80` rules, no `bg-white` box of its own), and a
-  left-accent-bordered (`border-l-2 border-[#D9532F]`) "Pauta de ingesta recomendada" block
+  left-accent-bordered (`border-l-2 border-terracotta`) "Pauta de ingesta recomendada" block
   sit unwrapped inside the outer card/column — the *page-level* card wrapper (mobile only)
   is the one concession to "cards," not a second nested one around this readout too. Still
   strictly 100% typographic (no icons, no emoji, no colored-dot indicator) and still fully
@@ -291,17 +293,21 @@ structure:
   full-bleed video. The fix stays scoped to `/login`'s own root div (`bg-neutral-950`) plus
   the proven `fixed`/`h-dvh`/`min-h-screen` video-wrapper technique above.
 
-**`ConnectingButton`** (a local component inside `app/auth/callback/page.tsx`, not
-exported/shared — single call site, no abstraction needed) is the one thing that differs
-between the two `LoginHeroLayout` screens: a `disabled`, `cursor-wait` button
-(`bg-neutral-800 text-neutral-300 opacity-90 shadow-none`, no hover states — it can never
-be clicked) reading "Conectando con Strava..." with a small `animate-spin` ring
-(`border-white/30 border-t-[#FD5A08]`, the brand's terracotta accent as the spinner's
-leading edge) instead of a plain `border-t-white` spin — a deliberate small brand touch on
-an otherwise monochrome loading state. `app/auth/callback/page.tsx` itself keeps its
-pre-existing token-forwarding `useEffect`/`hasStartedRef` logic entirely unchanged (see
-"Strava OAuth" below) — only the rendered JSX changed, from the deleted `AuthPageShell` to
-`<LoginHeroLayout cta={<ConnectingButton />} />`.
+**`app/auth/callback/page.tsx`'s screen was redesigned off `LoginHeroLayout` entirely** —
+the `ConnectingButton` component (a disabled, `cursor-wait` "Conectando con Strava..."
+button inside the shared hero frame) and the video-background/card chrome around it are
+both gone. In their place: a plain `flex min-h-dvh items-center justify-center` on a flat
+`bg-[#FDFCF9]` field, a single breathing `<RatioLogo className="size-12 animate-pulse
+text-terracotta" />`, and one status line below it ("Sincronizando perfil fisiológico...",
+`font-mono text-xs tracking-wider text-neutral-500 uppercase`) — no icons, no spinner ring,
+no CTA slot at all, since there's nothing for the athlete to click on this screen. This
+reads as a quieter, more deliberate "we're setting you up" moment than repeating the full
+marketing hero the athlete just clicked through on `/login`, and keeps Strava's own
+corporate orange (`#FC4C02`) scoped strictly to the login button's icomark — this
+transition screen carries only the app's own bronze accent, no Strava branding at all.
+`app/auth/callback/page.tsx` itself keeps its pre-existing token-forwarding
+`useEffect`/`hasStartedRef` logic entirely unchanged (see "Strava OAuth" below) — only the
+rendered JSX changed.
 
 ### Seeding dev data
 
@@ -323,9 +329,9 @@ as its `strava_athlete_id` matches).
 - `GET /api/strava/connect` — redirects to Strava's authorize URL (`lib/strava.ts`).
 - **`/auth/callback`** (`app/auth/callback/page.tsx`) — `getStravaRedirectUri()` points
   Strava's redirect here rather than straight at the Route Handler below, so the browser
-  has a real page to render (a "Conectando con Strava..." transition screen, sharing the
-  exact same `LoginHeroLayout` frame as `/login` — see "Login & loading screens" above —
-  with a disabled `ConnectingButton` in place of the login CTA) for however long the
+  has a real page to render (a minimal "Sincronizando perfil fisiológico..." transition
+  screen — a breathing bronze `RatioLogo` on a flat cream field, its own design rather
+  than `LoginHeroLayout` — see "Login & loading screens" above) for however long the
   token-exchange/Supabase-bridge work below takes, instead of a blank tab.
   Strava's "Authorization Callback Domain" setting only ever validates the *domain*, never
   the path, so this needed no change on Strava's side. The page does no work itself: a
@@ -1852,12 +1858,22 @@ group (a folder name in parens — purely organizational, contributes nothing to
 now the one place that renders `<DashboardShell>` — it wraps `{children}` once, at the
 layout level, so it mounts immediately and independently of whatever page is loading below
 it. **`app/(app)/loading.tsx`** is the fallback for exactly that `{children}` slot (i.e.
-`DashboardShell`'s own `<main>`) — contained to the content area (`flex min-h-[50vh] w-full
-flex-1 flex-col items-center justify-center py-12`, no background of its own, so it blends
-into `DashboardShell`'s `bg-background` instead of painting a visible box), never the whole
-viewport (`min-h-screen`/`fixed inset-0`, what the *root* `app/loading.tsx` still correctly
-uses for the shell-less `/login`/`/auth/callback`/`/privacidad` segment — see "Login &
-loading screens" above). Each of the four page components had their own `<DashboardShell
+`DashboardShell`'s own `<main>`) — contained to the content area, never the whole viewport
+(`min-h-screen`/`fixed inset-0`, what the *root* `app/loading.tsx` still correctly uses for
+the shell-less `/login`/`/auth/callback`/`/privacidad` segment — see "Login & loading
+screens" above). It originally reused the same breathing-`RatioLogo` treatment as the root
+fallback, just contained to the content area (`flex min-h-[50vh] ... py-12`) — replaced
+with a generic `<Skeleton>`-based shape instead (a header bar, a selector bar, a 3-up
+metric grid, a content block, via `components/ui/skeleton.tsx`, no extra padding of its
+own since `DashboardShell`'s `<main>` already supplies the page's outer padding and every
+real page's content sits flush inside that): since these four routes are all
+`force-dynamic`, this fallback genuinely fires on *every* cross-page navigation between
+them, not just on a cold app boot the way the root fallback does — a big breathing brand
+mark firing repeatedly on every click between Dashboard/Estadísticas/Historial/Perfil read
+as "a different loading card" rather than "the same UI, filling in," which is exactly the
+granular-skeleton convention the rest of this app's own data-dependent loading states
+already follow (see "Granular loading states" below). Each of the four page components had
+their own `<DashboardShell
 identitySlot={...}>...</DashboardShell>` wrapper and its `ViewerIdentity`/`Suspense`
 plumbing stripped out to just their own inner content, now that the layout supplies both.
 
@@ -2407,7 +2423,7 @@ status bar blends with the page instead of showing a mismatched color.
   itself is no longer used for "active/selected" states either (that's `border-terracotta`
   now), only for genuinely monochrome one-off elements that have no accent-color reason to
   exist (e.g. the app's own Flame mark). Corners are `rounded-lg` on every shared button/
-  field/badge and `rounded-2xl` on auth-flow cards (`/login`, `/auth/callback`) — plain
+  field/badge and `rounded-2xl` on `/login`'s auth-flow card — plain
   `rounded-sm`/square corners are reserved for dense data cards/rows (`Card` itself, ride
   history rows, reference tables) where a softer radius would look inconsistent with their
   tighter internal spacing. Never a bare `rounded-none`/no-radius button — every button

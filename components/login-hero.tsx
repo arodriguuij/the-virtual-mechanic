@@ -113,7 +113,7 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
             Nutrición de precisión para ciclistas
           </h1>
 
-          <p className="mb-6 block font-mono text-[10px] font-bold tracking-widest text-neutral-500 uppercase sm:text-xs">
+          <p className="mb-6 block font-mono text-[10px] font-bold tracking-widest text-terracotta uppercase sm:text-xs">
             {headerPills.join(" • ")}
           </p>
 
