@@ -1942,14 +1942,22 @@ to the wrong answer:
   nothing to split — its `PostRideAnalysisSkeleton` fallback was simply deleted (see
   "Granular loading states" above).
 - **`Home()`'s two outer `<Suspense>` boundaries** (wrapping `FuelingPlannerSection` and
-  `PostRideAnalysisSection`) both now use a single shared **`NeutralSectionSkeleton`**
-  (`<Skeleton className="h-64 w-full rounded-xl" />`) instead of either section's own
-  detailed shape — deliberately generic, since at this outer stage neither outcome
-  (configure-profile card vs. real content) is known yet, and a shaped skeleton here is
-  exactly what caused the flash. In practice this is a brief flash of its own (one fast,
-  local Supabase query), but a plain neutral pulse reads as "loading," not as "a specific
-  thing about to appear" the way the old shaped skeletons did — so swapping it for whichever
-  real outcome resolves no longer reads as a layout jump.
+  `PostRideAnalysisSection`) both now use a single shared **`DashboardSectionSkeleton`**
+  instead of either section's own detailed shape — deliberately generic, since at this
+  outer stage neither outcome (configure-profile card vs. real content) is known yet, and a
+  shaped skeleton here is exactly what caused the flash. A first version was a single flat
+  `<Skeleton className="h-64 w-full rounded-xl" />` — on a narrow phone this read as a
+  giant, featureless gray box, and its abrupt collapse into whichever real (much shorter or
+  much taller) card resolved was its own jarring layout shift. Restructured into a small
+  fake card instead: an icon+title row (`h-5 w-5 rounded-full` + `h-4 w-40`), then two
+  content bars of different widths (`h-10`/`h-20`) inside a `rounded-xl border
+  border-terracotta/20 bg-surface/60` shell — reusing this app's own `terracotta`/`surface`
+  tokens rather than a hardcoded cream/bronze hex pair. Structuring it as a card with
+  internal hierarchy, rather than one undifferentiated block, is what actually reads as "a
+  card is loading" instead of "an empty rectangle" — this doesn't achieve *zero* layout
+  shift (the two possible final outcomes have genuinely different real heights, and which
+  one resolves isn't known until the query returns), but it's a brief, cheap, local Supabase
+  query, so the shift is small and the loading state itself no longer looks broken.
 - Verified via a temporary route with artificial `setTimeout` delays at each stage (profile
   check ~600ms, routes fetch ~800ms — same technique used earlier in this project's history
   to verify Dashboard loading states) and a `MutationObserver`-style poll of which

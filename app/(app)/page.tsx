@@ -114,8 +114,25 @@ async function FuelingPlannerRoutesSection({ profile }: { profile: AthleteProfil
 // perfil" card, since at this stage neither outcome is known yet; a shaped
 // skeleton here is exactly what caused the flash this pass fixes. Reused
 // as-is for `PostRideAnalysisSection`'s own identical two-outcome gate below.
-function NeutralSectionSkeleton() {
-  return <Skeleton className="h-64 w-full rounded-xl" />;
+// A single flat `<Skeleton className="h-64 w-full rounded-xl" />` (this
+// component's first version) read as a giant, featureless gray box on a
+// narrow phone — structured into a small fake card instead (an icon+title
+// row, then two content bars of different widths) so it reads as "a card is
+// loading," not "an empty rectangle." `border-terracotta/20`/`bg-surface`
+// reuse this app's own design tokens rather than hardcoding a new cream/
+// bronze hex pair, so a future palette tweak to either token still applies
+// here automatically.
+function DashboardSectionSkeleton() {
+  return (
+    <div className="w-full animate-pulse space-y-4 rounded-xl border border-terracotta/20 bg-surface/60 p-5">
+      <div className="flex items-center space-x-3">
+        <Skeleton className="h-5 w-5 rounded-full bg-terracotta/20" />
+        <Skeleton className="h-4 w-40 bg-terracotta/20" />
+      </div>
+      <Skeleton className="h-10 w-full rounded-lg bg-terracotta/10" />
+      <Skeleton className="h-20 w-full rounded-lg bg-terracotta/10" />
+    </div>
+  );
 }
 
 async function ProfileCheckBannerSection() {
@@ -272,7 +289,7 @@ export default async function Home() {
 
         <TabsContent value="pre-ride">
           <div className="flex flex-col gap-10 pt-4 sm:pt-6">
-            <Suspense fallback={<NeutralSectionSkeleton />}>
+            <Suspense fallback={<DashboardSectionSkeleton />}>
               <FuelingPlannerSection />
             </Suspense>
           </div>
@@ -280,7 +297,7 @@ export default async function Home() {
 
         <TabsContent value="post-ride">
           <div className="flex flex-col gap-10 pt-4 sm:pt-6">
-            <Suspense fallback={<NeutralSectionSkeleton />}>
+            <Suspense fallback={<DashboardSectionSkeleton />}>
               <PostRideAnalysisSection />
             </Suspense>
           </div>
