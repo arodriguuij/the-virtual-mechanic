@@ -2141,6 +2141,56 @@ Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "for
 each reads live Supabase data — without it Next prerenders the route at build time and
 the figures would be frozen from whenever `next build` last ran.
 
+### Granular loading states (no giant skeleton blocks)
+
+A Suspense fallback or a client-side `loading` flag that swaps an entire card for a
+generic, unrelated set of gray bars reads as "a different loading card," not "the same UI,
+filling in" — the PNS-style convention this app follows instead is: real static chrome
+(card titles, field labels, button text) renders immediately since none of it actually
+depends on the data in flight, and only the genuinely data-dependent *values* get a muted,
+pulsing placeholder, in roughly the same position/size the real value will occupy.
+
+- **`components/fueling-planner.tsx`'s "Ruta" `<select>`** — while `refreshingRoutes` is
+  true (the "Recargar rutas desde Strava" button, see "Strava saved-routes cache" above),
+  the select itself never unmounts or changes shape: it's simply `disabled`, showing one
+  muted option ("Sincronizando rutas de Strava...", `text-neutral-400`) instead of the real
+  route list, with a micro-spinner (`size-3.5 border-2 border-neutral-300
+  border-t-neutral-800 rounded-full animate-spin`) absolutely positioned at `right-8` —
+  just to the left of the select's own native dropdown arrow, not on top of it (verified
+  live via Playwright screenshot at 500px width: both render side by side with no overlap).
+- **`FuelingPlannerSkeleton`** (`app/(app)/page.tsx`, the `<Suspense>` fallback for
+  `FuelingPlannerSection` while `getStravaRoutes()`/`getAthleteProfile()` are in flight —
+  in practice a rare fallback, since `getStravaRoutes()` is cached for 24h, see above) used
+  to be a handful of generically-sized `Skeleton` bars with no relationship to the real
+  form's actual shape. Rebuilt to mirror the real form directly: the real `CardTitle`/
+  `CardDescription` text, a muted 3-pill mode-toggle shape, a "Ruta" field reusing the
+  *exact* same select+spinner treatment above, "Intensidad objetivo" and "Fecha y hora de
+  salida" field shapes, and a translucent CTA button with its real label — so even on a
+  cold cache, the fallback is indistinguishable in structure from the form a moment later.
+- **`PostRideAnalysisSkeleton`** (same file) similarly dropped its stale "Actividad
+  selector + Analizar button" shape (a control pair that was removed from the real
+  component once "Cambiar salida" became the only picker, see "Sidebar navigation..."
+  below) in favor of the real `CardTitle`/`CardDescription` plus a muted status line —
+  matching what `PostRideAnalysis` itself actually shows in the instant after it mounts.
+- **`components/post-ride-analysis.tsx`'s own `loading && !result` branch** — used to be a
+  single plain text line ("Analizando tu última salida…") with nothing else on screen.
+  Replaced with the real telemetry card's shape rendered early: the same bordered/
+  `bg-surface` container, a status pill with a spinner, a muted map-shaped rectangle, and
+  the five real stat labels (Distancia, Tiempo en movimiento, Potencia, Gasto energético,
+  Frecuencia cardíaca) each showing a pulsing `--` instead of nothing — the labels are
+  static and can render immediately; only the numbers genuinely don't exist yet.
+- **`PhysiologicalProfileSkeleton`** (`app/(app)/perfil/page.tsx`) used to be 3 identical
+  generic 4-field grids with no real label text. Rebuilt to show the real three numbered
+  cards with their actual static labels (Peso (kg), FTP (W), Soportes de bidón, Capacidad
+  por bidón, Fenotipo metabólico, Tasa de sudoración, Adaptación digestiva) — only the
+  input/selector *values* (which depend on `getAthleteProfile()`) are muted placeholders
+  ("Cargando…" text or a pulsing empty box), never the labels around them.
+
+All of the above were verified visually via a temporary, unauthenticated route rendering
+these components/skeletons directly (same Playwright-screenshot pattern used elsewhere in
+this codebase — added to `proxy.ts`'s `PUBLIC_PATH_PREFIXES` and `useState(true)`-forced
+for the one client state that needed to be pinned open, both reverted before committing).
+
 ### Mobile-first layout
 
 The multi-column grids across the Dashboard and Perfil pages (profile form, planner

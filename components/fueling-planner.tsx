@@ -758,18 +758,39 @@ export function FuelingPlanner({
                     {refreshingRoutes ? "Sincronizando…" : "Recargar"}
                   </button>
                 </div>
-                <select
-                  id="route"
-                  className={selectableInputClass}
-                  value={selectedRouteId}
-                  onChange={(e) => setSelectedRouteId(e.target.value)}
-                >
-                  {routes.map((route) => (
-                    <option key={route.id} value={route.id}>
-                      {route.name} · {route.distanceKm}km · {route.elevationGainM}m D+
-                    </option>
-                  ))}
-                </select>
+                {/* The select's own border/background/native arrow render
+                    unconditionally — a refresh never swaps this control for
+                    a generic loading block. While `refreshingRoutes` is
+                    true, it's simply disabled with one muted placeholder
+                    option plus a micro-spinner overlaid to its own left of
+                    the native arrow, so the control's shape never jumps. */}
+                <div className="relative">
+                  <select
+                    id="route"
+                    className={cn(selectableInputClass, refreshingRoutes && "text-neutral-400")}
+                    value={refreshingRoutes ? "__syncing" : selectedRouteId}
+                    onChange={(e) => setSelectedRouteId(e.target.value)}
+                    disabled={refreshingRoutes}
+                  >
+                    {refreshingRoutes ? (
+                      <option value="__syncing" className="font-mono text-xs text-neutral-400">
+                        Sincronizando rutas de Strava...
+                      </option>
+                    ) : (
+                      routes.map((route) => (
+                        <option key={route.id} value={route.id}>
+                          {route.name} · {route.distanceKm}km · {route.elevationGainM}m D+
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  {refreshingRoutes && (
+                    <span
+                      className="pointer-events-none absolute top-1/2 right-8 size-3.5 -translate-y-1/2 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-800"
+                      aria-hidden="true"
+                    />
+                  )}
+                </div>
                 <RouteMapPreview
                   points={selectedRoutePoints}
                   distanceKm={selectedRoute?.distanceKm ?? null}

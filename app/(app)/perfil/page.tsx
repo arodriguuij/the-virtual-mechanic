@@ -2,7 +2,6 @@ import { TriangleAlert } from "lucide-react";
 import { Suspense } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { GutTrainingSelector } from "@/components/gut-training-selector";
 import { ProfileSavedToast } from "@/components/profile-saved-toast";
 import { getAthleteProfile } from "@/lib/dashboard-data";
@@ -198,21 +197,75 @@ async function PhysiologicalProfileCard() {
   );
 }
 
+// Mirrors the real form's three numbered cards and their actual, static
+// labels (never dependent on `getAthleteProfile()`) instead of a generic set
+// of unrelated gray bars — only the value-bearing fields (which genuinely
+// aren't known yet) get a muted, pulsing placeholder, matching the "labels
+// visible instantly, values fill in" rule this pass is built around.
 function PhysiologicalProfileSkeleton() {
   return (
     <div className="flex flex-col gap-6">
-      {Array.from({ length: 3 }).map((_, cardIndex) => (
-        <Card key={cardIndex}>
-          <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex flex-col gap-2">
-                <Skeleton className="h-3 w-14" />
-                <Skeleton className="h-9 w-full" />
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          <span className={cardNumberHeading}>01 · Métricas físicas y equipamiento</span>
+          <div className="grid grid-cols-2 gap-4">
+            {["Peso (kg)", "FTP (W)", "Soportes de bidón", "Capacidad por bidón"].map((label) => (
+              <div key={label} className="flex flex-col gap-1.5">
+                <span className={eyebrow}>{label}</span>
+                <div
+                  className={cn(
+                    profileInputClass,
+                    "flex animate-pulse items-center bg-neutral-100 text-sm text-neutral-400"
+                  )}
+                >
+                  Cargando…
+                </div>
               </div>
             ))}
-          </CardContent>
-        </Card>
-      ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          <span className={cardNumberHeading}>02 · Fenotipo metabólico y sudoración</span>
+          <div className="flex flex-col gap-1.5">
+            <span className={eyebrow}>Fenotipo metabólico (VLaMax)</span>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-18.5 animate-pulse rounded-lg border border-neutral-200 bg-neutral-100"
+                />
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className={eyebrow}>Tasa de sudoración</span>
+            <div className={cn(profileInputClass, "animate-pulse bg-neutral-100 sm:w-1/2")} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          <span className={cardNumberHeading}>03 · Adaptación digestiva</span>
+          <p className="text-sm text-neutral-500">
+            El intestino se entrena igual que las piernas — tolerar más carbohidratos por hora
+            en ruta es una capacidad que se gana progresivamente. Tu nivel actual limita el
+            máximo que el planificador te recomendará, aunque la intensidad de la ruta pida más.
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-16 animate-pulse rounded-lg border border-neutral-200 bg-neutral-100" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className={cn(primaryButtonClass, "pointer-events-none w-full justify-center py-3.5 text-xs opacity-50")}>
+        Guardar cambios
+      </div>
     </div>
   );
 }

@@ -385,8 +385,40 @@ export function PostRideAnalysis({ activities }: { activities: ActivityOption[] 
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
+        {/* Stat labels render immediately — only the numbers themselves
+            (which genuinely don't exist yet, there's no ride picked until
+            the fetch resolves) show a muted `--` placeholder, matching the
+            same grid/proportions the real result renders into below so this
+            never reads as a different, generic loading card. */}
         {loading && !result && (
-          <p className="text-sm text-neutral-500">Analizando tu última salida…</p>
+          <div className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
+            <div className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-surface px-4 py-3">
+              <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-100 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-neutral-500 uppercase">
+                <span
+                  className="size-2.5 shrink-0 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-600"
+                  aria-hidden="true"
+                />
+                Analizando tu última salida…
+              </span>
+
+              <div className="grid grid-cols-1 gap-4 pt-1 md:grid-cols-12 md:items-center md:gap-6">
+                <div className="h-36 w-full animate-pulse rounded-lg bg-neutral-200/60 md:col-span-5 md:h-52" />
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:col-span-7 md:grid-cols-2">
+                  {["Distancia", "Tiempo en movimiento", "Potencia", "Gasto energético", "Frecuencia cardíaca"].map(
+                    (label) => (
+                      <div key={label} className="flex flex-col gap-1">
+                        <span className={statLabel}>{label}</span>
+                        <span className="animate-pulse font-mono text-sm font-semibold tabular-nums text-neutral-300">
+                          --
+                        </span>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {error && <p className="text-sm text-status-warning">{error}</p>}

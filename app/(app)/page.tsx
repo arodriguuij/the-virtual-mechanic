@@ -18,7 +18,7 @@ import {
   getStravaRoutes,
   getViewerIdentity,
 } from "@/lib/dashboard-data";
-import { primaryButtonClass } from "@/lib/ui-classes";
+import { primaryButtonClass, selectableFieldClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -83,23 +83,68 @@ async function ProfileCheckBannerSection() {
   return <ProfileCheckBanner missingFields={missingFields} />;
 }
 
+// Mirrors the real `FuelingPlanner` shell (mode toggle, "Ruta" select, the
+// same sync spinner/placeholder text `refreshingRoutes` uses, "Intensidad
+// objetivo," and the "Fecha y hora de salida" card) instead of a generic
+// unrelated set of gray bars — this is the *rare* fallback (getStravaRoutes()
+// is cached for 24h, so it only ever shows on a cold cache), but per the
+// "never tape over the real structure" convention, even a rare fallback
+// should read as "the same form, filling in" rather than a different loading
+// card. Only the title/labels/chrome are real, static text; every
+// data-dependent value is a muted/pulsing placeholder, never a fabricated
+// number.
 function FuelingPlannerSkeleton() {
   return (
     <Card>
       <CardHeader>
-        <Skeleton className="h-4 w-56" />
-        <Skeleton className="h-3 w-64" />
+        <CardTitle>Planificador de nutrición</CardTitle>
+        <CardDescription className={eyebrow}>Estrategia de bolsillo &amp; receta casera</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex gap-2">
-          <Skeleton className="h-8 w-40" />
-          <Skeleton className="h-8 w-36" />
+        <div className="grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1">
+          <div className="h-9 animate-pulse rounded-md bg-neutral-200/60" />
+          <div className="h-9 animate-pulse rounded-md bg-neutral-200/60" />
+          <div className="h-9 animate-pulse rounded-md bg-neutral-200/60" />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-9 w-full" />
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <span className={eyebrow}>Ruta</span>
+            <div className="relative">
+              <div
+                className={cn(
+                  selectableFieldClass,
+                  "flex items-center font-mono text-xs text-neutral-400 cursor-default"
+                )}
+              >
+                Sincronizando rutas de Strava...
+              </div>
+              <span
+                className="pointer-events-none absolute top-1/2 right-8 size-3.5 -translate-y-1/2 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-800"
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className={eyebrow}>Intensidad objetivo</span>
+            <div className={cn(selectableFieldClass, "animate-pulse bg-neutral-100")} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className={eyebrow}>Fecha y hora de salida</span>
+            <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 px-3 py-3">
+              <div className="grid grid-cols-3 gap-1">
+                <div className="h-9 animate-pulse rounded-md bg-neutral-100" />
+                <div className="h-9 animate-pulse rounded-md bg-neutral-100" />
+                <div className="h-9 animate-pulse rounded-md bg-neutral-100" />
+              </div>
+              <div className={cn(selectableFieldClass, "animate-pulse bg-neutral-100")} />
+            </div>
+          </div>
         </div>
-        <Skeleton className="h-9 w-32" />
+
+        <div className={cn(primaryButtonClass, "pointer-events-none w-full justify-center py-3.5 opacity-50")}>
+          Calcular estrategia nutricional
+        </div>
       </CardContent>
     </Card>
   );
@@ -118,18 +163,21 @@ async function PostRideAnalysisSection() {
   );
 }
 
+// Mirrors what `PostRideAnalysis` itself shows in the instant right after it
+// mounts (it auto-analyzes the most recent ride with no separate selector/
+// button left to show — see CLAUDE.md's "Sidebar navigation..." section) —
+// real title/description, a muted status line, nothing fabricated.
 function PostRideAnalysisSkeleton() {
   return (
     <Card>
       <CardHeader>
-        <Skeleton className="h-4 w-40" />
-        <Skeleton className="h-3 w-56" />
+        <CardTitle>Análisis post-ruta</CardTitle>
+        <CardDescription className={eyebrow}>
+          Deuda de glucógeno y objetivo de recuperación por macros
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex items-end gap-3">
-          <Skeleton className="h-9 flex-1" />
-          <Skeleton className="h-9 w-28" />
-        </div>
+        <p className="animate-pulse text-sm text-neutral-400">Analizando tu última salida…</p>
       </CardContent>
     </Card>
   );
