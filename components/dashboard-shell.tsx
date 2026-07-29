@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
-import { AppLogo } from "@/components/app-logo";
+import { RatioLogo } from "@/components/icons/RatioLogo";
 import { logout } from "@/lib/auth-actions";
 import { cn } from "@/lib/utils";
 
@@ -57,7 +57,7 @@ function SidebarContent({
           aria-label="Ir al Dashboard"
           className="flex cursor-pointer items-center gap-2 text-xs font-bold tracking-wider whitespace-nowrap text-neutral-900 uppercase transition-opacity duration-150 hover:opacity-80 focus:outline-none"
         >
-          <AppLogo className="size-6 shrink-0" />
+          <RatioLogo className="size-6 shrink-0 text-[#827B66]" />
           RATIO
         </Link>
         <button
@@ -196,7 +196,7 @@ export function DashboardShell({
             aria-label="Ir al Dashboard"
             className="flex cursor-pointer items-center gap-2 text-xs font-bold whitespace-nowrap text-neutral-900 uppercase tracking-wider transition-opacity duration-150 hover:opacity-80 focus:outline-none"
           >
-            <AppLogo className="size-6 shrink-0" />
+            <RatioLogo className="size-6 shrink-0 text-[#827B66]" />
             RATIO
           </Link>
         </header>

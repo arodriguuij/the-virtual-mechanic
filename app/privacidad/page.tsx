@@ -1,7 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
-import { AppLogo } from "@/components/app-logo";
+import { RatioLogo } from "@/components/icons/RatioLogo";
 
 export const metadata = {
   title: "Política de Privacidad — RATIO",
@@ -28,7 +28,7 @@ export default function PrivacyPolicyPage() {
           href="/login"
           className="flex items-center gap-2 font-mono text-sm font-bold tracking-wider whitespace-nowrap text-neutral-900 uppercase"
         >
-          <AppLogo className="size-5 shrink-0" />
+          <RatioLogo className="size-5 shrink-0 text-neutral-900" />
           RATIO
         </Link>
       </header>

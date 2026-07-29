@@ -1,4 +1,4 @@
-import { AppLogo } from "@/components/app-logo";
+import { RatioLogo } from "@/components/icons/RatioLogo";
 
 /**
  * `loading.tsx` scoped to the `(app)` route group — Next only wraps this
@@ -13,7 +13,7 @@ import { AppLogo } from "@/components/app-logo";
 export default function AppLoading() {
   return (
     <div className="flex min-h-[50vh] w-full flex-1 flex-col items-center justify-center py-12">
-      <AppLogo className="animate-logo-breathe size-14" />
+      <RatioLogo className="animate-logo-breathe size-14 text-neutral-900" />
     </div>
   );
 }

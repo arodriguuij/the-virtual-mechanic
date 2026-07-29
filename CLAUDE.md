@@ -236,7 +236,7 @@ structure:
   overlay's `absolute inset-0`, keeping that tint scoped to the video column instead of
   resolving against the grid root and bleeding across the whole split screen.
 - **`BrandMark`** — a plain in-flow icon+wordmark lockup (`flex items-center justify-center
-  gap-3`, `AppLogo` at `size-8`, no pill/capsule background on the text), the first child
+  gap-3`, `RatioLogo` at `size-8`, no pill/capsule background on the text), the first child
   inside the centered content block itself rather than a separate globally-`fixed` overlay.
   An earlier pass made this a `fixed top-4 left-1/2 z-50` element specifically because the
   content column back then was a full-bleed translucent panel with no natural centered
@@ -1094,7 +1094,7 @@ weather to the reload plan competed for the same attention, so the actual headli
 supporting detail. Restructured around a "glance vs. dig deeper" split instead:
 
 - **Hero card** — a dark (`bg-[#343334]`, a literal one-off brand-charcoal fill, not a
-  reusable token — same convention as `components/app-logo.tsx`'s and Strava's own
+  reusable token — same convention as `app/icon.tsx`'s hardcoded `#171717` and Strava's own
   `#FC4C02` one-off hex usages elsewhere in this app) card rendered first, directly under
   the result header. Shows only the four numbers an athlete actually needs mid-prep: the
   per-bottle malto/fructose dose in the brand's bright orange (`text-[#FD5A08]` —
@@ -1879,7 +1879,7 @@ already (it owns the mobile drawer's `mobileOpen` state), so this needed no new
 `"use client"` boundary. Each `Link` takes an `onNavigate` callback that closes the mobile
 drawer (`setMobileOpen(false)`) on click, since without it a mobile visitor tapping a nav
 item would navigate underneath a still-open overlay. The same `SidebarContent` header
-(`AppLogo` + "RATIO") and the mobile top header's own logo+text are both
+(`RatioLogo` + "RATIO") and the mobile top header's own logo+text are both
 wrapped in a `<Link href="/">` (the sidebar one also firing `onNavigate` to close the
 drawer) so clicking the brand mark always returns to the Dashboard, a near-universal web
 convention this app was missing. **Clicking it while already on the Dashboard** doesn't
@@ -2332,11 +2332,13 @@ to a freshly computed result, but they needed opposite fixes:
 `<head>`, no manual `<link rel="manifest">` needed) declares `display: "standalone"` so
 Android/Chrome's install prompt launches the app without browser chrome. `app/icon.tsx`
 (512×512) and `app/apple-icon.tsx` (180×180) both generate a PNG at request time via
-`next/og`'s `ImageResponse` — the same brand-mark SVG paths as `components/app-logo.tsx`
-(same cropped viewBox, embedded directly as inline `<svg>`/`<path>` elements inside the
-`ImageResponse` JSX — `satori` renders raw SVG children natively, no rasterization step
-needed) on a `--background` cream square, replacing an earlier flame-emoji placeholder —
-rather than needing a hand-exported image asset; Next auto-injects the corresponding
+`next/og`'s `ImageResponse` — the same brand-mark SVG paths as
+`components/icons/RatioLogo.tsx` (same cropped viewBox, embedded directly as inline
+`<svg>`/`<path>` elements inside the `ImageResponse` JSX — `satori` renders raw SVG
+children natively, no rasterization step needed — with a hardcoded `#171717` fill rather
+than `currentColor`, since a standalone `ImageResponse` render tree has no ambient text
+color to inherit) on a `--background` cream square, rather than needing a hand-exported
+image asset; Next auto-injects the corresponding
 `<link rel="icon">`/`<link rel="apple-touch-icon">` tags. **Deliberately not** a static
 `app/icon.svg`/`public/icon.svg` file even though `icon.(svg|png|...)` is also a valid
 convention — Next allows only one `icon` resolution per route segment, and this segment

@@ -2,7 +2,7 @@ import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { AppLogo } from "@/components/app-logo";
+import { RatioLogo } from "@/components/icons/RatioLogo";
 
 const headerPills = ["Ratio 1:0.8", "Meteo en vivo", "Mezcla casera"];
 
@@ -65,7 +65,7 @@ function BackgroundMedia() {
 function BrandMark() {
   return (
     <div className="mb-6 flex items-center justify-center gap-3">
-      <AppLogo className="size-8 text-neutral-900" />
+      <RatioLogo className="size-8 text-neutral-900" />
       <span className="font-mono text-sm font-bold tracking-[0.35em] whitespace-nowrap text-neutral-900 uppercase sm:text-base">
         RATIO
       </span>
