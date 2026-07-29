@@ -1854,6 +1854,30 @@ version has no client state to read from for that. This also absorbed the old st
 page below the form — every level's own g/h range is already shown on its own selector
 card now, so a second static list repeating the same 4 ranges was pure duplication.
 
+**Micro-explicaciones on the selector cards.** The g/h range alone ("60-75 g/h") doesn't
+tell an athlete which level actually describes their own real-world fueling habits, so
+every Gut Training card and the "Tasa de sudoración" cards right above it (see below) now
+carry a third, plain-language line under the range — `gutTrainingLevelDescriptions`/
+`sweatRateDescriptions` (`lib/metabolic-engine.ts`), `font-mono text-[11px] leading-tight`
+— e.g. "Habituado a ingerir carbohidratos en salidas >2h sin molestias" for Intermedio.
+Both selectors also switched their *selected*-card treatment from the lighter
+`border-terracotta` + `bg-[#FDF8F6]` tint the "Fenotipo metabólico" cards above still use,
+to a solid `bg-terracotta text-white` fill — a deliberate, scoped upgrade for just these
+two selectors (the ones that just gained a secondary text line worth contrasting clearly),
+not a page-wide restyle of every radio-card group on this form. `GutTrainingSelector`
+already tracks the active level in real `useState`, so its active-state color is a plain
+ternary; the sweat-rate cards have no client state of their own (nothing else on the page
+reads that selection live), so they use the `group has-checked:`/`group-has-checked:` CSS
+variant pair instead — the label itself is `has-checked:bg-terracotta`, and its child
+description span reacts to that same ancestor via `group-has-checked:text-white/80`.
+Each section header also gained a small `(i)` **`InfoTooltip`** (`components/
+info-tooltip.tsx` — a generalized version of `FuelingContextTooltips`'s existing pure
+`group-hover`/`group-focus-within` CSS technique, taking a static `note` prop instead of
+computing one, since these two explainers are fixed copy, not a derived value) with a
+short physiological explainer for a curious athlete who wants more than the one-line
+subtext — "Tasa de sudoración" gets one about sweat/sodium variability, "03 · Adaptación
+digestiva" gets one about the gut being trainable like the legs.
+
 ### Sidebar navigation vs. Dashboard tabs (app/(app)/page.tsx, app/(app)/perfil/page.tsx, app/(app)/estadisticas/page.tsx, app/(app)/historial/page.tsx)
 
 **The `(app)` route group and its persistent shell layout.** These four routes used to each
@@ -2041,10 +2065,12 @@ fire; route removed again before committing.
   rather than a tab panel. `PhysiologicalProfileCard` reads `getAthleteProfile()` and
   renders an inline edit form (weight/FTP/sweat rate/gut training level/bottle
   count/bottle capacity/salty-sweater checkbox, pre-filled with current values) POSTing to
-  `/api/athlete-profile/update`, plus a static reference table of the four Gut Training
-  levels and their g/h ranges (see "Gut Training Scale" above), plus a full-width 1-click
-  metabolic phenotype selector (three `has-checked:`-styled radio cards, see "Metabolic
-  phenotype" below). The "Sudo mucha sal" checkbox (`is_salty_sweater`) feeds
+  `/api/athlete-profile/update`. Sweat rate is a `has-checked:`-styled 3-card radio group
+  (`name="sweat_rate"`, same real values as before — `low`/`medium`/`high` — just no longer
+  a plain `<select>`), not a static reference table, plus a full-width 1-click metabolic
+  phenotype selector (three `has-checked:`-styled radio cards, see "Metabolic phenotype"
+  below) — see "Micro-explicaciones on the selector cards" above for both cards' own
+  descriptive subtext and `InfoTooltip`. The "Sudo mucha sal" checkbox (`is_salty_sweater`) feeds
   `getSodiumLossMgPerHour`'s elevated concentration tier (see "Metabolic engine" above).
   The bottle count/capacity selects feed "Bottle architecture &
   osmolarity control" and "Reload strategy" above — real bike equipment, not a physiology

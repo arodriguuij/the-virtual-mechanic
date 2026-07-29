@@ -202,6 +202,17 @@ export const gutTrainingLevelRanges: Record<GutTrainingLevel, string> = {
   pro: "100-120 g/h",
 };
 
+/** Plain-language "which level am I" cue for `/perfil`'s selector cards —
+ * what kind of real fueling behavior each range actually corresponds to,
+ * since the g/h range alone doesn't tell an athlete which one describes
+ * them. */
+export const gutTrainingLevelDescriptions: Record<GutTrainingLevel, string> = {
+  beginner: "Geles u orígenes ocasionales. Poco entrenamiento digestivo previo.",
+  intermediate: "Habituado a ingerir carbohidratos en salidas >2h sin molestias.",
+  advanced: "Buena tolerancia entrenada — sostiene mezclas concentradas en rutas largas.",
+  pro: "Gut Training activo. Alta tolerancia a mezclas concentradas 1:0.8.",
+};
+
 const GUT_TRAINING_CAP_G_PER_HOUR: Record<GutTrainingLevel, number> = {
   beginner: 50,
   intermediate: 75,
@@ -286,6 +297,17 @@ export const sweatRateLabels: Record<SweatRate, string> = {
   low: "Baja",
   medium: "Media",
   high: "Alta",
+};
+
+/** Plain-language "which one am I" cue for `/perfil`'s sweat-rate selector
+ * cards — the same self-reported, visible-evidence framing
+ * `is_salty_sweater`'s own checkbox copy already uses ("cercos blancos en
+ * el maillot"), so an athlete without a real sweat test can still place
+ * themselves confidently. */
+export const sweatRateDescriptions: Record<SweatRate, string> = {
+  low: "Poca sudoración. Sin marcas de sal en la ropa tras entrenar.",
+  medium: "Sudoración estándar. Marcas salinas ligeras en días calurosos.",
+  high: "Sudoración abundante o muy salada. Marcas blancas evidentes en maillot y cintas del casco.",
 };
 
 // Standard environmental lapse rate — ambient temperature falls ~6.5°C per

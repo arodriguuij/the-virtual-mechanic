@@ -3,9 +3,16 @@ import { Suspense } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { GutTrainingSelector } from "@/components/gut-training-selector";
+import { InfoTooltip } from "@/components/info-tooltip";
 import { ProfileSavedToast } from "@/components/profile-saved-toast";
 import { getAthleteProfile } from "@/lib/dashboard-data";
-import { athleteTypeDescriptions, athleteTypeLabels, sweatRateLabels } from "@/lib/metabolic-engine";
+import {
+  athleteTypeDescriptions,
+  athleteTypeLabels,
+  sweatRateDescriptions,
+  sweatRateLabels,
+  type SweatRate,
+} from "@/lib/metabolic-engine";
 import { fieldClass, primaryButtonClass, selectableFieldClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
@@ -137,21 +144,41 @@ async function PhysiologicalProfileCard() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="sweat_rate" className={eyebrow}>
+            <span className={cn(eyebrow, "flex items-center")}>
               Tasa de sudoración
-            </label>
-            <select
-              id="sweat_rate"
-              name="sweat_rate"
-              defaultValue={profile?.sweat_rate ?? "medium"}
-              className={cn(selectableProfileInputClass, "sm:w-1/2")}
-            >
-              {(Object.keys(sweatRateLabels) as (keyof typeof sweatRateLabels)[]).map((rate) => (
-                <option key={rate} value={rate}>
-                  {sweatRateLabels[rate]}
-                </option>
+              <InfoTooltip
+                label="Contexto sobre sudoración y sodio"
+                note="La tasa de sudoración y la concentración de sodio en el sudor varían mucho por persona — sin un sudor test real, las marcas de sal visibles en la ropa son la señal más fiable para autoevaluarte."
+              />
+            </span>
+            {/* Solid-fill active state (`bg-terracotta`), matching the Gut
+                Training cards right below — see that component's own doc
+                comment for why this is a scoped upgrade, not applied to the
+                "Fenotipo metabólico" cards above. Plain `has-checked:` CSS,
+                no client state needed: unlike Gut Training, nothing else on
+                this page reads the selected sweat rate live. */}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {(Object.keys(sweatRateLabels) as SweatRate[]).map((rate) => (
+                <label
+                  key={rate}
+                  className="group flex cursor-pointer flex-col gap-1 rounded-lg border border-neutral-200 px-3 py-2.5 text-neutral-700 transition-colors duration-150 has-checked:border-terracotta has-checked:bg-terracotta has-checked:text-white hover:border-neutral-400"
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="sweat_rate"
+                      value={rate}
+                      defaultChecked={(profile?.sweat_rate ?? "medium") === rate}
+                      className="size-3.5 cursor-pointer accent-terracotta"
+                    />
+                    <span className="text-sm font-semibold">{sweatRateLabels[rate]}</span>
+                  </span>
+                  <span className="mt-1 font-mono text-[11px] leading-tight text-neutral-500 group-has-checked:text-white/80">
+                    {sweatRateDescriptions[rate]}
+                  </span>
+                </label>
               ))}
-            </select>
+            </div>
           </div>
 
           <label className="flex cursor-pointer items-start gap-2 text-sm text-neutral-700">
@@ -174,7 +201,13 @@ async function PhysiologicalProfileCard() {
 
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <span className={cardNumberHeading}>03 · Adaptación digestiva</span>
+          <span className={cn(cardNumberHeading, "flex items-center")}>
+            03 · Adaptación digestiva
+            <InfoTooltip
+              label="Contexto sobre adaptación digestiva"
+              note="La capacidad de absorber carbohidratos en ruta es entrenable, igual que las piernas: exponer al intestino a dosis crecientes de forma repetida sube el techo con el tiempo, sin necesidad de mejorar la forma física."
+            />
+          </span>
           <p className="text-sm text-neutral-500">
             El intestino se entrena igual que las piernas — tolerar más carbohidratos por hora
             en ruta es una capacidad que se gana progresivamente. Tu nivel actual limita el
@@ -242,7 +275,14 @@ function PhysiologicalProfileSkeleton() {
           </div>
           <div className="flex flex-col gap-1.5">
             <span className={eyebrow}>Tasa de sudoración</span>
-            <div className={cn(profileInputClass, "animate-pulse bg-neutral-100 sm:w-1/2")} />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-18.5 animate-pulse rounded-lg border border-neutral-200 bg-neutral-100"
+                />
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
