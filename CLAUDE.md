@@ -220,12 +220,33 @@ bars. The current structure:
   block for the `bg-black/20` contrast overlay's `absolute inset-0`, keeping that tint
   scoped to the video column instead of resolving against the grid root and bleeding across
   the whole split screen.
+- **`FloatingBrandMark`** — `fixed top-4 left-1/2 z-50 -translate-x-1/2` (`sm:top-6`),
+  anchored to the true viewport rather than the content column, with no `hidden`/`lg:flex`
+  gating — it must render identically at every breakpoint, mobile included. Replaced the
+  in-flow plain-text brand mark (no icon, no pill, `block` inside the content column's own
+  `<div>`) from the previous pass — that version had a real regression on narrow phones:
+  since it lived inside the content column's top group, a mobile viewport short enough that
+  the column's content pushed below the fold could scroll the brand mark out of view
+  entirely, whereas the brief requires it always visible regardless of scroll position or
+  device. `AppLogo` (`size-5 sm:size-6`) sits directly on the page/video with no container
+  of its own, and the wordmark text is the one element that gets a pill
+  (`rounded-full border border-neutral-200/80 bg-white/90 ... shadow-sm backdrop-blur-md`)
+  — needed here (unlike the old in-flow version) because this mark can now sit directly
+  over raw, unpredictable video content on mobile, not always over the content column's own
+  background. `whitespace-nowrap` on the pill's text span is load-bearing: without it,
+  "MOTOR METABÓLICO" at the wide `tracking-[0.25em]` letter-spacing wrapped onto two lines
+  at 390px and narrower, roughly doubling the pill's height — caught via a Playwright
+  screenshot, fixed by dropping to `text-[9px] tracking-[0.15em]` on mobile
+  (`sm:text-[11px] sm:tracking-[0.25em]`) plus the explicit `whitespace-nowrap`.
 - **Content column** — `flex flex-col justify-between`, two direct children (a top group:
-  brand mark, slogan, spec line, the telemetry card, the conditional error banner; a bottom
+  slogan, spec line, the unwrapped telemetry readout, the conditional error banner; a bottom
   group: the Strava CTA and the privacy footnote) so `justify-between` reads as "hero
   content pinned top, CTA pinned bottom" rather than evenly gapping every individual element
-  — a flat list of ~7 children under `justify-between` would space them apart with equal
-  (and visually arbitrary) gaps regardless of how tightly related they are. At `lg:` the
+  — a flat list of ~6 children under `justify-between` would space them apart with equal
+  (and visually arbitrary) gaps regardless of how tightly related they are. `pt-20 sm:pt-24`
+  (both on mobile and, via `lg:pt-24`, at the `lg:` split-screen breakpoint too) clears the
+  floating brand mark pinned above it — without this, the slogan's own text would render
+  directly underneath (and at some viewport heights, behind) the fixed pill. At `lg:` the
   column is a solid `lg:bg-[#FDFCF9]` panel (the split screen's right half, no border, no
   shadow, no rounded corners — content sits directly on the panel's own background). On
   mobile it's `bg-white/60` with no `backdrop-blur`, sitting directly over the fixed video —
@@ -236,43 +257,28 @@ bars. The current structure:
   320/390px — the clip stays clearly recognizable while text stays legible. No
   `backdrop-blur` at any opacity tested — blurring the video underneath consistently read as
   "foggy," not "PNS."
-- **Brand mark** — plain text, `block font-mono text-xs sm:text-sm font-bold
-  tracking-[0.3em] uppercase text-neutral-900`, no icon, no pill, no border, no background
-  of its own — it relies entirely on the content column's own background (the mobile
-  translucent layer or the desktop cream panel) for contrast, rather than carrying its own
-  chip. This is the first genuinely "plain text" version to survive — two earlier passes
-  each added their own containing chip (first an `absolute` top-left translucent chip over
-  the raw video, then a `fixed` full-width top-center masthead pill) specifically because
-  `AppLogo`'s SVG fills are hardcoded, not `currentColor` (see `components/app-logo.tsx`'s
-  own doc comment) — those chips existed to guarantee contrast when the mark could
-  potentially sit directly over raw, unpredictable video content. The current layout no
-  longer needs that: the mark always sits inside the content column, which always has its
-  own background (translucent or solid) behind it, so a chip of its own became redundant
-  once that was true, and the icon was dropped too (plain text is all the current brief
-  actually asks for).
-- **`DashboardPreviewCard`** (the "Tarjeta Técnica," `rounded-md border border-neutral-300/80`
-  — this is the one deliberately structured/bordered element on the page, not a stray
-  regression of the "no cards" rule above; the brief calls it out explicitly as the single
-  exception) stays strictly 100% typographic otherwise — no icons, no emoji, not even a
-  colored-dot "synced" indicator. An emerald `STRAVA SYNCED` badge, a route name/distance/
-  elevation/gradient line ("Sa Calobra — Coll dels Reis"), a `divide-x` 3-column telemetry
-  grid (Potencia NP / Glucógeno / Sudor), and a left-accent-bordered
-  (`border-l-2 border-l-[#D9532F]`) "Pauta de ingesta recomendada" block. The date pill
-  reads a literal `"HOY · 27°C"` — a brief prior iteration computed a real
-  `toLocaleDateString` value here, reverted once the brief asked specifically for the
-  relative "HOY" label, which needs no server-side computation to stay accurate (unlike an
-  actual formatted date, it never goes stale). The one deliberate icon exception on the
-  whole page is the Strava icomark on the CTA button (`components/strava-login-button.tsx`
-  — its own className was widened from a `max-w-70`-capped pill to a plain `w-full` button,
-  since there's no longer an outer card constraining the content column's width) — Strava's
-  API Agreement requires the icomark for brand identification (see "Strava API compliance"
-  below). The header spec line is one sober line with mid-dot separators —
-  `RATIO 1:0.8 • METEO EN VIVO • MEZCLA CASERA` (`headerPills.join(" • ")`) — every prior
-  badge/pill treatment (a plain `rounded-full` pill row, then squared numbered
-  `01 / .../02 / ...` tags) was dropped once the brief called for one continuous technical
-  line instead of discrete tags. Every figure in the card is static/illustrative, not live
-  data, so it needs no network round-trip or Strava connection — appropriate for a page
-  every logged-out visitor hits.
+- **Telemetry readout — no card.** The former `DashboardPreviewCard` (a
+  `rounded-md border border-neutral-300/80 bg-white` box) was removed outright per an
+  explicit "no cards anywhere on this page" correction — that earlier exception (justified
+  at the time as "the one deliberately bordered element, the brief calls it out
+  explicitly") no longer holds once a later pass explicitly named it as a regression to
+  fix. The same content — route name/distance/elevation/gradient line ("Sa Calobra — Coll
+  dels Reis" · "9.5 km · 670m D+ · 7% avg · HOY · 27°C"), a `divide-x`/`border-y` 3-column
+  telemetry grid (Potencia NP / Glucógeno / Sudor, no `bg-white` box around it, just thin
+  `divide-neutral-300/80`/`border-neutral-300/80` rules), and a left-accent-bordered
+  (`border-l-2 border-[#D9532F]`) "Pauta de ingesta recomendada" block — now sits directly
+  on the panel's own background with no wrapping container, matching the "content floats
+  directly on the canvas" rule applied everywhere else on the page. Still strictly 100%
+  typographic (no icons, no emoji, no colored-dot indicator) and still fully
+  static/illustrative data needing no network round-trip. The slogan
+  ("Nutrición de precisión para ciclistas") and the spec line
+  (`RATIO 1:0.8 • METEO EN VIVO • MEZCLA CASERA`, `headerPills.join(" • ")`) are centered
+  (`text-center`) as a hero-style masthead pair, while the telemetry readout below them
+  reverts to left-aligned, matching a technical data-sheet reading order rather than
+  centering everything. The one deliberate icon exception on the whole page remains the
+  Strava icomark on the CTA button (`components/strava-login-button.tsx`, `w-full`, no
+  `max-w-70` cap) — Strava's API Agreement requires it for brand identification (see
+  "Strava API compliance" below).
 - **`app/layout.tsx` deliberately untouched.** The brief also asked for the shared root
   layout's background to go dark, aimed at the same iOS Safari white-strip class of bug —
   not implemented, and deliberately so: `app/layout.tsx` wraps every route in the app, and

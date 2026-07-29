@@ -1,6 +1,7 @@
 import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
 
+import { AppLogo } from "@/components/app-logo";
 import { StravaLoginButton } from "@/components/strava-login-button";
 
 export const dynamic = "force-dynamic";
@@ -26,11 +27,9 @@ const telemetryStats = [
  * Full-bleed background — the real `public/login-bg.mp4` loop. `autoPlay`/
  * `muted`/`playsInline` together are what actually let this autoplay on
  * mobile Safari/Chrome — any one missing and the browser blocks autoplay
- * outright. `object-cover` at every breakpoint (not `lg:object-contain`, a
- * prior iteration's approach) — that letterboxed the 9:16 clip against the
- * desktop column's dark background to avoid cropping, but the brief here
- * explicitly wants the column filled edge-to-edge with zero visible bars,
- * accepting the crop instead. A flat `bg-black/20` tint sits on top for
+ * outright. `object-cover` at every breakpoint — the column is filled
+ * edge-to-edge with zero visible bars, accepting the crop on the 9:16 clip
+ * instead of letterboxing it. A flat `bg-black/20` tint sits on top for
  * contrast against whatever text overlays it.
  *
  * `fixed` (not `absolute`) + explicit `h-dvh`/`min-h-screen` on mobile — an
@@ -59,7 +58,7 @@ function BackgroundMedia() {
         muted
         playsInline
         preload="auto"
-        className="absolute inset-0 h-full w-full object-cover opacity-90"
+        className="absolute inset-0 h-full w-full object-cover opacity-80"
         aria-hidden="true"
       >
         <source src="/login-bg.mp4" type="video/mp4" />
@@ -70,64 +69,22 @@ function BackgroundMedia() {
 }
 
 /**
- * "Tarjeta Técnica" — a real mockup of the app's own visual language (the
- * Post-Ride telemetry card's badge/stat-grid pattern, the Fueling Planner's
- * terracotta-accented recommendation block), not an abstract illustration.
- * Deliberately 100% typographic — no icons, no emoji, not even a colored-dot
- * "synced" indicator — every visual cue here is text weight/color/borders
- * only. The one deliberate exception on this whole page is the Strava
- * icomark on the CTA button below — Strava's API Agreement requires it for
- * brand identification (see "Strava API compliance" in CLAUDE.md).
- *
- * Every figure here is illustrative/static (a real route name, a plausible
- * NP/glycogen/sweat-rate/carb-target set of numbers, a "HOY" date pill
- * rather than a real computed date) — this card exists purely to preview
- * the *shape* of a real result, not to claim it's live data, so nothing
- * here needs a network round-trip, Strava connection, or server-side clock.
+ * Floating brand mark — `fixed` to the true viewport's top-center at every
+ * breakpoint, with no `hidden`/`lg:flex` gating, so it survives on top of
+ * both the mobile translucent panel and the desktop split screen instead of
+ * disappearing on narrow viewports the way the previous in-flow text did.
+ * `z-50` clears the content column's own `z-10`. The pill background is
+ * scoped to the text only — the isotype sits directly on the page/video
+ * with no container of its own, matching every other icon+wordmark lockup
+ * in this app (sidebar header, `/auth/callback`).
  */
-function DashboardPreviewCard() {
+function FloatingBrandMark() {
   return (
-    <div className="mb-6 rounded-md border border-neutral-300/80 bg-white p-4 text-left shadow-none">
-      <div className="flex items-center justify-between gap-2">
-        <span className="rounded-sm border border-emerald-200/80 bg-emerald-50 px-2 py-0.5 font-mono text-[9px] font-bold tracking-widest text-emerald-800 uppercase">
-          Strava Synced
-        </span>
-        <span className="font-mono text-[9px] text-neutral-400">HOY · 27°C</span>
-      </div>
-
-      <div className="mt-1.5">
-        <p className="truncate font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">
-          Sa Calobra — Coll dels Reis
-        </p>
-        <p className="font-mono text-[9px] text-neutral-500 sm:text-xs">9.5 km · 670m D+ · 7% avg</p>
-      </div>
-
-      <div className="my-3 grid grid-cols-3 divide-x divide-neutral-200 rounded-sm border border-neutral-200 bg-[#FAF9F5] py-2.5 text-center">
-        {telemetryStats.map((stat) => (
-          <div key={stat.label}>
-            <p className="truncate font-mono text-[7px] font-semibold tracking-wide text-neutral-500 uppercase sm:text-[9px]">
-              {stat.label}
-            </p>
-            <p className="font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">{stat.value}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="rounded-r-sm border-y border-r border-l-2 border-neutral-200/80 border-l-[#D9532F] bg-[#F7F5F0] p-3">
-        <span className="mb-0.5 block font-mono text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
-          Pauta de ingesta recomendada
-        </span>
-        <p className="flex flex-wrap items-baseline gap-x-1.5 font-mono text-neutral-900">
-          <span className="text-base font-bold sm:text-xl">85</span>
-          <span className="text-[10px] font-normal text-neutral-500 sm:text-xs">g/h</span>
-          <span className="text-[8px] font-normal text-neutral-500 sm:text-[10px]">
-            (Ratio 1:0.8 Glucosa:Fructosa)
-          </span>
-        </p>
-        <p className="mt-0.5 font-mono text-[8px] text-neutral-600 sm:text-[10px]">
-          750 ml/h · 850 mg Sodio
-        </p>
-      </div>
+    <div className="pointer-events-auto fixed top-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 sm:top-6">
+      <AppLogo className="size-5 text-neutral-900 sm:size-6" />
+      <span className="rounded-full border border-neutral-200/80 bg-white/90 px-3.5 py-1.5 font-mono text-[9px] font-bold tracking-[0.15em] whitespace-nowrap text-neutral-900 uppercase shadow-sm backdrop-blur-md sm:text-[11px] sm:tracking-[0.25em]">
+        Motor Metabólico
+      </span>
     </div>
   );
 }
@@ -147,11 +104,13 @@ export default async function LoginPage({
   return (
     <div className="relative grid min-h-dvh w-full grid-cols-1 bg-neutral-950 lg:grid-cols-2 lg:bg-[#FDFCF9]">
       <BackgroundMedia />
+      <FloatingBrandMark />
 
       {/* Content column — no floating card, no shadow, no rounded container.
-          On mobile this is a translucent layer sitting directly over the
-          fixed video (the "única capa translúcida limpia" the design calls
-          for); at `lg:` it becomes the solid-cream right half of the split
+          `pt-20`/`sm:pt-24` clears the floating brand mark pinned above it
+          at every breakpoint, including the desktop split screen. On mobile
+          this is a translucent layer sitting directly over the fixed video;
+          at `lg:` it becomes the solid-cream right half of the split
           screen, since the column's own background already provides all
           the contrast a translucent layer exists for on mobile.
 
@@ -164,24 +123,66 @@ export default async function LoginPage({
           recognizable (verified via screenshot) while text stays legible.
           No `backdrop-blur` deliberately — blurring the video underneath
           read as "foggy," not "PNS," even at lower opacity values. */}
-      <div className="relative z-10 flex min-h-dvh w-full flex-col justify-between bg-white/60 px-6 py-8 text-left sm:px-8 sm:py-12 lg:h-full lg:min-h-dvh lg:bg-[#FDFCF9] lg:p-12">
+      <div className="relative z-10 flex min-h-dvh w-full flex-col justify-between bg-white/60 px-6 pt-20 pb-8 sm:px-8 sm:pt-24 sm:pb-12 lg:h-full lg:min-h-dvh lg:bg-[#FDFCF9] lg:p-12 lg:pt-24">
         <div className="flex flex-col">
-          <span className="mb-6 block font-mono text-xs font-bold tracking-[0.3em] text-neutral-900 uppercase sm:text-sm">
-            Motor Metabólico
-          </span>
-
-          <h1 className="mb-2 font-mono text-base font-bold tracking-tight text-neutral-900 uppercase sm:text-xl">
+          <h1 className="mb-1 text-center font-mono text-base font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
             Nutrición de precisión para ciclistas
           </h1>
 
-          <p className="mb-6 font-mono text-[10px] font-bold tracking-widest text-neutral-500 uppercase sm:text-xs">
+          <p className="mb-6 block text-center font-mono text-[10px] font-bold tracking-widest text-neutral-500 uppercase sm:mb-8 sm:text-xs">
             {headerPills.join(" • ")}
           </p>
 
-          <DashboardPreviewCard />
+          {/* Telemetry readout — a real mockup of the app's own visual
+              language (the Post-Ride telemetry card's stat-grid pattern,
+              the Fueling Planner's terracotta-accented recommendation
+              block), unwrapped from any card/border/shadow container so it
+              sits directly on the panel's own background — thin dividers
+              and a left accent rule are the only structure. Deliberately
+              100% typographic — no icons, no emoji, not even a colored-dot
+              "synced" indicator. Every figure here is illustrative/static
+              (a real route name, a plausible NP/glycogen/sweat-rate/carb
+              set of numbers, a "HOY" date rather than a real computed one)
+              — this exists purely to preview the *shape* of a real result,
+              not to claim it's live data. */}
+          <div className="text-left">
+            <p className="truncate font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">
+              Sa Calobra — Coll dels Reis
+            </p>
+            <p className="font-mono text-[9px] text-neutral-500 sm:text-xs">
+              9.5 km · 670m D+ · 7% avg · HOY · 27°C
+            </p>
+
+            <div className="my-4 grid grid-cols-3 divide-x divide-neutral-300/80 border-y border-neutral-300/80 py-3 text-center sm:my-6">
+              {telemetryStats.map((stat) => (
+                <div key={stat.label}>
+                  <p className="truncate font-mono text-[7px] font-semibold tracking-wide text-neutral-500 uppercase sm:text-[9px]">
+                    {stat.label}
+                  </p>
+                  <p className="font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">{stat.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="my-4 border-l-2 border-[#D9532F] py-1 pl-3.5 text-left sm:my-6">
+              <span className="mb-0.5 block font-mono text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                Pauta de ingesta recomendada
+              </span>
+              <p className="flex flex-wrap items-baseline gap-x-1.5 font-mono text-neutral-900">
+                <span className="text-base font-bold sm:text-xl">85</span>
+                <span className="text-[10px] font-normal text-neutral-500 sm:text-xs">g/h</span>
+                <span className="text-[8px] font-normal text-neutral-500 sm:text-[10px]">
+                  (Ratio 1:0.8 Glucosa:Fructosa)
+                </span>
+              </p>
+              <p className="mt-0.5 font-mono text-[8px] text-neutral-600 sm:text-[10px]">
+                750 ml/h · 850 mg Sodio
+              </p>
+            </div>
+          </div>
 
           {error && (
-            <div className="mb-6 flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-left text-xs text-status-warning sm:px-4 sm:py-3 sm:text-sm">
+            <div className="mt-2 mb-6 flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-left text-xs text-status-warning sm:px-4 sm:py-3 sm:text-sm">
               <TriangleAlert className="size-4 shrink-0" />
               {error}
             </div>
