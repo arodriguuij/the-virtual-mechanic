@@ -1218,8 +1218,9 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   a `useEffect` — `react-leaflet` has no declarative "fit to these bounds" prop, so this
   is the documented pattern for it. Tile layer is CartoDB Positron (`light_all`) — a clean,
   low-saturation basemap with no busy POI icons/labels to compete with the route line,
-  which is drawn in the app's own terracotta accent (`#C85231`) rather than Leaflet's
-  default blue.
+  which is drawn in the app's own terracotta accent (`#827B66` — matches `--terracotta` in
+  `app/globals.css`, kept as its own literal hex since Leaflet's `Polyline` color prop needs
+  a plain string) rather than Leaflet's default blue.
 - **Must be dynamically imported with `ssr: false`, never statically**: Leaflet reads
   `window`/`document` at module scope, which breaks Next's server-render pass for the
   initial HTML — this is true even inside a `"use client"` file, since every client
@@ -2365,10 +2366,13 @@ status bar blends with the page instead of showing a mismatched color.
   `--card`/`--popover` pure white (`#ffffff`) so cards visually lift off that base, and
   `--surface` (`#f1efea`, `bg-surface`) one layer between the two for input backgrounds
   and secondary containers. Earth-tone technical accents replace the old monochrome
-  black-on-white for anything "active"/"primary": `--terracotta` (`#c85231`,
-  `bg-terracotta`/`text-terracotta`/`border-terracotta`, `--terracotta-hover` on hover) is
-  the one accent for every primary action button, active tab, and active segmented-control
-  pill; `--sage` (`#526553`) marks carb-coverage "cubierto"/positive-progress state,
+  black-on-white for anything "active"/"primary": `--terracotta` (`#827b66` — "PNS Bronze,"
+  a muted bronze/olive; a brighter terracotta/orange, `#c85231`, was used here until a later
+  rebrand pass swapped only the *value*, never the token/class name, since every component
+  already reuses this one semantic token — see `app/globals.css`'s own comment on this —
+  `bg-terracotta`/`text-terracotta`/`border-terracotta`, `--terracotta-hover` (`#706a57`) on
+  hover) is the one accent for every primary action button, active tab, and active
+  segmented-control pill; `--sage` (`#526553`) marks carb-coverage "cubierto"/positive-progress state,
   distinct from the older, more muted `--status-good` (`#526553` too, same hex, kept as a
   separate token since status banners and the carb-coverage meter may need to diverge
   later); `--sand` (`#d5cfbf`) is the "restante/déficit" tone — deliberately not a second

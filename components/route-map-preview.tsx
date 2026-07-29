@@ -14,7 +14,10 @@ const TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
-const ROUTE_LINE_COLOR = "#C85231";
+// Matches `--terracotta`'s current value (`app/globals.css`) — kept as its
+// own literal hex rather than reading the CSS variable, since Leaflet's
+// `Polyline` color prop needs a plain string, not a class name.
+const ROUTE_LINE_COLOR = "#827B66";
 
 /** `MapContainer` itself has no "fit to route" concept — this runs once
  * per `points` change and asks the underlying Leaflet map instance

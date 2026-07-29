@@ -96,7 +96,7 @@
   --sidebar-ring: #a3a3a3;
 
   /* Editorial accents — Pas Normal Studios inspired: warm cream base, earth-tone
-     technical accents (terracotta/sage/slate) rather than a cold monochrome UI. */
+     technical accents (bronze/sage/slate) rather than a cold monochrome UI. */
   --brand: #171717;
   --status-good: #526553;
   --status-warning: #8f5f58;
@@ -109,9 +109,17 @@
      `bg-white`, since a beige editable input next to a beige read-only card
      of the same tone read as disabled/non-interactive to users. */
   --surface: #f1efea;
-  /* Primary action accent — CALCULAR/ANALIZAR/GUARDAR/active tabs & pills. */
-  --terracotta: #c85231;
-  --terracotta-hover: #b34527;
+  /* Primary action accent — CALCULAR/ANALIZAR/GUARDAR/active tabs & pills.
+     "PNS Bronze" — a muted bronze/olive, replacing the earlier brighter
+     terracotta/orange (#c85231) for a more sober, monochrome-leaning
+     editorial palette. Token/class names (`--terracotta`, `bg-terracotta`,
+     etc.) were deliberately left unrenamed — every component already
+     references this one semantic token, so only its *value* needed to
+     change; renaming the token itself would be a large, purely mechanical
+     find-and-replace across every file that uses it, for zero visual or
+     functional benefit. */
+  --terracotta: #827b66;
+  --terracotta-hover: #706a57;
   /* "Cubierto"/positive-progress accent — distinct from `--status-good` so the
      carb-coverage meter can be tuned independently of the status-banner color. */
   --sage: #526553;

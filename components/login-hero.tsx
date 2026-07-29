@@ -157,7 +157,7 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
               ))}
             </div>
 
-            <div className="my-4 border-l-2 border-[#D9532F] py-1 pl-3.5 text-left sm:my-6">
+            <div className="my-4 border-l-2 border-terracotta py-1 pl-3.5 text-left sm:my-6">
               <span className="mb-0.5 block font-mono text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
                 Pauta de ingesta recomendada
               </span>
