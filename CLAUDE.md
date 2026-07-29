@@ -184,17 +184,16 @@ A second, differently-styled copy of this same fallback lives at
 authenticated Dashboard shell needed its own route group and its own nested `loading.tsx`
 rather than reusing this root one as-is.
 
-**`/login`'s Pas Normal Studios-style split layout.** `app/login/page.tsx` no longer shares
+**`/login`'s Pas Normal Studios-style layout.** `app/login/page.tsx` no longer shares
 `AuthPageShell` with `/auth/callback` — it now has its own bespoke full-bleed layout, since
 forcing a photo-background design into that shell's boxed top-bar/hero/bottom-bar bands
 would fight the whole point of it. (`/auth/callback` still uses `AuthPageShell` unchanged —
-see below.) This page went through several iterations in the same session before landing on
-a genuine PNS split-screen with **no floating card anywhere, at any breakpoint** — earlier
-passes tried a full-bleed video with a centered floating white card on top (mobile) plus a
-50/50 flex split (desktop), a fixed global masthead pill, and a letterboxed
-`lg:object-contain` video — all reverted once the brief explicitly called for zero
-rounded/shadowed containers and a video that fills its column edge-to-edge with no visible
-bars. The current structure:
+see below.) This page went through several iterations before landing on its current
+mobile-card/desktop-split shape — an earlier pass tried a `fixed`, globally-pinned pill-
+shaped brand mark plus a fully unwrapped, no-card content panel at every breakpoint; that
+was reverted once the brief called for the opposite structure on mobile specifically — an
+elevated white modal card over the video, not a translucent full-bleed panel. The current
+structure:
 
 - **Root**: `grid grid-cols-1 lg:grid-cols-2 min-h-dvh bg-neutral-950 lg:bg-[#FDFCF9]` — a
   real CSS grid, one column on mobile (where `BackgroundMedia` is pulled out of flow via
@@ -208,77 +207,54 @@ bars. The current structure:
 - **`BackgroundMedia`** — `fixed inset-0 h-dvh min-h-screen` on mobile (out of grid flow
   entirely, full-bleed behind everything), `lg:relative lg:h-full` at `lg:` (a normal grid
   column, taking the grid's first implicit track). The video itself is
-  `absolute inset-0 h-full w-full object-cover opacity-90` at **every** breakpoint — no
+  `absolute inset-0 h-full w-full object-cover` at **every** breakpoint — no
   `lg:object-contain` letterboxing (a prior pass's approach, which avoided cropping the 9:16
-  source clip but left visible dark bars down the sides of the desktop column); the current
-  brief explicitly prioritizes an edge-to-edge fill with zero visible bars over showing the
-  full uncropped frame. `fixed` rather than `absolute` on mobile, and `lg:relative` rather
-  than `lg:static` at `lg:`, are both deliberate holdovers from earlier passes: `fixed`
-  anchors against the true viewport rather than a containing block that doesn't reliably
-  track iOS Safari's toolbar collapse/expand animation (see "Root-level scroll lock" below
-  for the same underlying bug class), and `lg:relative` makes this wrapper the containing
-  block for the `bg-black/20` contrast overlay's `absolute inset-0`, keeping that tint
-  scoped to the video column instead of resolving against the grid root and bleeding across
-  the whole split screen.
-- **`FloatingBrandMark`** — `fixed top-4 left-1/2 z-50 -translate-x-1/2` (`sm:top-6`),
-  anchored to the true viewport rather than the content column, with no `hidden`/`lg:flex`
-  gating — it must render identically at every breakpoint, mobile included. Replaced the
-  in-flow plain-text brand mark (no icon, no pill, `block` inside the content column's own
-  `<div>`) from the previous pass — that version had a real regression on narrow phones:
-  since it lived inside the content column's top group, a mobile viewport short enough that
-  the column's content pushed below the fold could scroll the brand mark out of view
-  entirely, whereas the brief requires it always visible regardless of scroll position or
-  device. `AppLogo` (`size-5 sm:size-6`) sits directly on the page/video with no container
-  of its own, and the wordmark text is the one element that gets a pill
-  (`rounded-full border border-neutral-200/80 bg-white/90 ... shadow-sm backdrop-blur-md`)
-  — needed here (unlike the old in-flow version) because this mark can now sit directly
-  over raw, unpredictable video content on mobile, not always over the content column's own
-  background. `whitespace-nowrap` on the pill's text span is load-bearing: without it,
-  "MOTOR METABÓLICO" at the wide `tracking-[0.25em]` letter-spacing wrapped onto two lines
-  at 390px and narrower, roughly doubling the pill's height — caught via a Playwright
-  screenshot, fixed by dropping to `text-[9px] tracking-[0.15em]` on mobile
-  (`sm:text-[11px] sm:tracking-[0.25em]`) plus the explicit `whitespace-nowrap`.
-- **Content column** — `flex flex-col justify-between`, two direct children (a top group:
-  slogan, spec line, the unwrapped telemetry readout, the conditional error banner; a bottom
-  group: the Strava CTA and the privacy footnote) so `justify-between` reads as "hero
-  content pinned top, CTA pinned bottom" rather than evenly gapping every individual element
-  — a flat list of ~6 children under `justify-between` would space them apart with equal
-  (and visually arbitrary) gaps regardless of how tightly related they are. `pt-20 sm:pt-24`
-  (both on mobile and, via `lg:pt-24`, at the `lg:` split-screen breakpoint too) clears the
-  floating brand mark pinned above it — without this, the slogan's own text would render
-  directly underneath (and at some viewport heights, behind) the fixed pill. At `lg:` the
-  column is a solid `lg:bg-[#FDFCF9]` panel (the split screen's right half, no border, no
-  shadow, no rounded corners — content sits directly on the panel's own background). On
-  mobile it's `bg-white/60` with no `backdrop-blur`, sitting directly over the fixed video —
-  this opacity was tuned live against the real clip, not guessed: `/85` fully fogged the
-  video out (read as a flat gray page with no motion visible at all); `/45` let the video
-  through clearly but left the small spec line under-contrast at 320px, where it wraps onto
-  a busier stretch of frame; `/60` is the middle ground, verified via screenshot at
-  320/390px — the clip stays clearly recognizable while text stays legible. No
-  `backdrop-blur` at any opacity tested — blurring the video underneath consistently read as
-  "foggy," not "PNS."
-- **Telemetry readout — no card.** The former `DashboardPreviewCard` (a
-  `rounded-md border border-neutral-300/80 bg-white` box) was removed outright per an
-  explicit "no cards anywhere on this page" correction — that earlier exception (justified
-  at the time as "the one deliberately bordered element, the brief calls it out
-  explicitly") no longer holds once a later pass explicitly named it as a regression to
-  fix. The same content — route name/distance/elevation/gradient line ("Sa Calobra — Coll
-  dels Reis" · "9.5 km · 670m D+ · 7% avg · HOY · 27°C"), a `divide-x`/`border-y` 3-column
-  telemetry grid (Potencia NP / Glucógeno / Sudor, no `bg-white` box around it, just thin
-  `divide-neutral-300/80`/`border-neutral-300/80` rules), and a left-accent-bordered
-  (`border-l-2 border-[#D9532F]`) "Pauta de ingesta recomendada" block — now sits directly
-  on the panel's own background with no wrapping container, matching the "content floats
-  directly on the canvas" rule applied everywhere else on the page. Still strictly 100%
-  typographic (no icons, no emoji, no colored-dot indicator) and still fully
-  static/illustrative data needing no network round-trip. The slogan
-  ("Nutrición de precisión para ciclistas") and the spec line
-  (`RATIO 1:0.8 • METEO EN VIVO • MEZCLA CASERA`, `headerPills.join(" • ")`) are centered
-  (`text-center`) as a hero-style masthead pair, while the telemetry readout below them
-  reverts to left-aligned, matching a technical data-sheet reading order rather than
-  centering everything. The one deliberate icon exception on the whole page remains the
-  Strava icomark on the CTA button (`components/strava-login-button.tsx`, `w-full`, no
-  `max-w-70` cap) — Strava's API Agreement requires it for brand identification (see
-  "Strava API compliance" below).
+  source clip but left visible dark bars down the sides of the desktop column); an
+  edge-to-edge fill with zero visible bars is prioritized over showing the full uncropped
+  frame. Opacity differs by breakpoint — `opacity-80` on mobile, `lg:opacity-90` on desktop
+  — since mobile dims the video slightly to sit behind an opaque white card (see below),
+  while desktop's video *is* the entire left column with no card ever competing against it,
+  so it can run brighter. `fixed` rather than `absolute` on mobile, and `lg:relative` rather
+  than `lg:static` at `lg:`, are both deliberate: `fixed` anchors against the true viewport
+  rather than a containing block that doesn't reliably track iOS Safari's toolbar collapse/
+  expand animation (see "Root-level scroll lock" below for the same underlying bug class),
+  and `lg:relative` makes this wrapper the containing block for the `bg-black/20` contrast
+  overlay's `absolute inset-0`, keeping that tint scoped to the video column instead of
+  resolving against the grid root and bleeding across the whole split screen.
+- **`BrandMark`** — a plain in-flow icon+wordmark lockup (`flex items-center justify-center
+  gap-3`, `AppLogo` at `size-8`, no pill/capsule background on the text), the first child
+  inside the centered content block itself rather than a separate globally-`fixed` overlay.
+  An earlier pass made this a `fixed top-4 left-1/2 z-50` element specifically because the
+  content column back then was a full-bleed translucent panel with no natural centered
+  container of its own for it to sit inside — now that the content lives inside one centered
+  block (the mobile card, or the desktop column's own `max-w-lg mx-auto`), the mark just
+  needs to be that block's first element, no separate positioning layer required.
+- **Content column, mobile vs. desktop** — one component doing both jobs via responsive
+  classes rather than two separate markup trees: `w-full max-w-md rounded-xl border
+  border-neutral-200/80 bg-white p-6 text-center shadow-2xl` on mobile — an elevated, opaque
+  white modal card, centered over the fixed video via the outer wrapper's `flex
+  items-center justify-center` — versus `lg:max-w-lg lg:border-0 lg:bg-transparent lg:p-0
+  lg:shadow-none` at `lg:`, which strips every card affordance away entirely so the exact
+  same content sits directly on the split screen's own `bg-[#FDFCF9]` column background.
+  Mobile needed a *solid*, not translucent, card specifically because legibility over a
+  moving video background matters more here than letting the clip show through — a prior
+  design (translucent `bg-white/60` with no card shape at all) was reverted for this reason.
+  The telemetry readout (route name/stats/prescription block) keeps its own `text-left`
+  override against the card's `text-center` default — a technical data readout reads as a
+  data sheet, not hero copy, the same "hero centered, technical readout left-aligned"
+  convention as before.
+- **Telemetry readout — still no card of its own.** The route name/distance/elevation/
+  gradient line ("Sa Calobra — Coll dels Reis" · "9.5 km · 670m D+ · 7% avg · HOY · 27°C"), a
+  `divide-x`/`border-y` 3-column telemetry grid (Potencia NP / Glucógeno / Sudor, just thin
+  `divide-neutral-300/80`/`border-neutral-300/80` rules, no `bg-white` box of its own), and a
+  left-accent-bordered (`border-l-2 border-[#D9532F]`) "Pauta de ingesta recomendada" block
+  sit unwrapped inside the outer card/column — the *page-level* card wrapper (mobile only)
+  is the one concession to "cards," not a second nested one around this readout too. Still
+  strictly 100% typographic (no icons, no emoji, no colored-dot indicator) and still fully
+  static/illustrative data needing no network round-trip. The one deliberate icon exception
+  on the whole page remains the Strava icomark on the CTA button
+  (`components/strava-login-button.tsx`, `w-full`, no `max-w-70` cap) — Strava's API
+  Agreement requires it for brand identification (see "Strava API compliance" below).
 - **`app/layout.tsx` deliberately untouched.** The brief also asked for the shared root
   layout's background to go dark, aimed at the same iOS Safari white-strip class of bug —
   not implemented, and deliberately so: `app/layout.tsx` wraps every route in the app, and

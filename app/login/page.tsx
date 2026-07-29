@@ -29,8 +29,11 @@ const telemetryStats = [
  * mobile Safari/Chrome — any one missing and the browser blocks autoplay
  * outright. `object-cover` at every breakpoint — the column is filled
  * edge-to-edge with zero visible bars, accepting the crop on the 9:16 clip
- * instead of letterboxing it. A flat `bg-black/20` tint sits on top for
- * contrast against whatever text overlays it.
+ * instead of letterboxing it. Mobile sits at a slightly lower `opacity-80`
+ * since the elevated white card above it (see `LoginPage` below) needs the
+ * video dimmed just enough to stay a clearly secondary layer; the desktop
+ * split screen's video *is* the entire left column with no card competing
+ * against it, so it runs brighter at `lg:opacity-90`.
  *
  * `fixed` (not `absolute`) + explicit `h-dvh`/`min-h-screen` on mobile — an
  * `absolute inset-0` wrapper sizes against its *containing block*, and on
@@ -58,7 +61,7 @@ function BackgroundMedia() {
         muted
         playsInline
         preload="auto"
-        className="absolute inset-0 h-full w-full object-cover opacity-80"
+        className="absolute inset-0 h-full w-full object-cover opacity-80 lg:opacity-90"
         aria-hidden="true"
       >
         <source src="/login-bg.mp4" type="video/mp4" />
@@ -69,20 +72,19 @@ function BackgroundMedia() {
 }
 
 /**
- * Floating brand mark — `fixed` to the true viewport's top-center at every
- * breakpoint, with no `hidden`/`lg:flex` gating, so it survives on top of
- * both the mobile translucent panel and the desktop split screen instead of
- * disappearing on narrow viewports the way the previous in-flow text did.
- * `z-50` clears the content column's own `z-10`. The pill background is
- * scoped to the text only — the isotype sits directly on the page/video
- * with no container of its own, matching every other icon+wordmark lockup
- * in this app (sidebar header, `/auth/callback`).
+ * Brand mark — plain icon + wordmark in flow, no pill/capsule. Replaces the
+ * earlier `fixed`-to-viewport floating version: now that the content itself
+ * sits inside a centered card (mobile) / centered column (desktop) rather
+ * than a full-bleed translucent panel, the mark just needs to be the first
+ * thing inside that same centered block rather than a separate global
+ * overlay. The isotype is sized up (`size-8`) now that it's not sharing a
+ * cramped pill with the wordmark.
  */
-function FloatingBrandMark() {
+function BrandMark() {
   return (
-    <div className="pointer-events-auto fixed top-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 sm:top-6">
-      <AppLogo className="size-5 text-neutral-900 sm:size-6" />
-      <span className="rounded-full border border-neutral-200/80 bg-white/90 px-3.5 py-1.5 font-mono text-[9px] font-bold tracking-[0.15em] whitespace-nowrap text-neutral-900 uppercase shadow-sm backdrop-blur-md sm:text-[11px] sm:tracking-[0.25em]">
+    <div className="mb-6 flex items-center justify-center gap-3">
+      <AppLogo className="size-8 text-neutral-900" />
+      <span className="font-mono text-xs font-bold tracking-[0.3em] text-neutral-900 uppercase sm:text-sm">
         Motor Metabólico
       </span>
     </div>
@@ -104,47 +106,44 @@ export default async function LoginPage({
   return (
     <div className="relative grid min-h-dvh w-full grid-cols-1 bg-neutral-950 lg:grid-cols-2 lg:bg-[#FDFCF9]">
       <BackgroundMedia />
-      <FloatingBrandMark />
 
-      {/* Content column — no floating card, no shadow, no rounded container.
-          `pt-20`/`sm:pt-24` clears the floating brand mark pinned above it
-          at every breakpoint, including the desktop split screen. On mobile
-          this is a translucent layer sitting directly over the fixed video;
-          at `lg:` it becomes the solid-cream right half of the split
-          screen, since the column's own background already provides all
-          the contrast a translucent layer exists for on mobile.
+      {/* Mobile (< lg): a solid white card, elevated (`shadow-2xl`) and
+          centered over the fixed video — legibility over the moving
+          background matters more here than letting the clip show through,
+          which is why this is opaque `bg-white` rather than the earlier
+          translucent panel. Desktop (>= lg): the exact same block loses its
+          card chrome entirely (`lg:border-0 lg:bg-transparent lg:shadow-none
+          lg:p-0`) and just sits centered on the split screen's own cream
+          column background — one component doing both jobs via responsive
+          classes rather than two separate markup trees. */}
+      <div className="relative z-10 flex min-h-dvh w-full items-center justify-center px-4 py-8 sm:p-8 lg:p-12">
+        <div className="w-full max-w-md rounded-xl border border-neutral-200/80 bg-white p-6 text-center shadow-2xl lg:max-w-lg lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
+          <BrandMark />
 
-          `bg-white/60` with no `backdrop-blur` — tuned live against the real
-          clip, not guessed. `/85` fully fogged the video out (looked like a
-          flat gray page with no motion visible at all); `/45` let the video
-          through clearly but left the small spec line under-contrast at
-          narrow widths (320px), where it wraps onto a busier stretch of
-          frame. `/60` is the middle ground: the clip stays clearly
-          recognizable (verified via screenshot) while text stays legible.
-          No `backdrop-blur` deliberately — blurring the video underneath
-          read as "foggy," not "PNS," even at lower opacity values. */}
-      <div className="relative z-10 flex min-h-dvh w-full flex-col justify-between bg-white/60 px-6 pt-20 pb-8 sm:px-8 sm:pt-24 sm:pb-12 lg:h-full lg:min-h-dvh lg:bg-[#FDFCF9] lg:p-12 lg:pt-24">
-        <div className="flex flex-col">
-          <h1 className="mb-1 text-center font-mono text-base font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
+          <h1 className="mb-2 font-mono text-lg font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
             Nutrición de precisión para ciclistas
           </h1>
 
-          <p className="mb-6 block text-center font-mono text-[10px] font-bold tracking-widest text-neutral-500 uppercase sm:mb-8 sm:text-xs">
+          <p className="mb-6 block font-mono text-[10px] font-bold tracking-widest text-neutral-500 uppercase sm:text-xs">
             {headerPills.join(" • ")}
           </p>
 
           {/* Telemetry readout — a real mockup of the app's own visual
               language (the Post-Ride telemetry card's stat-grid pattern,
               the Fueling Planner's terracotta-accented recommendation
-              block), unwrapped from any card/border/shadow container so it
-              sits directly on the panel's own background — thin dividers
-              and a left accent rule are the only structure. Deliberately
-              100% typographic — no icons, no emoji, not even a colored-dot
-              "synced" indicator. Every figure here is illustrative/static
-              (a real route name, a plausible NP/glycogen/sweat-rate/carb
-              set of numbers, a "HOY" date rather than a real computed one)
-              — this exists purely to preview the *shape* of a real result,
-              not to claim it's live data. */}
+              block), unwrapped from any card/border/shadow container of its
+              own so it sits directly on the parent card/column — thin
+              dividers and a left accent rule are the only structure.
+              Deliberately left-aligned even though the card around it
+              defaults to centered text: a technical data readout reads as a
+              data sheet, not hero copy, matching this app's established
+              "hero centered, technical readout left-aligned" convention.
+              Deliberately 100% typographic — no icons, no emoji, not even a
+              colored-dot "synced" indicator. Every figure here is
+              illustrative/static (a real route name, a plausible NP/
+              glycogen/sweat-rate/carb set of numbers, a "HOY" date rather
+              than a real computed one) — this exists purely to preview the
+              *shape* of a real result, not to claim it's live data. */}
           <div className="text-left">
             <p className="truncate font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">
               Sa Calobra — Coll dels Reis
@@ -182,23 +181,23 @@ export default async function LoginPage({
           </div>
 
           {error && (
-            <div className="mt-2 mb-6 flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-left text-xs text-status-warning sm:px-4 sm:py-3 sm:text-sm">
+            <div className="mt-2 mb-2 flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-left text-xs text-status-warning sm:px-4 sm:py-3 sm:text-sm">
               <TriangleAlert className="size-4 shrink-0" />
               {error}
             </div>
           )}
-        </div>
 
-        <div className="flex flex-col gap-3">
-          <StravaLoginButton />
+          <div className="mt-6 flex flex-col gap-3">
+            <StravaLoginButton />
 
-          <p className="text-left font-mono text-[10px] text-neutral-500 sm:text-[11px]">
-            Acceso seguro mediante OAuth. Solo lectura de rutas — nunca vendemos ni compartimos
-            tus datos.{" "}
-            <Link href="/privacidad" className="underline underline-offset-2 hover:text-neutral-700">
-              Política de Privacidad
-            </Link>
-          </p>
+            <p className="text-left font-mono text-[10px] text-neutral-500 sm:text-[11px]">
+              Acceso seguro mediante OAuth. Solo lectura de rutas — nunca vendemos ni compartimos
+              tus datos.{" "}
+              <Link href="/privacidad" className="underline underline-offset-2 hover:text-neutral-700">
+                Política de Privacidad
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
