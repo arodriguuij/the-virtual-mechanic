@@ -1918,6 +1918,47 @@ renders **`FtpRequiredNotice`** (`components/ftp-required-notice.tsx`) instead o
 "Configurar FTP →" button to `/perfil`. Same shape as `FuelingPlannerSection`'s existing
 `!profile` early-return card, just for the Post-Ride tab specifically.
 
+**Two-stage profile gate (no shape-mismatched skeleton flash).** Both Dashboard tabs used
+to hang a single `<Suspense fallback={<FuelingPlannerSkeleton /> | <PostRideAnalysisSkeleton />}>`
+directly on a Server Component that decided *which of two very differently-shaped cards* to
+render only after its own `await getAthleteProfile()` resolved. A Suspense `fallback` is
+chosen before that decision is known, so an athlete with no profile yet would briefly see
+the full planner-shaped skeleton (mode toggle, route select, intensity field) or the
+"Analizando tu última salida…" card, then have it yanked out for a completely different,
+much smaller card the instant the query resolved — a real, reported layout flash, not just
+a slow fill-in. Fixed by making the profile check the *only* thing the outer Suspense
+boundary ever waits on, so its outcome is atomic and its fallback can't be shape-committed
+to the wrong answer:
+
+- **`FuelingPlannerSection`** now does only the `getAthleteProfile()` check itself and
+  returns either the "sin perfil" card directly, or a *second*, nested `<Suspense
+  fallback={<FuelingPlannerSkeleton />}>` wrapping a new **`FuelingPlannerRoutesSection`**
+  (the extracted `getStravaRoutes()`/`getAthleteAverageSpeedKmh()` fetch + `<FuelingPlanner>`
+  render). By the time that inner boundary ever mounts, the outcome is already locked to
+  "real planner" — so `FuelingPlannerSkeleton`'s detailed shape can only ever resolve into
+  the same real planner it depicts, never into a different card.
+- **`PostRideAnalysisSection`** has no equivalent second async stage to preserve (its one
+  `Promise.all` already resolves both `activities` and `profile` together), so there was
+  nothing to split — its `PostRideAnalysisSkeleton` fallback was simply deleted (see
+  "Granular loading states" above).
+- **`Home()`'s two outer `<Suspense>` boundaries** (wrapping `FuelingPlannerSection` and
+  `PostRideAnalysisSection`) both now use a single shared **`NeutralSectionSkeleton`**
+  (`<Skeleton className="h-64 w-full rounded-xl" />`) instead of either section's own
+  detailed shape — deliberately generic, since at this outer stage neither outcome
+  (configure-profile card vs. real content) is known yet, and a shaped skeleton here is
+  exactly what caused the flash. In practice this is a brief flash of its own (one fast,
+  local Supabase query), but a plain neutral pulse reads as "loading," not as "a specific
+  thing about to appear" the way the old shaped skeletons did — so swapping it for whichever
+  real outcome resolves no longer reads as a layout jump.
+- Verified via a temporary route with artificial `setTimeout` delays at each stage (profile
+  check ~600ms, routes fetch ~800ms — same technique used earlier in this project's history
+  to verify Dashboard loading states) and a `MutationObserver`-style poll of which
+  `data-testid` was present over time: the `profileNull` path went straight from the neutral
+  skeleton to the final "sin perfil" card with **zero** intermediate appearance of the
+  planner-shaped skeleton; the complete-profile path went neutral → planner-shaped skeleton
+  → real planner, with the planner skeleton only ever appearing once its outcome was
+  already guaranteed. Route removed again before committing.
+
 ### Athlete profile
 
 **`app/api/athlete-profile/update`** — the plain-form-POST route behind the
@@ -2374,20 +2415,21 @@ pulsing placeholder, in roughly the same position/size the real value will occup
   border-t-neutral-800 rounded-full animate-spin`) absolutely positioned at `right-8` —
   just to the left of the select's own native dropdown arrow, not on top of it (verified
   live via Playwright screenshot at 500px width: both render side by side with no overlap).
-- **`FuelingPlannerSkeleton`** (`app/(app)/page.tsx`, the `<Suspense>` fallback for
-  `FuelingPlannerSection` while `getStravaRoutes()`/`getAthleteProfile()` are in flight —
-  in practice a rare fallback, since `getStravaRoutes()` is cached for 24h, see above) used
-  to be a handful of generically-sized `Skeleton` bars with no relationship to the real
-  form's actual shape. Rebuilt to mirror the real form directly: the real `CardTitle`/
-  `CardDescription` text, a muted 3-pill mode-toggle shape, a "Ruta" field reusing the
-  *exact* same select+spinner treatment above, "Intensidad objetivo" and "Fecha y hora de
-  salida" field shapes, and a translucent CTA button with its real label — so even on a
-  cold cache, the fallback is indistinguishable in structure from the form a moment later.
-- **`PostRideAnalysisSkeleton`** (same file) similarly dropped its stale "Actividad
-  selector + Analizar button" shape (a control pair that was removed from the real
-  component once "Cambiar salida" became the only picker, see "Sidebar navigation..."
-  below) in favor of the real `CardTitle`/`CardDescription` plus a muted status line —
-  matching what `PostRideAnalysis` itself actually shows in the instant after it mounts.
+- **`FuelingPlannerSkeleton`** (`app/(app)/page.tsx`) mirrors the real form directly: the
+  real `CardTitle`/`CardDescription` text, a muted 3-pill mode-toggle shape, a "Ruta" field
+  reusing the *exact* same select+spinner treatment above, "Intensidad objetivo" and "Fecha
+  y hora de salida" field shapes, and a translucent CTA button with its real label — so
+  even on a cold cache, the fallback is indistinguishable in structure from the form a
+  moment later. **No longer the outer `<Suspense>` fallback for the whole
+  `FuelingPlannerSection`**, though — see "Two-stage profile gate" below for why it moved to
+  an inner boundary that only mounts once the final shape is already decided.
+- **`PostRideAnalysisSkeleton`** used to similarly mirror `PostRideAnalysis`'s own real
+  `CardTitle`/`CardDescription` plus a muted "Analizando tu última salida…" status line.
+  Deleted outright once it became the exact kind of shape-mismatched fallback "Two-stage
+  profile gate" below fixes — `PostRideAnalysisSection` can resolve into either
+  `PostRideAnalysis` or the very differently-shaped `FtpRequiredNotice`, so a fallback
+  mirroring only one of those two outcomes was never actually safe to show while the
+  profile check was still in flight.
 - **`components/post-ride-analysis.tsx`'s own `loading && !result` branch** — used to be a
   single plain text line ("Analizando tu última salida…") with nothing else on screen.
   Replaced with the real telemetry card's shape rendered early: the same bordered/

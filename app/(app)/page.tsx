@@ -19,6 +19,7 @@ import {
   getStravaRoutes,
   getViewerIdentity,
   isProfileComplete,
+  type AthleteProfile,
 } from "@/lib/dashboard-data";
 import { primaryButtonClass, selectableFieldClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,21 @@ function GreetingSkeleton() {
   return <Skeleton className="h-3 w-28" />;
 }
 
+// Split into two stages so the profile check is the *only* thing this outer
+// Suspense boundary waits on — the decision between "configure tu perfil"
+// and the real planner happens here, atomically, before anything commits to
+// a particular skeleton shape. Previously this single async function did
+// both the profile check *and* the routes/avg-speed fetch, all behind one
+// `<Suspense fallback={<FuelingPlannerSkeleton />}>` in `Home()` below — so a
+// profile-less athlete would see the full planner-shaped skeleton (mode
+// toggle, route select, intensity field) for however long the profile query
+// took, then have it yanked out for the small "configura tu perfil" card the
+// instant the query resolved. `Home()`'s outer Suspense fallback is now a
+// neutral `<Skeleton>` instead (see below) — genuinely uncommitted to either
+// outcome — and `FuelingPlannerSkeleton`'s own detailed shape moved to a
+// *second*, inner Suspense that only ever mounts once we already know for
+// certain the final content will be the real planner, so it can never be
+// swapped for a differently-shaped card again.
 async function FuelingPlannerSection() {
   const profile = await getAthleteProfile();
 
@@ -75,6 +91,14 @@ async function FuelingPlannerSection() {
     );
   }
 
+  return (
+    <Suspense fallback={<FuelingPlannerSkeleton />}>
+      <FuelingPlannerRoutesSection profile={profile} />
+    </Suspense>
+  );
+}
+
+async function FuelingPlannerRoutesSection({ profile }: { profile: AthleteProfile }) {
   const [routes, avgSpeedKmh] = await Promise.all([getStravaRoutes(), getAthleteAverageSpeedKmh()]);
   return (
     <FuelingPlanner
@@ -83,6 +107,15 @@ async function FuelingPlannerSection() {
       isProfileComplete={isProfileComplete(profile)}
     />
   );
+}
+
+// Neutral, outcome-agnostic placeholder for the *outer* profile-completeness
+// gate above — deliberately not shaped like the planner or like the "sin
+// perfil" card, since at this stage neither outcome is known yet; a shaped
+// skeleton here is exactly what caused the flash this pass fixes. Reused
+// as-is for `PostRideAnalysisSection`'s own identical two-outcome gate below.
+function NeutralSectionSkeleton() {
+  return <Skeleton className="h-64 w-full rounded-xl" />;
 }
 
 async function ProfileCheckBannerSection() {
@@ -175,26 +208,6 @@ async function PostRideAnalysisSection() {
   );
 }
 
-// Mirrors what `PostRideAnalysis` itself shows in the instant right after it
-// mounts (it auto-analyzes the most recent ride with no separate selector/
-// button left to show — see CLAUDE.md's "Sidebar navigation..." section) —
-// real title/description, a muted status line, nothing fabricated.
-function PostRideAnalysisSkeleton() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Análisis post-ruta</CardTitle>
-        <CardDescription className={eyebrow}>
-          Deuda de glucógeno y objetivo de recuperación por macros
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <p className="animate-pulse text-sm text-neutral-400">Analizando tu última salida…</p>
-      </CardContent>
-    </Card>
-  );
-}
-
 async function StravaButton() {
   const profile = await getProfile();
   const connected = Boolean(profile?.strava_athlete_id);
@@ -259,7 +272,7 @@ export default async function Home() {
 
         <TabsContent value="pre-ride">
           <div className="flex flex-col gap-10 pt-4 sm:pt-6">
-            <Suspense fallback={<FuelingPlannerSkeleton />}>
+            <Suspense fallback={<NeutralSectionSkeleton />}>
               <FuelingPlannerSection />
             </Suspense>
           </div>
@@ -267,7 +280,7 @@ export default async function Home() {
 
         <TabsContent value="post-ride">
           <div className="flex flex-col gap-10 pt-4 sm:pt-6">
-            <Suspense fallback={<PostRideAnalysisSkeleton />}>
+            <Suspense fallback={<NeutralSectionSkeleton />}>
               <PostRideAnalysisSection />
             </Suspense>
           </div>
