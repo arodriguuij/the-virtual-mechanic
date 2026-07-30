@@ -270,17 +270,29 @@ structure:
   data sheet, not hero copy, the same "hero centered, technical readout left-aligned"
   convention as before.
 - **Telemetry readout — still no card of its own.** The route name/distance/elevation/
-  gradient line ("Sa Calobra — Coll dels Reis" · "9.5 km · 670m D+ · 7% avg · HOY · 27°C"), a
-  `divide-x`/`border-y` 3-column telemetry grid (Potencia NP / Glucógeno / Sudor, just thin
-  `divide-neutral-300/80`/`border-neutral-300/80` rules, no `bg-white` box of its own), and a
-  left-accent-bordered (`border-l-2 border-terracotta`) "Pauta de ingesta recomendada" block
-  sit unwrapped inside the outer card/column — the *page-level* card wrapper (mobile only)
-  is the one concession to "cards," not a second nested one around this readout too. Still
-  strictly 100% typographic (no icons, no emoji, no colored-dot indicator) and still fully
-  static/illustrative data needing no network round-trip. The one deliberate icon exception
-  on the whole page remains the Strava icomark on the CTA button
-  (`components/strava-login-button.tsx`, `w-full`, no `max-w-70` cap) — Strava's API
-  Agreement requires it for brand identification (see "Strava API compliance" below).
+  gradient line ("Sa Calobra – Coll dels Reis" · "9.5 km · 670m D+ · 7% avg · 27°C (Calor
+  Alto)"), a `divide-x`/`border-y` 3-column telemetry grid (Potencia NP / Deuda glucógeno /
+  Tasa de sudor, just thin `divide-neutral-300/80`/`border-neutral-300/80` rules, no
+  `bg-white` box of its own), and a left-accent-bordered (`border-l-2 border-terracotta`)
+  "Pauta de ingesta (calibrada a tolerancia media)" block sit unwrapped inside the outer
+  card/column — the *page-level* card wrapper (mobile only) is the one concession to
+  "cards," not a second nested one around this readout too. Still fully static/illustrative
+  data needing no network round-trip, and the subheader pill line above it
+  ("Gut training • Impacto térmico • Estrategia de bolsillo", `headerPills` in
+  `components/login-hero.tsx`) was rewritten to name the app's actual differentiating
+  features rather than the earlier, more generic "Ratio 1:0.8 • Meteo en vivo • Mezcla
+  casera." This block is no longer strictly typographic, though: the ingesta block's two new
+  lines — a `bg-neutral-100`/`border-neutral-200` pocket-food translation ("🎒 ESTRATEGIA: 2
+  geles (40g HC) + 1 bidón de electrolitos / hora") and a muted post-ride recovery line
+  ("🔄 RECUPERACIÓN POST-RUTA: 65g HC + 30g Proteína") — carry real emoji, a deliberate,
+  scoped exception to this app's usual no-emoji-in-chrome convention: this is a marketing
+  hero preview on an unauthenticated page, not the app's own interior UI, and the emoji here
+  are what make an illustrative "what this looks like in practice" translation read
+  instantly, the same reasoning that already makes an exception for the Strava icomark two
+  paragraphs below. The one deliberate icon exception on the whole page remains the Strava
+  icomark on the CTA button (`components/strava-login-button.tsx`, `w-full`, no `max-w-70`
+  cap) — Strava's API Agreement requires it for brand identification (see "Strava API
+  compliance" below).
   **Vertical spacing** — the whole readout carries its own `my-6 border-y
   border-neutral-200/60 py-5 sm:my-10 sm:py-8` (on top of, not instead of, the existing
   internal `my-4 sm:my-6` spacing between the route line/stat grid/prescription block) —
@@ -2165,13 +2177,31 @@ its own route for the same reason Estadísticas got its own route: a backward-lo
 isn't a pre/post-ride action, so it was competing for space in a tab that should stay
 focused on the just-finished ride's analysis.
 `components/dashboard-shell.tsx`'s `SidebarContent` renders `NAV_ITEMS` (`Dashboard` →
-`/`, `Estadísticas` → `/estadisticas`, `Historial` → `/historial`, `Perfil fisiológico` →
-`/perfil`) as real `next/link` `Link`s, using `usePathname()` to give the active item a filled pill
+`/`, `Perfil fisiológico` → `/perfil`, `Estadísticas` → `/estadisticas`, `Historial` →
+`/historial` — that order, not alphabetical or route-creation order, since Dashboard/Perfil
+are this app's two finished, daily-use surfaces and Estadísticas/Historial are mid-rebuild)
+as real `next/link` `Link`s, using `usePathname()` to give the active item a filled pill
 (`bg-surface text-terracotta`) and the rest a subtle hover fill — a client component
 already (it owns the mobile drawer's `mobileOpen` state), so this needed no new
 `"use client"` boundary. Each `Link` takes an `onNavigate` callback that closes the mobile
 drawer (`setMobileOpen(false)`) on click, since without it a mobile visitor tapping a nav
-item would navigate underneath a still-open overlay. The same `SidebarContent` header
+item would navigate underneath a still-open overlay.
+
+**Temporarily disabled nav entries (`disabled: true` on `NAV_ITEMS`).** Estadísticas and
+Historial are both mid-rebuild — reachable by direct URL, but the sidebar itself shouldn't
+invite a click into a section that's actively in flux. Each `NAV_ITEMS` entry now carries
+its own `disabled` boolean rather than a second parallel list, so re-enabling one later is a
+single-line flip back to `false`, not restoring deleted markup. A disabled entry renders as
+a plain `<div aria-disabled="true">` (not a `<Link>`, not a `Link` with a blocked `onClick`)
+— there's no `href` to accidentally trigger prefetching or a stray navigation on middle-
+click/keyboard-Enter the way suppressing a real anchor's default behavior would still risk.
+Visually it's `opacity-50 cursor-not-allowed select-none`, the same icon+label layout as an
+active entry, plus a trailing "Próximamente" pill (`bg-neutral-200/60 text-neutral-500`,
+`text-[9px] font-mono uppercase tracking-wider`) and a native `title` tooltip ("Sección en
+desarrollo — Próximamente") for a hovering desktop pointer. Verified live: clicking the
+disabled entry leaves the URL unchanged.
+
+The same `SidebarContent` header
 (`RatioLogo` + "RATIO") and the mobile top header's own logo+text are both
 wrapped in a `<Link href="/">` (the sidebar one also firing `onNavigate` to close the
 drawer) so clicking the brand mark always returns to the Dashboard, a near-universal web

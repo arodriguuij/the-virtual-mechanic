@@ -9,11 +9,15 @@ import { RatioLogo } from "@/components/icons/RatioLogo";
 import { logout } from "@/lib/auth-actions";
 import { cn } from "@/lib/utils";
 
+// Estadísticas/Historial are mid-rebuild and temporarily disabled in the nav
+// rather than removed outright — the routes/pages themselves are untouched,
+// only their sidebar entries stop being clickable, so re-enabling this later
+// is just flipping `disabled` back to `false`.
 const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/estadisticas", label: "Estadísticas", icon: BarChart3 },
-  { href: "/historial", label: "Historial", icon: History },
-  { href: "/perfil", label: "Perfil fisiológico", icon: UserRound },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, disabled: false },
+  { href: "/perfil", label: "Perfil fisiológico", icon: UserRound, disabled: false },
+  { href: "/estadisticas", label: "Estadísticas", icon: BarChart3, disabled: true },
+  { href: "/historial", label: "Historial", icon: History, disabled: true },
 ];
 
 /**
@@ -72,6 +76,23 @@ function SidebarContent({
 
       <nav className="flex flex-1 flex-col gap-0.5">
         {NAV_ITEMS.map((item) => {
+          if (item.disabled) {
+            return (
+              <div
+                key={item.href}
+                aria-disabled="true"
+                title="Sección en desarrollo — Próximamente"
+                className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-xs font-medium tracking-wider text-neutral-600 uppercase opacity-50 select-none"
+              >
+                <item.icon className="size-4" strokeWidth={1.5} />
+                {item.label}
+                <span className="ml-auto rounded bg-neutral-200/60 px-1.5 py-0.5 font-mono text-[9px] tracking-wider text-neutral-500 uppercase">
+                  Próximamente
+                </span>
+              </div>
+            );
+          }
+
           const active = pathname === item.href;
           return (
             <Link

@@ -4,12 +4,12 @@ import { memo, type ReactNode } from "react";
 
 import { RatioLogo } from "@/components/icons/RatioLogo";
 
-const headerPills = ["Ratio 1:0.8", "Meteo en vivo", "Mezcla casera"];
+const headerPills = ["Gut training", "Impacto térmico", "Estrategia de bolsillo"];
 
 const telemetryStats = [
   { label: "Potencia NP", value: "228 W" },
-  { label: "Glucógeno", value: "195 g" },
-  { label: "Sudor", value: "1.2 L/h" },
+  { label: "Deuda glucógeno", value: "195 g" },
+  { label: "Tasa de sudor", value: "1.2 L/h" },
 ];
 
 /**
@@ -158,10 +158,10 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
               version read cramped. */}
           <div className="my-6 w-full border-y border-neutral-200/60 py-5 text-left sm:my-10 sm:py-8">
             <p className="truncate font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">
-              Sa Calobra — Coll dels Reis
+              Sa Calobra – Coll dels Reis
             </p>
             <p className="font-mono text-[9px] text-neutral-500 sm:text-xs">
-              9.5 km · 670m D+ · 7% avg · HOY · 27°C
+              9.5 km · 670m D+ · 7% avg · 27°C (Calor Alto)
             </p>
 
             <div className="my-4 grid grid-cols-3 divide-x divide-neutral-300/80 border-y border-neutral-300/80 py-3 text-center sm:my-6">
@@ -177,17 +177,20 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
 
             <div className="my-4 border-l-2 border-terracotta py-1 pl-3.5 text-left sm:my-6">
               <span className="mb-0.5 block font-mono text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
-                Pauta de ingesta recomendada
+                Pauta de ingesta (calibrada a tolerancia media)
               </span>
               <p className="flex flex-wrap items-baseline gap-x-1.5 font-mono text-neutral-900">
-                <span className="text-base font-bold sm:text-xl">85</span>
-                <span className="text-[10px] font-normal text-neutral-500 sm:text-xs">g/h</span>
-                <span className="text-[8px] font-normal text-neutral-500 sm:text-[10px]">
-                  (Ratio 1:0.8 Glucosa:Fructosa)
+                <span className="text-base font-bold sm:text-xl">85 g/h</span>
+                <span className="text-[10px] font-normal text-neutral-500 sm:text-xs">
+                  · 750 ml/h · 850 mg Sodio
                 </span>
               </p>
-              <p className="mt-0.5 font-mono text-[8px] text-neutral-600 sm:text-[10px]">
-                750 ml/h · 850 mg Sodio
+
+              <p className="mt-2 rounded-md border border-neutral-200 bg-neutral-100 p-2 font-mono text-xs text-neutral-700">
+                🎒 ESTRATEGIA: 2 geles (40g HC) + 1 bidón de electrolitos / hora
+              </p>
+              <p className="mt-1 font-mono text-[11px] text-neutral-500">
+                🔄 RECUPERACIÓN POST-RUTA: 65g HC + 30g Proteína
               </p>
             </div>
           </div>
