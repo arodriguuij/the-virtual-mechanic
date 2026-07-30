@@ -255,7 +255,22 @@ export function DashboardShell({
       </aside>
 
       <div className="flex flex-1 flex-col lg:pl-64">
-        <header className="sticky top-0 z-40 flex w-full items-center justify-center border-b border-neutral-200/80 bg-white/90 px-6 py-4 backdrop-blur-md transition-all lg:hidden">
+        {/* Porcelain-on-porcelain, PNS-style: no `border-b` — the header
+            used to carry a hard `border-neutral-200/80` rule plus an opaque
+            `bg-white/90`, both of which stood out as a visibly different
+            surface from the `bg-background` canvas beneath it once scrolled
+            content passed underneath. Now `bg-background/80` (the same
+            porcelain token, not a literal white) blends into the page it's
+            floating over, and a soft diffuse shadow — not a line — is what
+            separates it from scrolled content instead, matching how iOS
+            Safari's own status bar reads as one continuous surface with the
+            page color beneath it (see `viewport.themeColor` in
+            `app/layout.tsx`, set to this same tone). Horizontal padding
+            matches `<main>`'s own `px-4 sm:px-6` below, so the brand mark's
+            left edge and the hamburger's right edge line up with the card
+            edges in the content underneath instead of sitting inset from
+            them. */}
+        <header className="sticky top-0 z-40 flex w-full items-center justify-center bg-background/80 px-4 py-4 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur-md transition-all sm:px-6 lg:hidden">
           <Link
             href="/"
             onClick={(e) => scrollToTopIfHome(e, pathname)}
@@ -267,14 +282,19 @@ export function DashboardShell({
           </Link>
           <button
             type="button"
-            className="absolute right-6 cursor-pointer text-neutral-500 transition-colors duration-150 hover:text-neutral-900"
+            className="absolute right-4 cursor-pointer text-neutral-500 transition-colors duration-150 hover:text-neutral-900 sm:right-6"
             onClick={() => setMobileOpen(true)}
           >
             <Menu className="size-5" />
           </button>
         </header>
 
-        <main className="mx-auto w-full max-w-7xl flex-1 px-6 pt-10 pb-12 sm:px-8 sm:pt-14 sm:pb-16">
+        {/* Mobile lateral padding tightened from `px-6` (24px) to `px-4`
+            (16px) — a PNS-editorial pass asked for the page's own content to
+            sit closer to the viewport edge on a phone, matching this app's
+            existing `sm:`/`md:` step-up convention rather than a flat value
+            at every breakpoint. */}
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-10 pb-12 sm:px-6 sm:pt-14 sm:pb-16 md:px-8">
           {children}
         </main>
       </div>

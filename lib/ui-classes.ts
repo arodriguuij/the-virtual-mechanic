@@ -15,7 +15,7 @@
  * active segmented-control pill — CALCULAR ESTRATEGIA, ANALIZAR, GUARDAR,
  * Pre-Ride/Post-Ride's active tab, ÓPTIMO/RUTA STRAVA's selected pill. */
 export const primaryButtonClass =
-  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-terracotta bg-terracotta px-4 py-2.5 font-mono text-xs font-semibold tracking-wider text-white uppercase shadow-sm transition-all duration-150 hover:bg-terracotta-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-terracotta";
+  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-terracotta bg-terracotta px-4 py-2.5 font-mono text-xs font-semibold tracking-wider text-white uppercase shadow-sm transition-all duration-150 hover:bg-terracotta-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-terracotta";
 
 /** The outlined secondary-action treatment — Copiar Receta, Descargar GPX,
  * Sincronizar, Recargar rutas. A muted `--terracotta`-outlined pill on the
@@ -26,7 +26,7 @@ export const primaryButtonClass =
  * it has no hardcoded color class of its own (`text-current` or, more
  * commonly, simply no color class at all). */
 export const secondaryButtonClass =
-  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-terracotta/30 bg-surface px-4 py-2.5 font-mono text-xs font-medium tracking-wider text-terracotta uppercase shadow-sm transition-all duration-150 hover:bg-terracotta hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface disabled:hover:text-terracotta";
+  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-terracotta/30 bg-surface px-4 py-2.5 font-mono text-xs font-medium tracking-wider text-terracotta uppercase shadow-sm transition-all duration-150 hover:bg-terracotta hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface disabled:hover:text-terracotta";
 
 /** Every plain `<input>` — profile form fields, quick-mode duration/watts,
  * GPX duration override, the custom-date picker. White by default (not
@@ -40,7 +40,7 @@ export const secondaryButtonClass =
  * input next to the departure-hour select) never look like two different
  * design systems sitting side by side. */
 export const fieldClass =
-  "w-full rounded-xl border border-zinc-200/80 bg-white px-4 py-2 text-sm font-sans text-zinc-800 transition-colors duration-150 hover:border-zinc-300 focus:border-terracotta focus:outline-none";
+  "w-full rounded-md border border-zinc-200/80 bg-white px-4 py-2 text-sm font-sans text-zinc-800 transition-colors duration-150 hover:border-zinc-300 focus:border-terracotta focus:outline-none";
 
 /** Every `<select>`. `appearance-none` strips the browser's own native
  * dropdown arrow — every call site pairs this with a `<ChevronDown>`
@@ -51,7 +51,7 @@ export const fieldClass =
  * cursor, since a `<select>` is a "pick one" control, not a free-typed
  * field. */
 export const selectableFieldClass =
-  "w-full cursor-pointer appearance-none rounded-xl border border-zinc-200/80 bg-white px-4 py-2 pr-9 text-sm font-sans text-zinc-800 transition-colors duration-150 hover:border-zinc-300 focus:border-terracotta focus:outline-none";
+  "w-full cursor-pointer appearance-none rounded-md border border-zinc-200/80 bg-white px-4 py-2 pr-9 text-sm font-sans text-zinc-800 transition-colors duration-150 hover:border-zinc-300 focus:border-terracotta focus:outline-none";
 
 /** The same `selectableFieldClass` treatment, restyled for a `<select>`
  * sitting on a near-black surface — the Route map's "Obsidian" widget is
@@ -62,7 +62,7 @@ export const selectableFieldClass =
  * lighter than the card itself, with `border-white/15` and `text-zinc-100`
  * for a crisp, legible route name against it. */
 export const selectableFieldDarkClass =
-  "w-full cursor-pointer appearance-none rounded-xl border border-white/15 bg-[#242424] px-4 py-2.5 pr-9 text-sm font-medium text-zinc-100 shadow-sm transition-all duration-150 hover:border-white/30 focus:border-white/40 focus:outline-none focus:ring-1 focus:ring-white/30";
+  "w-full cursor-pointer appearance-none rounded-md border border-white/15 bg-[#242424] px-4 py-2.5 pr-9 text-sm font-medium text-zinc-100 shadow-sm transition-all duration-150 hover:border-white/30 focus:border-white/40 focus:outline-none focus:ring-1 focus:ring-white/30";
 
 /** Pairs with every `selectableFieldClass`/`selectableFieldDarkClass` — the
  * `<ChevronDown>` that replaces the native dropdown arrow stripped by
@@ -95,4 +95,4 @@ export const badgeClass =
  * `CardContent` all key off, zeroes their internal `py-`/`px-` padding at
  * the same breakpoint rather than needing a separate override on each. */
 export const flatMobileCardClass =
-  "rounded-none border-0 bg-transparent shadow-none [--card-spacing:0px] sm:rounded-xl sm:border-0 sm:bg-card sm:shadow-sm sm:[--card-spacing:--spacing(6)]";
+  "rounded-none border-0 bg-transparent shadow-none [--card-spacing:0px] sm:rounded-lg sm:border-0 sm:bg-card sm:shadow-sm sm:[--card-spacing:--spacing(6)]";

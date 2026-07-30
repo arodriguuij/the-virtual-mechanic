@@ -3163,6 +3163,56 @@ Safari's floating chrome *at the top* of the viewport (its own well-known behavi
 the very top of a scrolled page), unrelated to `<main>`'s bottom padding at all — corrected
 back down to a plain `pb-12 sm:pb-16`, no special extra safe-area allowance.
 
+**iOS status-bar fusion + tighter mobile lateral padding + a sobered-down radius scale.**
+Three related PNS-editorial requests, applied together:
+
+- **`viewport.themeColor`** (`app/layout.tsx`) set to `#F8F7F5` (this app's own porcelain
+  `--background` token's literal value) plus explicit `width: "device-width"`/
+  `initialScale: 1` — this is what actually gets iOS Safari's status bar (clock/battery) to
+  render in the page's own tone instead of a mismatched default, the same "fuse with the
+  page" effect PNS's own site uses. `<html>` gained an explicit `bg-background` alongside
+  `<body>`'s pre-existing one, so there's no unstyled flash at either level.
+- **The mobile sticky header** (`components/dashboard-shell.tsx`) dropped its
+  `border-b border-neutral-200/80` and opaque `bg-white/90` entirely, replaced by
+  `bg-background/80` (the same porcelain token, translucent, not literal white) plus
+  `shadow-[0_2px_12px_rgba(0,0,0,0.03)]` — a soft diffuse shadow that only reads once
+  content has actually scrolled underneath it, rather than a permanent hard rule always
+  visible even at the very top of the page. This is what makes the header read as "the same
+  surface as the page, just floating," matching the iOS status-bar fusion above rather than
+  fighting it with a visibly different white bar directly beneath a porcelain status bar.
+- **Lateral padding tightened**: `<main>`'s own `px-6 sm:px-8` → `px-4 sm:px-6 md:px-8` (16px
+  on a phone, was 24px) — PNS's own mobile layout sits much closer to the viewport edge than
+  this app previously did, and the header's own horizontal padding was updated to match
+  (`px-4 sm:px-6`, both the brand mark's left edge and the hamburger's right edge now line up
+  with the card edges in the content below, rather than sitting inset from them). `/login`'s
+  own outer padding (`p-3 sm:p-4`) was deliberately left untouched — at 12px it was already
+  tighter than the 16px this pass introduced elsewhere, and that page's spacing had already
+  been tuned carefully across several earlier passes specifically to fit one mobile screen
+  with zero scroll; reopening it wasn't needed and risked undoing that work.
+- **Border-radius sobered app-wide** — every shared button/field/card token in
+  `lib/ui-classes.ts` stepped down one notch: `primaryButtonClass`/`secondaryButtonClass`
+  `rounded-lg` → `rounded-md`; `fieldClass`/`selectableFieldClass`/`selectableFieldDarkClass`
+  `rounded-xl` → `rounded-md`; `flatMobileCardClass`'s `sm:rounded-xl` → `sm:rounded-lg`.
+  Same step-down applied at each of the remaining one-off usages: `segmentedButtonClass`
+  (`components/fueling-planner.tsx`) `rounded-lg` → `rounded-md`; the dark Obsidian widget's
+  own `rounded-2xl` → `rounded-lg`; the login hero's mobile card `rounded-3xl` → `rounded-lg`.
+  A more "technical/industrial" corner radius throughout, rather than the softer, rounder
+  geometry these all carried before.
+- **The "Calcula tu estrategia..." placeholder and the "Comida en bolsillo" accordion,
+  unified into one card.** These used to be two independently bordered boxes stacked
+  directly on top of each other (`border border-neutral-200 bg-surface` for the objetivo/
+  cubierto/déficit summary or its placeholder text, `rounded-lg border border-neutral-200`
+  for the accordion) — read as two unrelated concepts rather than one continuous "your
+  pocket-food strategy" flow. Now a single frameless `rounded-lg bg-white shadow-sm p-5`
+  card holds both, separated purely by `space-y-4` — no border on the outer card, no border
+  on the accordion, no border-t between the accordion's `<summary>` and its content. The
+  empty-state placeholder text ("Calcula tu estrategia...") is its own small internal
+  `bg-[#F8F7F5] rounded-lg` banner (the canvas tone itself, not a new gray) rather than a
+  bordered box, so it still reads as *inside* the white card rather than a box of its own.
+  Once a result exists, the same slot swaps to the real objetivo/cubierto/déficit progress
+  bar — this card's content is genuinely stateful, not just a static subtitle, which is why
+  it couldn't be simplified to a plain caption under the "Comida en bolsillo" title.
+
 **Normalized header-to-first-card spacing (`gap-6` everywhere, Dashboard tighter on
 mobile).** The outer page wrapper governing the gap between each route's `<header>` and
 its first content block had drifted to three different values across four routes that all

@@ -116,8 +116,9 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
 
       {/* Mobile (< lg) keeps the elevated white contrast card — legibility
           over the moving video still matters — but no hard edges: just
-          `backdrop-blur-md` + `bg-white/95` + `rounded-3xl`, no border, no
-          drop shadow. The blur + near-opaque fill alone is enough to read
+          `backdrop-blur-md` + `bg-white/95` + `rounded-lg` (a PNS-style
+          sobering pass brought this down from an earlier `rounded-3xl`), no
+          border, no drop shadow. The blur + near-opaque fill alone is enough to read
           as "floating" over the video without a harder box outline. Desktop
           (>= lg) drops every bit of card chrome entirely (`lg:rounded-none
           lg:bg-transparent lg:p-0`) — a prior pass gave the desktop column
@@ -128,7 +129,7 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
           now just sits directly on that column's own background, spaced by
           `lg:px-12 lg:py-16` alone rather than an inset card padding. */}
       <div className="relative z-10 flex min-h-dvh w-full items-center justify-center overflow-hidden p-3 sm:p-4 lg:p-12">
-        <div className="w-full max-w-md rounded-3xl bg-white/95 p-6 text-center backdrop-blur-md sm:p-8 lg:max-w-lg lg:rounded-none lg:bg-transparent lg:p-0 lg:px-12 lg:py-16 lg:backdrop-blur-none">
+        <div className="w-full max-w-md rounded-lg bg-white/95 p-6 text-center backdrop-blur-md sm:p-8 lg:max-w-lg lg:rounded-none lg:bg-transparent lg:p-0 lg:px-12 lg:py-16 lg:backdrop-blur-none">
           {/* Three explicit sections (branding, physiological preview,
               auth action) rather than one flat stack — `gap-4 sm:gap-6`
               between them is the *only* separation mechanism (no per-block

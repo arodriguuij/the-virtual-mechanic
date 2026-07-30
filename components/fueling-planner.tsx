@@ -139,7 +139,7 @@ const selectableInputClass = selectableFieldClass;
 // `min-width: auto`, which would otherwise force the column (and the whole
 // row) wider than its share of the grid instead of ever truncating.
 const segmentedButtonClass =
-  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center rounded-lg border px-1 text-center text-xs font-medium transition-colors duration-150 sm:px-3 sm:text-sm";
+  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center rounded-md border px-1 text-center text-xs font-medium transition-colors duration-150 sm:px-3 sm:text-sm";
 // Applied to the label text itself, not the button — `overflow-hidden`/
 // `text-ellipsis` on a `flex items-center justify-center` button clips
 // symmetrically from *both* sides of the centered content (verified live:
@@ -765,7 +765,7 @@ export function FuelingPlanner({
                   all-light UI. `border-white/10`/`shadow-xl` give it the
                   same "elevated" quality the login hero's floating card has,
                   just inverted to dark. */}
-              <div className="rounded-2xl border border-white/10 bg-[#181818] p-4 text-white shadow-xl sm:col-span-2 sm:p-6">
+              <div className="rounded-lg border border-white/10 bg-[#181818] p-4 text-white shadow-xl sm:col-span-2 sm:p-6">
                 <div className="flex items-center justify-between gap-2">
                   <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-300 uppercase">
                     Ruta
@@ -1049,7 +1049,14 @@ export function FuelingPlanner({
           <p className="text-xs text-neutral-500">{FUELING_MODE_DESCRIPTIONS[fuelingMode]}</p>
         </div>
 
-        <div className="flex flex-col gap-2 border border-neutral-200 bg-surface px-3 py-3">
+        {/* One unified, frameless card — the objetivo/cubierto/déficit
+            summary (or its "sin calcular aún" placeholder) and the "Comida
+            en bolsillo" accordion used to be two separate bordered boxes
+            stacked on top of each other, reading as two unrelated concepts.
+            Now a single `bg-white` card (no border anywhere — background
+            alone differentiates it from the porcelain canvas behind it)
+            holds both, separated purely by `space-y-4`. */}
+        <div className="space-y-4 rounded-lg bg-white p-5 shadow-sm">
           {result ? (
             (() => {
               const coveredPct =
@@ -1058,7 +1065,7 @@ export function FuelingPlanner({
                   : 0;
               const deficitG = Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG);
               return (
-                <>
+                <div className="space-y-2">
                   <div className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-2">
                     <span className="font-mono text-xs text-neutral-500">
                       OBJETIVO {result.totalRideCarbsG}g HC
@@ -1070,95 +1077,95 @@ export function FuelingPlanner({
                       DÉFICIT EN BIDÓN {deficitG}g HC
                     </span>
                   </div>
-                  <div className="mt-2 flex h-2.5 w-full overflow-hidden rounded-full bg-badge">
+                  <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-badge">
                     <div
                       className="bg-sage transition-all duration-300"
                       style={{ width: `${coveredPct}%` }}
                     />
                     <div className="bg-terracotta/20" style={{ width: `${100 - coveredPct}%` }} />
                   </div>
-                </>
+                </div>
               );
             })()
           ) : (
-            <span className="font-mono text-xs text-neutral-500">
+            // "Option B" internal banner — a soft `bg-[#F8F7F5]` tint (the
+            // canvas tone itself, not a new gray) rather than a border, so
+            // this empty-state note still reads as *inside* the white card,
+            // not a box of its own.
+            <div className="rounded-lg bg-[#F8F7F5] p-3 font-mono text-xs text-zinc-600">
               Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
-            </span>
-          )}
-        </div>
-
-        {/* `key={fuelingMode}` forces a full remount whenever the athlete
-            switches Estrategia nutricional — that's what makes `open`
-            actually re-apply as a fresh initial value each time, instead of
-            React's own prop-diffing silently skipping the DOM write because
-            the previous render already had the same `open` value. Óptimo
-            mode is the one case with nothing for the athlete to configure
-            here (it's server-computed), so it's the only one that starts
-            collapsed; Mi Inventario/Híbrido both start open, since those are
-            exactly the two modes where this list is the athlete's own input,
-            not just a preview. Once mounted, the athlete can freely collapse
-            or reopen it without this forcing it back — only an actual mode
-            switch does that. */}
-        <details
-          key={fuelingMode}
-          open={fuelingMode !== "optimal"}
-          className="group rounded-lg border border-neutral-200"
-        >
-          <summary className="flex list-none cursor-pointer items-center justify-between gap-3 rounded-lg bg-white p-3 [&::-webkit-details-marker]:hidden">
-            <span className="font-mono text-xs font-bold tracking-wider text-neutral-900 uppercase">
-              Comida en bolsillo
-            </span>
-            <span className="flex shrink-0 items-center gap-2">
-              <span className="font-mono text-[11px] whitespace-nowrap text-neutral-500">
-                {pocketFoodItemCount} items seleccionados · {pocketFoodCarbsPreview}g HC
-              </span>
-              <ChevronDown className="size-4 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
-            </span>
-          </summary>
-          <div className="flex flex-col gap-1.5 border-t border-neutral-200 p-3">
-            {fuelingMode === "optimal" && (
-              <p className="text-xs text-neutral-500">
-                Automático — solo geles y bidón en modo Óptimo, sin alimentos sólidos.
-              </p>
-            )}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {(fuelingMode === "optimal" ? GEL_DOSE_TYPES : ALL_POCKET_FOOD_TYPES).map((type) => (
-                <PocketFoodStepperRow
-                  key={type}
-                  type={type}
-                  qty={
-                    fuelingMode === "optimal"
-                      ? (result?.pocketFood[type] ?? 0)
-                      : (pocketFood[type] ?? 0)
-                  }
-                  onChange={(qty) => setPocketFoodQty(type, qty)}
-                  disabled={fuelingMode === "optimal"}
-                />
-              ))}
-              {fuelingMode !== "optimal" && (
-                <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-1 py-2.5 md:border md:px-3 md:py-1.5">
-                  <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
-                    Personalizado
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      id="custom-carbs"
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      max={MAX_CUSTOM_CARBS_G}
-                      value={customCarbsG || ""}
-                      onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
-                      placeholder="0"
-                      className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
-                    />
-                    <span className="font-mono text-xs text-neutral-500">g HC</span>
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
-        </details>
+          )}
+
+          {/* `key={fuelingMode}` forces a full remount whenever the athlete
+              switches Estrategia nutricional — that's what makes `open`
+              actually re-apply as a fresh initial value each time, instead of
+              React's own prop-diffing silently skipping the DOM write because
+              the previous render already had the same `open` value. Óptimo
+              mode is the one case with nothing for the athlete to configure
+              here (it's server-computed), so it's the only one that starts
+              collapsed; Mi Inventario/Híbrido both start open, since those are
+              exactly the two modes where this list is the athlete's own input,
+              not just a preview. Once mounted, the athlete can freely collapse
+              or reopen it without this forcing it back — only an actual mode
+              switch does that. */}
+          <details key={fuelingMode} open={fuelingMode !== "optimal"} className="group">
+            <summary className="flex list-none cursor-pointer items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+              <span className="font-mono text-xs font-bold tracking-wider text-neutral-900 uppercase">
+                Comida en bolsillo
+              </span>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="font-mono text-[11px] whitespace-nowrap text-neutral-500">
+                  {pocketFoodItemCount} items seleccionados · {pocketFoodCarbsPreview}g HC
+                </span>
+                <ChevronDown className="size-4 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
+              </span>
+            </summary>
+            <div className="flex flex-col gap-1.5 pt-3">
+              {fuelingMode === "optimal" && (
+                <p className="text-xs text-neutral-500">
+                  Automático — solo geles y bidón en modo Óptimo, sin alimentos sólidos.
+                </p>
+              )}
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {(fuelingMode === "optimal" ? GEL_DOSE_TYPES : ALL_POCKET_FOOD_TYPES).map((type) => (
+                  <PocketFoodStepperRow
+                    key={type}
+                    type={type}
+                    qty={
+                      fuelingMode === "optimal"
+                        ? (result?.pocketFood[type] ?? 0)
+                        : (pocketFood[type] ?? 0)
+                    }
+                    onChange={(qty) => setPocketFoodQty(type, qty)}
+                    disabled={fuelingMode === "optimal"}
+                  />
+                ))}
+                {fuelingMode !== "optimal" && (
+                  <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-1 py-2.5 md:border md:px-3 md:py-1.5">
+                    <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
+                      Personalizado
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        id="custom-carbs"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={MAX_CUSTOM_CARBS_G}
+                        value={customCarbsG || ""}
+                        onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
+                        placeholder="0"
+                        className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                      />
+                      <span className="font-mono text-xs text-neutral-500">g HC</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </details>
+        </div>
 
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-4">
