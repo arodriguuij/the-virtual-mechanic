@@ -2858,6 +2858,20 @@ Safari's "Add to Home Screen" to launch standalone (Android reads the manifest i
 `viewport.themeColor` matches `--background` (`#faf9f5`) so the installed app's title/
 status bar blends with the page instead of showing a mismatched color.
 
+**A stray `app/favicon.ico` (the default Next.js/Vercel scaffold icon, dated well before
+`icon.tsx`/`apple-icon.tsx` existed) was found and deleted** — this is the actual root
+cause of a reported "the browser tab still shows the default triangle" bug. Next's file
+convention treats a literal `app/favicon.ico` as its own special, highest-precedence icon
+source (separate from the dynamic `icon.tsx` route), and browsers commonly request
+`/favicon.ico` directly regardless of what the `<link rel="icon">` tag says — so the two
+coexisting meant the tab favicon and the auto-injected `<link>` tag could point at two
+different images. Deleting the stray file (rather than replacing it with a *static*
+`favicon.ico`/`icon.png` alongside the dynamic files, which the "no static file alongside
+a dynamic one" rule above already rules out) makes `icon.tsx` the sole source of truth
+again — verified live: `/favicon.ico` now cleanly 404s, `<link rel="icon">` in `<head>`
+correctly resolves to `/icon`, and fetching `/icon` renders the real bronze RATIO `R`
+mark, not a placeholder.
+
 ### SEO & social sharing metadata (production domain)
 
 `app/layout.tsx`'s `metadata` export is the real, production-facing SEO/Open Graph/Twitter

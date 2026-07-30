@@ -15,11 +15,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.ratiovelo.com"),
   title: {
-    default: "RATIO — Nutrición Ciclista de Precisión",
+    default: "RATIO · Nutrición Ciclista",
     template: "%s | RATIO",
   },
   description:
-    "Calculadora y planificador de nutrición de precisión en ruta para ciclistas. Optimización de carbohidratos, hidratación y sodio calibrado según intensidad y temperatura.",
+    "Calculadora y planificador de nutrición de precisión en ruta para ciclistas. Optimización de carbohidratos, hidratación y sodio.",
   keywords: [
     "ciclismo",
     "nutrición ciclista",
@@ -29,7 +29,6 @@ export const metadata: Metadata = {
     "strava",
     "vatios",
     "plan de nutrición",
-    "sa calobra",
   ],
   authors: [{ name: "RATIO Team" }],
   creator: "RATIO",
@@ -47,7 +46,7 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
   },
   openGraph: {
-    title: "RATIO — Nutrición Ciclista de Precisión",
+    title: "RATIO · Nutrición Ciclista de Precisión",
     description:
       "Optimiza tu avituallamiento en ruta según tus vatios, tasa de sudor y consumo de glucógeno.",
     url: "https://www.ratiovelo.com",
@@ -57,7 +56,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "RATIO — Nutrición Ciclista de Precisión",
+    title: "RATIO · Nutrición Ciclista",
     description: "Calculadora y planificador de nutrición de precisión en ruta para ciclistas.",
     creator: "@ratiovelo",
   },
