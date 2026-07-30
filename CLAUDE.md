@@ -286,10 +286,12 @@ structure:
   with a `bg-neutral-100`/`border-neutral-200` boxed pocket-food line carrying real emoji
   (🎒/🔄) — both reverted at explicit request, since this hero is meant to read as
   ultra-clean PNS-style technical typography with zero English loanwords and zero
-  decoration competing with the numbers themselves; the "AVITUALLAMIENTO EN RUTA: 2 geles
-  (40g HC) + 1 bidón de electrolitos / h" and "RECUPERACIÓN POST-RUTA: 65g HC + 30g
-  Proteína" lines are now plain `block font-mono` text with no emoji and no
-  background/border of their own, same as every other line in this readout. The one
+  decoration competing with the numbers themselves. A follow-up pass then trimmed the
+  wording further and unified the two lines' styling — "EN RUTA: 2 geles (40g HC) + 1
+  bidón electrolitos / h" and "POST-RUTA: 65g HC + 30g Proteína," both sharing the exact
+  same `text-[11px] font-mono text-neutral-500` treatment (the first used to be a size/
+  weight/color step darker, `text-xs text-neutral-700`, reading as a visually distinct
+  tier from the second rather than one homogeneous secondary-hierarchy pair). The one
   deliberate icon exception on the whole page remains the Strava icomark on the CTA button
   (`components/strava-login-button.tsx`, `w-full`, no `max-w-70` cap) — Strava's API
   Agreement requires it for brand identification (see "Strava API compliance" below).

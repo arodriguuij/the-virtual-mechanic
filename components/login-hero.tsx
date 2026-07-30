@@ -186,11 +186,11 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
                 </span>
               </p>
 
-              <p className="mt-2 block font-mono text-xs text-neutral-700">
-                AVITUALLAMIENTO EN RUTA: 2 geles (40g HC) + 1 bidón de electrolitos / h
+              <p className="mt-2 block font-mono text-[11px] text-neutral-500">
+                EN RUTA: 2 geles (40g HC) + 1 bidón electrolitos / h
               </p>
               <p className="mt-1 block font-mono text-[11px] text-neutral-500">
-                RECUPERACIÓN POST-RUTA: 65g HC + 30g Proteína
+                POST-RUTA: 65g HC + 30g Proteína
               </p>
             </div>
           </div>
