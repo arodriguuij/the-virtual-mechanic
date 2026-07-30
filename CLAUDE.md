@@ -3411,6 +3411,22 @@ Three related PNS-editorial requests, applied together:
   `shadow-[0_4px_20px_rgba(0,0,0,0.06)]`, matching Pas Normal Studios' own floating-header
   depth. Still zero `border-b` at either version — only the shadow's spread/opacity
   changed, not the underlying "no rigid line" approach.
+
+  **A later pass reversed the "porcelain-on-porcelain" half of this design outright** — a
+  request for the header to instead read as PNS's own opaque white bar, distinct from the
+  page rather than blended with it. The header's `bg-background/80` (translucent porcelain)
+  became a plain opaque `bg-white`, `backdrop-blur-md` was dropped along with it (nothing
+  shows through an opaque fill for a blur to soften), and the shadow deepened a second time,
+  from `shadow-[0_4px_20px_rgba(0,0,0,0.06)]` to `shadow-[0_6px_20px_rgba(0,0,0,0.07)]` —
+  wider spread, slightly darker. `viewport.themeColor` (`app/layout.tsx`) followed the same
+  reversal, from the porcelain `#F8F7F5` to pure `#FFFFFF`, so iOS Safari's status bar keeps
+  matching whatever color actually sits at the very top of the viewport (the header itself,
+  the topmost element on every interior route) — still zero `border-b` either way, the
+  header has never used a hard divider line, only ever a shadow, regardless of which
+  background tone it's carried. `<html>`/`<body>` themselves keep their own `bg-background`
+  (porcelain) unchanged — this reversal is scoped to the header bar and the status-bar color
+  it dictates, not the page canvas underneath it, which every card in the app still floats
+  over as porcelain.
 - **Lateral padding tightened**: `<main>`'s own `px-6 sm:px-8` → `px-4 sm:px-6 md:px-8` (16px
   on a phone, was 24px) — PNS's own mobile layout sits much closer to the viewport edge than
   this app previously did, and the header's own horizontal padding was updated to match
