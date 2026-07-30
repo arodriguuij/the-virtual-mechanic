@@ -255,44 +255,45 @@ structure:
   container of its own for it to sit inside — now that the content lives inside one centered
   block (the mobile card, or the desktop column's own `max-w-lg mx-auto`), the mark just
   needs to be that block's first element, no separate positioning layer required.
-- **Content column, mobile vs. desktop — a "premium floating card" pass.** A prior design
-  deliberately stripped every card affordance at `lg:` (`lg:border-0 lg:bg-transparent
-  lg:p-0 lg:shadow-none`) so the content sat directly on the split screen's own cream
-  (`#FDFCF9`) column background, reasoned as "the card is a mobile-only necessity, desktop
-  doesn't need one." A later pass reversed that: the right column's own background became
-  plain `bg-white` (was `#FDFCF9`) for a cleaner, more modern contrast against the left
-  column's photography, but a flat-white card sitting on a flat-white column has nothing
-  to visually separate it — so both breakpoints now render as a genuinely floating card,
-  via one shared set of classes rather than two divergent trees: `rounded-3xl border
-  border-zinc-200/60 shadow-2xl shadow-zinc-200/40` unconditionally (a hairline border plus
-  a soft, wide, tinted shadow — not the app's default plain `shadow-2xl` — reads as
-  "elevated" whether it's floating over a photo or over a flat white page). Only the
-  *fill* and *padding* still diverge by breakpoint: mobile keeps `bg-white/95
-  backdrop-blur-md px-6 py-10` (translucent-but-legible over the moving video — 95%
-  opacity, deliberately far more opaque than an earlier `bg-white/60` translucent attempt
-  that was reverted for legibility; the blur is what lets it still read as "floating over
-  something" rather than flatly opaque), while `lg:` switches to a solid `bg-zinc-50` with
-  `lg:backdrop-blur-none` (blur is meaningless — and a wasted compositing layer — once
-  there's no video showing through) and grows to `lg:px-12 lg:py-16`, considerably more
-  generous internal breathing room once there's a full white column to breathe into.
-  Verified live via Playwright at 375×667/390×844/360×640 that the larger mobile padding
-  doesn't reopen the earlier ultra-compact-mobile scroll issue (still zero overflow at all
-  three — the prior compaction pass had left enough spare margin, ~230px at 375×667, to
-  absorb it) and at 1280×900 that the card now reads as clearly separated from the white
-  column behind it. The telemetry readout (route name/stats/prescription block) keeps its
+- **Content column, mobile vs. desktop — through several iterations, settled on
+  "ultra-clean, no double cards."** This went through at least three distinct designs. The
+  first stripped every card affordance at `lg:` entirely, reasoning "the card is a
+  mobile-only necessity." A second pass reversed that once the right column's own
+  background changed from cream to plain `bg-white` — a flat-white card on a flat-white
+  column had nothing to visually separate it, so it gained its own `rounded-3xl border
+  border-zinc-200/60 shadow-2xl shadow-zinc-200/40 bg-zinc-50` box at `lg:` too. A third
+  pass reversed *that*: a boxed white-ish card floating inside an already-clean white column
+  read as one card nested inside another — redundant, not premium — so `lg:` now drops
+  every bit of card chrome again (`lg:rounded-none lg:bg-transparent lg:p-0`), just with
+  generous `lg:px-12 lg:py-16` spacing (not card padding, just breathing room) rather than
+  a card inset. Mobile (< `lg:`) still needs a real contrast layer over the moving video,
+  but even that was trimmed to the minimum: `rounded-3xl bg-white/95 backdrop-blur-md p-6
+  sm:p-8` — no border, no drop shadow. The blur plus 95%-opacity fill alone reads as
+  "floating over something" without a harder box outline; a border/shadow pairing was
+  tried and dropped as one hard edge too many for a screen whose whole point is now "no
+  cages, no boxes, just soft contrast and space." Verified live via Playwright at
+  375×667/390×844/1280×900: zero scroll overflow at every size (the padding here is
+  actually *smaller* than the previous pass's `px-6 py-10`/`lg:px-12 lg:py-16` card-inset
+  values, so no risk of reopening the earlier mobile-scroll issue), and the desktop
+  screenshot confirms the content now floats directly on the plain white column with no
+  visible box at all. The telemetry readout (route name/stats/prescription block) keeps its
   own `text-left` override against the card's `text-center` default — a technical data
   readout reads as a data sheet, not hero copy, the same "hero centered, technical readout
   left-aligned" convention as before.
-- **Telemetry readout — still no card of its own.** The route name/distance/elevation/
-  gradient line ("Sa Calobra – Coll dels Reis" · "9.5 km · 670m D+ · 7% avg · 27°C (Calor
-  Alto)"), a `divide-x`/`border-y` 3-column telemetry grid (Potencia NP / Deuda glucógeno /
-  Tasa de sudor, just thin `divide-neutral-300/80`/`border-neutral-300/80` rules, no
-  `bg-white` box of its own), and a left-accent-bordered (`border-l-2 border-terracotta`)
-  "Pauta de ingesta (tolerancia media)" block sit unwrapped inside the outer card/column —
-  the *page-level* card wrapper (mobile only) is the one concession to "cards," not a second
-  nested one around this readout too. Still strictly 100% typographic (no icons, no emoji,
-  no colored-dot indicator, no `bg-*`/`border-*` box anywhere inside the readout) and still
-  fully static/illustrative data needing no network round-trip. The one-line subheader tag
+- **Telemetry readout — no card, no dividers, spacing only.** The route name/distance/
+  elevation/gradient line ("Sa Calobra – Coll dels Reis" · "9.5 km · 670m D+ · 7% avg ·
+  27°C (Calor Alto)"), the 3-column stat grid (Potencia NP / Deuda glucógeno / Tasa de
+  sudor), and the "Pauta de ingesta (tolerancia media)" block are separated purely by
+  `space-y-4 sm:space-y-5` on their shared wrapper now — every divider line this readout
+  used to carry (a `border-y` wrapping the whole block, `divide-x`/`border-y` between the
+  3 stat cells, a `border-l-2 border-terracotta` left-accent bar on the ingesta block) was
+  removed outright, along with the boxed `sm:bg-surface sm:border sm:rounded-xl` treatment
+  a still-earlier pass gave this block at `sm:` and up — an explicit "ultra-clean, no
+  hairlines anywhere" request, reasoning that vertical whitespace alone reads as more
+  editorial/premium than gray fills or rule lines separating every sub-block. Still
+  strictly 100% typographic (no icons, no emoji, no colored-dot indicator, no `bg-*`/
+  `border-*` box anywhere inside the readout) and still fully static/illustrative data
+  needing no network round-trip. The one-line subheader tag
   above it (`headerTagline` in `components/login-hero.tsx`, "Planificación &
   avituallamiento") went through several revisions before landing here — a 3-pill
   "ADAPTACIÓN DIGESTIVA • IMPACTO TÉRMICO • PLAN DE AVITUALLAMIENTO" line, then briefly an

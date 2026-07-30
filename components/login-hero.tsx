@@ -114,21 +114,21 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
     <div className="relative grid min-h-dvh w-full grid-cols-1 bg-neutral-950 lg:grid-cols-2 lg:bg-white">
       <BackgroundMedia />
 
-      {/* Both breakpoints now keep the same floating-card treatment — no
-          more "desktop loses all card chrome" split. Mobile (< lg): a
-          translucent `bg-white/95` + `backdrop-blur-md` card over the fixed
-          video (95%, not the much more transparent `bg-white/60` a much
-          earlier pass tried and reverted for legibility — the blur plus
-          this much higher opacity keeps the text readable while still
-          reading as "floating" rather than a flat opaque card). Desktop
-          (>= lg): the right column's own background is now plain
-          `bg-white` (was a cream `#FDFCF9`, see the root `<div>` above), so
-          the card needs its own visual separation to avoid disappearing
-          into it — a solid `zinc-50` fill, a hairline `zinc-200/60` border,
-          and a soft wide `shadow-zinc-200/40` let it read as a distinct,
-          elevated surface rather than blending into the page. */}
+      {/* Mobile (< lg) keeps the elevated white contrast card — legibility
+          over the moving video still matters — but no hard edges: just
+          `backdrop-blur-md` + `bg-white/95` + `rounded-3xl`, no border, no
+          drop shadow. The blur + near-opaque fill alone is enough to read
+          as "floating" over the video without a harder box outline. Desktop
+          (>= lg) drops every bit of card chrome entirely (`lg:rounded-none
+          lg:bg-transparent lg:p-0`) — a prior pass gave the desktop column
+          its own boxed `zinc-50` card once the column background went from
+          cream to plain `bg-white`, but that read as one card floating
+          inside another (the right column *is* already a clean white field,
+          it doesn't need a second nested white-on-white box); the content
+          now just sits directly on that column's own background, spaced by
+          `lg:px-12 lg:py-16` alone rather than an inset card padding. */}
       <div className="relative z-10 flex min-h-dvh w-full items-center justify-center overflow-hidden p-3 sm:p-4 lg:p-12">
-        <div className="w-full max-w-md rounded-3xl border border-zinc-200/60 bg-white/95 px-6 py-10 text-center shadow-2xl shadow-zinc-200/40 backdrop-blur-md lg:max-w-lg lg:bg-zinc-50 lg:px-12 lg:py-16 lg:backdrop-blur-none">
+        <div className="w-full max-w-md rounded-3xl bg-white/95 p-6 text-center backdrop-blur-md sm:p-8 lg:max-w-lg lg:rounded-none lg:bg-transparent lg:p-0 lg:px-12 lg:py-16 lg:backdrop-blur-none">
           {/* Three explicit sections (branding, physiological preview,
               auth action) rather than one flat stack — `gap-4 sm:gap-6`
               between them is the *only* separation mechanism (no per-block
@@ -156,26 +156,28 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
             {/* SECTION 2 — Vista previa fisiológica: a real mockup of the
                 app's own visual language (the Post-Ride telemetry card's
                 stat-grid pattern, the Fueling Planner's terracotta-accented
-                recommendation block). On mobile it stays unwrapped (a thin
-                `border-y` divider is enough); at `sm:` and up it becomes its
-                own subtle boxed card (`sm:rounded-xl sm:border
-                sm:bg-surface`, this app's existing token set — not a new
-                `pns-*` namespace, see CLAUDE.md's "No tailwind.config.ts"
-                note) so Sections 1 and 3 read as clean, unboxed blocks above
-                and below it once there's room for the distinction. 100%
-                typographic — no icons, no emoji — and every figure here is
-                illustrative/static. */}
-            <div className="w-full border-y border-neutral-200/60 py-3 text-left sm:rounded-xl sm:border sm:border-neutral-200 sm:bg-surface sm:p-4">
-              <p className="truncate font-mono text-xs font-bold text-neutral-900 sm:text-sm">
-                Sa Calobra – Coll dels Reis
-              </p>
-              <p className="font-mono text-[10px] text-neutral-500 sm:text-xs">
-                9.5 km · 670m D+ · 7% avg · 27°C (Calor Alto)
-              </p>
+                recommendation block). Ultra-clean pass: no boxed card, no
+                gray fill, no divider lines of any kind (no `border-y`, no
+                `divide-x`, no left-accent `border-l`) at any breakpoint —
+                the three sub-blocks (route header, stat row, ingesta block)
+                are separated purely by vertical space (`space-y-4 sm:space-y-5`
+                on this wrapper), the same "let whitespace do the work"
+                editorial principle applied everywhere else on this screen.
+                100% typographic — no icons, no emoji — and every figure here
+                is illustrative/static. */}
+            <div className="w-full space-y-4 text-left sm:space-y-5">
+              <div>
+                <p className="truncate font-mono text-xs font-bold text-neutral-900 sm:text-sm">
+                  Sa Calobra – Coll dels Reis
+                </p>
+                <p className="font-mono text-[10px] text-neutral-500 sm:text-xs">
+                  9.5 km · 670m D+ · 7% avg · 27°C (Calor Alto)
+                </p>
+              </div>
 
-              <div className="my-2.5 grid grid-cols-3 divide-x divide-neutral-300/80 border-y border-neutral-300/80 text-center sm:my-4">
+              <div className="grid grid-cols-3 gap-4 text-center sm:gap-6">
                 {telemetryStats.map((stat) => (
-                  <div key={stat.label} className="px-2 py-1.5">
+                  <div key={stat.label}>
                     <p className="truncate font-mono text-[9px] uppercase text-neutral-400 sm:text-[10px]">
                       {stat.label}
                     </p>
@@ -186,7 +188,7 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
                 ))}
               </div>
 
-              <div className="border-l-2 border-terracotta py-1 pl-3.5 text-left">
+              <div>
                 <span className="mb-0.5 block font-mono text-[9px] text-neutral-400 uppercase sm:text-[10px]">
                   Pauta de ingesta (tolerancia media)
                 </span>
