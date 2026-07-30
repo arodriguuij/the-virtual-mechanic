@@ -71,6 +71,25 @@ export const viewport: Viewport = {
   themeColor: "#faf9f5",
 };
 
+// Structured data (schema.org WebApplication) for Google's rich-result
+// eligibility — plain module-level data, not derived from anything
+// per-request, so it's safe to stringify once here rather than recomputing
+// it inside the component body on every render.
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "RATIO Velo",
+  url: "https://www.ratiovelo.com",
+  applicationCategory: "HealthApplication",
+  operatingSystem: "All",
+  description: "Calculadora y planificador de nutrición de precisión en ruta para ciclistas.",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "EUR",
+  },
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -82,6 +101,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col overflow-x-hidden bg-background text-foreground">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         {children}
       </body>
     </html>

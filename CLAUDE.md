@@ -2880,6 +2880,38 @@ registered. `appleWebApp` (see "PWA / Add to Home Screen" above) was preserved f
 pre-existing metadata rather than dropped, since it's what actually makes iOS's "Add to
 Home Screen" launch standalone.
 
+**`app/sitemap.ts` and `app/robots.ts`** are Next's `MetadataRoute.Sitemap`/
+`MetadataRoute.Robots` file conventions — auto-served at `/sitemap.xml`/`/robots.txt`, no
+manual XML/plain-text file needed, same "generate at request time" pattern
+`app/manifest.ts` already uses for the PWA manifest. The sitemap deliberately lists only
+the 3 URLs actually reachable with **no session at all** — the root domain, `/login`, and
+`/privacidad` (mirroring `proxy.ts`'s own `PUBLIC_PATH_PREFIXES`, minus `/auth/callback`,
+which is a transient single-use-token OAuth transition screen with nothing worth
+indexing) — every other route (`/`'s own authenticated Dashboard once signed in,
+`/perfil`, `/estadisticas`, `/historial`) requires a real athlete and renders per-user
+data, so an anonymous crawler hitting any of them just gets redirected to `/login`
+anyway; listing them would be pure noise. `robots.ts` disallows `/api/` (no page content,
+and every route there is either auth-gated or a Strava OAuth handshake step) and points
+`sitemap` at the same production domain.
+
+**Both had to be added to `proxy.ts`'s `PUBLIC_PATH_PREFIXES`.** A real bug caught during
+verification: a crawler requesting `/robots.txt`/`/sitemap.xml` has no session by
+definition, and neither path was in the middleware's public allowlist — so both 307'd
+straight to `/login` instead of ever reaching the actual generated file (confirmed live:
+`curl /robots.txt` returned a 307 before the fix, a clean `200` with the real body after).
+Left unfixed, this would have made both files completely unreachable to the one audience
+they exist for, silently defeating the entire point of adding them.
+
+**JSON-LD structured data** (`schema.org` `WebApplication`) is a plain module-level
+`const jsonLd` object in `app/layout.tsx`, rendered via a `<script
+type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />`
+as the first child of `<body>` — the root layout has no manual `<head>` of its own (the
+`metadata` export manages `<head>` entirely), so `<body>` is where a static JSON-LD script
+belongs in this App Router structure; Google's structured-data crawler reads it from
+anywhere in the rendered document, not specifically `<head>`. `applicationCategory:
+"HealthApplication"` and the free (`price: "0"`) `Offer` both describe this app
+accurately — no invented pricing/category to game a rich-result eligibility check.
+
 ## Code style
 
 - Functional components, no class components.
