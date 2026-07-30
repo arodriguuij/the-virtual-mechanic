@@ -34,7 +34,7 @@ function SyncButton() {
       type="submit"
       disabled={pending}
       title="Sincronizar rutas con Strava"
-      className={cn(secondaryButtonClass, "shrink-0")}
+      className={cn(secondaryButtonClass, "shrink-0 px-3 py-1.5 text-xs sm:px-4 sm:py-2")}
     >
       <RefreshCw className={cn("size-3.5", pending && "animate-spin")} />
       {pending ? "Sincronizando..." : "Sincronizar"}

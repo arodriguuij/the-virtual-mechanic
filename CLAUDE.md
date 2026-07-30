@@ -2529,20 +2529,28 @@ other two routes use.
 The Dashboard's headline used to be a hardcoded "Buenas tardes, Alejandro" — always the
 wrong time-of-day prefix outside actual afternoon hours, and always this one developer's
 name regardless of who's actually signed in. `GreetingSection` (`app/(app)/page.tsx`)
-replaces it with `getGreetingPrefix(new Date().getHours())` (`05:00-11:59` "Buenos días",
-`12:00-19:59` "Buenas tardes", `20:00-04:59` "Buenas noches") plus the real signed-in
-athlete's first name, taken from `getViewerIdentity()` (`lib/dashboard-data.ts` — the same
-Strava-backed identity source `components/viewer-identity.tsx`'s sidebar card already uses;
-`cache()`-deduped, so calling it a second time this request costs no extra Strava
-round-trip). It's its own `Suspense` boundary (`GreetingSkeleton` fallback), same pattern as
-`StravaButton` below, so the greeting's Strava-dependent fetch never blocks the rest of the
-Dashboard from rendering. Computed and rendered entirely server-side with no client
-component involved, so there's no hydration mismatch risk — the server-rendered markup is
-the only markup, never re-computed client-side against a possibly different `Date()`. As of
-the "PNS premium redesign" below, this renders as the Dashboard's single `<h1>` in sentence
-case (`greetingClass`, `text-3xl sm:text-4xl font-semibold tracking-tight text-[#181818]`)
-rather than a small uppercase eyebrow line sitting above a separate all-caps "DASHBOARD"
-title — the dynamic prefix/name logic itself is unchanged, only its typographic treatment.
+replaces the *name* with the real signed-in athlete's first name, taken from
+`getViewerIdentity()` (`lib/dashboard-data.ts` — the same Strava-backed identity source
+`components/viewer-identity.tsx`'s sidebar card already uses; `cache()`-deduped, so calling
+it a second time this request costs no extra Strava round-trip). It's its own `Suspense`
+boundary (`GreetingSkeleton` fallback), same pattern as `StravaButton` below, so the
+greeting's Strava-dependent fetch never blocks the rest of the Dashboard from rendering.
+
+The *prefix* went through two designs. The first replaced the hardcoded "Buenas tardes"
+with a real `getGreetingPrefix(new Date().getHours())` (`05:00-11:59` "Buenos días",
+`12:00-19:59` "Buenas tardes", `20:00-04:59` "Buenas noches") — genuinely dynamic, computed
+and rendered entirely server-side with no client component involved (so no hydration
+mismatch risk against a possibly different client-side `Date()`). A later "ultra-clean PNS"
+pass replaced this with a flat, always-short **"Hola"** instead, removing `getGreetingPrefix`
+entirely — the time-of-day variance meant the greeting's own *length* varied (a much longer
+string at midday than at night), which was fighting this `<h1>`'s own `truncate` on a narrow
+phone; a fixed-length "Hola, {firstName}" sidesteps that rather than trying to size the
+layout around the longest possible prefix. Typography was tightened at the same time
+(`greetingClass`, `text-2xl sm:text-3xl font-semibold tracking-tight text-[#181818]`, down
+from an earlier `text-3xl sm:text-4xl`) for the same reason — smaller text has more room
+before truncating. Both passes replaced the *original* uppercase eyebrow-plus-separate-
+all-caps-"DASHBOARD"-title design with this one sentence-case `<h1>`; only the prefix
+logic itself changed between them, not that broader restructure.
 
 ### PNS premium redesign (color tokens, typography, buttons, dark "Obsidian" widget)
 
@@ -2586,7 +2594,8 @@ the one *mechanical* fix a shared token change forced on it (see the select bull
   state sat transparent on a shared `bg-neutral-100` track), now `rounded-lg border
   text-xs font-medium` with **no shape classes added per call site** — each of the 3 call
   sites now only supplies its own two-state color ternary: active
-  `border-terracotta bg-terracotta text-white shadow-sm`, inactive `border-terracotta/30
+  `border-terracotta bg-terracotta text-white` (originally paired with a `shadow-sm` too —
+  dropped in the very next fine-tuning pass, see below), inactive `border-terracotta/30
   bg-white text-zinc-700 hover:border-terracotta`. Removing the CSS `uppercase` transform
   was enough on its own to reveal correct sentence-case labels — "Ruta Strava," "Mi
   Inventario," etc. were already properly cased in the JSX source, just visually forced
@@ -2597,9 +2606,10 @@ the one *mechanical* fix a shared token change forced on it (see the select bull
 - **Every `<select>` now gets a custom chevron.** `lib/ui-classes.ts`'s
   `selectableFieldClass` gained `appearance-none` (stripping the browser's native dropdown
   arrow) plus `pr-9` (reserving the room a `<ChevronDown>` sits in) and switched its own
-  shape to `rounded-xl border-zinc-300` with a `terracotta` focus ring, matching `fieldClass`
-  (also moved to `rounded-xl`/`border-zinc-300`/`focus:ring-terracotta`) so an `<input>` and
-  an adjacent `<select>` never look like two different design systems side by side. A new
+  shape to `rounded-xl border-zinc-300` with a `shadow-sm` and a `terracotta` focus ring
+  (both later lightened further — see the fine-tuning pass below), matching `fieldClass`
+  so an `<input>` and an adjacent `<select>` never look like two different design systems
+  side by side. A new
   `selectableFieldDarkClass` is the same treatment inverted for the one dark surface in the
   app (see the Obsidian widget below), and `selectChevronClass` is the one shared
   `<ChevronDown>` positioning class both variants pair with. **This is a shared-token
@@ -2637,6 +2647,39 @@ the one *mechanical* fix a shared token change forced on it (see the select bull
   rectangular segmented controls (active bronze fill / inactive white-bordered), every
   select's chevron, and the dark Obsidian widget all render correctly with no layout
   regressions at either width.
+
+**A follow-up "fine-tuning" pass** trimmed remaining visual noise the premium redesign above
+still carried:
+
+- **Greeting simplified to a fixed "Hola"** — see "Dynamic greeting" above for the full
+  before/after; the time-of-day prefix (`getGreetingPrefix`) was removed entirely, since its
+  varying length fought the headline's own `truncate` on narrow phones. Header container
+  (`app/(app)/page.tsx`) gained an explicit `gap-4` (replacing a `mr-2` on the greeting's own
+  wrapper, now redundant) between the greeting and the Strava button.
+- **"Conectar Strava"/"Sincronizar" both shrink on mobile** — `px-3 py-1.5 text-xs`
+  (`sm:px-4 sm:py-2` restores the original size at `sm:` and up), applied as a `cn()`
+  override at each call site (`app/(app)/page.tsx`'s `StravaButton`, `components/
+  sync-button.tsx`'s `SyncButton`) rather than changing `primaryButtonClass`/
+  `secondaryButtonClass` themselves, since those shared tokens are also used by buttons
+  elsewhere (Copiar receta, Descargar GPX, Calcular estrategia) that don't need to shrink.
+- **`DeparturePicker`'s outer box removed.** The "Fecha y hora de salida" segmented
+  control + hour `<select>` used to sit inside their own `rounded-lg border
+  border-neutral-200 px-3 py-3` container — removed outright, so the day-mode buttons and
+  select now float directly on the canvas background, separated from the eyebrow label
+  above only by the wrapper's own `gap-2`. `FuelingPlannerSkeleton`'s mirrored placeholder
+  (`app/(app)/page.tsx`) updated to match — same shape, no border.
+- **Dark Obsidian widget's padding made responsive** — `p-6` → `p-4 sm:p-6`, tighter on a
+  narrow phone where a flat `p-6` ate into already-scarce width.
+- **`fieldClass`/`selectableFieldClass` lightened** — `shadow-sm` dropped entirely, border
+  color lightened from `border-zinc-300` to `border-zinc-200/80` (hover: `zinc-300`, down
+  from `zinc-400`), vertical padding trimmed from `py-2.5` to `py-2`, text color from
+  `text-neutral-900` to `text-zinc-800`, and the focus treatment simplified from
+  `focus:border-terracotta focus:ring-1 focus:ring-terracotta` to just `focus:border-terracotta
+  focus:outline-none` (no ring) — a deliberately quieter field, explicitly requested to read
+  as less "commercial form." **Note:** dropping the focus ring in favor of a border-color-only
+  focus state is a real (if minor) keyboard-accessibility tradeoff worth keeping in mind if
+  focus visibility is ever reported as hard to see. Segmented buttons' active state also lost
+  its `shadow-sm` for the same "no heavy shadows" reasoning (see above).
 
 ### Spanish-only UI text
 

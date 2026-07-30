@@ -33,13 +33,14 @@ export const secondaryButtonClass =
  * `bg-surface`, which is reserved for genuinely read-only/calculated
  * containers — see that token's own comment in `app/globals.css`) so an
  * editable field never reads as disabled/read-only next to the surrounding
- * beige page chrome. `rounded-xl`/`border-zinc-300`/a `terracotta` focus
- * ring — the PNS editorial redesign's field treatment, matched by
- * `selectableFieldClass` below so an `<input>` and an adjacent `<select>`
- * (e.g. the custom-date input next to the departure-hour select) never
- * look like two different design systems sitting side by side. */
+ * beige page chrome. Ultra-thin `border-zinc-200/80` with no drop shadow —
+ * a deliberately lighter, less "commercial form" treatment than an earlier
+ * pass's `border-zinc-300 shadow-sm`, matched by `selectableFieldClass`
+ * below so an `<input>` and an adjacent `<select>` (e.g. the custom-date
+ * input next to the departure-hour select) never look like two different
+ * design systems sitting side by side. */
 export const fieldClass =
-  "w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-sans text-neutral-900 shadow-sm transition-all duration-150 hover:border-zinc-400 focus:border-terracotta focus:outline-none focus:ring-1 focus:ring-terracotta";
+  "w-full rounded-xl border border-zinc-200/80 bg-white px-4 py-2 text-sm font-sans text-zinc-800 transition-colors duration-150 hover:border-zinc-300 focus:border-terracotta focus:outline-none";
 
 /** Every `<select>`. `appearance-none` strips the browser's own native
  * dropdown arrow — every call site pairs this with a `<ChevronDown>`
@@ -50,7 +51,7 @@ export const fieldClass =
  * cursor, since a `<select>` is a "pick one" control, not a free-typed
  * field. */
 export const selectableFieldClass =
-  "w-full cursor-pointer appearance-none rounded-xl border border-zinc-300 bg-white px-4 py-2.5 pr-9 text-sm font-sans text-neutral-900 shadow-sm transition-all duration-150 hover:border-zinc-400 focus:border-terracotta focus:outline-none focus:ring-1 focus:ring-terracotta";
+  "w-full cursor-pointer appearance-none rounded-xl border border-zinc-200/80 bg-white px-4 py-2 pr-9 text-sm font-sans text-zinc-800 transition-colors duration-150 hover:border-zinc-300 focus:border-terracotta focus:outline-none";
 
 /** The same `selectableFieldClass` treatment, restyled for a `<select>`
  * sitting on a near-black surface — the Route map's "Obsidian" widget is

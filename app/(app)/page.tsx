@@ -27,16 +27,17 @@ export const dynamic = "force-dynamic";
 const eyebrow = "text-[10px] font-mono uppercase tracking-widest text-zinc-500";
 // The Dashboard's single headline — replaces the old two-line "eyebrow +
 // uppercase DASHBOARD title" block with one sentence-case greeting, PNS
-// editorial style rather than a shouty all-caps app-shell label. Still real
-// data underneath (time-of-day prefix + the signed-in athlete's actual first
-// name via `getViewerIdentity()`), just restyled.
-const greetingClass = "truncate text-3xl font-semibold tracking-tight text-[#181818] sm:text-4xl";
-
-function getGreetingPrefix(hour: number): string {
-  if (hour >= 5 && hour < 12) return "Buenos días";
-  if (hour >= 12 && hour < 20) return "Buenas tardes";
-  return "Buenas noches";
-}
+// editorial style rather than a shouty all-caps app-shell label. A fixed
+// "Hola" rather than the earlier time-of-day-prefixed "Buenos días"/"Buenas
+// tardes"/"Buenas noches" — that variance made the greeting's length itself
+// vary (a much longer string at midday than at night), which was fighting
+// this component's own `truncate` on a narrow phone; a flat, always-short
+// "Hola" sidesteps that entirely rather than trying to size around the
+// longest possible prefix. `text-2xl sm:text-3xl` (down from `text-3xl
+// sm:text-4xl`) for the same reason — smaller text has more room before
+// truncating on a small viewport. The real athlete's name is still live
+// data via `getViewerIdentity()`, never hardcoded.
+const greetingClass = "truncate text-2xl font-semibold tracking-tight text-[#181818] sm:text-3xl";
 
 // Its own Suspense boundary (like `StravaButton` below) so the greeting's
 // Strava round-trip via `getViewerIdentity()` never
@@ -46,16 +47,11 @@ function getGreetingPrefix(hour: number): string {
 async function GreetingSection() {
   const identity = await getViewerIdentity();
   const firstName = identity.name.split(" ")[0];
-  const greeting = getGreetingPrefix(new Date().getHours());
-  return (
-    <h1 className={greetingClass}>
-      {greeting}, {firstName}
-    </h1>
-  );
+  return <h1 className={greetingClass}>Hola, {firstName}</h1>;
 }
 
 function GreetingSkeleton() {
-  return <Skeleton className="h-9 w-48 sm:h-10 sm:w-64" />;
+  return <Skeleton className="h-8 w-40 sm:h-9 sm:w-52" />;
 }
 
 // Fetches the athlete's saved Strava routes/average speed and renders the
@@ -141,7 +137,7 @@ function FuelingPlannerSkeleton() {
           </div>
           <div className="flex flex-col gap-1.5">
             <span className={eyebrow}>Fecha y hora de salida</span>
-            <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 px-3 py-3">
+            <div className="flex flex-col gap-2">
               <div className="grid grid-cols-3 gap-2">
                 <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
                 <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
@@ -183,7 +179,10 @@ async function StravaButton() {
 
   if (!connected) {
     return (
-      <a href="/api/strava/connect" className={cn(primaryButtonClass, "w-fit shrink-0")}>
+      <a
+        href="/api/strava/connect"
+        className={cn(primaryButtonClass, "w-fit shrink-0 px-3 py-1.5 text-xs sm:px-4 sm:py-2")}
+      >
         <Link2 className="size-3.5" />
         Conectar Strava
       </a>
@@ -218,8 +217,8 @@ export default async function Home({
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
       {profileSaved && <ProfileSavedToast />}
-      <header className="flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
-        <div className="mr-2 min-w-0">
+      <header className="flex w-full items-center justify-between gap-4 border-b border-neutral-200/80 pb-4">
+        <div className="min-w-0">
           <Suspense fallback={<GreetingSkeleton />}>
             <GreetingSection />
           </Suspense>

@@ -297,7 +297,7 @@ function DeparturePicker({
   onHourChange: (hour: string) => void;
 }) {
   return (
-    <div className="flex w-full min-w-0 max-w-full flex-col gap-2 rounded-lg border border-neutral-200 px-3 py-3">
+    <div className="flex w-full min-w-0 max-w-full flex-col gap-2">
       <span className={eyebrow}>Fecha y hora de salida</span>
       <div className="grid grid-cols-3 gap-2">
         {DEPARTURE_DAY_MODE_OPTIONS.map((opt) => (
@@ -308,7 +308,7 @@ function DeparturePicker({
             className={cn(
               segmentedButtonClass,
               dayMode === opt.value
-                ? "border-terracotta bg-terracotta text-white shadow-sm"
+                ? "border-terracotta bg-terracotta text-white"
                 : "border-terracotta/30 bg-white text-zinc-700 hover:border-terracotta"
             )}
           >
@@ -718,7 +718,7 @@ export function FuelingPlanner({
             className={cn(
               segmentedButtonClass,
               mode === "route"
-                ? "border-terracotta bg-terracotta text-white shadow-sm"
+                ? "border-terracotta bg-terracotta text-white"
                 : "border-terracotta/30 bg-white text-zinc-700 hover:border-terracotta"
             )}
           >
@@ -730,7 +730,7 @@ export function FuelingPlanner({
             className={cn(
               segmentedButtonClass,
               mode === "quick"
-                ? "border-terracotta bg-terracotta text-white shadow-sm"
+                ? "border-terracotta bg-terracotta text-white"
                 : "border-terracotta/30 bg-white text-zinc-700 hover:border-terracotta"
             )}
           >
@@ -742,7 +742,7 @@ export function FuelingPlanner({
             className={cn(
               segmentedButtonClass,
               mode === "gpx"
-                ? "border-terracotta bg-terracotta text-white shadow-sm"
+                ? "border-terracotta bg-terracotta text-white"
                 : "border-terracotta/30 bg-white text-zinc-700 hover:border-terracotta"
             )}
           >
@@ -759,7 +759,7 @@ export function FuelingPlanner({
                   all-light UI. `border-white/10`/`shadow-xl` give it the
                   same "elevated" quality the login hero's floating card has,
                   just inverted to dark. */}
-              <div className="rounded-2xl border border-white/10 bg-[#181818] p-6 text-white shadow-xl sm:col-span-2">
+              <div className="rounded-2xl border border-white/10 bg-[#181818] p-4 text-white shadow-xl sm:col-span-2 sm:p-6">
                 <div className="flex items-center justify-between gap-2">
                   <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-400 uppercase">
                     Ruta
@@ -1032,7 +1032,7 @@ export function FuelingPlanner({
                 className={cn(
                   segmentedButtonClass,
                   fuelingMode === opt.value
-                    ? "border-terracotta bg-terracotta text-white shadow-sm"
+                    ? "border-terracotta bg-terracotta text-white"
                     : "border-terracotta/30 bg-white text-zinc-700 hover:border-terracotta"
                 )}
               >
