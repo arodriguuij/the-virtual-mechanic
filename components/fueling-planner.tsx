@@ -128,17 +128,21 @@ const selectableInputClass = selectableFieldClass;
 // Shared sizing/typography/shape for every 3-column segmented control in
 // this file (Salida's Hoy/Mañana/Elegir fecha, the Ruta/Calculadora/GPX mode
 // toggle, Estrategia nutricional's Óptimo/Mi Inventario/Híbrido) — rectangular
-// bordered buttons (PNS editorial style), not a pill/track, so each call site
-// only adds its own active/inactive color ternary via `cn()`, not the
-// shape/sizing rules — a narrow-viewport fix to one can't silently drift from
-// the other two. Sentence case, not uppercase/mono — these are real UI
-// actions ("Ruta Strava", "Hoy", "Óptimo"), not technical data labels (see
-// `eyebrow` for that convention). `min-w-0` is what lets a CSS grid column
-// actually shrink below its content's natural width — a grid item defaults to
-// `min-width: auto`, which would otherwise force the column (and the whole
-// row) wider than its share of the grid instead of ever truncating.
+// buttons (PNS editorial style), not a pill/track, so each call site only
+// adds its own active/inactive color ternary via `cn()`, not the shape/
+// sizing rules — a narrow-viewport fix to one can't silently drift from the
+// other two. No border here (this app's 100%-frameless pass dropped the
+// bordered-button look entirely) — each call site's own ternary
+// differentiates active/inactive purely by background fill instead (see
+// each ternary's own comment for the exact tones). Sentence case, not
+// uppercase/mono — these are real UI actions ("Ruta Strava", "Hoy",
+// "Óptimo"), not technical data labels (see `eyebrow` for that convention).
+// `min-w-0` is what lets a CSS grid column actually shrink below its
+// content's natural width — a grid item defaults to `min-width: auto`,
+// which would otherwise force the column (and the whole row) wider than its
+// share of the grid instead of ever truncating.
 const segmentedButtonClass =
-  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center rounded-md border px-1 text-center text-xs font-medium transition-colors duration-150 sm:px-3 sm:text-sm";
+  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center rounded-md px-1 text-center text-xs font-medium transition-colors duration-150 sm:px-3 sm:text-sm";
 // Applied to the label text itself, not the button — `overflow-hidden`/
 // `text-ellipsis` on a `flex items-center justify-center` button clips
 // symmetrically from *both* sides of the centered content (verified live:
@@ -307,8 +311,8 @@ function DeparturePicker({
             className={cn(
               segmentedButtonClass,
               dayMode === opt.value
-                ? "border-terracotta bg-terracotta text-white"
-                : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta hover:bg-white"
+                ? "bg-terracotta text-white"
+                : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
             )}
           >
             <span className={segmentedButtonLabelClass}>{opt.label}</span>
@@ -376,15 +380,17 @@ function PocketFoodStepperRow({
       </span>
       {/* Flat quantity stepper — one unified rectangular control rather than
           two separately bordered/shadowed square buttons flanking a bare
-          number. `rounded-md` (not the earlier `rounded-full` capsule) and a
-          plain hairline `border-zinc-200/80` with zero shadow matches the
-          exact geometry of every other interactive control in the app
-          (buttons, fields, selects — all `rounded-md`, all shadow-free per
-          the app-wide flat-UI pass). The −/+ buttons themselves still carry
-          no border/shadow of their own — the wrapper's own border is the
-          only outline, so the whole control still reads as one compact
-          object, not three misaligned pieces. */}
-      <div className="flex h-8 min-w-24 items-center justify-between rounded-md border border-zinc-200/80 bg-white px-2.5 py-1">
+          number. `rounded-md` (not the earlier `rounded-full` capsule) with
+          zero border and zero shadow matches the exact geometry of every
+          other interactive control in the app (buttons, fields, selects —
+          all `rounded-md`, all frameless/shadow-free per the app-wide
+          flat-UI pass). A `bg-zinc-100` fill (this control used to rely on a
+          hairline `border-zinc-200/80` for definition instead) is what
+          differentiates it now against whatever card background surrounds
+          it. The −/+ buttons themselves still carry no border/shadow of
+          their own, so the whole control still reads as one compact object,
+          not three misaligned pieces. */}
+      <div className="flex h-8 min-w-24 items-center justify-between rounded-md bg-zinc-100 px-2.5 py-1">
         <button
           type="button"
           onClick={() => onChange(qty - 1)}
@@ -727,8 +733,8 @@ export function FuelingPlanner({
             className={cn(
               segmentedButtonClass,
               mode === "route"
-                ? "border-terracotta bg-terracotta text-white"
-                : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta hover:bg-white"
+                ? "bg-terracotta text-white"
+                : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
             )}
           >
             <span className={segmentedButtonLabelClass}>Ruta Strava</span>
@@ -739,8 +745,8 @@ export function FuelingPlanner({
             className={cn(
               segmentedButtonClass,
               mode === "quick"
-                ? "border-terracotta bg-terracotta text-white"
-                : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta hover:bg-white"
+                ? "bg-terracotta text-white"
+                : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
             )}
           >
             <span className={segmentedButtonLabelClass}>Calculadora</span>
@@ -751,8 +757,8 @@ export function FuelingPlanner({
             className={cn(
               segmentedButtonClass,
               mode === "gpx"
-                ? "border-terracotta bg-terracotta text-white"
-                : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta hover:bg-white"
+                ? "bg-terracotta text-white"
+                : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
             )}
           >
             <span className={segmentedButtonLabelClass}>Subir GPX</span>
@@ -763,69 +769,84 @@ export function FuelingPlanner({
           routes.length > 0 ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               {/* The route selector and its map preview used to float on a
-                  near-black "Obsidian" card — the one deliberately dark
-                  surface in an otherwise all-light UI. Once the map itself
-                  moved to a genuinely light Apple-Maps-style basemap (see
-                  `RouteMapPreview`), keeping this wrapper dark would have
-                  read as a light map trapped inside a black frame — restyled
-                  to a soft, porcelain-integrated container (`bg-surface`)
-                  instead, so the whole widget reads as one continuous light
-                  surface. */}
-              <div className="rounded-lg border border-zinc-200/60 bg-surface p-4 shadow-none sm:col-span-2 sm:p-6">
-                <div className="flex items-center justify-between gap-2">
-                  <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase">
-                    Ruta
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleRefreshRoutes}
-                    disabled={refreshingRoutes}
-                    title="Recargar rutas desde Strava"
-                    className="flex cursor-pointer items-center gap-1 text-[10px] font-mono tracking-widest text-zinc-500 uppercase transition-colors duration-150 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <RefreshCw className={cn("size-3", refreshingRoutes && "animate-spin")} />
-                    {refreshingRoutes ? "Sincronizando…" : "Recargar"}
-                  </button>
-                </div>
-                {/* The select's own border/background/native arrow render
-                    unconditionally — a refresh never swaps this control for
-                    a generic loading block. While `refreshingRoutes` is
-                    true, it's simply disabled with one muted placeholder
-                    option plus a micro-spinner overlaid to its own left of
-                    the chevron, so the control's shape never jumps. */}
-                <div className="relative mt-1.5">
-                  <select
-                    id="route"
-                    className={cn(selectableInputClass, refreshingRoutes && "text-zinc-400")}
-                    value={refreshingRoutes ? "__syncing" : selectedRouteId}
-                    onChange={(e) => setSelectedRouteId(e.target.value)}
-                    disabled={refreshingRoutes}
-                  >
-                    {refreshingRoutes ? (
-                      <option value="__syncing" className="font-mono text-xs text-neutral-400">
-                        Sincronizando rutas de Strava...
-                      </option>
-                    ) : (
-                      routes.map((route) => (
-                        <option key={route.id} value={route.id}>
-                          {route.name} · {route.distanceKm}km · {route.elevationGainM}m D+
+                  near-black "Obsidian" card, then a porcelain `bg-surface`
+                  one — both since superseded by this app's "pure white card"
+                  layering system: `bg-white`, zero border, zero shadow,
+                  `rounded-xl`. The label/button/select row keeps its own
+                  `p-4 sm:p-6` padding, but that padding stops there — the
+                  map below is a direct sibling with none of its own, so it
+                  bleeds edge-to-edge to the card's own left/right/bottom
+                  boundary. `overflow-hidden` on this outer card is what
+                  actually clips the map's rectangular Leaflet container into
+                  the card's own `rounded-xl` corners; `RouteMapPreview`'s own
+                  default `mt-3`/`rounded-lg` are overridden via its
+                  `className` prop specifically for this reason. */}
+              <div className="overflow-hidden rounded-xl bg-white shadow-none sm:col-span-2">
+                <div className="p-4 sm:p-6">
+                  <div className="flex items-center justify-between gap-2">
+                    <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase">
+                      Ruta
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleRefreshRoutes}
+                      disabled={refreshingRoutes}
+                      title="Recargar rutas desde Strava"
+                      className="flex cursor-pointer items-center gap-1 text-[10px] font-mono tracking-widest text-zinc-500 uppercase transition-colors duration-150 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <RefreshCw className={cn("size-3", refreshingRoutes && "animate-spin")} />
+                      {refreshingRoutes ? "Sincronizando…" : "Recargar"}
+                    </button>
+                  </div>
+                  {/* The select's own background/native arrow render
+                      unconditionally — a refresh never swaps this control for
+                      a generic loading block. While `refreshingRoutes` is
+                      true, it's simply disabled with one muted placeholder
+                      option plus a micro-spinner overlaid to its own left of
+                      the chevron, so the control's shape never jumps. A
+                      porcelain `bg-[#F8F7F5]` fill (not this app's usual
+                      white `selectableFieldClass`) marks this one select as a
+                      sub-block nested *inside* the now-white card — zero
+                      border either way, matching this app's 100%-frameless
+                      convention. */}
+                  <div className="relative mt-1.5">
+                    <select
+                      id="route"
+                      className={cn(
+                        "w-full cursor-pointer appearance-none rounded-md border-0 bg-[#F8F7F5] px-4 py-2 pr-9 text-sm font-sans text-zinc-900 transition-colors duration-150 hover:bg-[#F1EEE7] focus:outline-none focus:ring-1 focus:ring-terracotta",
+                        refreshingRoutes && "text-zinc-400"
+                      )}
+                      value={refreshingRoutes ? "__syncing" : selectedRouteId}
+                      onChange={(e) => setSelectedRouteId(e.target.value)}
+                      disabled={refreshingRoutes}
+                    >
+                      {refreshingRoutes ? (
+                        <option value="__syncing" className="font-mono text-xs text-neutral-400">
+                          Sincronizando rutas de Strava...
                         </option>
-                      ))
+                      ) : (
+                        routes.map((route) => (
+                          <option key={route.id} value={route.id}>
+                            {route.name} · {route.distanceKm}km · {route.elevationGainM}m D+
+                          </option>
+                        ))
+                      )}
+                    </select>
+                    {refreshingRoutes ? (
+                      <span
+                        className="pointer-events-none absolute top-1/2 right-9 size-3.5 -translate-y-1/2 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-700"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <ChevronDown className={selectChevronClass} />
                     )}
-                  </select>
-                  {refreshingRoutes ? (
-                    <span
-                      className="pointer-events-none absolute top-1/2 right-9 size-3.5 -translate-y-1/2 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-700"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <ChevronDown className={selectChevronClass} />
-                  )}
+                  </div>
                 </div>
                 <RouteMapPreview
                   points={selectedRoutePoints}
                   distanceKm={selectedRoute?.distanceKm ?? null}
                   elevationGainM={selectedRoute?.elevationGainM ?? null}
+                  className="mt-0 rounded-none"
                 />
               </div>
               <div className="flex flex-col gap-2">
@@ -1043,8 +1064,8 @@ export function FuelingPlanner({
                 className={cn(
                   segmentedButtonClass,
                   fuelingMode === opt.value
-                    ? "border-terracotta bg-terracotta text-white"
-                    : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta hover:bg-white"
+                    ? "bg-terracotta text-white"
+                    : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
                 )}
               >
                 <span className={segmentedButtonLabelClass}>{opt.label}</span>
@@ -1195,7 +1216,7 @@ export function FuelingPlanner({
                 "mt-4 w-full py-3.5 text-sm",
                 isProfileComplete
                   ? primaryButtonClass
-                  : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
+                  : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
               )}
             >
               {isProfileComplete ? (
@@ -1321,7 +1342,7 @@ export function FuelingPlanner({
               </p>
             )}
 
-            <div className="grid grid-cols-1 gap-3 border border-neutral-200 px-3 py-3 sm:grid-cols-3 sm:gap-4">
+            <div className="grid grid-cols-1 gap-3 rounded-lg bg-[#F8F7F5] px-3 py-3 sm:grid-cols-3 sm:gap-4">
               <div className="flex flex-col gap-1">
                 <span className={eyebrow}>Gasto estimado de HC</span>
                 <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
@@ -1351,7 +1372,7 @@ export function FuelingPlanner({
               </div>
             </div>
 
-            <details className="group rounded-lg border border-neutral-200">
+            <details className="group rounded-lg bg-[#F8F7F5]">
               <summary className="flex list-none cursor-pointer flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">
                 <span className="flex min-w-0 items-center gap-1.5">
                   <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
@@ -1491,7 +1512,7 @@ export function FuelingPlanner({
               </div>
             </details>
 
-            <details className="group rounded-lg border border-neutral-200">
+            <details className="group rounded-lg bg-[#F8F7F5]">
               <summary className="flex list-none cursor-pointer items-center gap-1.5 p-3 [&::-webkit-details-marker]:hidden">
                 <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
                 <span className={eyebrow}>Cronograma dinámico de ingesta</span>
@@ -1584,7 +1605,7 @@ export function FuelingPlanner({
             )}
 
             {result.carbLoading && (
-              <details className="border border-neutral-200 px-3 py-2.5">
+              <details className="rounded-lg bg-[#F8F7F5] px-3 py-2.5">
                 <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-700 uppercase">
                   <CalendarDays className="size-3.5 shrink-0" />
                   Estrategia de carga día −1 · {result.carbLoading.minCarbsG}-

@@ -357,7 +357,7 @@ export function PhysiologicalProfileForm({
             "w-full rounded-lg py-3.5 text-xs transition-all duration-150",
             canSave
               ? primaryButtonClass
-              : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-neutral-300/30 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase opacity-60 shadow-none"
+              : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg bg-neutral-300/30 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase opacity-60 shadow-none"
           )}
         >
           {isSubmitting ? "Guardando…" : "Guardar cambios"}

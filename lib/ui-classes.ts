@@ -13,20 +13,28 @@
 
 /** The one accent color for every primary action button, active tab, and
  * active segmented-control pill — CALCULAR ESTRATEGIA, ANALIZAR, GUARDAR,
- * Pre-Ride/Post-Ride's active tab, ÓPTIMO/RUTA STRAVA's selected pill. */
+ * Pre-Ride/Post-Ride's active tab, ÓPTIMO/RUTA STRAVA's selected pill. No
+ * border — this app's 100%-frameless pass dropped the `border-terracotta`
+ * this used to carry (redundant anyway against a solid `bg-terracotta`
+ * fill); the solid fill alone is what differentiates it now. */
 export const primaryButtonClass =
-  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-terracotta bg-terracotta px-4 py-2.5 font-mono text-xs font-semibold tracking-wider text-white uppercase shadow-sm transition-all duration-150 hover:bg-terracotta-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-terracotta";
+  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-md bg-terracotta px-4 py-2.5 font-mono text-xs font-semibold tracking-wider text-white uppercase shadow-sm transition-all duration-150 hover:bg-terracotta-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-terracotta";
 
-/** The outlined secondary-action treatment — Copiar Receta, Descargar GPX,
- * Sincronizar, Recargar rutas. A muted `--terracotta`-outlined pill on the
+/** The secondary-action treatment — Copiar Receta, Descargar GPX,
+ * Sincronizar, Recargar rutas. A muted `--terracotta`-tinted pill on the
  * resting `--surface` tone, filling solid on hover — replacing an earlier
  * plain `border-neutral-200 bg-white text-neutral-700` treatment that read as
- * a generic gray button disconnected from this app's own PNS accent color.
- * Any icon inside inherits this button's text color automatically as long as
- * it has no hardcoded color class of its own (`text-current` or, more
- * commonly, simply no color class at all). */
+ * a generic gray button disconnected from this app's own PNS accent color,
+ * then a `border-terracotta/30`-outlined version of this same tint. No
+ * border either way now — this app's 100%-frameless pass dropped the
+ * outline, relying on `bg-surface`'s own tonal contrast against whatever
+ * page/card background surrounds it (never pure white, never pure
+ * porcelain) to read as a distinct button with no line needed. Any icon
+ * inside inherits this button's text color automatically as long as it has
+ * no hardcoded color class of its own (`text-current` or, more commonly,
+ * simply no color class at all). */
 export const secondaryButtonClass =
-  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-terracotta/30 bg-surface px-4 py-2.5 font-mono text-xs font-medium tracking-wider text-terracotta uppercase shadow-sm transition-all duration-150 hover:bg-terracotta hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface disabled:hover:text-terracotta";
+  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-md bg-surface px-4 py-2.5 font-mono text-xs font-medium tracking-wider text-terracotta uppercase shadow-sm transition-all duration-150 hover:bg-terracotta hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface disabled:hover:text-terracotta";
 
 /** Every plain `<input>` — profile form fields, quick-mode duration/watts,
  * GPX duration override, the custom-date picker. White by default (not

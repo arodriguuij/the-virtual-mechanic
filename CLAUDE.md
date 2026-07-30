@@ -1443,6 +1443,37 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   island. `selectableFieldDarkClass` is now genuinely dead code (its one call site switched
   to the ordinary `selectableFieldClass`) and was deleted from `lib/ui-classes.ts` outright
   rather than left unused "just in case."
+- **Reworked a second time into a pure-white, edge-to-edge "map card."** A follow-up
+  request asked for the map to occupy 100% of its card with zero internal padding,
+  bleeding directly to the card's own edges (`overflow-hidden` clipping the map's corners
+  to match), while the outer widget itself joined this app's "pure white card, zero
+  border, zero shadow" system — inverting the prior `bg-surface` widget/white-select
+  pairing to a white widget/porcelain-select one. `components/fueling-planner.tsx`'s Ruta
+  widget is now `overflow-hidden rounded-xl bg-white shadow-none` with **two direct
+  children**: a `p-4 sm:p-6`-padded inner `<div>` holding the "Ruta"/"Recargar" label row
+  and the `<select>` itself (now a one-off `bg-[#F8F7F5] border-0 text-zinc-900` treatment,
+  not the shared white `selectableFieldClass`, so it reads as a porcelain sub-block nested
+  *inside* the now-white card), and `RouteMapPreview` as a plain sibling *with no padding
+  of its own*. Because the map is the last child and the padded label section sits only
+  above it, the map bleeds edge-to-edge on its left/right/bottom — the outer card's own
+  `overflow-hidden` + `rounded-xl` is what clips the map's rectangular Leaflet container
+  into the card's rounded bottom corners, exactly like a photo bleeding to the edge of a
+  media card while its caption text stays padded. `RouteMapPreview` itself is passed
+  `className="mt-0 rounded-none"` at this one call site specifically to override its own
+  default `mt-3`/`rounded-lg` (via the `cn()`/Tailwind-merge the component already
+  supports) — its default styling (self-contained, bordered — well, no longer bordered,
+  see below — `rounded-lg` box with its own top margin) is otherwise unchanged for its
+  other call sites (GPX mode's standalone map, Post-Ride Analysis's own telemetry-card map)
+  where there's no surrounding white card to bleed into.
+- **Every border on the map itself and its floating chrome was also removed**, as part of
+  a wider app-wide "100%-frameless" pass (see "Zero-border pass" under "PNS premium
+  redesign" below for the full sweep this belongs to): `RouteMapPreview`'s own container,
+  the `MapZoomControls` `+`/`−` buttons, and the distance/elevation badge all dropped their
+  `border-zinc-200/60` — the zoom buttons and badge still read fine as translucent
+  `bg-white/80 backdrop-blur-md` glass chips against the map tiles with no outline at all.
+  Their absolute-positioning offset also grew from `top-2 left-2`/`bottom-2 left-2` to
+  `top-3 left-3`/`bottom-3 left-3` — a slightly more generous margin now that there's no
+  border of their own eating into that space visually.
 - **Must be dynamically imported with `ssr: false`, never statically**: Leaflet reads
   `window`/`document` at module scope, which breaks Next's server-render pass for the
   initial HTML — this is true even inside a `"use client"` file, since every client
@@ -1458,11 +1489,11 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   una ruta de Strava o sube un GPX para visualizar el trazado."). Not shown in quick-
   calculator mode, which has no geographic data at all. A floating badge in the map's
   bottom-left corner echoes the same distance/D+ figures the route `<select>`/GPX filename
-  line already show, for at-a-glance reference without needing to scroll back up — now a
-  translucent *light* glass chip (`border-zinc-200/60 bg-white/80 text-zinc-900
-  backdrop-blur-md shadow-sm`), matching the map's own reversal back to a light basemap
-  (replacing the dark-glass `border-white/15 bg-[#181818]/80 text-zinc-200` treatment this
-  carried through the "Dark Vector HUD" passes).
+  line already show, for at-a-glance reference without needing to scroll back up — a
+  translucent *light* glass chip (`bg-white/80 text-zinc-900 backdrop-blur-md shadow-sm`,
+  no border — see the "100%-frameless" bullet above), matching the map's own reversal back
+  to a light basemap (replacing the dark-glass `border-white/15 bg-[#181818]/80
+  text-zinc-200` treatment this carried through the "Dark Vector HUD" passes).
 - **Stacking-context isolation**: Leaflet assigns its own internal panes/controls
   z-indexes up to `1000` (tile pane, overlay pane, the zoom `+`/`−` control, etc.) —
   comfortably higher than this app's own chrome layers, which meant the map's zoom
@@ -2960,6 +2991,91 @@ fusion..." below) was intensified from a barely-perceptible
 `shadow-[0_4px_20px_rgba(0,0,0,0.06)]` — the header reads as clearly lifted above scrolled
 content now, matching Pas Normal Studios' own floating-header depth, still with zero
 `border-b` anywhere.
+
+**A ninth pass — "zero-border pass" — stripped the 1px hairline border from every
+card/button/selector app-wide,** the last remaining piece of this app's old bordered-UI
+look after shadows had already gone flat and card corners had already gone borderless.
+Where a border used to be the *sole* thing giving a control visual definition, it was
+replaced with a real background-color fill instead — never left with nothing at all:
+
+- **`lib/ui-classes.ts`** — `primaryButtonClass` dropped its `border border-terracotta`
+  (redundant against the already-solid `bg-terracotta` fill); `secondaryButtonClass`
+  dropped `border border-terracotta/30`, relying on its existing `bg-surface` tint alone
+  (already tonally distinct from both pure white and porcelain, so it never needed the
+  outline for definition in the first place).
+- **`components/fueling-planner.tsx`'s `segmentedButtonClass`** (Ruta Strava/Calculadora/
+  Subir GPX, Hoy/Mañana/Elegir fecha, Óptimo/Mi Inventario/Híbrido — all 5 ternary call
+  sites) — the base class's plain `border` was removed; the active/inactive ternary
+  changed from `border-terracotta bg-terracotta text-white` / `border-terracotta/30
+  bg-white/80 text-zinc-700 hover:border-terracotta hover:bg-white` to a purely
+  background-driven pair: `bg-terracotta text-white` (active, unchanged fill) /
+  `bg-zinc-100 text-zinc-700 hover:bg-zinc-200` (inactive) — `zinc-100` reads clearly
+  against both a white card and the porcelain canvas, which a translucent `bg-white/80`
+  couldn't guarantee once its bordered outline was gone.
+- **The pocket-food quantity stepper** (`components/fueling-planner.tsx`) — its
+  `border-zinc-200/80` wrapper (added just one pass earlier specifically to match the
+  app's *then*-current bordered-button geometry) was removed in turn, switching to the
+  same `bg-zinc-100` fill as the segmented controls for consistency.
+- **`components/radio-card.tsx`** (the Fenotipo metabólico/Tasa de sudoración/Gut Training
+  selector cards on `/perfil`) — inactive state's `border-neutral-200 bg-white
+  hover:border-terracotta/50` became `bg-zinc-100 hover:bg-zinc-200`, matching the same
+  pattern; active state's `border-terracotta bg-terracotta` simplified to just
+  `bg-terracotta` (again, a border matching its own fill color was doing nothing
+  visually). The small circular radio-indicator ring inside each card was left untouched —
+  a standard radio-button affordance, not a card/button perimeter frame.
+- **`components/sync-button.tsx`** — `syncButtonClass`'s resting `bg-transparent border
+  border-zinc-200/80` became a solid `bg-zinc-100` (no border), keeping its existing
+  `hover:bg-white` unchanged.
+- **`components/weather-impact-card.tsx`** — its `border border-neutral-200 bg-surface`
+  stat block dropped the border, relying on `bg-surface` alone (`rounded-lg` added for a
+  touch of definition now that there's no hard edge).
+- **Disabled-button variants** across `components/fueling-planner.tsx`,
+  `components/post-ride-analysis.tsx`, and `components/physiological-profile-form.tsx`
+  (the greyed-out "Calcular estrategia"/"Guardar consumo"/"Guardar cambios" states) all
+  dropped their `border border-neutral-200`, keeping their existing `bg-neutral-200`/
+  `bg-neutral-300/30` fill as the sole disabled-state cue.
+- **Post-Ride Analysis's RPE picker** (Suave/Moderado/Duro) and **consumption preset
+  pills** (+1 Gel/+1 Bidón/+1 Barrita) — both used to rely *entirely* on a
+  `border-neutral-300` outline with no background fill at all; both gained a `bg-zinc-100`
+  resting fill (border removed) with `hover:bg-terracotta/10 hover:text-terracotta`,
+  matching the sidebar logout button's own established hover treatment rather than the
+  border-color-shift hover these used to have.
+- **The three Consumo Real input-row wrappers** (Carbohidratos/Agua/Sodio, in
+  `components/post-ride-analysis.tsx`) and **the Net Carb Deficit 3-column stat row plus
+  the DIY-recipe/reload-strategy/carb-loading `<details>` accordions** (`components/
+  fueling-planner.tsx`) — all previously `border border-neutral-200` boxes sitting
+  directly on the root Card's own white/transparent background — converted to borderless
+  `bg-[#F8F7F5]` porcelain sub-blocks instead, the same "nested block reads as distinct
+  through color, not an outline" treatment already established for Balance Neto/Fase 1/
+  Fase 2 in the prior card-system pass. These four were not explicitly named in the
+  request but share the exact same `border border-neutral-200` shape as the ones that
+  were, immediately adjacent in the same result panel — leaving them bordered would have
+  read as a half-migrated inconsistency, not a deliberate choice.
+- **Loading-skeleton mirrors** (`app/(app)/page.tsx`'s `DashboardSectionSkeleton`/
+  `FuelingPlannerSkeleton`, `app/(app)/perfil/page.tsx`'s phenotype/sweat-rate/gut-training
+  placeholder grids) also dropped their `border-terracotta/20`/`border-neutral-200` — a
+  loading fallback must mirror the real eventual shape (this app's own established
+  convention), and the real shape it mirrors is now borderless too.
+- **Deliberately left untouched**: `fieldClass`/`selectableFieldClass` (real `<input>`/
+  `<select>` fields — out of scope; the request's own examples were specifically about
+  buttons/segmented controls/selectors-as-buttons, not raw form fields, and a borderless
+  white input on a white card would have zero visible boundary at all), floating
+  overlays that were already explicitly out of scope for the prior shadow sweep for the
+  same reason (`components/toast.tsx`, `components/fueling-context-tooltip.tsx`/
+  `components/info-tooltip.tsx`, and — except for the map-specific bullet documented under
+  "Route map preview" above — nothing else in `route-map-preview.tsx`), the sidebar's own
+  structural dividers and mobile-drawer edge border (`components/dashboard-shell.tsx` —
+  layout chrome, not a card/button), the `TabsList` "line" variant's own `border-b` (the
+  underline *is* the tab bar's visual language, not a boxy card border), and dashed
+  borders (the GPX dropzone, `RouteMapPreview`'s own "no route selected" placeholder) —
+  a dashed line is a distinct, universal "drop target" affordance, not the kind of solid
+  1px card/button perimeter this pass targeted. `/estadisticas` and `/historial` were also
+  left alone entirely — both routes are documented elsewhere as mid-rebuild and outside
+  the explicitly named scope (Dashboard/Perfil/Login/Post-Ruta) for this particular pass.
+- Verified via `npm run build` (clean) and a live Playwright check confirming every
+  touched button/selector/card renders correctly with zero visible border and a real
+  background-color differentiation against whatever surface surrounds it, at both mobile
+  and desktop widths.
 
 ### Spanish-only UI text
 

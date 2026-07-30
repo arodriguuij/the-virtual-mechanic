@@ -441,7 +441,7 @@ export function PostRideAnalysis({
                   type="button"
                   disabled={loading}
                   onClick={() => handleAnalyze(opt.value, opt.label)}
-                  className="cursor-pointer rounded-sm border border-neutral-300 px-3 py-1.5 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:border-terracotta hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-50"
+                  className="cursor-pointer rounded-sm bg-zinc-100 px-3 py-1.5 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:bg-terracotta/10 hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {opt.label}
                 </button>
@@ -637,14 +637,14 @@ export function PostRideAnalysis({
                     key={preset.label}
                     type="button"
                     onClick={() => applyConsumptionPreset(preset)}
-                    className="cursor-pointer rounded-md border border-neutral-300 bg-white px-2.5 py-1 font-mono text-[11px] font-semibold text-neutral-600 transition-colors duration-150 hover:border-terracotta hover:text-terracotta"
+                    className="cursor-pointer rounded-md bg-zinc-100 px-2.5 py-1 font-mono text-[11px] font-semibold text-neutral-600 transition-colors duration-150 hover:bg-terracotta/10 hover:text-terracotta"
                   >
                     {preset.label}
                   </button>
                 ))}
               </div>
               <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="flex items-center justify-between gap-2 rounded-lg border border-neutral-200 px-3 py-1.5">
+                <div className="flex items-center justify-between gap-2 rounded-lg bg-[#F8F7F5] px-3 py-1.5">
                   <label htmlFor="carbs-consumed" className="text-sm text-neutral-900">
                     Carbohidratos
                   </label>
@@ -665,7 +665,7 @@ export function PostRideAnalysis({
                     <span className="font-mono text-xs text-neutral-500">g</span>
                   </div>
                 </div>
-                <div className="flex items-center justify-between gap-2 rounded-lg border border-neutral-200 px-3 py-1.5">
+                <div className="flex items-center justify-between gap-2 rounded-lg bg-[#F8F7F5] px-3 py-1.5">
                   <label htmlFor="fluid-consumed" className="text-sm text-neutral-900">
                     Agua
                   </label>
@@ -687,7 +687,7 @@ export function PostRideAnalysis({
                     <span className="font-mono text-xs text-neutral-500">L</span>
                   </div>
                 </div>
-                <div className="flex items-center justify-between gap-2 rounded-lg border border-neutral-200 px-3 py-1.5">
+                <div className="flex items-center justify-between gap-2 rounded-lg bg-[#F8F7F5] px-3 py-1.5">
                   <label htmlFor="sodium-consumed" className="text-sm text-neutral-900">
                     Sodio
                   </label>
@@ -718,7 +718,7 @@ export function PostRideAnalysis({
                     "w-fit px-4 py-1.5 text-[11px]",
                     isProfileComplete
                       ? cn(primaryButtonClass, "shadow-none")
-                      : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-neutral-200 font-mono font-semibold tracking-wider text-neutral-400 uppercase"
+                      : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg bg-neutral-200 font-mono font-semibold tracking-wider text-neutral-400 uppercase"
                   )}
                 >
                   {isProfileComplete ? (

@@ -13,13 +13,14 @@ import { Toast, type ToastData } from "@/components/toast";
  * next to "Conectado con Strava"), not the Dashboard header — the header
  * used to carry this button, but a later pass removed it entirely so the
  * greeting gets the full row width uncontested. A deliberately understated
- * treatment to match that quieter context: no fill at rest, a thin
- * `zinc-200/80` border (not the bronze-tinted border this carried in its
- * header days), sentence-case label (no `uppercase`/`font-mono`/
- * `tracking-wider`), and a subtle `hover:bg-white` rather than filling solid.
+ * treatment to match that quieter context: a quiet `zinc-100` fill at rest
+ * (no border — this app's 100%-frameless pass dropped the thin `zinc-200/80`
+ * outline this used to carry, relying on the fill alone for definition),
+ * sentence-case label (no `uppercase`/`font-mono`/`tracking-wider`), and a
+ * lighter `hover:bg-white` rather than filling solid.
  */
 const syncButtonClass =
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1 rounded-md border border-zinc-200/80 bg-transparent px-2 py-1 text-xs text-zinc-500 transition-colors duration-150 hover:bg-white hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1 rounded-md bg-zinc-100 px-2 py-1 text-xs text-zinc-500 transition-colors duration-150 hover:bg-white hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
  * `useFormStatus` only tracks pending state when the enclosing `<form>`'s

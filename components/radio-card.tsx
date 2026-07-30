@@ -47,10 +47,8 @@ export function RadioCard({
   return (
     <label
       className={cn(
-        "flex cursor-pointer flex-col gap-1 rounded-lg border px-3 py-2.5 transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-terracotta peer-focus-visible:ring-offset-2",
-        checked
-          ? "border-terracotta bg-terracotta text-white"
-          : "border-neutral-200 bg-white text-neutral-800 hover:border-terracotta/50"
+        "flex cursor-pointer flex-col gap-1 rounded-lg px-3 py-2.5 transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-terracotta peer-focus-visible:ring-offset-2",
+        checked ? "bg-terracotta text-white" : "bg-zinc-100 text-neutral-800 hover:bg-zinc-200"
       )}
     >
       <span className="flex items-center gap-2">

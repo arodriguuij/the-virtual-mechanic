@@ -72,7 +72,7 @@ function PhysiologicalProfileSkeleton() {
               {[0, 1, 2].map((i) => (
                 <div
                   key={i}
-                  className="h-18.5 animate-pulse rounded-lg border border-neutral-200 bg-neutral-100"
+                  className="h-18.5 animate-pulse rounded-lg bg-neutral-100"
                 />
               ))}
             </div>
@@ -83,7 +83,7 @@ function PhysiologicalProfileSkeleton() {
               {[0, 1, 2].map((i) => (
                 <div
                   key={i}
-                  className="h-18.5 animate-pulse rounded-lg border border-neutral-200 bg-neutral-100"
+                  className="h-18.5 animate-pulse rounded-lg bg-neutral-100"
                 />
               ))}
             </div>
@@ -101,7 +101,7 @@ function PhysiologicalProfileSkeleton() {
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-16 animate-pulse rounded-lg border border-neutral-200 bg-neutral-100" />
+              <div key={i} className="h-16 animate-pulse rounded-lg bg-neutral-100" />
             ))}
           </div>
         </CardContent>

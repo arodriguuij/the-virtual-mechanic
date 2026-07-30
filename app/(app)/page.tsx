@@ -69,14 +69,16 @@ async function FuelingPlannerSection() {
 
 // Generic loading placeholder for `PostRideAnalysisSection` below — an icon+
 // title row, then two content bars of different widths, reusing this app's
-// own `border-terracotta/20`/`bg-surface` design tokens rather than a
-// hardcoded cream/bronze hex pair. `FuelingPlannerSection`'s own tab uses the
+// own `bg-surface`/`bg-terracotta` design tokens rather than a hardcoded
+// cream/bronze hex pair. No border (this app's 100%-frameless pass dropped
+// the `border-terracotta/20` this used to carry, relying on the `bg-surface`
+// tint alone for definition). `FuelingPlannerSection`'s own tab uses the
 // more detailed `FuelingPlannerSkeleton` below instead, since that one now
 // always resolves into the same real planner shape (no more branching), so
 // there's no risk of it ever being shown for the wrong eventual outcome.
 function DashboardSectionSkeleton() {
   return (
-    <div className="w-full animate-pulse space-y-4 rounded-xl border border-terracotta/20 bg-surface/60 p-5">
+    <div className="w-full animate-pulse space-y-4 rounded-xl bg-surface/60 p-5">
       <div className="flex items-center space-x-3">
         <Skeleton className="h-5 w-5 rounded-full bg-terracotta/20" />
         <Skeleton className="h-4 w-40 bg-terracotta/20" />
@@ -105,9 +107,9 @@ function FuelingPlannerSkeleton() {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="grid grid-cols-3 gap-2">
-          <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
-          <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
-          <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
+          <div className="h-9 animate-pulse rounded-lg bg-neutral-100" />
+          <div className="h-9 animate-pulse rounded-lg bg-neutral-100" />
+          <div className="h-9 animate-pulse rounded-lg bg-neutral-100" />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -136,9 +138,9 @@ function FuelingPlannerSkeleton() {
             <span className={eyebrow}>Fecha y hora de salida</span>
             <div className="flex flex-col gap-2">
               <div className="grid grid-cols-3 gap-2">
-                <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
-                <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
-                <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
+                <div className="h-9 animate-pulse rounded-lg bg-neutral-100" />
+                <div className="h-9 animate-pulse rounded-lg bg-neutral-100" />
+                <div className="h-9 animate-pulse rounded-lg bg-neutral-100" />
               </div>
               <div className={cn(selectableFieldClass, "animate-pulse bg-neutral-100")} />
             </div>

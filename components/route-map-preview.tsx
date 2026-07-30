@@ -54,21 +54,24 @@ function FitBoundsToRoute({ points }: { points: [number, number][] }) {
  * from its own bundled CSS (no Tailwind class of ours can reach it) and read
  * as disproportionately large/heavy next to this app's otherwise compact,
  * sober chrome. Restyled as translucent light "glass" chips
- * (`bg-white/80 backdrop-blur-md border-zinc-200/60`) to sit on the pale
- * Positron basemap — the same clear/frosted look Apple Maps' own floating
- * controls use, replacing the dark-glass treatment this carried while the
- * map itself was still dark.
+ * (`bg-white/80 backdrop-blur-md`) to sit on the pale Positron basemap — the
+ * same clear/frosted look Apple Maps' own floating controls use. No border —
+ * this app's 100%-frameless pass removed the hairline outline these chips
+ * used to carry, relying on the translucent fill + blur alone for
+ * definition against the map tiles beneath. `top-3 left-3` (bumped from
+ * `top-2 left-2`) gives a slightly more generous margin from the map's own
+ * now-frameless edge.
  */
 function MapZoomControls() {
   const map = useMap();
 
   return (
-    <div className="absolute top-2 left-2 z-1000 flex flex-col gap-1">
+    <div className="absolute top-3 left-3 z-1000 flex flex-col gap-1">
       <button
         type="button"
         onClick={() => map.zoomIn()}
         aria-label="Acercar mapa"
-        className="flex size-7 cursor-pointer items-center justify-center rounded-md border border-zinc-200/60 bg-white/80 text-xs leading-none font-bold text-zinc-900 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
+        className="flex size-7 cursor-pointer items-center justify-center rounded-md bg-white/80 text-xs leading-none font-bold text-zinc-900 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
       >
         +
       </button>
@@ -76,7 +79,7 @@ function MapZoomControls() {
         type="button"
         onClick={() => map.zoomOut()}
         aria-label="Alejar mapa"
-        className="flex size-7 cursor-pointer items-center justify-center rounded-md border border-zinc-200/60 bg-white/80 text-xs leading-none font-bold text-zinc-900 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
+        className="flex size-7 cursor-pointer items-center justify-center rounded-md bg-white/80 text-xs leading-none font-bold text-zinc-900 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
       >
         −
       </button>
@@ -137,7 +140,15 @@ export function RouteMapPreview({
   return (
     <div
       className={cn(
-        "relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-lg border border-zinc-200/60 bg-white shadow-sm",
+        // No border — this app's 100%-frameless pass differentiates every
+        // container purely by background/shadow, never a hairline outline.
+        // `overflow-hidden` still does real work here beyond clipping the
+        // Leaflet tiles to `rounded-lg`: a caller embedding this flush inside
+        // its own already-rounded card (see the Fueling Planner's Ruta
+        // widget) overrides this component's own `rounded-lg`/`mt-3` via the
+        // `className` merge below, letting the *parent* card's corners do
+        // the clipping instead.
+        "relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-lg bg-white shadow-sm",
         className
       )}
     >
@@ -177,7 +188,7 @@ export function RouteMapPreview({
         <MapZoomControls />
       </MapContainer>
       {badgeParts.length > 0 && (
-        <div className="absolute bottom-2 left-2 z-1000 rounded-lg border border-zinc-200/60 bg-white/80 px-3 py-1.5 font-mono text-xs text-zinc-900 shadow-sm backdrop-blur-md">
+        <div className="absolute bottom-3 left-3 z-1000 rounded-lg bg-white/80 px-3 py-1.5 font-mono text-xs text-zinc-900 shadow-sm backdrop-blur-md">
           {badgeParts.join(" · ")}
         </div>
       )}
