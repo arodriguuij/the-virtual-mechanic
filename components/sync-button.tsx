@@ -9,20 +9,17 @@ import { cn } from "@/lib/utils";
 import { Toast, type ToastData } from "@/components/toast";
 
 /**
- * A deliberately quieter treatment than the shared `secondaryButtonClass`
- * (`lib/ui-classes.ts`, still used by Copiar receta/Descargar GPX/Recargar
- * rutas) — this button sits directly in the Dashboard header next to the
- * greeting, so it reads as PNS-style "transparent, barely-there chrome"
- * rather than a bold outlined pill: no fill at rest, a hairline
- * `terracotta/40` border, sentence-case label (no `uppercase`/`font-mono`/
- * `tracking-wider`), and a soft `hover:bg-white/50` instead of the shared
- * class's hover-fills-solid-bronze behavior. Kept as its own local class
- * rather than an override of `secondaryButtonClass` — the two diverge on
- * almost every axis (fill, case, tracking, font), so composing on top of
- * the shared class would mean overriding most of it anyway.
+ * Lives in the Sidebar's identity card now (`components/viewer-identity.tsx`,
+ * next to "Conectado con Strava"), not the Dashboard header — the header
+ * used to carry this button, but a later pass removed it entirely so the
+ * greeting gets the full row width uncontested. A deliberately understated
+ * treatment to match that quieter context: no fill at rest, a thin
+ * `zinc-200/80` border (not the bronze-tinted border this carried in its
+ * header days), sentence-case label (no `uppercase`/`font-mono`/
+ * `tracking-wider`), and a subtle `hover:bg-white` rather than filling solid.
  */
 const syncButtonClass =
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border border-terracotta/40 bg-transparent px-3.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors duration-150 hover:border-terracotta hover:bg-white/50 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm";
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1 rounded-md border border-zinc-200/80 bg-transparent px-2 py-1 text-xs text-zinc-500 transition-colors duration-150 hover:bg-white hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
  * `useFormStatus` only tracks pending state when the enclosing `<form>`'s

@@ -708,9 +708,9 @@ export function FuelingPlanner({
   return (
     <Card className={flatMobileCardClass}>
       <CardHeader>
-        <CardTitle>Planificador de nutrición</CardTitle>
+        <CardTitle className="mb-3.5 sm:mb-0">Planificador de nutrición</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-5">
+      <CardContent className="flex flex-col gap-6">
         <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
@@ -752,7 +752,7 @@ export function FuelingPlanner({
 
         {mode === "route" ? (
           routes.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               {/* "Obsidian widget" — the route selector and its map preview
                   float on a near-black card rather than sitting flush on the
                   page, the one deliberately dark surface in an otherwise
@@ -817,7 +817,7 @@ export function FuelingPlanner({
                   className="border-white/10"
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <label htmlFor="intensity" className={eyebrow}>
                   Intensidad objetivo
                 </label>
@@ -864,7 +864,7 @@ export function FuelingPlanner({
           )
         ) : mode === "quick" ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <label htmlFor="duration" className={eyebrow}>
                 Duración (h)
               </label>
@@ -879,7 +879,7 @@ export function FuelingPlanner({
                 onChange={(e) => setQuickDurationHours(Number(e.target.value))}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <label htmlFor="watts" className={eyebrow}>
                 Vatios objetivo
               </label>
@@ -961,7 +961,7 @@ export function FuelingPlanner({
             {parsedGpx && (
               <>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-2">
                     <label htmlFor="intensity-gpx" className={eyebrow}>
                       Intensidad objetivo
                     </label>
@@ -989,7 +989,7 @@ export function FuelingPlanner({
                     hour={departureHour}
                     onHourChange={setDepartureHour}
                   />
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-2">
                     <label htmlFor="gpx-duration" className={eyebrow}>
                       <Pencil className="mr-1 inline size-3" />
                       Tiempo estimado (editar)
@@ -1021,7 +1021,7 @@ export function FuelingPlanner({
           </div>
         )}
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <span className={eyebrow}>Estrategia nutricional</span>
           <div className="grid grid-cols-3 gap-2">
             {FUELING_MODE_OPTIONS.map((opt) => (
@@ -1154,7 +1154,7 @@ export function FuelingPlanner({
           </div>
         </details>
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-4">
             <button
               type="button"

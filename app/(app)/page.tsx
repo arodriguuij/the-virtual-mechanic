@@ -1,4 +1,3 @@
-import { Link2 } from "lucide-react";
 import { Suspense } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,10 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FuelingPlanner } from "@/components/fueling-planner";
 import { PostRideAnalysis } from "@/components/post-ride-analysis";
 import { ProfileSavedToast } from "@/components/profile-saved-toast";
-import { SyncForm } from "@/components/sync-button";
 import {
   getAthleteAverageSpeedKmh,
-  getProfile,
   getRecentActivities,
   getStravaRoutes,
   getViewerIdentity,
@@ -173,34 +170,11 @@ async function PostRideAnalysisSection() {
   );
 }
 
-async function StravaButton() {
-  const profile = await getProfile();
-  const connected = Boolean(profile?.strava_athlete_id);
-
-  if (!connected) {
-    return (
-      <a
-        href="/api/strava/connect"
-        className={cn(primaryButtonClass, "w-fit shrink-0 px-3 py-1.5 text-xs sm:px-4 sm:py-2")}
-      >
-        <Link2 className="size-3.5" />
-        Conectar Strava
-      </a>
-    );
-  }
-
-  return <SyncForm />;
-}
-
-function StravaButtonSkeleton() {
-  return <Skeleton className="h-7 w-28 rounded-lg" />;
-}
-
 // Login-time Strava errors (from `/api/auth/strava/callback`) surface on
 // `/login` instead — the proxy never lets a logged-out visitor reach this
-// page. The "Sincronizar rutas" button's own errors (`/api/strava/sync`) no
-// longer round-trip through a query param either — `SyncForm` reports them
-// via its own toast now, since the sync flow no longer navigates at all.
+// page. The "Sincronizar rutas" action itself moved out of this header
+// entirely — see `components/viewer-identity.tsx`'s own `SyncForm` usage in
+// the Sidebar's identity card, next to "Conectado con Strava."
 //
 // `?profile_saved=1` lands here (not on `/perfil`) because
 // `/api/athlete-profile/update` now always redirects a successful save
@@ -217,14 +191,9 @@ export default async function Home({
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
       {profileSaved && <ProfileSavedToast />}
-      <header className="flex w-full items-center justify-between gap-4 border-b border-neutral-200/80 pb-4">
-        <div className="min-w-0">
-          <Suspense fallback={<GreetingSkeleton />}>
-            <GreetingSection />
-          </Suspense>
-        </div>
-        <Suspense fallback={<StravaButtonSkeleton />}>
-          <StravaButton />
+      <header className="w-full border-b border-neutral-200/80 pb-4">
+        <Suspense fallback={<GreetingSkeleton />}>
+          <GreetingSection />
         </Suspense>
       </header>
 

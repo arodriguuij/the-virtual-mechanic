@@ -516,11 +516,11 @@ as its `strava_athlete_id` matches).
   two-line title/message (e.g. "Sincronización completada" / "Rutas y datos de Strava
   actualizados", dark text on the white background) auto-dismisses after 3s, same timing
   as before.
-  On mobile, the button itself collapses from the full "Sincronizar Strava" label to just a
-  `RefreshCw` icon (Strava-orange, `#FC4C02`) plus a short "Sync" label — the full label
-  next to the Dashboard header's own greeting (e.g. "Buenas tardes, Alejandro" — see
-  "Dynamic greeting" below) was wide enough to clip the greeting text on a narrow phone;
-  `sm:` and up show the full label again.
+  This button (`SyncForm`) no longer lives in the Dashboard header at all — a later "PNS
+  premium redesign" pass (see that section under the Dashboard docs below) moved it into
+  the Sidebar's identity card instead, next to "Conectado con Strava," and the header now
+  renders only the greeting at full width. See that section for the button's current
+  styling and the reasoning for the move.
 
 #### Geographic microclimate sampling
 
@@ -2538,8 +2538,10 @@ replaces the *name* with the real signed-in athlete's first name, taken from
 `getViewerIdentity()` (`lib/dashboard-data.ts` — the same Strava-backed identity source
 `components/viewer-identity.tsx`'s sidebar card already uses; `cache()`-deduped, so calling
 it a second time this request costs no extra Strava round-trip). It's its own `Suspense`
-boundary (`GreetingSkeleton` fallback), same pattern as `StravaButton` below, so the
-greeting's Strava-dependent fetch never blocks the rest of the Dashboard from rendering.
+boundary (`GreetingSkeleton` fallback) so the greeting's Strava-dependent fetch never
+blocks the rest of the Dashboard from rendering — the header has no other Suspense
+boundary to pattern-match against anymore now that `StravaButton` was removed from it
+entirely (see "PNS premium redesign" below).
 
 The *prefix* went through two designs. The first replaced the hardcoded "Buenas tardes"
 with a real `getGreetingPrefix(new Date().getHours())` (`05:00-11:59` "Buenos días",
@@ -2727,6 +2729,61 @@ still carried:
 - Verified live via Playwright with a real decoded polyline (not the earlier mock's `null`)
   so the map itself actually rendered — confirmed the zoom control squares, the shrunk
   badge, and the transparent "Sincronizar" button all match the brief visually at 1280px.
+
+**A fourth pass** moved "Sincronizar" out of the header entirely and added breathing room
+around the Fueling Planner's own title/label groups:
+
+- **"Sincronizar" relocated to the Sidebar's identity card.** The Dashboard header
+  (`app/(app)/page.tsx`) used to render `StravaButton`/`StravaButtonSkeleton` next to the
+  greeting (either "Conectar Strava" or, once connected, `SyncForm`) — both removed
+  outright, along with the now-unused `getProfile`/`Link2`/`SyncForm` imports. The header
+  is now just the greeting, full width, so it never has to compete for space with a button
+  on a narrow phone. `SyncForm` moved into `components/viewer-identity.tsx` instead,
+  rendered directly under the avatar/name/"Conectado con Strava" row whenever
+  `identity.isStravaConnected` is true — a routine, secondary action belongs next to the
+  identity it acts on, not competing with the page's own headline. The "Conectar Strava"
+  (not-yet-connected) branch was **not** preserved anywhere, deliberately: Strava OAuth is
+  this app's *only* login mechanism (see "Real auth: Strava-exclusive login" above), so
+  `profiles.strava_athlete_id` is set for literally every authenticated user by the time
+  they can reach the Dashboard at all — that branch was already dead code in practice, just
+  defensively present.
+- **`syncButtonClass` (`components/sync-button.tsx`) restyled for its new home** — the
+  header version was `border-terracotta/40`/`text-zinc-700`/`text-xs sm:text-sm`; the
+  Sidebar needs something quieter still, since it now sits in a narrow column next to small
+  identity text rather than a page-level header: `rounded-md border-zinc-200/80
+  text-zinc-500`, `hover:bg-white hover:text-zinc-900`, `gap-1`/`px-2 py-1` — smaller and
+  greyscale rather than bronze-tinted, reading as a utility action rather than a CTA.
+- **`FuelingPlanner`'s title-to-content gap, fixed at its actual root cause.** `Card`'s
+  own `gap-(--card-spacing)` (`components/ui/card.tsx`) governs the space between
+  `CardHeader` and `CardContent` — and `flatMobileCardClass` (`lib/ui-classes.ts`) zeroes
+  `--card-spacing` on mobile as part of flattening the card's *outer* edges flush against
+  the page. The side effect: that same variable also zeroed the gap between "Planificador
+  de nutrición" and the mode-toggle buttons directly below it, so the title sat visually
+  flush against the buttons on a phone. Fixed with a targeted `<CardTitle className="mb-3.5
+  sm:mb-0">` — margin only on mobile, since `sm:` and up already had a real 24px gap via
+  `--card-spacing` and didn't need supplementing. Deliberately scoped to this one
+  `CardTitle` rather than changing `--card-spacing`/`flatMobileCardClass` itself, which
+  would also restore the (intentionally removed) outer edge padding this flattening exists
+  to avoid.
+- **More air between major rows.** `CardContent`'s own `gap-5` → `gap-6` (spacing between
+  the mode toggle, the route/quick/GPX fields, Estrategia nutricional, the pocket-food
+  accordion, and the CTA), and the route-mode grid (`grid-cols-1 sm:grid-cols-2` holding the
+  Obsidian widget, Intensidad objetivo, and Fecha y hora de salida) went from `gap-4` to
+  `gap-6`. Every plain "eyebrow label directly above its own field" wrapper (`Intensidad
+  objetivo`, `Duración`/`Vatios objetivo` in quick mode, both fields in GPX mode, `Estrategia
+  nutricional`) went from `gap-1.5` to `gap-2` — a small but deliberate bump, done via a
+  literal-string find/replace scoped to the *exact* `"flex flex-col gap-1.5"` class (every
+  other `gap-1.5` usage in this file carries additional classes alongside it — a longer
+  content block, a bordered accordion row — and was left untouched, since those aren't the
+  "label sitting on top of a field" pattern this pass targeted).
+- Points 4 (button radius/active-inactive treatment), 5 (map zoom controls/badge scale),
+  and 6 (canvas background, bronze accent) of this brief were **already satisfied** by the
+  prior two passes — verified against the current code rather than re-applied, so nothing
+  in this pass touched them again.
+- Verified live via Playwright (desktop + a mocked Sidebar identity column, plus a separate
+  375px mobile pass): the header renders as a single full-width greeting with no button,
+  "Sincronizar" appears correctly under the mocked identity block, and the title-to-buttons
+  gap is now clearly visible on both a narrow phone and desktop.
 
 ### Spanish-only UI text
 
