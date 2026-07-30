@@ -35,7 +35,6 @@ import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
 import { ProfileRequiredBanner } from "@/components/profile-required-banner";
 import {
-  cardShadowClass,
   fieldClass,
   flatMobileCardClass,
   primaryButtonClass,
@@ -86,7 +85,7 @@ function formatHoursMinutes(hours: number): string {
   return `${String(h).padStart(2, "0")} h ${String(m).padStart(2, "0")} min`;
 }
 
-const POCKET_FOOD_TYPES: PocketFoodItemType[] = ["banana", "energy_bar", "rice_cake", "dates"];
+const POCKET_FOOD_TYPES: PocketFoodItemType[] = ["banana", "energy_bar", "rice_cake", "dates", "gummies"];
 const GEL_DOSE_TYPES: PocketFoodItemType[] = ["gel_small", "gel_standard", "gel_high"];
 const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = [...POCKET_FOOD_TYPES, ...GEL_DOSE_TYPES];
 const MAX_POCKET_FOOD_QTY = 6;
@@ -375,13 +374,17 @@ function PocketFoodStepperRow({
           {POCKET_FOOD_CARBS_G[type]}g HC
         </span>
       </span>
-      {/* "PNS Pill Stepper" — one unified rounded-full capsule rather than
+      {/* Flat quantity stepper — one unified rectangular control rather than
           two separately bordered/shadowed square buttons flanking a bare
-          number. The −/+ buttons themselves carry no border/shadow of their
-          own; the capsule's own hairline border is the only outline, so the
-          whole control reads as one compact object, not three misaligned
-          pieces. */}
-      <div className="flex h-8 min-w-24 items-center justify-between rounded-full border border-zinc-200 bg-white px-3 py-1 shadow-sm">
+          number. `rounded-md` (not the earlier `rounded-full` capsule) and a
+          plain hairline `border-zinc-200/80` with zero shadow matches the
+          exact geometry of every other interactive control in the app
+          (buttons, fields, selects — all `rounded-md`, all shadow-free per
+          the app-wide flat-UI pass). The −/+ buttons themselves still carry
+          no border/shadow of their own — the wrapper's own border is the
+          only outline, so the whole control still reads as one compact
+          object, not three misaligned pieces. */}
+      <div className="flex h-8 min-w-24 items-center justify-between rounded-md border border-zinc-200/80 bg-white px-2.5 py-1">
         <button
           type="button"
           onClick={() => onChange(qty - 1)}
@@ -768,7 +771,7 @@ export function FuelingPlanner({
                   to a soft, porcelain-integrated container (`bg-surface`)
                   instead, so the whole widget reads as one continuous light
                   surface. */}
-              <div className="rounded-lg border border-zinc-200/60 bg-surface p-4 shadow-sm sm:col-span-2 sm:p-6">
+              <div className="rounded-lg border border-zinc-200/60 bg-surface p-4 shadow-none sm:col-span-2 sm:p-6">
                 <div className="flex items-center justify-between gap-2">
                   <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase">
                     Ruta
@@ -1051,15 +1054,15 @@ export function FuelingPlanner({
           <p className="text-xs text-neutral-500">{FUELING_MODE_DESCRIPTIONS[fuelingMode]}</p>
         </div>
 
-        {/* One unified, frameless card — the objetivo/cubierto/déficit
-            summary (or its "sin calcular aún" placeholder) and the "Comida
-            en bolsillo" accordion used to be two separate bordered boxes
-            stacked on top of each other, reading as two unrelated concepts.
-            Now a single pure-white (`bg-white`) card (no border anywhere —
-            `cardShadowClass`'s diffuse shadow alone differentiates it from
-            the porcelain canvas behind it) holds both, separated purely by
-            `space-y-4`. */}
-        <div className={cn("space-y-4 rounded-lg bg-white p-5", cardShadowClass)}>
+        {/* One unified, frameless, 100%-flat card — the objetivo/cubierto/
+            déficit summary (or its "sin calcular aún" placeholder) and the
+            "Comida en bolsillo" accordion used to be two separate bordered
+            boxes stacked on top of each other, reading as two unrelated
+            concepts. Now a single pure-white (`bg-white`) card — zero
+            border, zero shadow, differentiated from the porcelain canvas
+            purely through background contrast (this app's flat-UI
+            convention) — holds both, separated purely by `space-y-4`. */}
+        <div className="space-y-4 rounded-lg bg-white p-5 shadow-none sm:p-6">
           {result ? (
             (() => {
               const coveredPct =
@@ -1069,14 +1072,14 @@ export function FuelingPlanner({
               const deficitG = Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG);
               return (
                 // The objetivo/cubierto/déficit breakdown is itself a
-                // "desglose interno" of the white card above — a soft
-                // `bg-[#F8F7F5]` porcelain tint (border-0), the same
-                // treatment the empty-state placeholder below already used,
-                // so both states of this slot read consistently as one
-                // internal sub-block rather than the result state floating
-                // bare on the white card while only the placeholder got a
-                // background.
-                <div className="space-y-2 rounded-lg bg-[#F8F7F5] p-3">
+                // "desglose interno" (sub-block) of the white card above — a
+                // soft `bg-[#F8F7F5]` porcelain tint, zero border, zero
+                // shadow, the same treatment the empty-state placeholder
+                // below already uses, so both states of this slot read
+                // consistently as one internal sub-block rather than the
+                // result state floating bare on the white card while only
+                // the placeholder got a background.
+                <div className="space-y-2 rounded-md bg-[#F8F7F5] p-4 shadow-none">
                   <div className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-2">
                     <span className="font-mono text-xs text-neutral-500">
                       OBJETIVO {result.totalRideCarbsG}g HC
@@ -1100,9 +1103,9 @@ export function FuelingPlanner({
             })()
           ) : (
             // A soft `bg-[#F8F7F5]` tint (the canvas tone itself, not a new
-            // gray) rather than a border, so this empty-state note still
-            // reads as *inside* the white card, not a box of its own.
-            <div className="rounded-lg bg-[#F8F7F5] p-3 font-mono text-xs text-zinc-600">
+            // gray), zero border, zero shadow, so this empty-state note
+            // still reads as *inside* the white card, not a box of its own.
+            <div className="rounded-md bg-[#F8F7F5] p-4 font-mono text-xs text-zinc-600 shadow-none">
               Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
             </div>
           )}
@@ -1241,7 +1244,7 @@ export function FuelingPlanner({
               <span className={eyebrow}>Estrategia de bolsillo &amp; receta casera</span>
             </div>
 
-            <div className="mb-2 flex flex-col gap-3 rounded-xl bg-[#343334] p-5 text-white shadow-sm">
+            <div className="mb-2 flex flex-col gap-3 rounded-xl bg-[#343334] p-5 text-white shadow-none">
               <div>
                 <span className="font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
                   Dosis casera por bidón

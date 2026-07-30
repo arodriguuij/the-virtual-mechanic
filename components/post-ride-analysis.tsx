@@ -16,7 +16,7 @@ import {
   type IntensityLevel,
 } from "@/lib/metabolic-engine";
 import { cn } from "@/lib/utils";
-import { cardShadowClass, flatMobileCardClass, primaryButtonClass } from "@/lib/ui-classes";
+import { flatMobileCardClass, primaryButtonClass } from "@/lib/ui-classes";
 
 // Leaflet reads `window`/`document` at module scope — same `ssr: false`
 // requirement as `components/fueling-planner.tsx`'s own dynamic import of
@@ -397,7 +397,7 @@ export function PostRideAnalysis({
                 pure-white, borderless treatment below (a loading fallback
                 must mirror the real eventual shape — this app's own
                 established convention). */}
-            <div className={cn("flex flex-col gap-3 rounded-lg bg-white px-4 py-3", cardShadowClass)}>
+            <div className="flex flex-col gap-3 rounded-lg bg-white px-4 py-3 shadow-none">
               <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-100 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-neutral-500 uppercase">
                 <span
                   className="size-2.5 shrink-0 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-600"
@@ -429,7 +429,7 @@ export function PostRideAnalysis({
         {error && <p className="text-sm text-status-warning">{error}</p>}
 
         {needsRpe && (
-          <div className={cn("flex flex-col gap-2 rounded-lg bg-white px-4 py-3", cardShadowClass)}>
+          <div className="flex flex-col gap-2 rounded-lg bg-white px-4 py-3 shadow-none">
             <p className="text-sm text-neutral-700">
               Esta ruta no tiene datos de potenciómetro ni pulsómetro — ¿cómo sentiste el
               esfuerzo?
@@ -452,7 +452,7 @@ export function PostRideAnalysis({
 
         {result && (
           <div className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
-            <div className={cn("flex flex-col gap-3 rounded-lg bg-white px-4 py-3", cardShadowClass)}>
+            <div className="flex flex-col gap-3 rounded-lg bg-white px-4 py-3 shadow-none">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200/60 bg-emerald-50 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-emerald-700 uppercase">
                   <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
@@ -745,7 +745,7 @@ export function PostRideAnalysis({
             </div>
 
             {recoveryDebt && (
-              <div className="rounded-lg bg-[#F8F7F5] px-3 py-2.5">
+              <div className="rounded-md bg-[#F8F7F5] p-4 shadow-none">
                 <span className={eyebrow}>Balance neto de recuperación</span>
                 <div className="mt-2 flex flex-col gap-2">
                   <BalanceNetoRow
@@ -778,7 +778,7 @@ export function PostRideAnalysis({
                   no en una sola comida
                 </span>
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className={cn("rounded-lg bg-white px-3 py-2.5", cardShadowClass)}>
+                  <div className="rounded-md bg-[#F8F7F5] p-4 shadow-none">
                     <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
                       <Zap className="size-3.5 shrink-0" />
                       Fase 1 · {biphasicRecoveryTarget.phase1.windowLabel}
@@ -791,7 +791,7 @@ export function PostRideAnalysis({
                       Líquido/rápido (batido, fruta) — vía GLUT-4, no depende de insulina
                     </span>
                   </div>
-                  <div className={cn("rounded-lg bg-white px-3 py-2.5", cardShadowClass)}>
+                  <div className="rounded-md bg-[#F8F7F5] p-4 shadow-none">
                     <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
                       <Utensils className="size-3.5 shrink-0" />
                       Fase 2 · {biphasicRecoveryTarget.phase2.windowLabel}
@@ -812,7 +812,7 @@ export function PostRideAnalysis({
                   </div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div className={cn("rounded-lg bg-white px-3 py-2.5", cardShadowClass)}>
+                  <div className="rounded-md bg-[#F8F7F5] p-4 shadow-none">
                     <span className={statLabel}>Grasas límite</span>
                     <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
                       &lt;{recoveryTarget.fatLimitG}
@@ -822,7 +822,7 @@ export function PostRideAnalysis({
                       Vaciado gástrico rápido
                     </span>
                   </div>
-                  <div className={cn("rounded-lg bg-white px-3 py-2.5", cardShadowClass)}>
+                  <div className="rounded-md bg-[#F8F7F5] p-4 shadow-none">
                     <span className={statLabel}>Rehidratación</span>
                     <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
                       {(recoveryTarget.fluidMl / 1000).toFixed(1)}

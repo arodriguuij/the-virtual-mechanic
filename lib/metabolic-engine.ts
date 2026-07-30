@@ -446,6 +446,7 @@ export type PocketFoodItemType =
   | "energy_bar"
   | "rice_cake"
   | "dates"
+  | "gummies"
   | "gel_small"
   | "gel_standard"
   | "gel_high";
@@ -455,6 +456,7 @@ export const pocketFoodLabels: Record<PocketFoodItemType, string> = {
   energy_bar: "🍫 Barrita energética",
   rice_cake: "🍙 Bollo de arroz / Rice cake",
   dates: "🌴 Dátiles (2 uds)",
+  gummies: "🍬 Gominolas / Chews",
   gel_small: "🧃 Gel pequeño",
   gel_standard: "🧃 Gel estándar",
   gel_high: "🧃 Gel alta carga / Hydro",
@@ -465,6 +467,7 @@ export const pocketFoodCarbsG: Record<PocketFoodItemType, number> = {
   energy_bar: 30,
   rice_cake: 25,
   dates: 18,
+  gummies: 30,
   gel_small: 25,
   gel_standard: 30,
   gel_high: 45,
@@ -684,7 +687,7 @@ export function generateTimingTimeline({
   peakFraction?: number | null;
 }): TimingTimeline {
   const { customCarbsG, ...items } = selection;
-  const solidTypes = new Set<PocketFoodItemType>(["banana", "energy_bar", "rice_cake", "dates"]);
+  const solidTypes = new Set<PocketFoodItemType>(["banana", "energy_bar", "rice_cake", "dates", "gummies"]);
   const gelTypes = new Set<PocketFoodItemType>(["gel_small", "gel_standard", "gel_high"]);
 
   const solidLabels: string[] = [];

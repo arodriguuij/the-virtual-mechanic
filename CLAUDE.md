@@ -767,11 +767,23 @@ A rider eating solid food from their jersey pocket doesn't need those same carbs
 dissolved in their bottles — recommending the full ride target in both places would
 overshoot the gut's absorption ceiling for no benefit. `pocketFoodLabels`/
 `pocketFoodCarbsG` (`lib/metabolic-engine.ts`) hold fixed, illustrative carb figures for
-seven catalog items — 🍌 Plátano 22g, 🍫 Barrita energética 30g, 🍙 Bollo de arroz/Rice
-cake 25g, 🌴 Dátiles (2 uds) 18g, and three commercial-gel dose tiers modeled as separate
-entries rather than one flat figure (🧃 Gel pequeño 25g, Gel estándar 30g, Gel alta
-carga/Hydro 45g — a rider can mix doses in the same ride, e.g. 1 standard + 1 high-carb) —
-not a real nutrition database, same convention as the recovery meal options.
+eight catalog items — 🍌 Plátano 22g, 🍫 Barrita energética 30g, 🍙 Bollo de arroz/Rice
+cake 25g, 🌴 Dátiles (2 uds) 18g, 🍬 Gominolas / Chews 30g (added later, sitting between
+Dátiles and the gel tiers in every ordered list — `POCKET_FOOD_TYPES` in
+`components/fueling-planner.tsx` — since it's a chewable solid, not a gel; it's also
+folded into `generateTimingTimeline()`'s own `solidTypes` set alongside banana/energy
+bar/rice cake/dates, so it gets scheduled in the first third of the ride like every other
+slow-digesting solid, not with the fast-absorption gels), and three commercial-gel dose
+tiers modeled as separate entries rather than one flat figure (🧃 Gel pequeño 25g, Gel
+estándar 30g, Gel alta carga/Hydro 45g — a rider can mix doses in the same ride, e.g. 1
+standard + 1 high-carb) — not a real nutrition database, same convention as the recovery
+meal options. Adding a new catalog item touches three places, all kept in sync: the type/
+label/carb-figure triad in `lib/metabolic-engine.ts`, the ordering array in
+`components/fueling-planner.tsx`, and `VALID_POCKET_FOOD_TYPES` in
+`app/api/fueling/plan/route.ts` — missing that last one would silently strip the new item
+out of `sanitizePocketFoodSelection()` server-side, since an unrecognized key is dropped
+rather than rejected (this codebase's established "degrade gracefully" convention), which
+would make the item calculate correctly in the UI but never actually count server-side.
 `PocketFoodSelection` also carries an optional `customCarbsG` (free grams entry for
 anything outside the catalog — a homemade snack, an unlisted brand — capped server-side at
 `MAX_CUSTOM_CARBS_G` (500g) against an absurd/abusive value). `getPocketFoodTotalCarbsG(selection)`
@@ -803,14 +815,20 @@ unchanged, since that's what feeds the clipboard/GPX nutrition exports elsewhere
 this one UI surface strips it), with its carb figure directly underneath in `font-mono`
 — monospace is reserved for the numeric readout, never the food name, so a name like
 "Bollo de arroz" stays unambiguous instead of rendering in a terminal-style face where
-similar letterforms (o/u) are easy to misread. The stepper itself — one "PNS Pill
-Stepper" per item — went through a couple of designs before landing on a single unified
-capsule: `rounded-full border border-zinc-200 bg-white shadow-sm` wrapping both −/+
-controls and the numeric value, with the −/+ buttons themselves carrying no border/
-shadow of their own (`text-zinc-600 hover:text-zinc-900`, `disabled:opacity-30`) — a
-deliberate move away from an earlier design where −/+ were each their own individually
-bordered/shadowed square flanking a bare number, which read as three misaligned pieces
-rather than one compact control. The result panel still
+similar letterforms (o/u) are easy to misread. The stepper itself went through three
+designs before landing on its current flat, sober geometry: an earlier design had −/+ as
+each their own individually bordered/shadowed square flanking a bare number (three
+misaligned pieces rather than one compact control); a second, "PNS Pill Stepper" pass
+unified those into one `rounded-full` capsule (`border border-zinc-200 bg-white
+shadow-sm`); a third, current pass flattened that capsule to match this app's own
+button/field geometry exactly — `rounded-md` (not `rounded-full`), `border
+border-zinc-200/80`, `shadow-none` (no drop shadow at all, matching the app-wide flat-UI
+pass — see "Pure white cards, zero borders" below), `h-8 px-2.5 py-1` — since a rounded
+capsule with its own shadow read as a visually distinct, one-off control next to every
+other rectangular, flat-shadowed interactive element in the app. The −/+ buttons
+themselves still carry no border/shadow of their own (`text-zinc-600
+hover:text-zinc-900`, `disabled:opacity-30`) — only the wrapper's own geometry changed
+across all three passes, not this inner button treatment. The result panel still
 shows a one-line "Comida de bolsillo cubre Xg de Yg HC — el resto va en el bidón" (with a
 small `Utensils` icon, not an emoji) whenever any item is selected —
 that summary line isn't part of the pocket-food *catalog* UI, so it keeps its emoji.
@@ -3223,6 +3241,76 @@ call-site changes:
   Neto's wrapper) read as visually nested inside their white parent cards rather than
   floating independently.
 
+**A follow-up pass reversed the shadow half of this system entirely** — a request for
+"100% flat" layering with **zero shadows anywhere**, differentiating cards from the
+porcelain canvas through background contrast alone, no elevation cue at all. `cardShadowClass`
+was deleted outright from `lib/ui-classes.ts` (not repurposed to `"shadow-none"` — every
+call site either dropped the shadow class entirely or added an explicit `shadow-none`,
+matching this codebase's "no vestigial constants" convention) and every one of its call
+sites updated:
+
+- **The base `Card` primitive** — `cardShadowClass` removed, `shadow-none` added
+  explicitly, and its corner radius stepped up from `rounded-sm` to `rounded-lg`
+  (`CardHeader`/`CardFooter`'s own `rounded-t-sm`/`rounded-b-sm` and the image-slot corner
+  classes updated to match) — a direct, explicit reversal of this app's own long-standing
+  "`rounded-sm` reserved for dense data cards" convention, per this request's literal
+  `bg-white border-0 shadow-none rounded-lg` spec for every container card. `--card-spacing`
+  (governing `Card`'s own `py-`/`CardHeader`/`CardContent`'s `px-`) was bumped from a flat
+  `--spacing(4)` to a responsive `--spacing(5)` / `sm:--spacing(6)` to match the request's
+  literal `p-5 sm:p-6` padding figure — the `data-size=sm` compact-card variant's own
+  `--spacing(3)` override is untouched, a separate, intentionally-smaller card size
+  unrelated to this breakpoint-driven default.
+- **`flatMobileCardClass`** — `sm:${cardShadowClass}` reverted to a plain `sm:shadow-none`.
+- **"Comida en bolsillo"** (`components/fueling-planner.tsx`) — the outer card dropped
+  `cardShadowClass` for an explicit `shadow-none` (padding bumped to `p-5 sm:p-6` to match).
+  Its internal objetivo/cubierto/déficit breakdown and the empty-state placeholder both
+  moved from `rounded-lg p-3` to `rounded-md p-4` — the literal "sub-bloques anidados"
+  spec this request gave (`bg-[#F8F7F5] border-0 shadow-none rounded-md p-4`), distinct
+  from the `rounded-lg` a top-level card gets.
+- **The Ruta/map widget and the dark "Dosis casera por bidón" Hero card** (both in
+  `components/fueling-planner.tsx`) — their own `shadow-sm` also removed (`shadow-none`),
+  even though neither was named explicitly in either the original card-system request or
+  this one; both are "contenedores principales" under this request's broad "todas las
+  tarjetas... y contenedores principales" wording, so leaving their shadows in place would
+  have been an inconsistent half-migration. Their own borders/background colors (the Ruta
+  widget's `border-zinc-200/60 bg-surface`, the Hero card's `bg-[#343334]`) were untouched —
+  this pass is scoped to shadows only, borders were the *previous* pass's concern.
+- **Post-Ride Analysis's telemetry summary card** (and its loading/`needsRpe` siblings) —
+  `cardShadowClass` dropped for an explicit `shadow-none`, kept as `bg-white` (still a
+  top-level "contenedor principal" reached directly inside the root Card, not a nested
+  breakdown).
+- **Balance neto de recuperación, and now also Fase 1 / Fase 2 / Grasas límite /
+  Rehidratación** — all five converted from `bg-white`/`bg-[#F8F7F5]` + shadow to the
+  literal sub-block spec, `rounded-md bg-[#F8F7F5] p-4 shadow-none`. Fase 1/2 and Grasas/
+  Rehidratación specifically had to move from white to porcelain here, not just lose their
+  shadow: they're nested *inside* the same (white-at-`sm:`) root Card as the telemetry
+  card, and removing their shadow while keeping them `bg-white` would have made them
+  visually disappear into their own white parent with zero cue that they're a distinct
+  block — the flat-UI hierarchy this request asks for (page → card → sub-block, each a
+  visually distinct tone) only holds together if a nested block actually changes color,
+  since shadow and border — the two devices that used to carry that distinction — are
+  both gone now. `BalanceNetoRow`'s own `bg-surface` (one shade darker than the porcelain
+  wrapper around it) was left untouched, preserving the three-tier porcelain → surface
+  hierarchy inside the Balance Neto block specifically.
+- **Deliberately left untouched**: every shadow that isn't a "card," reusing the same
+  scoping judgment as the previous pass's border sweep — `primaryButtonClass`/
+  `secondaryButtonClass`'s own `shadow-sm` (buttons, not cards), form-field shadows (the
+  Consumo Real inputs, the custom-carbs input), `components/toast.tsx`'s `shadow-xl`
+  (a floating notification, not a card), `components/fueling-context-tooltip.tsx`/
+  `components/info-tooltip.tsx`'s `shadow-md` (floating popovers), `components/
+  route-map-preview.tsx`'s zoom-control/badge `shadow-sm` (translucent glass chips floating
+  over map tiles — a distinct, extensively-tuned design language of their own, not the
+  page's card system), and `components/dashboard-shell.tsx`'s sticky-header shadow (chrome/
+  navigation, and explicitly *intensified* at the user's own request in the immediately
+  prior pass — reopening that here would have directly contradicted a just-completed,
+  explicit instruction).
+- Verified live via the same temporary-route/Playwright pattern as the original card-system
+  pass — confirmed every card (the base `Card` primitive, Comida en bolsillo, the Post-Ride
+  telemetry card, Balance Neto, Fase 1/2/Grasas/Rehidratación) renders with zero visible
+  shadow and zero border at both mobile and desktop widths, and that the porcelain
+  sub-blocks remain legibly distinct from their white parents through background contrast
+  alone now that shadow is gone.
+
 The multi-column grids across the Dashboard and Perfil pages (profile form, planner
 inputs, result-panel stat rows, the Net Carb Deficit breakdown) stack to a single column
 at the default breakpoint and only go multi-column at `sm:` — mobile is the default
@@ -3542,9 +3630,7 @@ accurately — no invented pricing/category to game a rich-result eligibility ch
   button's own one-off white-card-plus-Strava-orange style was identified as a fourth,
   undocumented button variant — see "Strava OAuth" below for `SyncButton` specifically),
   `fieldClass`/`selectableFieldClass` (every
-  plain input vs. every select/date field), `badgeClass`, or `cardShadowClass` (the one
-  diffuse shadow every borderless white card in the app shares — see "Pure white cards,
-  zero borders" above) — plain exported strings
+  plain input vs. every select/date field), or `badgeClass` — plain exported strings
   composed via `cn()` at each call site for its own state-dependent classes (disabled,
   active, etc.), not a wrapping component, since every call site already needs that
   composition anyway. A file-local `const inputClass = fieldClass` alias is fine where a
