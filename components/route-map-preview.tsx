@@ -21,10 +21,16 @@ const TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
-// Strava's own icon orange — reads as an unmistakable, high-contrast accent
-// against Positron's pale, low-saturation basemap, same as it did against the
-// darker topo tile before this pass.
-const ROUTE_LINE_COLOR = "#FC5200";
+// This app's own bronze/taupe accent (`--terracotta`, `#6e6658`) — replaces
+// Strava's literal icon orange (`#FC5200`), which read as an off-brand,
+// neon-bright intrusion against RATIO's own sober, editorial PNS palette.
+// Kept as its own literal hex rather than a Tailwind class, since Leaflet's
+// `Polyline` `color` prop needs a plain string — but the value is the exact
+// same one `--terracotta` resolves to, so a future token refinement should
+// update this constant too. Reads as a clean, elegant accent against
+// Positron's pale, low-saturation basemap without competing with it the way
+// a neon brand color did.
+const ROUTE_LINE_COLOR = "#6E6658";
 // A wider, softer, near-black line rendered directly underneath the route
 // itself — Leaflet's `Polyline` has no `box-shadow`-style prop of its own, so
 // stacking a second, more transparent stroke beneath the real one is the
@@ -161,8 +167,8 @@ export function RouteMapPreview({
         zoomControl={false}
       >
         <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
-        {/* Shadow stroke first (wider, translucent dark), the real Strava-
-            orange route drawn on top — gives the line a subtle sense of
+        {/* Shadow stroke first (wider, translucent dark), the real bronze/
+            taupe route drawn on top — gives the line a subtle sense of
             depth over the pale terrain without needing a CSS filter. */}
         <Polyline
           positions={points}

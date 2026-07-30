@@ -1374,19 +1374,29 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   is the documented pattern for it. Tile layer is **CartoDB Positron**
   (`basemaps.cartocdn.com/light_all`) — a free, no-API-key, genuinely light/minimalist
   basemap (pale porcelain land, muted pastel-blue water, faint gray roads/labels), rendered
-  with **no CSS filter at all**. The route itself is drawn in `#FC5200` — Strava's own icon
-  orange, the one deliberate exception to this app's usual "route line uses a muted
-  gold/bronze accent, not a literal brand color" pattern, since an earlier request
-  specifically asked for the Strava look by name and this reads as unmistakably high-
-  contrast against Positron's pale, low-saturation terrain. Every other bronze accent in the
-  app (buttons, borders) stays `--terracotta`; only this map polyline uses Strava orange.
-  `weight: 3.5`, `opacity: 1`, `lineCap`/`lineJoin: "round"`. A second, wider
-  (`weight: 6`), near-black (`#1a1a1a`) `Polyline` at `opacity: 0.15` is rendered directly
-  underneath the real route line — Leaflet's `Polyline` has no `box-shadow`-equivalent prop
-  of its own, so stacking a second, more transparent stroke beneath the visible one is the
-  standard way to fake a soft drop shadow, giving the route a little depth over the flat
-  pale terrain. Both colors are kept as literal hex strings, since Leaflet's `Polyline`
-  `color` prop needs a plain string, not a class name.
+  with **no CSS filter at all**. The route itself is drawn in `#6E6658` — this app's own
+  `--terracotta` bronze/taupe accent. This went through two colors: an earlier request
+  specifically asked for Strava's literal icon orange (`#FC5200`) by name, a deliberate
+  one-off exception to this app's usual "route line uses a muted gold/bronze accent, not a
+  literal brand color" rule at the time — reversed on a later request back to that muted
+  bronze rule, since the neon-bright Strava orange read as an off-brand intrusion against
+  RATIO's own sober, editorial PNS palette once the novelty of "the Strava look by name"
+  wore off. Every other bronze accent in the app (buttons, borders) already uses
+  `--terracotta`; the map polyline now matches them exactly rather than being the one
+  literal-brand-color exception. `weight: 3.5`, `opacity: 1`, `lineCap`/`lineJoin: "round"`
+  — unchanged across both colors, already within the range a later request asked to
+  confirm (3.5–4px weight, 0.95–1.0 opacity). A second, wider (`weight: 6`), near-black
+  (`#1a1a1a`) `Polyline` at `opacity: 0.15` is rendered directly underneath the real route
+  line — Leaflet's `Polyline` has no `box-shadow`-equivalent prop of its own, so stacking a
+  second, more transparent stroke beneath the visible one is the standard way to fake a
+  soft drop shadow, giving the route a little depth over the flat pale terrain. Both
+  colors are kept as literal hex strings, since Leaflet's `Polyline` `color` prop needs a
+  plain string, not a class name — `ROUTE_LINE_COLOR`'s value happens to be identical to
+  what `--terracotta` resolves to, so a future palette refinement touching that token
+  should update this constant too. This is the one shared `RouteMapPreview` component
+  behind both the Pre-Ruta map (Fueling Planner's Ruta widget) and the Post-Ruta map
+  (Post-Ride Analysis's telemetry card), so the color applies to both automatically with
+  no per-call-site change needed.
 - **From a filter-derived dark "Strava Dark Mode Topo" back to a genuinely light, Apple
   Maps-style basemap.** This tile went through four full iterations before landing here —
   the first three all pursued a *dark* map and are kept below as a record of what was tried
@@ -3116,6 +3126,18 @@ sub-blocks, all of which stayed exactly as the ninth pass left them:
 - Verified via `npm run build` (clean) and a live Playwright check confirming every
   segmented control now shows a clearly visible 1px border in its inactive state and the
   solid bronze fill in its active state, at both mobile and desktop widths.
+
+**An eleventh pass reversed the map's route-line color back from Strava orange to this
+app's own bronze/taupe accent** — a request that the neon `#FC5200` (introduced several
+passes earlier specifically because that request asked for "the Strava look" by name) be
+replaced with `--terracotta`'s own `#6E6658` for a cleaner, more editorial match to RATIO's
+palette. `route-map-preview.tsx`'s `ROUTE_LINE_COLOR` constant is the only line that
+changed — `weight: 3.5`, `opacity: 1`, and `lineCap`/`lineJoin: "round"` were already
+exactly within the range this same request asked to confirm (3.5–4px, 0.95–1.0 opacity),
+so nothing else needed touching. Since `RouteMapPreview` is the one shared component
+behind both the Pre-Ruta map (Fueling Planner) and the Post-Ruta map (Post-Ride Analysis),
+this single-constant change applied to both automatically — no separate edit needed per
+call site. See "Route map preview" above for the full color history in one place.
 
 ### Spanish-only UI text
 
