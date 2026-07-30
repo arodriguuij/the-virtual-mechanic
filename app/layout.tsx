@@ -12,28 +12,58 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const title = "RATIO — Nutrición Ciclista de Precisión";
-const description =
-  "Estrategia nutricional y de hidratación de precisión para ciclistas basada en fisiología, potencia y datos métricos.";
-
 export const metadata: Metadata = {
-  title,
-  description,
+  metadataBase: new URL("https://www.ratiovelo.com"),
+  title: {
+    default: "RATIO — Nutrición Ciclista de Precisión",
+    template: "%s | RATIO",
+  },
+  description:
+    "Calculadora y planificador de nutrición de precisión en ruta para ciclistas. Optimización de carbohidratos, hidratación y sodio calibrado según intensidad y temperatura.",
+  keywords: [
+    "ciclismo",
+    "nutrición ciclista",
+    "ratio velo",
+    "carbohidratos ciclismo",
+    "avituallamiento",
+    "strava",
+    "vatios",
+    "plan de nutrición",
+    "sa calobra",
+  ],
+  authors: [{ name: "RATIO Team" }],
+  creator: "RATIO",
+  publisher: "RATIO Velo",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  alternates: {
+    canonical: "https://www.ratiovelo.com",
+  },
   appleWebApp: {
     title: "RATIO",
     statusBarStyle: "default",
   },
   openGraph: {
-    title,
-    description,
-    siteName: "RATIO",
+    title: "RATIO — Nutrición Ciclista de Precisión",
+    description:
+      "Optimiza tu avituallamiento en ruta según tus vatios, tasa de sudor y consumo de glucógeno.",
+    url: "https://www.ratiovelo.com",
+    siteName: "RATIO Velo",
     locale: "es_ES",
     type: "website",
   },
   twitter: {
-    card: "summary",
-    title,
-    description,
+    card: "summary_large_image",
+    title: "RATIO — Nutrición Ciclista de Precisión",
+    description: "Calculadora y planificador de nutrición de precisión en ruta para ciclistas.",
+    creator: "@ratiovelo",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 

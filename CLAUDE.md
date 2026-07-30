@@ -2858,6 +2858,28 @@ Safari's "Add to Home Screen" to launch standalone (Android reads the manifest i
 `viewport.themeColor` matches `--background` (`#faf9f5`) so the installed app's title/
 status bar blends with the page instead of showing a mismatched color.
 
+### SEO & social sharing metadata (production domain)
+
+`app/layout.tsx`'s `metadata` export is the real, production-facing SEO/Open Graph/Twitter
+Card configuration, keyed off the live domain **`https://www.ratiovelo.com`** (the app was
+previously only reachable at its Vercel-assigned `*.vercel.app` URL — no code anywhere
+actually referenced that old URL as a literal string, so pointing this at the real domain
+needed no find-and-replace elsewhere, just this one export). `metadataBase` is the one
+field every relative/absolute URL elsewhere in the metadata tree resolves against — Next
+warns at build time if Open Graph image URLs are relative with no `metadataBase` set, so
+this being correct here is what keeps any future `og:image` addition from silently
+resolving to `localhost` in production. `title` is the `{ default, template }` form (`%s |
+RATIO`) so any route that sets its own page-level `title` (none currently do) would render
+as "X | RATIO" rather than needing to repeat the full brand name itself. `alternates.canonical`
+and `openGraph.url` both point at the same bare domain (no path) since this metadata is
+declared once at the root layout, not per-route — a route-level canonical would need its own
+`alternates.canonical` override if one were ever added. `twitter.creator` (`@ratiovelo`) is
+asserted as the real handle, not verified live from this environment (no browser/network
+access to confirm the handle exists) — flag to the user if that handle turns out not to be
+registered. `appleWebApp` (see "PWA / Add to Home Screen" above) was preserved from the
+pre-existing metadata rather than dropped, since it's what actually makes iOS's "Add to
+Home Screen" launch standalone.
+
 ## Code style
 
 - Functional components, no class components.
