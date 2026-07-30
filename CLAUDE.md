@@ -1783,52 +1783,103 @@ datos de consumo aún" stat blocks — Gut Training and Balance Hídrico still r
 own cells regardless, since gut training is always real data independent of any week's
 rides.
 
-### Hard gate on an incomplete profile ("Calcular estrategia" / "Guardar consumo real")
+### Mandatory profile completion (navigation guard)
 
-There used to *also* be a dismissible top-of-Dashboard nudge here
-(`components/profile-check-banner.tsx`'s `ProfileCheckBanner`, backed by
-`getMissingProfileFields()`) for whenever `athlete_profiles` still looked like the old
-zero-friction Strava placeholder pair. Deleted outright once the whole planner/analysis
-section started hard-blocking on an incomplete profile (see `ProfileRequiredCard` below) —
-keeping both a dismissible banner *and* a blocked section for the same underlying problem
-was pure visual duplication, and the banner's own copy ("Tu estrategia actual usa valores
-estimados") had gone stale anyway: the planner isn't just "using estimated values" anymore,
-it's fully locked. `getMissingProfileFields`/`MissingProfileField`/the
-`PLACEHOLDER_FTP`/`PLACEHOLDER_SWEAT_RATE` constants were all deleted alongside it as dead
-code — nothing else called them.
+An athlete with no usable Physiological Profile used to still be let onto the Dashboard,
+with the Fueling Planner and Post-Ride Analysis each independently hard-blocking on their
+own via a shared `ProfileRequiredCard` component (a bordered "Calibración fisiológica
+requerida" card, one per tab, each with its own `title`/`description`). That approach still
+let an incomplete profile browse to Estadísticas/Historial, which read weight/FTP/
+sweat-rate/gut-training data those pages assume is real, and meant the same underlying
+problem — "you haven't finished onboarding" — surfaced through several independent render
+branches rather than being handled once. Replaced with a hard navigation guard instead: an
+incomplete profile simply can't reach any route but `/perfil` at all, and `/perfil` itself
+funnels straight back to the Dashboard the moment it's completed (see "First save → straight
+to the Dashboard" below).
 
-The Fueling Planner's "Calcular estrategia nutricional" button and the Post-Ride "Guardar
-consumo real" button are the stricter, non-dismissible gate: both depend directly on the
-athlete's real weight/FTP/sweat-rate/gut-training figures (a calculation or a logged
-consumption row computed against an empty profile would be computed against whatever
-stand-in value the form/engine falls back to, not a genuine result), so both are
-hard-disabled rather than merely nudged. **`isProfileComplete(profile)`**
-(`lib/dashboard-data.ts`) is a plain `Boolean(profile?.weight_kg && profile?.ftp &&
-profile?.gut_training_level && profile?.sweat_rate)` — every one of those four columns is
-`NOT NULL` in `athlete_profiles` once a row exists, so in today's schema this only ever
-differs from a bare `profile !== null` check if a future migration ever relaxes one of
-them; kept as an explicit field-by-field check rather than a null check so it stays
-correct if that changes.
+- **`proxy.ts`'s Edge Middleware is the actual enforcement.** After the existing auth check
+  (no session → `/login`), a second check runs for every authenticated request that isn't
+  `/perfil` itself, isn't an `/api/*` route, and isn't one of the public paths: it queries
+  the athlete's own `athlete_profiles` row (`weight_kg, ftp, gut_training_level,
+  sweat_rate` — RLS-scoped through the same request-bound `supabase` client the auth check
+  above already built) and, if `isProfileDataComplete()` (see below) says it's incomplete,
+  redirects to `/perfil`. `/api/*` routes are deliberately exempt — they already return
+  their own `{ error: "no_profile" }` JSON (`POST /api/fueling/plan`, `POST
+  /api/post-ride/analysis`), and a middleware redirect to an HTML page would silently break
+  whatever `fetch()` call expected JSON back instead.
+- **`lib/profile-completeness.ts`** — `isProfileDataComplete(fields)`, a tiny,
+  dependency-free predicate (no `"server-only"`, no Supabase import) pulled out specifically
+  so both `proxy.ts`'s Edge Middleware and ordinary Server Components can evaluate the exact
+  same rule without sharing a query helper across two runtimes that otherwise can't share
+  one. `lib/dashboard-data.ts`'s pre-existing `isProfileComplete(profile)` — a plain
+  `Boolean(profile?.weight_kg && profile?.ftp && profile?.gut_training_level &&
+  profile?.sweat_rate)`; every one of those four columns is `NOT NULL` in `athlete_profiles`
+  once a row exists, so this only ever differs from a bare `profile !== null` check if a
+  future migration relaxes one of them — now just delegates to this shared predicate, so
+  every existing caller (unchanged signature) automatically stays in sync with what the
+  middleware enforces.
+- **`app/(app)/layout.tsx`** additionally calls `getAthleteProfile()`/`isProfileComplete()`
+  itself and passes the boolean down to `DashboardShell` as `isProfileComplete` — purely for
+  the Sidebar's own visual affordance below, not enforcement (the middleware already
+  handled that before this layout ever renders). Since the middleware guarantees `/`,
+  `/estadisticas`, and `/historial` only ever render with a complete profile, this can in
+  practice only ever be `false` while rendering `/perfil` itself — the layout has no access
+  to the current pathname (Server Component layouts aren't given one), so it computes the
+  same boolean unconditionally rather than trying to guess which route triggered the
+  render. `getAthleteProfile()`'s `cache()` dedupe means this costs no extra query on
+  `/perfil` (which already calls it for the form itself) and is the only query this adds on
+  the other three routes.
+- **Sidebar lock (`components/dashboard-shell.tsx`)** — `NAV_ITEMS` distinguishes two
+  independent lock reasons per entry: `permanentlyDisabled` (Estadísticas/Historial,
+  in-dev — see "Sidebar navigation..." below) and a computed `lockedByIncompleteProfile`
+  (every entry but `/perfil` itself, while the `isProfileComplete` prop is `false`). Both
+  render through the same locked-entry markup (no icon, `opacity-50 cursor-not-allowed
+  select-none`), but only a `permanentlyDisabled` entry shows the "Próximamente" pill — a
+  profile lock isn't "coming soon," so that badge on a temporarily-locked Dashboard would be
+  a misleading claim. The `title` tooltip differs too ("Completa tu perfil fisiológico para
+  desbloquear esta sección" vs. "Sección en desarrollo — Próximamente"). In practice this
+  can only ever be *seen* while sitting on `/perfil` with an incomplete profile, since the
+  middleware makes every other route unreachable in that state anyway — this sidebar
+  treatment exists to avoid a pointless click-then-redirect-bounce, not as the actual
+  enforcement.
+- **`app/(app)/page.tsx` no longer checks profile completeness at all.**
+  `FuelingPlannerSection`/`PostRideAnalysisSection` render the real `FuelingPlanner`/
+  `PostRideAnalysis` unconditionally — a complete profile is a guaranteed invariant by the
+  time this page ever renders, not something to branch on. Both pass `isProfileComplete` as
+  a literal `true`. This also let a "two-stage Suspense gate" architecture that used to live
+  here collapse back to one boundary per tab: `FuelingPlannerSection` had grown a nested
+  inner `<Suspense>` specifically so its detailed `FuelingPlannerSkeleton` fallback couldn't
+  be shape-committed before the profile check resolved (see "Granular loading states"
+  above) — now that there's no second possible outcome left to guard against, it goes
+  straight to `<Suspense fallback={<FuelingPlannerSkeleton />}>` again.
+  `PostRideAnalysisSection` is unchanged in shape (still `DashboardSectionSkeleton`) but no
+  longer calls `getAthleteProfile()` at all — the FTP-gated "Al llegar" tab check
+  (`!profile?.ftp`) that used to render `ProfileRequiredCard` here is gone along with it.
+- **`components/profile-required-card.tsx` was deleted outright** — its only two call sites
+  are gone, and per this codebase's dead-code convention a component with zero remaining
+  callers doesn't stay around "just in case."
+- **Left untouched**: `ProfileRequiredBanner` (`components/profile-required-banner.tsx`) and
+  the `isProfileComplete` prop/lock-button logic inside `FuelingPlanner`/`PostRideAnalysis`
+  themselves — a locked-looking button (`Lock` icon, `bg-neutral-200 text-neutral-400
+  cursor-not-allowed`) plus the amber `ProfileRequiredBanner` underneath, still a correct,
+  harmless defensive layer for either component being reused somewhere this guard doesn't
+  cover in the future. Doubly unreachable now through the Dashboard specifically — both the
+  middleware guard *and* the hardcoded `true` above guarantee it — but deliberately not
+  ripped out, same reasoning as before this pass.
 
-`app/(app)/page.tsx` computes it once per section (`FuelingPlannerSection`/
-`PostRideAnalysisSection`, both already calling `getAthleteProfile()` — `cache()`-deduped,
-so `PostRideAnalysisSection` picking it up too costs no extra query) and passes it down as
-a plain `isProfileComplete: boolean` prop — `FuelingPlanner`/`PostRideAnalysis` never fetch
-or re-derive it client-side. In both components, when it's `false`: the button swaps its
-label to a "requiere perfil completo" variant with a `Lock` icon (`lucide-react`, not a
-literal 🔒 — this app's no-emoji-in-chrome convention applies here too), its `disabled`
-prop is set, and its className swaps from the shared `primaryButtonClass` to a flat
-`bg-neutral-200 text-neutral-400 cursor-not-allowed` treatment — deliberately *not* just
-`primaryButtonClass`'s own built-in `disabled:opacity-50` (a washed-out terracotta, already
-used for the ordinary "mid-request" disabled state on the same button), since a
-profile-incomplete lock is a different, longer-lived condition worth reading as visually
-distinct from "request in flight." **`ProfileRequiredBanner`** (`components/
-profile-required-banner.tsx`, shared by both call sites so the copy/link can't drift
-between them) renders directly below the button whenever it's locked — a `bg-amber-50
-border-amber-200 text-amber-700` banner, deliberately *not* this app's usual
-`status-warning` brick-red token (that one reads as "something went wrong"; this is a
-plain "here's the one next step" nudge, a different enough register to keep visually
-distinct) with a "[ COMPLETAR PERFIL → ]" link to `/perfil`.
+### First save → straight to the Dashboard
+
+`POST /api/athlete-profile/update`'s success redirect changed from `/perfil?profile_saved=1`
+to `/?profile_saved=1`. Every successful save through this route necessarily leaves a
+complete profile — the route's own field-by-field validation already rejects anything short
+of that before the upsert ever runs — so, since completing the form is the one thing
+standing between an incomplete-profile athlete and the rest of the app, saving now lands
+them on the Dashboard immediately rather than requiring a second, manual navigation.
+`app/(app)/page.tsx`'s `Home()` reads `?profile_saved=1` and renders the shared
+`ProfileSavedToast` the same way `/perfil` used to (same component, same "Perfil
+actualizado" copy — see "Athlete profile" below) — `/perfil`'s own handling of that query
+param was removed since the redirect can never target `/perfil` anymore, which made it dead
+code.
 
 ### Eliminating profile fallbacks
 
@@ -1896,92 +1947,10 @@ Fixed at every layer:
   reported. `scripts/seed.ts`'s fixture profile is unaffected too — local dev-only tooling,
   not a runtime code path a real athlete could ever hit.
 
-**FTP-gated "Al llegar" tab.** A missing FTP used to let `PostRideAnalysis` mount anyway,
-auto-analyze on load, and surface the API's generic fetch-failure copy ("No se pudo
-analizar la ruta.") — technically honest (no fabricated result), but an opaque dead end
-for what's actually a single, fixable cause. Every glycogen-debt tier in `POST
-/api/post-ride/analysis`, even the ones that don't need a power meter (heart-rate,
-self-reported RPE), still needs *some* `athlete_profiles` row to read weight/sweat-rate/
-athlete-type from — and since that row only exists once the athlete has submitted the real
-form (see above), a missing FTP here always means a missing profile entirely.
-`PostRideAnalysisSection` (`app/(app)/page.tsx`) checks `!profile?.ftp` (reusing the same
-`getAthleteProfile()` call `isProfileComplete` already needed, no extra query) and renders
-`ProfileRequiredCard` (see below) instead of `PostRideAnalysis` entirely when true.
-
-**Unified `ProfileRequiredCard`.** "Antes de salir" and "Al llegar" originally showed two
-independently-built, differently-worded/-styled blocked states — `FuelingPlannerSection`'s
-own inline plain-white `Card` ("Configura tu perfil fisiológico para planificar tus
-bidones", just a link, no button) and a standalone `FtpRequiredNotice` component
-("Análisis restringido," a `Lock` icon, a real CTA button). Reporting the exact same
-underlying problem two visually inconsistent ways read as a design bug in its own right, so
-both were replaced with one shared **`components/profile-required-card.tsx`**'s
-`ProfileRequiredCard({ title, description })` — a bordered, cream-tinted block
-(`border-terracotta/30 bg-surface/80`, reusing this app's own tokens rather than a
-hardcoded hex pair) with a `Lock` + "Calibración fisiológica requerida" eyebrow, the
-section's own `title` (rendered uppercase via CSS — the prop itself stays plain sentence
-case, same "never hand-type shouty caps into copy" convention as every other button/label
-in this app), a `description` paragraph, and a single "Completar perfil fisiológico →"
-button (`primaryButtonClass`) to `/perfil`. `FuelingPlannerSection` passes `title="Planificador
-de nutrición"`, `PostRideAnalysisSection` passes `title="Análisis post-ruta"` — each with
-its own section-specific `description` explaining what completing the profile actually
-unlocks for *that* tab. `components/ftp-required-notice.tsx` was deleted outright once
-nothing referenced it anymore.
-
-Left untouched: `ProfileRequiredBanner` (`components/profile-required-banner.tsx`) and the
-`isProfileComplete` prop/lock-button logic inside `FuelingPlanner`/`PostRideAnalysis`
-themselves (see above) — now practically unreachable through these two Dashboard call
-sites specifically, since the whole section is replaced by `ProfileRequiredCard` before
-either component ever mounts with an incomplete profile, but still a correct, harmless
-defensive layer for either component being reused elsewhere in the future.
-
-**Two-stage profile gate (no shape-mismatched skeleton flash).** Both Dashboard tabs used
-to hang a single `<Suspense fallback={<FuelingPlannerSkeleton /> | <PostRideAnalysisSkeleton />}>`
-directly on a Server Component that decided *which of two very differently-shaped cards* to
-render only after its own `await getAthleteProfile()` resolved. A Suspense `fallback` is
-chosen before that decision is known, so an athlete with no profile yet would briefly see
-the full planner-shaped skeleton (mode toggle, route select, intensity field) or the
-"Analizando tu última salida…" card, then have it yanked out for a completely different,
-much smaller card the instant the query resolved — a real, reported layout flash, not just
-a slow fill-in. Fixed by making the profile check the *only* thing the outer Suspense
-boundary ever waits on, so its outcome is atomic and its fallback can't be shape-committed
-to the wrong answer:
-
-- **`FuelingPlannerSection`** now does only the `getAthleteProfile()` check itself and
-  returns either the "sin perfil" card directly, or a *second*, nested `<Suspense
-  fallback={<FuelingPlannerSkeleton />}>` wrapping a new **`FuelingPlannerRoutesSection`**
-  (the extracted `getStravaRoutes()`/`getAthleteAverageSpeedKmh()` fetch + `<FuelingPlanner>`
-  render). By the time that inner boundary ever mounts, the outcome is already locked to
-  "real planner" — so `FuelingPlannerSkeleton`'s detailed shape can only ever resolve into
-  the same real planner it depicts, never into a different card.
-- **`PostRideAnalysisSection`** has no equivalent second async stage to preserve (its one
-  `Promise.all` already resolves both `activities` and `profile` together), so there was
-  nothing to split — its `PostRideAnalysisSkeleton` fallback was simply deleted (see
-  "Granular loading states" above).
-- **`Home()`'s two outer `<Suspense>` boundaries** (wrapping `FuelingPlannerSection` and
-  `PostRideAnalysisSection`) both now use a single shared **`DashboardSectionSkeleton`**
-  instead of either section's own detailed shape — deliberately generic, since at this
-  outer stage neither outcome (configure-profile card vs. real content) is known yet, and a
-  shaped skeleton here is exactly what caused the flash. A first version was a single flat
-  `<Skeleton className="h-64 w-full rounded-xl" />` — on a narrow phone this read as a
-  giant, featureless gray box, and its abrupt collapse into whichever real (much shorter or
-  much taller) card resolved was its own jarring layout shift. Restructured into a small
-  fake card instead: an icon+title row (`h-5 w-5 rounded-full` + `h-4 w-40`), then two
-  content bars of different widths (`h-10`/`h-20`) inside a `rounded-xl border
-  border-terracotta/20 bg-surface/60` shell — reusing this app's own `terracotta`/`surface`
-  tokens rather than a hardcoded cream/bronze hex pair. Structuring it as a card with
-  internal hierarchy, rather than one undifferentiated block, is what actually reads as "a
-  card is loading" instead of "an empty rectangle" — this doesn't achieve *zero* layout
-  shift (the two possible final outcomes have genuinely different real heights, and which
-  one resolves isn't known until the query returns), but it's a brief, cheap, local Supabase
-  query, so the shift is small and the loading state itself no longer looks broken.
-- Verified via a temporary route with artificial `setTimeout` delays at each stage (profile
-  check ~600ms, routes fetch ~800ms — same technique used earlier in this project's history
-  to verify Dashboard loading states) and a `MutationObserver`-style poll of which
-  `data-testid` was present over time: the `profileNull` path went straight from the neutral
-  skeleton to the final "sin perfil" card with **zero** intermediate appearance of the
-  planner-shaped skeleton; the complete-profile path went neutral → planner-shaped skeleton
-  → real planner, with the planner skeleton only ever appearing once its outcome was
-  already guaranteed. Route removed again before committing.
+The FTP-gated "Al llegar" tab check, the shared `ProfileRequiredCard`, and the two-stage
+Suspense gate architecture that all used to live in this section have since been superseded
+by the mandatory-profile-completion navigation guard — see "Mandatory profile completion"
+above for the current mechanism.
 
 ### Athlete profile
 
@@ -2004,8 +1973,9 @@ this form's own `<select>` shows pre-selected is. "Soportes de bidón" keeps its
 default — only the capacity default changed. Uses `.upsert({ id: userId,
 ... })` rather than a select-then-update/insert branch, since `athlete_profiles.id` is the
 primary key and Supabase's upsert already handles "create if missing, update if present"
-in one call. On success, redirects to `/perfil?profile_saved=1` (same query-param
-convention as `profile_error`/`strava_error`) rather than a bare `/perfil`, which
+in one call. On success, redirects to `/?profile_saved=1` (same query-param convention as
+`profile_error`/`strava_error`, but landing on the Dashboard rather than `/perfil` itself —
+see "First save → straight to the Dashboard" above for why), which
 `components/profile-saved-toast.tsx` (`"use client"`) reads to render a self-dismissing
 confirmation toast ("Perfil actualizado" / "Guardado automáticamente"). This used to be a
 one-off `fixed bottom-6 right-6` box — which, in practice, could read as overlapping the
@@ -2189,27 +2159,42 @@ already (it owns the mobile drawer's `mobileOpen` state), so this needed no new
 drawer (`setMobileOpen(false)`) on click, since without it a mobile visitor tapping a nav
 item would navigate underneath a still-open overlay.
 
-**Temporarily disabled nav entries (`disabled: true` on `NAV_ITEMS`).** Estadísticas and
-Historial are both mid-rebuild — reachable by direct URL, but the sidebar itself shouldn't
-invite a click into a section that's actively in flux. Each `NAV_ITEMS` entry now carries
-its own `disabled` boolean rather than a second parallel list, so re-enabling one later is a
-single-line flip back to `false`, not restoring deleted markup. A disabled entry renders as
-a plain `<div aria-disabled="true">` (not a `<Link>`, not a `Link` with a blocked `onClick`)
-— there's no `href` to accidentally trigger prefetching or a stray navigation on middle-
-click/keyboard-Enter the way suppressing a real anchor's default behavior would still risk.
-Visually it's `opacity-50 cursor-not-allowed select-none`, plus a trailing "Próximamente"
-pill (`bg-neutral-200/60 text-neutral-500`, `text-[9px] font-mono uppercase
-tracking-wider`) and a native `title` tooltip ("Sección en desarrollo — Próximamente") for
-a hovering desktop pointer. **No `item.icon` is rendered for a disabled entry** — an
-earlier version did render it (dimmed like the rest of the row), which left Historial with
-a visible icon glyph next to Estadísticas' own icon rendering inconsistently faint/absent
-at a glance, an unintended visual asymmetry between two entries meant to read as equally
-"disabled." In its place sits a plain `size-4 shrink-0` empty spacer (`aria-hidden`,
-`gap-3` unchanged) — matching the exact width an active entry's icon+gap occupies, so
-Estadísticas'/Historial's own labels still line up flush with Dashboard's/Perfil's label
-text one row above, rather than sitting flush against the sidebar's own left edge with no
-icon column to indent past. Verified live: clicking the
-disabled entry leaves the URL unchanged.
+**Locked nav entries.** Every `NAV_ITEMS` entry can be locked for one of two independent
+reasons, both rendering through the same disabled-entry markup but distinguished by
+`title`/badge (see "Mandatory profile completion" above for the second reason's actual
+enforcement, which lives in `proxy.ts`'s Edge Middleware, not here):
+
+- **`permanentlyDisabled`** — Estadísticas and Historial are both mid-rebuild, reachable by
+  direct URL but the sidebar itself shouldn't invite a click into a section that's actively
+  in flux. Each `NAV_ITEMS` entry carries its own `permanentlyDisabled` boolean rather than
+  a second parallel list, so re-enabling one later is a single-line flip back to `false`,
+  not restoring deleted markup. Shows the trailing "Próximamente" pill (`bg-neutral-200/60
+  text-neutral-500`, `text-[9px] font-mono uppercase tracking-wider`) and a `title` of
+  "Sección en desarrollo — Próximamente."
+- **`lockedByIncompleteProfile`** (computed per-render, not a static field) — every entry
+  but `/perfil` itself, while the Sidebar's `isProfileComplete` prop (passed down from
+  `app/(app)/layout.tsx`) is `false`. No "Próximamente" pill here — a profile lock isn't
+  "coming soon" — just the `title` "Completa tu perfil fisiológico para desbloquear esta
+  sección." In practice only ever visible while sitting on `/perfil` itself with an
+  incomplete profile, since the middleware makes every other route unreachable in that
+  state regardless of what the Sidebar shows.
+
+Either way, a locked entry renders as a plain `<div aria-disabled="true">` (not a `<Link>`,
+not a `Link` with a blocked `onClick`) — there's no `href` to accidentally trigger
+prefetching or a stray navigation on middle-click/keyboard-Enter the way suppressing a real
+anchor's default behavior would still risk. Visually it's `opacity-50 cursor-not-allowed
+select-none` for both reasons. **No `item.icon` is ever rendered for a locked entry** — an
+earlier version did render it (dimmed like the rest of the row) for the permanently-disabled
+case specifically, which left Historial with a visible icon glyph next to Estadísticas' own
+icon rendering inconsistently faint/absent at a glance, an unintended visual asymmetry
+between two entries meant to read as equally "disabled." In its place sits a plain `size-4
+shrink-0` empty spacer (`aria-hidden`, `gap-3` unchanged) — matching the exact width an
+active entry's icon+gap occupies, so a locked entry's label still lines up flush with every
+enabled entry's label, rather than sitting flush against the sidebar's own left edge with no
+icon column to indent past. Verified live: clicking a locked entry leaves the URL unchanged,
+and toggling the Sidebar's `isProfileComplete` prop between `true`/`false` correctly locks/
+unlocks Dashboard specifically while leaving Perfil always clickable and Estadísticas/
+Historial always locked regardless.
 
 The same `SidebarContent` header
 (`RatioLogo` + "RATIO") and the mobile top header's own logo+text are both
@@ -2535,16 +2520,22 @@ pulsing placeholder, in roughly the same position/size the real value will occup
   reusing the *exact* same select+spinner treatment above, "Intensidad objetivo" and "Fecha
   y hora de salida" field shapes, and a translucent CTA button with its real label — so
   even on a cold cache, the fallback is indistinguishable in structure from the form a
-  moment later. **No longer the outer `<Suspense>` fallback for the whole
-  `FuelingPlannerSection`**, though — see "Two-stage profile gate" below for why it moved to
-  an inner boundary that only mounts once the final shape is already decided.
+  moment later. For a stretch of this project's history this had moved to an *inner*
+  Suspense boundary (see the now-removed "two-stage profile gate," under "Mandatory profile
+  completion" below) since `FuelingPlannerSection` could still resolve into a differently-
+  shaped "sin perfil" card back then — now that the mandatory-profile-completion navigation
+  guard makes a complete profile a guaranteed invariant by the time this page ever renders,
+  there's only one possible outcome left, so this is back to being the single, direct
+  `<Suspense>` fallback for the whole section.
 - **`PostRideAnalysisSkeleton`** used to similarly mirror `PostRideAnalysis`'s own real
   `CardTitle`/`CardDescription` plus a muted "Analizando tu última salida…" status line.
-  Deleted outright once it became the exact kind of shape-mismatched fallback "Two-stage
-  profile gate" below fixes — `PostRideAnalysisSection` can resolve into either
-  `PostRideAnalysis` or the very differently-shaped `ProfileRequiredCard`, so a fallback
-  mirroring only one of those two outcomes was never actually safe to show while the
-  profile check was still in flight.
+  Deleted outright once `PostRideAnalysisSection` could resolve into either the real
+  `PostRideAnalysis` or a very differently-shaped "sin perfil" card (`ProfileRequiredCard`,
+  itself since deleted — see "Mandatory profile completion" below), which made a fallback
+  mirroring only one of those two outcomes unsafe to show while the profile check was still
+  in flight. `PostRideAnalysisSection` no longer has that branch at all anymore, but the
+  generic `DashboardSectionSkeleton` it settled on remains its fallback — there was no need
+  to reintroduce a detailed one once the branch went away.
 - **`components/post-ride-analysis.tsx`'s own `loading && !result` branch** — used to be a
   single plain text line ("Analizando tu última salida…") with nothing else on screen.
   Replaced with the real telemetry card's shape rendered early: the same bordered/

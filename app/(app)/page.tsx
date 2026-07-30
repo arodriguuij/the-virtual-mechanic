@@ -6,17 +6,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FuelingPlanner } from "@/components/fueling-planner";
 import { PostRideAnalysis } from "@/components/post-ride-analysis";
-import { ProfileRequiredCard } from "@/components/profile-required-card";
+import { ProfileSavedToast } from "@/components/profile-saved-toast";
 import { SyncForm } from "@/components/sync-button";
 import {
   getAthleteAverageSpeedKmh,
-  getAthleteProfile,
   getProfile,
   getRecentActivities,
   getStravaRoutes,
   getViewerIdentity,
-  isProfileComplete,
-  type AthleteProfile,
 } from "@/lib/dashboard-data";
 import { primaryButtonClass, selectableFieldClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
@@ -53,64 +50,29 @@ function GreetingSkeleton() {
   return <Skeleton className="h-3 w-28" />;
 }
 
-// Split into two stages so the profile check is the *only* thing this outer
-// Suspense boundary waits on — the decision between the "sin perfil" card
-// and the real planner happens here, atomically, before anything commits to
-// a particular skeleton shape. Previously this single async function did
-// both the profile check *and* the routes/avg-speed fetch, all behind one
-// `<Suspense fallback={<FuelingPlannerSkeleton />}>` in `Home()` below — so a
-// profile-less athlete would see the full planner-shaped skeleton (mode
-// toggle, route select, intensity field) for however long the profile query
-// took, then have it yanked out for the small "configura tu perfil" card the
-// instant the query resolved. `Home()`'s outer Suspense fallback is now a
-// neutral `<Skeleton>` instead (see below) — genuinely uncommitted to either
-// outcome — and `FuelingPlannerSkeleton`'s own detailed shape moved to a
-// *second*, inner Suspense that only ever mounts once we already know for
-// certain the final content will be the real planner, so it can never be
-// swapped for a differently-shaped card again.
+// Fetches the athlete's saved Strava routes/average speed and renders the
+// real planner directly — no "perfil incompleto" branch here anymore.
+// `proxy.ts`'s Edge Middleware redirects an incomplete profile to `/perfil`
+// before this page can ever render (see CLAUDE.md's "Mandatory profile
+// completion" section), so by the time this component runs, a complete
+// profile is a guaranteed invariant, not something to check for again.
+// `isProfileComplete` is passed as a literal `true` for the same reason —
+// `FuelingPlanner`'s own internal lock-button/`ProfileRequiredBanner`
+// handling stays in place as a harmless defensive layer (see that
+// component's own doc comment), it's just permanently unreachable through
+// this call site now.
 async function FuelingPlannerSection() {
-  const profile = await getAthleteProfile();
-
-  if (!profile) {
-    return (
-      <ProfileRequiredCard
-        title="Planificador de nutrición"
-        description="Completa tu FTP, Peso, Tolerancia Digestiva y Sudoración para calcular la estrategia de ingesta (g/h) y las mezclas exactas para tus bidones."
-      />
-    );
-  }
-
-  return (
-    <Suspense fallback={<FuelingPlannerSkeleton />}>
-      <FuelingPlannerRoutesSection profile={profile} />
-    </Suspense>
-  );
-}
-
-async function FuelingPlannerRoutesSection({ profile }: { profile: AthleteProfile }) {
   const [routes, avgSpeedKmh] = await Promise.all([getStravaRoutes(), getAthleteAverageSpeedKmh()]);
-  return (
-    <FuelingPlanner
-      routes={routes}
-      avgSpeedKmh={avgSpeedKmh}
-      isProfileComplete={isProfileComplete(profile)}
-    />
-  );
+  return <FuelingPlanner routes={routes} avgSpeedKmh={avgSpeedKmh} isProfileComplete />;
 }
 
-// Neutral, outcome-agnostic placeholder for the *outer* profile-completeness
-// gate above — deliberately not shaped like the planner or like the "sin
-// perfil" card, since at this stage neither outcome is known yet; a shaped
-// skeleton here is exactly what caused the flash this pass fixes. Reused
-// as-is for `PostRideAnalysisSection`'s own identical two-outcome gate below.
-// A single flat `<Skeleton className="h-64 w-full rounded-xl" />` (this
-// component's first version) read as a giant, featureless gray box on a
-// narrow phone — structured into a small fake card instead (an icon+title
-// row, then two content bars of different widths) so it reads as "a card is
-// loading," not "an empty rectangle." `border-terracotta/20`/`bg-surface`
-// reuse this app's own design tokens rather than hardcoding a new cream/
-// bronze hex pair, so a future palette tweak to either token still applies
-// here automatically.
+// Generic loading placeholder for `PostRideAnalysisSection` below — an icon+
+// title row, then two content bars of different widths, reusing this app's
+// own `border-terracotta/20`/`bg-surface` design tokens rather than a
+// hardcoded cream/bronze hex pair. `FuelingPlannerSection`'s own tab uses the
+// more detailed `FuelingPlannerSkeleton` below instead, since that one now
+// always resolves into the same real planner shape (no more branching), so
+// there's no risk of it ever being shown for the wrong eventual outcome.
 function DashboardSectionSkeleton() {
   return (
     <div className="w-full animate-pulse space-y-4 rounded-xl border border-terracotta/20 bg-surface/60 p-5">
@@ -191,16 +153,11 @@ function FuelingPlannerSkeleton() {
   );
 }
 
+// No "perfil incompleto" branch here either — same invariant as
+// `FuelingPlannerSection` above, enforced once by `proxy.ts`'s Edge
+// Middleware rather than re-checked on every render.
 async function PostRideAnalysisSection() {
-  const [activities, profile] = await Promise.all([getRecentActivities(8), getAthleteProfile()]);
-  if (!profile?.ftp) {
-    return (
-      <ProfileRequiredCard
-        title="Análisis post-ruta"
-        description="Completa tu Perfil Fisiológico para calcular la deuda de glucógeno real, la tasa de sudoración y la pauta de recuperación por macronutrientes al terminar tus rutas."
-      />
-    );
-  }
+  const activities = await getRecentActivities(8);
   return (
     <PostRideAnalysis
       activities={activities.map((a) => ({
@@ -208,7 +165,7 @@ async function PostRideAnalysisSection() {
         name: a.name,
         activity_date: a.activity_date,
       }))}
-      isProfileComplete={isProfileComplete(profile)}
+      isProfileComplete
     />
   );
 }
@@ -238,9 +195,22 @@ function StravaButtonSkeleton() {
 // page. The "Sincronizar rutas" button's own errors (`/api/strava/sync`) no
 // longer round-trip through a query param either — `SyncForm` reports them
 // via its own toast now, since the sync flow no longer navigates at all.
-export default async function Home() {
+//
+// `?profile_saved=1` lands here (not on `/perfil`) because
+// `/api/athlete-profile/update` now always redirects a successful save
+// straight to the Dashboard — see that route's own doc comment and
+// CLAUDE.md's "Mandatory profile completion" section.
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const profileSaved = params.profile_saved === "1";
+
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
+      {profileSaved && <ProfileSavedToast />}
       <header className="flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
         <div className="mr-2 flex min-w-0 flex-col">
           <Suspense fallback={<GreetingSkeleton />}>
@@ -273,7 +243,7 @@ export default async function Home() {
 
         <TabsContent value="pre-ride">
           <div className="flex flex-col gap-10 pt-4 sm:pt-6">
-            <Suspense fallback={<DashboardSectionSkeleton />}>
+            <Suspense fallback={<FuelingPlannerSkeleton />}>
               <FuelingPlannerSection />
             </Suspense>
           </div>

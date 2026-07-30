@@ -3,7 +3,6 @@ import { Suspense } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { PhysiologicalProfileForm } from "@/components/physiological-profile-form";
-import { ProfileSavedToast } from "@/components/profile-saved-toast";
 import { getAthleteProfile, getStravaAthleteWeightKg } from "@/lib/dashboard-data";
 import { fieldClass, primaryButtonClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
@@ -141,32 +140,27 @@ export default async function PerfilPage({
   const profileError =
     typeof profileErrorCode === "string" ? profileErrorMessages[profileErrorCode] ?? null : null;
 
-  const profileSaved = params.profile_saved === "1";
-
   return (
-    <>
-      {profileSaved && <ProfileSavedToast />}
-      <div className="flex flex-col gap-6">
-        <header className="border-b border-neutral-200 pb-6">
-          <h1 className="text-xl font-bold font-mono text-neutral-900 uppercase tracking-tight sm:text-2xl">
-            Perfil fisiológico
-          </h1>
-          <p className="text-xs font-mono text-neutral-500 mt-1 leading-relaxed">
-            Línea base metabólica, parámetros fijos y capacidad digestiva
-          </p>
-        </header>
+    <div className="flex flex-col gap-6">
+      <header className="border-b border-neutral-200 pb-6">
+        <h1 className="text-xl font-bold font-mono text-neutral-900 uppercase tracking-tight sm:text-2xl">
+          Perfil fisiológico
+        </h1>
+        <p className="text-xs font-mono text-neutral-500 mt-1 leading-relaxed">
+          Línea base metabólica, parámetros fijos y capacidad digestiva
+        </p>
+      </header>
 
-        {profileError && (
-          <div className="flex items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-sm text-status-warning">
-            <TriangleAlert className="size-4 shrink-0" />
-            {profileError}
-          </div>
-        )}
+      {profileError && (
+        <div className="flex items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-sm text-status-warning">
+          <TriangleAlert className="size-4 shrink-0" />
+          {profileError}
+        </div>
+      )}
 
-        <Suspense fallback={<PhysiologicalProfileSkeleton />}>
-          <PhysiologicalProfileCard />
-        </Suspense>
-      </div>
-    </>
+      <Suspense fallback={<PhysiologicalProfileSkeleton />}>
+        <PhysiologicalProfileCard />
+      </Suspense>
+    </div>
   );
 }

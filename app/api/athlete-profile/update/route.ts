@@ -81,5 +81,12 @@ export async function POST(request: NextRequest) {
     return redirectWithError("update_blocked_by_rls");
   }
 
-  return NextResponse.redirect(new URL("/perfil?profile_saved=1", request.url), { status: 303 });
+  // Every successful save through this route necessarily leaves a complete
+  // profile — the validation above already rejects anything short of it —
+  // so this always sends the athlete straight to the Dashboard rather than
+  // back to `/perfil`, matching the mandatory-profile-completion flow (see
+  // CLAUDE.md): completing the form is the one thing standing between the
+  // athlete and the rest of the app, so saving should land them there
+  // immediately instead of requiring a second, manual navigation.
+  return NextResponse.redirect(new URL("/?profile_saved=1", request.url), { status: 303 });
 }

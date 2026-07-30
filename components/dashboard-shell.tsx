@@ -9,15 +9,19 @@ import { RatioLogo } from "@/components/icons/RatioLogo";
 import { logout } from "@/lib/auth-actions";
 import { cn } from "@/lib/utils";
 
-// Estadísticas/Historial are mid-rebuild and temporarily disabled in the nav
-// rather than removed outright — the routes/pages themselves are untouched,
-// only their sidebar entries stop being clickable, so re-enabling this later
-// is just flipping `disabled` back to `false`.
+// Estadísticas/Historial are mid-rebuild and permanently disabled in the nav
+// for now — the routes/pages themselves are untouched, only their sidebar
+// entries stop being clickable, so re-enabling one later is just flipping
+// `permanentlyDisabled` back to `false`. This is a separate reason for being
+// locked from the profile-completeness lock below (`/` can be locked too,
+// but only conditionally, never permanently) — the two are handled together
+// at render time but kept as distinct flags here so neither can be confused
+// for the other.
 const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, disabled: false },
-  { href: "/perfil", label: "Perfil fisiológico", icon: UserRound, disabled: false },
-  { href: "/estadisticas", label: "Estadísticas", icon: BarChart3, disabled: true },
-  { href: "/historial", label: "Historial", icon: History, disabled: true },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, permanentlyDisabled: false },
+  { href: "/perfil", label: "Perfil fisiológico", icon: UserRound, permanentlyDisabled: false },
+  { href: "/estadisticas", label: "Estadísticas", icon: BarChart3, permanentlyDisabled: true },
+  { href: "/historial", label: "Historial", icon: History, permanentlyDisabled: true },
 ];
 
 /**
@@ -40,12 +44,14 @@ function SidebarContent({
   identitySlot,
   isLoggingOut,
   onLogoutStart,
+  isProfileComplete,
 }: {
   onNavigate?: () => void;
   onClose?: () => void;
   identitySlot: ReactNode;
   isLoggingOut: boolean;
   onLogoutStart: () => void;
+  isProfileComplete: boolean;
 }) {
   const pathname = usePathname();
 
@@ -76,24 +82,42 @@ function SidebarContent({
 
       <nav className="flex flex-1 flex-col gap-0.5">
         {NAV_ITEMS.map((item) => {
-          if (item.disabled) {
+          // Two independent reasons an entry can be locked: permanently (an
+          // in-development section) or conditionally (every route but
+          // `/perfil` itself, while the athlete's Physiological Profile is
+          // still incomplete — see `app/(app)/layout.tsx` and `proxy.ts`'s
+          // Edge Middleware redirect, which is the actual enforcement; this
+          // is just the matching visual affordance so a locked-out athlete
+          // never taps a link that immediately bounces them back). Perfil
+          // itself is never locked by the second reason — it's the one
+          // place an incomplete profile is allowed to be.
+          const lockedByIncompleteProfile = item.href !== "/perfil" && !isProfileComplete;
+          const locked = item.permanentlyDisabled || lockedByIncompleteProfile;
+
+          if (locked) {
             return (
               <div
                 key={item.href}
                 aria-disabled="true"
-                title="Sección en desarrollo — Próximamente"
+                title={
+                  item.permanentlyDisabled
+                    ? "Sección en desarrollo — Próximamente"
+                    : "Completa tu perfil fisiológico para desbloquear esta sección"
+                }
                 className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-xs font-medium tracking-wider text-neutral-600 uppercase opacity-50 select-none"
               >
-                {/* No icon for disabled/in-progress items (see CLAUDE.md) —
-                    this spacer reserves the exact same size-4 + gap-3 width
-                    an active item's icon occupies, so the label text still
-                    lines up flush with every enabled item's label instead of
-                    sitting flush against the container's own left edge. */}
+                {/* No icon for any locked item (see CLAUDE.md) — this spacer
+                    reserves the exact same size-4 + gap-3 width an active
+                    item's icon occupies, so the label text still lines up
+                    flush with every enabled item's label instead of sitting
+                    flush against the container's own left edge. */}
                 <span className="size-4 shrink-0" aria-hidden="true" />
                 {item.label}
-                <span className="ml-auto rounded bg-neutral-200/60 px-1.5 py-0.5 font-mono text-[9px] tracking-wider text-neutral-500 uppercase">
-                  Próximamente
-                </span>
+                {item.permanentlyDisabled && (
+                  <span className="ml-auto rounded bg-neutral-200/60 px-1.5 py-0.5 font-mono text-[9px] tracking-wider text-neutral-500 uppercase">
+                    Próximamente
+                  </span>
+                )}
               </div>
             );
           }
@@ -169,9 +193,11 @@ function SidebarContent({
 export function DashboardShell({
   children,
   identitySlot,
+  isProfileComplete,
 }: {
   children: ReactNode;
   identitySlot: ReactNode;
+  isProfileComplete: boolean;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -204,6 +230,7 @@ export function DashboardShell({
           identitySlot={identitySlot}
           isLoggingOut={isLoggingOut}
           onLogoutStart={() => setIsLoggingOut(true)}
+          isProfileComplete={isProfileComplete}
         />
       </aside>
 

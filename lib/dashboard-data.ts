@@ -5,6 +5,7 @@ import { unstable_cache } from "next/cache";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import type { AthleteType, GutTrainingLevel, SweatRate } from "@/lib/metabolic-engine";
+import { isProfileDataComplete } from "@/lib/profile-completeness";
 import { fetchAthlete, fetchAthleteStats } from "@/lib/strava";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { fetchAthleteRoutes, type StravaRoute } from "@/lib/strava-routes";
@@ -43,21 +44,16 @@ export type Profile = {
 };
 
 /**
- * Hard gate for the Fueling Planner's "Calcular estrategia" and the
- * Post-Ride "Guardar consumo real" buttons — both compute or log against the
- * athlete's real weight/FTP/sweat-rate/gut-training figures, so either
- * running against a still-empty profile would silently fall back to
- * whatever placeholder the form/engine defaults to instead of a genuine
- * result. Every one of these four columns is `NOT NULL` in `athlete_profiles`
- * once a row exists, so in today's schema this only ever differs from a bare
- * `profile !== null` check if a future migration relaxes one of them — kept
- * as an explicit field-by-field check rather than a null check so it stays
- * correct if that ever changes.
+ * Whether this athlete has a usable Physiological Profile. Delegates to
+ * `lib/profile-completeness.ts`'s `isProfileDataComplete` — the same
+ * predicate `proxy.ts`'s Edge Middleware evaluates on every navigation to
+ * enforce the mandatory-profile-completion redirect (see CLAUDE.md's
+ * "Mandatory profile completion" section) — rather than duplicating the
+ * four-field check here, so the two can never silently diverge on what
+ * "complete" means.
  */
 export function isProfileComplete(profile: AthleteProfile | null): boolean {
-  return Boolean(
-    profile?.weight_kg && profile?.ftp && profile?.gut_training_level && profile?.sweat_rate
-  );
+  return isProfileDataComplete(profile);
 }
 
 /**

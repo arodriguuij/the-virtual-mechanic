@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isProfileDataComplete } from "@/lib/profile-completeness";
+
 // Reachable with no session at all — the Strava OAuth entry/callback (the
 // only login flow this app has) and the login screen itself. `/auth/callback`
 // is the dual-logo transition page Strava redirects back to (see
@@ -69,6 +71,33 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
+  }
+
+  // Mandatory profile completion: an athlete with no usable Physiological
+  // Profile can't reach the Dashboard/Estadísticas/Historial at all — every
+  // one of those relies on real weight/FTP/sweat-rate/gut-training data, so
+  // rather than each page rendering its own "perfil incompleto" blocked
+  // state (the previous design), the guard now lives here, once, and simply
+  // never lets an incomplete profile past `/perfil` in the first place. Only
+  // `/perfil` itself is exempt (that's where they complete it) — API routes
+  // are exempt too, since they already return their own `{ error: "no_profile" }`
+  // JSON on an incomplete profile (see `app/api/fueling/plan/route.ts` and
+  // `app/api/post-ride/analysis/route.ts`), and a middleware redirect to an
+  // HTML page would silently break whatever `fetch()` call expected JSON
+  // back. Public paths are already handled above (a null `user` there just
+  // bounces to `/login`, so this only ever runs for a real signed-in user).
+  if (user && pathname !== "/perfil" && !pathname.startsWith("/api") && !isPublicPath(pathname)) {
+    const { data: profileRow } = await supabase
+      .from("athlete_profiles")
+      .select("weight_kg, ftp, gut_training_level, sweat_rate")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!isProfileDataComplete(profileRow)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/perfil";
+      return NextResponse.redirect(url);
+    }
   }
 
   return response;
