@@ -5,6 +5,7 @@ import { useState, type FocusEvent } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { GutTrainingSelector } from "@/components/gut-training-selector";
 import { InfoTooltip } from "@/components/info-tooltip";
+import { RadioCard } from "@/components/radio-card";
 import type { AthleteProfile } from "@/lib/dashboard-data";
 import {
   athleteTypeDescriptions,
@@ -200,25 +201,16 @@ export function PhysiologicalProfileForm({
               onBlur={onGroupBlur("athleteType")}
             >
               {(Object.keys(athleteTypeLabels) as AthleteType[]).map((type) => (
-                <label
+                <RadioCard
                   key={type}
-                  className="flex cursor-pointer flex-col gap-1 rounded-lg border border-neutral-200 px-3 py-2.5 transition-colors duration-150 has-checked:border-terracotta has-checked:bg-[#FDF8F6]"
+                  name="athlete_type"
+                  value={type}
+                  checked={athleteType === type}
+                  onChange={() => setAthleteType(type)}
+                  title={athleteTypeLabels[type]}
                 >
-                  <span className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="athlete_type"
-                      value={type}
-                      checked={athleteType === type}
-                      onChange={() => setAthleteType(type)}
-                      className="size-3.5 cursor-pointer accent-terracotta"
-                    />
-                    <span className="text-sm font-medium text-neutral-900">
-                      {athleteTypeLabels[type]}
-                    </span>
-                  </span>
-                  <span className="text-xs text-neutral-500">{athleteTypeDescriptions[type]}</span>
-                </label>
+                  {athleteTypeDescriptions[type]}
+                </RadioCard>
               ))}
             </div>
             {athleteTypeInvalid && <span className={errorTextClass}>Campo obligatorio</span>}
@@ -240,33 +232,16 @@ export function PhysiologicalProfileForm({
               onBlur={onGroupBlur("sweatRate")}
             >
               {(Object.keys(sweatRateLabels) as SweatRate[]).map((rate) => (
-                <label
+                <RadioCard
                   key={rate}
-                  className={cn(
-                    "group flex cursor-pointer flex-col gap-1 rounded-lg border px-3 py-2.5 text-neutral-700 transition-colors duration-150 hover:border-neutral-400",
-                    sweatRate === rate ? "border-terracotta bg-terracotta text-white" : "border-neutral-200"
-                  )}
+                  name="sweat_rate"
+                  value={rate}
+                  checked={sweatRate === rate}
+                  onChange={() => setSweatRate(rate)}
+                  title={sweatRateLabels[rate]}
                 >
-                  <span className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="sweat_rate"
-                      value={rate}
-                      checked={sweatRate === rate}
-                      onChange={() => setSweatRate(rate)}
-                      className="size-3.5 cursor-pointer accent-terracotta"
-                    />
-                    <span className="text-sm font-semibold">{sweatRateLabels[rate]}</span>
-                  </span>
-                  <span
-                    className={cn(
-                      "mt-1 font-mono text-[11px] leading-tight",
-                      sweatRate === rate ? "text-white/80" : "text-neutral-500"
-                    )}
-                  >
-                    {sweatRateDescriptions[rate]}
-                  </span>
-                </label>
+                  {sweatRateDescriptions[rate]}
+                </RadioCard>
               ))}
             </div>
             {sweatRateInvalid && <span className={errorTextClass}>Campo obligatorio</span>}

@@ -653,10 +653,9 @@ only applies the multiplier (diesel ×0.85, balanced ×1.0, explosive ×1.15) wh
 already uses internally for its own bands — at/above it, every phenotype converges to the
 unadjusted rate. `athleteTypeLabels`/`athleteTypeDescriptions` hold the plain-text
 display copy (no emoji — the interface is monochrome throughout) for the Physiological
-Profile tab's one-click selector (3 radio-styled cards using Tailwind's `has-checked:`
-variant, no JS needed; the selected card's `has-checked:border-neutral-900
-has-checked:bg-neutral-100` gives a fine dark border plus a subtle fill rather than a
-heavy block color).
+Profile tab's one-click selector — 3 cards through the shared `RadioCard` component (see
+"Unified `RadioCard` selector" below), a solid `bg-terracotta` fill when selected, same as
+every other required-field selector on that page.
 
 ### Net Carb Deficit (replacing the old glycogen-battery simulator)
 
@@ -2005,12 +2004,86 @@ Auto-hides after 3s and strips the query param via `router.replace(pathname)` (t
 correct if it's ever reused from another page) so a manual refresh doesn't keep re-showing
 a stale confirmation. On invalid input or an RLS block, redirects to
 `/perfil?profile_error=<code>` instead, same non-silent-failure convention as everywhere
-else. `PhysiologicalProfileCard` itself is already a Server Component that `await
-getAthleteProfile()`s on every request (`app/(app)/perfil/page.tsx` exports `dynamic =
+else. `PhysiologicalProfileCard` (`app/(app)/perfil/page.tsx`) is a thin Server Component
+that `await getAthleteProfile()`s on every request (the page exports `dynamic =
 "force-dynamic"`, and this Next.js version's `fetch` calls are uncached by default — see
-"Route dynamic rendering" below) and pre-fills every form field via `defaultValue`/
-`defaultChecked`, so a save is immediately reflected on the next load; there is no
-separate client-side fetch-on-mount step to keep in sync.
+"Route dynamic rendering" below) and passes the result straight into
+**`PhysiologicalProfileForm`** (`components/physiological-profile-form.tsx`), which owns
+the entire `<form>` — see "Unified client-side form validation" below for why this moved
+off a plain server-rendered form.
+
+### Unified client-side form validation
+
+Three inconsistent validation UIs used to coexist on this one form: FTP/Peso relied on the
+browser's own native `required` popup ("Rellena este campo"), sweat rate's only feedback
+was a full-width red banner that only appeared *after* a real server round trip
+(`/perfil?profile_error=invalid_sweat_rate`), and "Guardar cambios" was clickable
+regardless of whether the form was actually complete. `PhysiologicalProfileForm` unifies
+all three into one client-side validation pass:
+
+- **`noValidate`** on the `<form>` turns off every native browser popup — this component
+  now owns 100% of the validation UX, native and custom can't coexist without one
+  contradicting the other.
+- **`isFormValid`** — `Boolean(weightValid && ftpValid && athleteType && sweatRate &&
+  gutTrainingLevel)`, recomputed on every render from real controlled state (`useState` for
+  each of the five required fields — Peso/FTP moved from `defaultValue` to `value`/
+  `onChange`; `athleteType`/`sweatRate`/`gutTrainingLevel` from `defaultChecked` to
+  `checked`/`onChange`). `bottle_count`/`bottle_capacity_ml`/`is_salty_sweater` stay plain
+  uncontrolled inputs (`defaultValue`/`defaultChecked`) — a `<select>` is never "empty" and
+  none of the three are part of `isFormValid`, so there's nothing to validate.
+- **`touched`** — a `Partial<Record<field, boolean>>` so a brand-new athlete's entirely
+  blank form doesn't render five red errors before they've typed anything; a field only
+  becomes `invalid` (touched **and** still empty) once the athlete has actually interacted
+  with it. Text inputs mark themselves touched `onBlur`; the three radio-card groups
+  (Fenotipo/Sudoración/Gut Training) mark themselves touched via a **blur-bubbling**
+  handler on the group's own wrapping `<div>` (`!e.currentTarget.contains(e.relatedTarget)`
+  — fires only once focus genuinely leaves the whole group, never when moving between
+  cards inside it), since clicking a radio already sets a value and a single radio has no
+  meaningful "blur while still empty" moment of its own.
+- **Inline errors, not a global banner** — an invalid text input gets `border-red-500
+  focus:border-red-500 focus:ring-red-500`; an invalid radio-card group gets a `ring-1
+  ring-red-500` on its wrapping grid; both render a `Campo obligatorio` micro-text
+  (`font-mono text-[11px] text-red-500`) directly underneath. The old full-width top banner
+  driven by `profileErrorMessages`'s per-field codes (`invalid_weight`, `invalid_sweat_rate`,
+  etc.) was deleted outright — every one of those codes is now unreachable through the UI
+  (the submit button is `disabled` until `isFormValid`), so surfacing them as a page-level
+  banner was pure redundancy. `profileErrorMessages` is now a deliberate **allowlist**
+  holding only `no_session`/`update_blocked_by_rls` — genuine server/infra failures with no
+  client-side equivalent to catch them, the one class of error that still needs *some*
+  visible surface; an unrecognized code renders nothing rather than resurrecting the banner.
+- **Still a real native `<form action="/api/athlete-profile/update" method="POST">`** —
+  nothing about the actual submission mechanism changed, every input keeps its original
+  `name` so the server route's `formData.get(...)` parsing is untouched, and that route's
+  own validation stays in place as a defense-in-depth backstop. `isSubmitting` (flipped
+  `onSubmit`, before the real POST/redirect resolves — same "instant feedback ahead of the
+  async work" pattern as `DashboardShell`'s logout button) swaps the button to "Guardando…"
+  and disables it a second way, distinct from the `!isFormValid` disabled state.
+
+### Unified `RadioCard` selector
+
+"Fenotipo metabólico," "Tasa de sudoración," and Gut Training's own level cards used to
+each style their selected state differently — phenotype used a light `bg-[#FDF8F6]` tint
+with a dark border, the other two a solid `bg-terracotta` fill — which read as three
+inconsistent selector components rather than one. **`components/radio-card.tsx`**'s
+`RadioCard({ name, value, checked, onChange, onBlur, title, children })` is the one shared
+card every group now renders through: `title` + an optional `children` caption (a single
+description line for phenotype/sweat-rate, or two stacked lines — g/h range then
+description — for Gut Training), active state always `border-terracotta bg-terracotta
+text-white`, inactive always `border-neutral-200 bg-white text-neutral-800
+hover:border-terracotta/50`. The real `<input type="radio">` stays in the DOM for genuine
+form semantics (`name`/`value`/`checked`/`onChange`, keyboard nav, screen readers) but is
+visually hidden (`sr-only`, not `hidden` — it must stay focusable) in favor of a custom
+circle indicator (a white ring with a terracotta inner dot when checked, `border-neutral-300`
+empty when not) — the desired look isn't achievable through the native widget's
+`accent-color` alone, since that can't invert the circle to white-on-terracotta or draw a
+colored inner dot. `peer-focus-visible:ring-2 peer-focus-visible:ring-terracotta` on the
+label (paired with `peer` on the now-hidden input) keeps the whole card visibly
+focus-ringed for keyboard users, so hiding the native circle doesn't cost accessibility.
+`GutTrainingSelector` (`components/gut-training-selector.tsx`) is now fully controlled
+(`value`/`onChange`/`onGroupBlur`/`invalid` props, no more internal `useState`) specifically
+so its parent form can read the current selection for `isFormValid` — it renders through
+`RadioCard` too, contributing only the range+description two-line caption and the live
+helper paragraph below the grid.
 
 ### Shared `Toast` component
 
@@ -2024,42 +2097,27 @@ app adds should render through this component too, rather than a third hand-roll
 
 `/perfil` is split into 3 numbered `Card`s (`01 · Métricas físicas y equipamiento`,
 `02 · Fenotipo metabólico y sudoración`, `03 · Adaptación digestiva (gut training)`) all
-inside one `<form>`, with a single full-width `Guardar cambios` button at the bottom — the
+inside one `<form>` (now `PhysiologicalProfileForm`, see "Unified client-side form
+validation" above), with a single full-width `Guardar cambios` button at the bottom — the
 page used to be one giant card with its own `CardTitle` ("Perfil fisiológico") sitting
 directly under the page's own `<h1>` of the same text, a literal visible duplicate. Gut
-Training's selector (`components/gut-training-selector.tsx`, `<GutTrainingSelector
-defaultLevel={...} />`) is the one `"use client"` island on an otherwise plain Server
-Component form — a real native radio group (`name="gut_training_level"`, still submits
-with the rest of the form exactly like the plain `defaultChecked` version it replaced), but
-promoted to client-side `useState` specifically so the helper line below it ("El motor
-limitará las recomendaciones a un máximo de N g/h...") can update live as the athlete
-clicks between levels, before ever hitting "Guardar cambios" — a `defaultChecked`-only
-version has no client state to read from for that. This also absorbed the old standalone
-"Escala de Adaptación Digestiva" reference table that used to sit at the very bottom of the
-page below the form — every level's own g/h range is already shown on its own selector
-card now, so a second static list repeating the same 4 ranges was pure duplication.
+Training's own "Escala de Adaptación Digestiva" reference table that used to sit at the
+very bottom of the page below the form was absorbed into the selector cards themselves —
+every level's own g/h range is already shown on its own `RadioCard` now, so a second static
+list repeating the same 4 ranges was pure duplication.
 
 **Micro-explicaciones on the selector cards.** The g/h range alone ("60-75 g/h") doesn't
 tell an athlete which level actually describes their own real-world fueling habits, so
-every Gut Training card and the "Tasa de sudoración" cards right above it (see below) now
-carry a third, plain-language line under the range — `gutTrainingLevelDescriptions`/
-`sweatRateDescriptions` (`lib/metabolic-engine.ts`), `font-mono text-[11px] leading-tight`
-— e.g. "Habituado a ingerir carbohidratos en salidas >2h sin molestias" for Intermedio.
-Both selectors also switched their *selected*-card treatment from the lighter
-`border-terracotta` + `bg-[#FDF8F6]` tint the "Fenotipo metabólico" cards above still use,
-to a solid `bg-terracotta text-white` fill — a deliberate, scoped upgrade for just these
-two selectors (the ones that just gained a secondary text line worth contrasting clearly),
-not a page-wide restyle of every radio-card group on this form. `GutTrainingSelector`
-already tracks the active level in real `useState`, so its active-state color is a plain
-ternary; the sweat-rate cards have no client state of their own (nothing else on the page
-reads that selection live), so they use the `group has-checked:`/`group-has-checked:` CSS
-variant pair instead — the label itself is `has-checked:bg-terracotta`, and its child
-description span reacts to that same ancestor via `group-has-checked:text-white/80`.
-Each section header also gained a small `(i)` **`InfoTooltip`** (`components/
-info-tooltip.tsx` — a generalized version of `FuelingContextTooltips`'s existing pure
-`group-hover`/`group-focus-within` CSS technique, taking a static `note` prop instead of
-computing one, since these two explainers are fixed copy, not a derived value) with a
-short physiological explainer for a curious athlete who wants more than the one-line
+every Gut Training card and the "Tasa de sudoración" cards carry a third, plain-language
+line under the range — `gutTrainingLevelDescriptions`/`sweatRateDescriptions`
+(`lib/metabolic-engine.ts`) — e.g. "Habituado a ingerir carbohidratos en salidas >2h sin
+molestias" for Intermedio, rendered as `RadioCard`'s `children` caption (see "Unified
+`RadioCard` selector" above for the shared active/inactive treatment all three selector
+groups now use). Each section header also carries a small `(i)` **`InfoTooltip`**
+(`components/info-tooltip.tsx` — a generalized version of `FuelingContextTooltips`'s
+existing pure `group-hover`/`group-focus-within` CSS technique, taking a static `note` prop
+instead of computing one, since these two explainers are fixed copy, not a derived value)
+with a short physiological explainer for a curious athlete who wants more than the one-line
 subtext — "Tasa de sudoración" gets one about sweat/sodium variability, "03 · Adaptación
 digestiva" gets one about the gut being trainable like the legs.
 
@@ -2247,15 +2305,14 @@ fire; route removed again before committing.
     route reads as "this is ready and waiting for you" rather than "there's nothing here."
 - **`app/(app)/perfil/page.tsx`** — its own page under the `(app)` shell layout (own header,
   own `profile_saved`/`profile_error` query-param handling — see "Athlete profile" above)
-  rather than a tab panel. `PhysiologicalProfileCard` reads `getAthleteProfile()` and
-  renders an inline edit form (weight/FTP/sweat rate/gut training level/bottle
-  count/bottle capacity/salty-sweater checkbox, pre-filled with current values) POSTing to
-  `/api/athlete-profile/update`. Sweat rate is a `has-checked:`-styled 3-card radio group
-  (`name="sweat_rate"`, same real values as before — `low`/`medium`/`high` — just no longer
-  a plain `<select>`), not a static reference table, plus a full-width 1-click metabolic
-  phenotype selector (three `has-checked:`-styled radio cards, see "Metabolic phenotype"
-  below) — see "Micro-explicaciones on the selector cards" above for both cards' own
-  descriptive subtext and `InfoTooltip`. The "Sudo mucha sal" checkbox (`is_salty_sweater`) feeds
+  rather than a tab panel. `PhysiologicalProfileCard` reads `getAthleteProfile()` and hands
+  it to `PhysiologicalProfileForm` (weight/FTP/sweat rate/gut training level/athlete
+  type/bottle count/bottle capacity/salty-sweater checkbox, pre-filled with current values)
+  POSTing to `/api/athlete-profile/update`. Sweat rate and the metabolic phenotype selector
+  are both `RadioCard` groups now (`name="sweat_rate"`/`name="athlete_type"`, same real
+  values as before — see "Unified `RadioCard` selector" above) — see "Unified client-side
+  form validation" above for the `isFormValid`/inline-error treatment shared across all
+  three required selector groups. The "Sudo mucha sal" checkbox (`is_salty_sweater`) feeds
   `getSodiumLossMgPerHour`'s elevated concentration tier (see "Metabolic engine" above).
   The bottle count/capacity selects feed "Bottle architecture &
   osmolarity control" and "Reload strategy" above — real bike equipment, not a physiology

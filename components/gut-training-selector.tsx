@@ -1,5 +1,6 @@
 "use client";
 
+import { RadioCard } from "@/components/radio-card";
 import {
   getGutTrainingCapGPerHour,
   gutTrainingLevelDescriptions,
@@ -30,6 +31,14 @@ const LEVELS = Object.keys(gutTrainingLevelLabels) as GutTrainingLevel[];
  * wrapping grid, not on each individual radio, is what lets the parent
  * detect "focus left this whole group" (via `e.currentTarget.contains
  * (e.relatedTarget)`) rather than firing on every click between cards.
+ *
+ * Each card renders through the shared `RadioCard` (`components/
+ * radio-card.tsx`) — the same component "Fenotipo metabólico" and "Tasa de
+ * sudoración" use on this same page, so all three selector groups share one
+ * active/inactive visual language instead of three independently-styled
+ * ones. This component's own job is just the range+description two-line
+ * caption (passed as `RadioCard`'s `children`) and the live helper
+ * paragraph below the grid.
  */
 export function GutTrainingSelector({
   value,
@@ -55,43 +64,21 @@ export function GutTrainingSelector({
           }
         }}
       >
-        {LEVELS.map((lvl) => {
-          const active = value === lvl;
-          return (
-            <label
-              key={lvl}
-              className={cn(
-                "flex cursor-pointer flex-col gap-1 rounded-lg border px-3 py-2.5 transition-colors duration-150",
-                active
-                  ? "border-terracotta bg-terracotta text-white"
-                  : "border-neutral-200 text-neutral-700 hover:border-neutral-400"
-              )}
-            >
-              <span className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="gut_training_level"
-                  value={lvl}
-                  checked={active}
-                  onChange={() => onChange(lvl)}
-                  className="size-3.5 cursor-pointer accent-terracotta"
-                />
-                <span className="text-sm font-semibold">{gutTrainingLevelLabels[lvl]}</span>
-              </span>
-              <span className={cn("font-mono text-xs", active ? "text-white/80" : "text-neutral-500")}>
-                {gutTrainingLevelRanges[lvl]}
-              </span>
-              <span
-                className={cn(
-                  "mt-1 font-mono text-[11px] leading-tight",
-                  active ? "text-white/80" : "text-neutral-500"
-                )}
-              >
-                {gutTrainingLevelDescriptions[lvl]}
-              </span>
-            </label>
-          );
-        })}
+        {LEVELS.map((lvl) => (
+          <RadioCard
+            key={lvl}
+            name="gut_training_level"
+            value={lvl}
+            checked={value === lvl}
+            onChange={() => onChange(lvl)}
+            title={gutTrainingLevelLabels[lvl]}
+          >
+            <span className="block font-mono">{gutTrainingLevelRanges[lvl]}</span>
+            <span className="mt-1 block font-mono text-[11px] leading-tight">
+              {gutTrainingLevelDescriptions[lvl]}
+            </span>
+          </RadioCard>
+        ))}
       </div>
       {invalid ? (
         <span className="font-mono text-[11px] text-red-500">Campo obligatorio</span>
