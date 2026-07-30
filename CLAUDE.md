@@ -3311,6 +3311,42 @@ sites updated:
   sub-blocks remain legibly distinct from their white parents through background contrast
   alone now that shadow is gone.
 
+**A final refinement pass corrected the exact radius/padding figures** once a follow-up
+message re-confirmed the shadow/border removal (already correct from the pass above — the
+message described the state from *before* that pass, not a regression) but gave a more
+precise literal spec: **main "tarjeta principal" cards** — `bg-white border-0 shadow-none
+rounded-xl p-5` — and **nested "sub-bloques anidados"** — `bg-[#F8F7F5] border-0
+shadow-none rounded-lg p-4`. Both radii stepped up one notch from the prior pass
+(`rounded-lg` → `rounded-xl` for main cards, `rounded-md` → `rounded-lg` for sub-blocks),
+and every main card's padding flattened to a plain `p-5` (dropping the earlier `sm:p-6`
+responsive step, and — on the base `Card` primitive's own `--card-spacing` — dropping its
+`sm:--spacing(6)` override entirely in favor of one flat `--spacing(5)` at every
+breakpoint):
+
+- **Base `Card` primitive** — `rounded-lg` → `rounded-xl` (`CardHeader`/`CardFooter`/
+  image-slot corners updated to match), `--card-spacing` simplified to a flat
+  `[--card-spacing:--spacing(5)]` (no `sm:` bump).
+- **`flatMobileCardClass`** — `sm:rounded-lg` → `sm:rounded-xl`, `sm:[--card-spacing:
+  --spacing(6)]` → `sm:[--card-spacing:--spacing(5)]`, so the Fueling Planner's/Post-Ride
+  Analysis's own flattened root cards match the base primitive's radius and padding
+  exactly again.
+- **"Comida en bolsillo"** (`components/fueling-planner.tsx`) — outer card `rounded-lg` →
+  `rounded-xl`, `p-5 sm:p-6` → flat `p-5`; its own internal objetivo/cubierto/déficit
+  breakdown and empty-state placeholder both `rounded-md` → `rounded-lg` (still `p-4`,
+  already matching the sub-block spec).
+- **Post-Ride Analysis's telemetry summary card** (and its loading/`needsRpe` siblings) —
+  `rounded-lg` → `rounded-xl` (still `bg-white px-4 py-3 shadow-none`, unchanged
+  otherwise).
+- **Balance neto de recuperación, Fase 1, Fase 2, Grasas límite, Rehidratación** — all
+  five `rounded-md` → `rounded-lg` (still `bg-[#F8F7F5] p-4 shadow-none`).
+- **Left as-is, deliberately**: the Ruta/map widget (`border-zinc-200/60 bg-surface`,
+  still `rounded-lg`) and the dark "Dosis casera por bidón" Hero card (`bg-[#343334]`,
+  already `rounded-xl`) — neither is categorized as a "tarjeta principal" (white) or
+  "sub-bloque" (porcelain) in this system, so neither was in scope for this radius pass.
+- Re-verified with `npm run build` (clean) plus the same Playwright check, confirming the
+  new `rounded-xl`/`rounded-lg` corners render correctly at both radii and that nothing
+  regressed on the shadow/border front already fixed by the prior pass.
+
 The multi-column grids across the Dashboard and Perfil pages (profile form, planner
 inputs, result-panel stat rows, the Net Carb Deficit breakdown) stack to a single column
 at the default breakpoint and only go multi-column at `sm:` — mobile is the default

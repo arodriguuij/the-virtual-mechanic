@@ -78,10 +78,12 @@ export const badgeClass =
  * white) against the porcelain canvas as the *only* differentiator, after an
  * intermediate pass had briefly added a diffuse `cardShadowClass` shadow —
  * removed again outright once a later request asked for strictly flat,
- * shadow-free layering everywhere. Overrides `Card`'s own `border`/`bg-card`/
- * `rounded-sm` defaults (`cn()` lets the later, more specific utility win)
- * and, via the `--card-spacing` custom property `Card`/`CardHeader`/
- * `CardContent` all key off, zeroes their internal `py-`/`px-` padding at
- * the same breakpoint rather than needing a separate override on each. */
+ * shadow-free layering everywhere. `sm:rounded-xl` matches the base `Card`
+ * primitive's own radius exactly (both bumped together in the same pass).
+ * Overrides `Card`'s own `border`/`bg-card`/`rounded-xl` defaults (`cn()`
+ * lets the later, more specific utility win) and, via the `--card-spacing`
+ * custom property `Card`/`CardHeader`/`CardContent` all key off, zeroes
+ * their internal `py-`/`px-` padding at the same breakpoint rather than
+ * needing a separate override on each. */
 export const flatMobileCardClass =
-  "rounded-none border-0 bg-transparent shadow-none [--card-spacing:0px] sm:rounded-lg sm:border-0 sm:bg-card sm:shadow-none sm:[--card-spacing:--spacing(6)]";
+  "rounded-none border-0 bg-transparent shadow-none [--card-spacing:0px] sm:rounded-xl sm:border-0 sm:bg-card sm:shadow-none sm:[--card-spacing:--spacing(5)]";

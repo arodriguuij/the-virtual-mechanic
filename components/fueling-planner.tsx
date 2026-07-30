@@ -1062,7 +1062,7 @@ export function FuelingPlanner({
             border, zero shadow, differentiated from the porcelain canvas
             purely through background contrast (this app's flat-UI
             convention) — holds both, separated purely by `space-y-4`. */}
-        <div className="space-y-4 rounded-lg bg-white p-5 shadow-none sm:p-6">
+        <div className="space-y-4 rounded-xl bg-white p-5 shadow-none">
           {result ? (
             (() => {
               const coveredPct =
@@ -1079,7 +1079,7 @@ export function FuelingPlanner({
                 // consistently as one internal sub-block rather than the
                 // result state floating bare on the white card while only
                 // the placeholder got a background.
-                <div className="space-y-2 rounded-md bg-[#F8F7F5] p-4 shadow-none">
+                <div className="space-y-2 rounded-lg bg-[#F8F7F5] p-4 shadow-none">
                   <div className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-2">
                     <span className="font-mono text-xs text-neutral-500">
                       OBJETIVO {result.totalRideCarbsG}g HC
@@ -1105,7 +1105,7 @@ export function FuelingPlanner({
             // A soft `bg-[#F8F7F5]` tint (the canvas tone itself, not a new
             // gray), zero border, zero shadow, so this empty-state note
             // still reads as *inside* the white card, not a box of its own.
-            <div className="rounded-md bg-[#F8F7F5] p-4 font-mono text-xs text-zinc-600 shadow-none">
+            <div className="rounded-lg bg-[#F8F7F5] p-4 font-mono text-xs text-zinc-600 shadow-none">
               Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
             </div>
           )}
