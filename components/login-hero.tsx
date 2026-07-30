@@ -111,20 +111,24 @@ function BrandMark() {
  */
 export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string | null }) {
   return (
-    <div className="relative grid min-h-dvh w-full grid-cols-1 bg-neutral-950 lg:grid-cols-2 lg:bg-[#FDFCF9]">
+    <div className="relative grid min-h-dvh w-full grid-cols-1 bg-neutral-950 lg:grid-cols-2 lg:bg-white">
       <BackgroundMedia />
 
-      {/* Mobile (< lg): a solid white card, elevated (`shadow-2xl`) and
-          centered over the fixed video — legibility over the moving
-          background matters more here than letting the clip show through,
-          which is why this is opaque `bg-white` rather than a translucent
-          panel. Desktop (>= lg): the exact same block loses its card chrome
-          entirely (`lg:border-0 lg:bg-transparent lg:shadow-none lg:p-0`)
-          and just sits centered on the split screen's own cream column
-          background — one component doing both jobs via responsive classes
-          rather than two separate markup trees. */}
+      {/* Both breakpoints now keep the same floating-card treatment — no
+          more "desktop loses all card chrome" split. Mobile (< lg): a
+          translucent `bg-white/95` + `backdrop-blur-md` card over the fixed
+          video (95%, not the much more transparent `bg-white/60` a much
+          earlier pass tried and reverted for legibility — the blur plus
+          this much higher opacity keeps the text readable while still
+          reading as "floating" rather than a flat opaque card). Desktop
+          (>= lg): the right column's own background is now plain
+          `bg-white` (was a cream `#FDFCF9`, see the root `<div>` above), so
+          the card needs its own visual separation to avoid disappearing
+          into it — a solid `zinc-50` fill, a hairline `zinc-200/60` border,
+          and a soft wide `shadow-zinc-200/40` let it read as a distinct,
+          elevated surface rather than blending into the page. */}
       <div className="relative z-10 flex min-h-dvh w-full items-center justify-center overflow-hidden p-3 sm:p-4 lg:p-12">
-        <div className="w-full max-w-md rounded-xl border border-neutral-200/80 bg-white p-4 text-center shadow-2xl sm:p-6 lg:max-w-lg lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
+        <div className="w-full max-w-md rounded-3xl border border-zinc-200/60 bg-white/95 px-6 py-10 text-center shadow-2xl shadow-zinc-200/40 backdrop-blur-md lg:max-w-lg lg:bg-zinc-50 lg:px-12 lg:py-16 lg:backdrop-blur-none">
           {/* Three explicit sections (branding, physiological preview,
               auth action) rather than one flat stack — `gap-4 sm:gap-6`
               between them is the *only* separation mechanism (no per-block

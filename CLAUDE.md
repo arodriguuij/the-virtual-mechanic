@@ -211,7 +211,7 @@ replaced entirely so the OAuth transition reads as a continuation of the same sc
 athlete just clicked from, not a jarring switch to a different frame. The current
 structure:
 
-- **Root**: `grid grid-cols-1 lg:grid-cols-2 min-h-dvh bg-neutral-950 lg:bg-[#FDFCF9]` — a
+- **Root**: `grid grid-cols-1 lg:grid-cols-2 min-h-dvh bg-neutral-950 lg:bg-white` — a
   real CSS grid, one column on mobile (where `BackgroundMedia` is pulled out of flow via
   `fixed`, so the content column is the only element actually participating in the grid),
   two equal columns at `lg:`. The root's own `bg-neutral-950` is a dark fallback scoped to
@@ -255,20 +255,34 @@ structure:
   container of its own for it to sit inside — now that the content lives inside one centered
   block (the mobile card, or the desktop column's own `max-w-lg mx-auto`), the mark just
   needs to be that block's first element, no separate positioning layer required.
-- **Content column, mobile vs. desktop** — one component doing both jobs via responsive
-  classes rather than two separate markup trees: `w-full max-w-md rounded-xl border
-  border-neutral-200/80 bg-white p-4 sm:p-6 text-center shadow-2xl` on mobile — an elevated, opaque
-  white modal card, centered over the fixed video via the outer wrapper's `flex
-  items-center justify-center` — versus `lg:max-w-lg lg:border-0 lg:bg-transparent lg:p-0
-  lg:shadow-none` at `lg:`, which strips every card affordance away entirely so the exact
-  same content sits directly on the split screen's own `bg-[#FDFCF9]` column background.
-  Mobile needed a *solid*, not translucent, card specifically because legibility over a
-  moving video background matters more here than letting the clip show through — a prior
-  design (translucent `bg-white/60` with no card shape at all) was reverted for this reason.
-  The telemetry readout (route name/stats/prescription block) keeps its own `text-left`
-  override against the card's `text-center` default — a technical data readout reads as a
-  data sheet, not hero copy, the same "hero centered, technical readout left-aligned"
-  convention as before.
+- **Content column, mobile vs. desktop — a "premium floating card" pass.** A prior design
+  deliberately stripped every card affordance at `lg:` (`lg:border-0 lg:bg-transparent
+  lg:p-0 lg:shadow-none`) so the content sat directly on the split screen's own cream
+  (`#FDFCF9`) column background, reasoned as "the card is a mobile-only necessity, desktop
+  doesn't need one." A later pass reversed that: the right column's own background became
+  plain `bg-white` (was `#FDFCF9`) for a cleaner, more modern contrast against the left
+  column's photography, but a flat-white card sitting on a flat-white column has nothing
+  to visually separate it — so both breakpoints now render as a genuinely floating card,
+  via one shared set of classes rather than two divergent trees: `rounded-3xl border
+  border-zinc-200/60 shadow-2xl shadow-zinc-200/40` unconditionally (a hairline border plus
+  a soft, wide, tinted shadow — not the app's default plain `shadow-2xl` — reads as
+  "elevated" whether it's floating over a photo or over a flat white page). Only the
+  *fill* and *padding* still diverge by breakpoint: mobile keeps `bg-white/95
+  backdrop-blur-md px-6 py-10` (translucent-but-legible over the moving video — 95%
+  opacity, deliberately far more opaque than an earlier `bg-white/60` translucent attempt
+  that was reverted for legibility; the blur is what lets it still read as "floating over
+  something" rather than flatly opaque), while `lg:` switches to a solid `bg-zinc-50` with
+  `lg:backdrop-blur-none` (blur is meaningless — and a wasted compositing layer — once
+  there's no video showing through) and grows to `lg:px-12 lg:py-16`, considerably more
+  generous internal breathing room once there's a full white column to breathe into.
+  Verified live via Playwright at 375×667/390×844/360×640 that the larger mobile padding
+  doesn't reopen the earlier ultra-compact-mobile scroll issue (still zero overflow at all
+  three — the prior compaction pass had left enough spare margin, ~230px at 375×667, to
+  absorb it) and at 1280×900 that the card now reads as clearly separated from the white
+  column behind it. The telemetry readout (route name/stats/prescription block) keeps its
+  own `text-left` override against the card's `text-center` default — a technical data
+  readout reads as a data sheet, not hero copy, the same "hero centered, technical readout
+  left-aligned" convention as before.
 - **Telemetry readout — still no card of its own.** The route name/distance/elevation/
   gradient line ("Sa Calobra – Coll dels Reis" · "9.5 km · 670m D+ · 7% avg · 27°C (Calor
   Alto)"), a `divide-x`/`border-y` 3-column telemetry grid (Potencia NP / Deuda glucógeno /
