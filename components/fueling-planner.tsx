@@ -375,24 +375,30 @@ function PocketFoodStepperRow({
           {POCKET_FOOD_CARBS_G[type]}g HC
         </span>
       </span>
-      <div className="flex items-center gap-1">
+      {/* "PNS Pill Stepper" — one unified rounded-full capsule rather than
+          two separately bordered/shadowed square buttons flanking a bare
+          number. The −/+ buttons themselves carry no border/shadow of their
+          own; the capsule's own hairline border is the only outline, so the
+          whole control reads as one compact object, not three misaligned
+          pieces. */}
+      <div className="flex h-8 min-w-24 items-center justify-between rounded-full border border-zinc-200 bg-white px-3 py-1 shadow-sm">
         <button
           type="button"
           onClick={() => onChange(qty - 1)}
           disabled={disabled}
-          className="flex size-6 cursor-pointer items-center justify-center rounded-sm border border-neutral-300 bg-white text-sm text-neutral-600 shadow-sm transition-colors duration-150 hover:border-neutral-400 hover:bg-neutral-50 hover:text-neutral-900 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:hover:bg-white disabled:hover:text-neutral-600"
+          className="flex size-6 cursor-pointer items-center justify-center text-base leading-none font-normal text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
           aria-label={`Quitar ${pocketFoodLabels[type]}`}
         >
           −
         </button>
-        <span className="w-5 text-center font-mono text-sm font-semibold tabular-nums text-neutral-900">
+        <span className="min-w-5 px-2 text-center font-sans text-sm font-semibold text-zinc-900 tabular-nums">
           {qty}
         </span>
         <button
           type="button"
           onClick={() => onChange(qty + 1)}
           disabled={disabled}
-          className="flex size-6 cursor-pointer items-center justify-center rounded-sm border border-neutral-300 bg-white text-sm text-neutral-600 shadow-sm transition-colors duration-150 hover:border-neutral-400 hover:bg-neutral-50 hover:text-neutral-900 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:hover:bg-white disabled:hover:text-neutral-600"
+          className="flex size-6 cursor-pointer items-center justify-center text-base leading-none font-normal text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
           aria-label={`Añadir ${pocketFoodLabels[type]}`}
         >
           +

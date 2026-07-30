@@ -803,8 +803,14 @@ unchanged, since that's what feeds the clipboard/GPX nutrition exports elsewhere
 this one UI surface strips it), with its carb figure directly underneath in `font-mono`
 — monospace is reserved for the numeric readout, never the food name, so a name like
 "Bollo de arroz" stays unambiguous instead of rendering in a terminal-style face where
-similar letterforms (o/u) are easy to misread. The stepper buttons themselves are a
-soft `bg-neutral-100` pair, not a stark black-bordered block. The result panel still
+similar letterforms (o/u) are easy to misread. The stepper itself — one "PNS Pill
+Stepper" per item — went through a couple of designs before landing on a single unified
+capsule: `rounded-full border border-zinc-200 bg-white shadow-sm` wrapping both −/+
+controls and the numeric value, with the −/+ buttons themselves carrying no border/
+shadow of their own (`text-zinc-600 hover:text-zinc-900`, `disabled:opacity-30`) — a
+deliberate move away from an earlier design where −/+ were each their own individually
+bordered/shadowed square flanking a bare number, which read as three misaligned pieces
+rather than one compact control. The result panel still
 shows a one-line "Comida de bolsillo cubre Xg de Yg HC — el resto va en el bidón" (with a
 small `Utensils` icon, not an emoji) whenever any item is selected —
 that summary line isn't part of the pocket-food *catalog* UI, so it keeps its emoji.
