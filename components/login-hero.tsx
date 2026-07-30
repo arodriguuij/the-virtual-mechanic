@@ -125,42 +125,43 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
           rather than two separate markup trees. */}
       <div className="relative z-10 flex min-h-dvh w-full items-center justify-center overflow-hidden p-3 sm:p-4 lg:p-12">
         <div className="w-full max-w-md rounded-xl border border-neutral-200/80 bg-white p-4 text-center shadow-2xl sm:p-6 lg:max-w-lg lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
-          {/* Vertical rhythm between the major blocks (brand mark, hero
-              title+tagline, telemetry readout, error banner, CTA) is a
-              single `gap-2.5 sm:gap-4` on this flex column rather than each
-              block carrying its own `mb-*`/`mt-*` — condensed as tight as
-              this app's own type scale allows so the whole card fits one
-              mobile screen without scrolling. The telemetry block's own
-              *internal* spacing (route line/stat grid/prescription block)
-              is untouched — this only affects the space *between* blocks,
-              not within one. */}
-          <div className="flex flex-col gap-2.5 sm:gap-4">
-            <BrandMark />
+          {/* Three explicit sections (branding, physiological preview,
+              auth action) rather than one flat stack — `gap-4 sm:gap-6`
+              between them is the *only* separation mechanism (no per-block
+              `mb-*`/`mt-*`), and grouping into 3 top-level children instead
+              of 5 actually keeps the total gap budget roughly flat versus
+              the previous tighter-but-more-numerous gaps, so this doesn't
+              reopen the mobile-scroll issue fixed earlier (verified below).
+              Section 2's own internal spacing is untouched. */}
+          <div className="flex flex-col gap-4 sm:gap-6">
+            {/* SECTION 1 — Branding & Header */}
+            <div className="flex flex-col items-center gap-2">
+              <BrandMark />
 
-            <div>
-              <h1 className="mb-1 font-mono text-base leading-snug font-bold tracking-tight text-neutral-900 uppercase sm:text-xl">
-                Nutrición de precisión para ciclistas
-              </h1>
+              <div>
+                <h1 className="mb-1 font-mono text-base leading-snug font-bold tracking-tight text-neutral-900 uppercase sm:text-xl">
+                  Nutrición de precisión para ciclistas
+                </h1>
 
-              <p className="block font-mono text-[10px] tracking-widest text-terracotta uppercase sm:text-xs">
-                {headerTagline}
-              </p>
+                <p className="block font-mono text-[10px] tracking-widest text-terracotta uppercase sm:text-xs">
+                  {headerTagline}
+                </p>
+              </div>
             </div>
 
-            {/* Telemetry readout — a real mockup of the app's own visual
-                language (the Post-Ride telemetry card's stat-grid pattern,
-                the Fueling Planner's terracotta-accented recommendation
-                block), unwrapped from any card/border/shadow container of
-                its own so it sits directly on the parent card/column — thin
-                dividers and a left accent rule are the only structure.
-                Deliberately left-aligned even though the card around it
-                defaults to centered text: a technical data readout reads as
-                a data sheet, not hero copy. Deliberately 100% typographic —
-                no icons, no emoji, not even a colored-dot "synced"
-                indicator. Every figure here is illustrative/static — this
-                exists purely to preview the *shape* of a real result, not to
-                claim it's live data. */}
-            <div className="w-full border-y border-neutral-200/60 py-3 text-left sm:py-5">
+            {/* SECTION 2 — Vista previa fisiológica: a real mockup of the
+                app's own visual language (the Post-Ride telemetry card's
+                stat-grid pattern, the Fueling Planner's terracotta-accented
+                recommendation block). On mobile it stays unwrapped (a thin
+                `border-y` divider is enough); at `sm:` and up it becomes its
+                own subtle boxed card (`sm:rounded-xl sm:border
+                sm:bg-surface`, this app's existing token set — not a new
+                `pns-*` namespace, see CLAUDE.md's "No tailwind.config.ts"
+                note) so Sections 1 and 3 read as clean, unboxed blocks above
+                and below it once there's room for the distinction. 100%
+                typographic — no icons, no emoji — and every figure here is
+                illustrative/static. */}
+            <div className="w-full border-y border-neutral-200/60 py-3 text-left sm:rounded-xl sm:border sm:border-neutral-200 sm:bg-surface sm:p-4">
               <p className="truncate font-mono text-xs font-bold text-neutral-900 sm:text-sm">
                 Sa Calobra – Coll dels Reis
               </p>
@@ -199,14 +200,18 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
               </div>
             </div>
 
-            {error && (
-              <div className="flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-left text-xs text-status-warning sm:px-4 sm:py-3 sm:text-sm">
-                <TriangleAlert className="size-4 shrink-0" />
-                {error}
-              </div>
-            )}
-
+            {/* SECTION 3 — Acción / Autenticación. The error banner (an
+                auth failure surfaced via `?strava_error=`) lives here too,
+                not as its own top-level section — it's part of this same
+                auth-flow concern, not a fourth structural block. */}
             <div className="flex flex-col gap-2">
+              {error && (
+                <div className="flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-left text-xs text-status-warning sm:px-4 sm:py-3 sm:text-sm">
+                  <TriangleAlert className="size-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+
               {cta}
 
               {/* A single condensed line replaces the previous 4-line

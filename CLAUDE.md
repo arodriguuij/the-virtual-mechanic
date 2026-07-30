@@ -328,6 +328,23 @@ structure:
   `document.documentElement.scrollHeight` exactly matching their own viewport height (no
   overflow), and at 375×667 the card itself measures only ~430px tall against the 667px
   viewport — over 230px of real margin, not a bare fit.
+
+  **Three explicit sections, a third pass.** The flat flex column above (brand mark, hero
+  title/tagline, telemetry readout, error banner, CTA+footer — 5 top-level children on one
+  `gap-2.5 sm:gap-4`) was regrouped into 3 named sections — `01` Branding & Header (brand
+  mark + title + tagline), `02` Vista previa fisiológica (the telemetry readout, unchanged
+  internally), `03` Acción / Autenticación (the error banner + CTA + privacy microcopy) —
+  each its own wrapping `<div>`, with the inter-section gap widened to `gap-4 sm:gap-6`
+  (16px/24px, up from 10px/16px). This reads as a *larger* gap but doesn't reopen the
+  overflow just fixed above: grouping into 3 children instead of 5 means only 2 gaps apply
+  instead of 4, so the total gap budget is actually roughly flat (verified live: still zero
+  scroll at 375×667/390×844/1280×900). Section 2 gained its own subtle boxed treatment at
+  `sm:` and up — `sm:rounded-xl sm:border sm:border-neutral-200 sm:bg-surface sm:p-4` (this
+  app's existing token set, not a new `pns-*` namespace — see "No `tailwind.config.ts`"
+  below) — while staying a plain `border-y`-divided block with no box on mobile, so Sections
+  1 and 3 read as clean, unboxed blocks above and below it once there's room for the
+  distinction (verified at 1280×900: the route/telemetry block renders as a clearly
+  separate bordered card against the borderless outer layout).
 - **`app/layout.tsx` deliberately untouched.** The brief also asked for the shared root
   layout's background to go dark, aimed at the same iOS Safari white-strip class of bug —
   not implemented, and deliberately so: `app/layout.tsx` wraps every route in the app, and
