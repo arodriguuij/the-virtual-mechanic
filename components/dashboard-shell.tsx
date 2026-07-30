@@ -158,15 +158,22 @@ function SidebarContent({
               client-side would just race the same work twice. The action
               itself unmounts this component via navigation, so there's no
               matching `setIsLoggingOut(false)` to write. */}
+          {/* Deliberately no red/orange/destructive treatment on hover — logging
+              out isn't a destructive action in the "irreversible, data-loss" sense
+              a red hover usually signals, and it broke this app's own PNS
+              palette. Hovering now shades toward the app's own `--terracotta`
+              tint (`hover:bg-terracotta/10`) with the same near-black
+              `hover:text-neutral-900` every other neutral-to-active row transition
+              in this sidebar uses, not a color unique to this one button. */}
           <form action={logout} onSubmit={onLogoutStart}>
             <button
               type="submit"
               disabled={isLoggingOut}
               className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 font-mono text-xs font-semibold tracking-wider uppercase transition-all duration-150",
+                "flex w-full items-center space-x-2 rounded-lg px-3 py-2.5 font-mono text-xs uppercase tracking-wider transition-colors duration-150",
                 isLoggingOut
                   ? "cursor-wait text-neutral-500 opacity-70"
-                  : "cursor-pointer text-neutral-500 hover:bg-red-50/80 hover:text-red-600"
+                  : "cursor-pointer text-neutral-500 hover:bg-terracotta/10 hover:text-neutral-900"
               )}
             >
               {isLoggingOut ? (
@@ -175,7 +182,7 @@ function SidebarContent({
                   aria-hidden="true"
                 />
               ) : (
-                <LogOut className="size-3.5 shrink-0" strokeWidth={1.5} />
+                <LogOut className="size-4 text-current" strokeWidth={1.5} />
               )}
               {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
             </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FocusEvent } from "react";
+import { useMemo, useState, type FocusEvent } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { GutTrainingSelector } from "@/components/gut-training-selector";
@@ -58,10 +58,28 @@ type RequiredField = "weight" | "ftp" | "athleteType" | "sweatRate" | "gutTraini
  * `no_session`/`update_blocked_by_rls` banner for the one class of failure
  * this component genuinely can't predict client-side).
  *
- * `bottle_count`/`bottle_capacity_ml`/`is_salty_sweater` stay plain
- * uncontrolled inputs (`defaultValue`/`defaultChecked`) — they're never
- * "empty" (a `<select>` always has some option selected) and aren't part of
- * `isFormValid`, so there's nothing for them to validate.
+ * `bottle_count`/`bottle_capacity_ml`/`is_salty_sweater` are controlled too
+ * (previously plain `defaultValue`/`defaultChecked` uncontrolled inputs) —
+ * not because they need validating (a `<select>` is never "empty," and an
+ * unchecked checkbox is never invalid), but because `hasChanges` below needs
+ * to see their *live* value to know whether the athlete actually edited
+ * anything, the same reason every other field became controlled in an
+ * earlier pass.
+ *
+ * **Dirty-tracking gate (`hasChanges`).** "Guardar cambios" used to enable
+ * the instant every required field was filled, even if none of them
+ * actually differed from what was already saved — reopening `/perfil` with
+ * an already-complete profile and touching nothing still left the button
+ * clickable. `hasChanges` compares each field's current state against the
+ * `profile` prop's own values (the one snapshot Supabase returned for this
+ * request) and the button is now `disabled` unless the form is both valid
+ * *and* dirty. `profile` itself doubles as the "initial values" reference —
+ * no separate ref/copy is needed, since this component's real submission is
+ * a native `<form action="...">` POST that redirects the whole browser on
+ * both success (to the Dashboard, see `app/api/athlete-profile/update`) and
+ * failure (back to `/perfil?profile_error=...`) — either way the component
+ * fully remounts with a fresh `profile` prop from the server rather than
+ * needing an in-place JS reset after a successful save.
  */
 export function PhysiologicalProfileForm({
   profile,
@@ -79,6 +97,9 @@ export function PhysiologicalProfileForm({
   const [gutTrainingLevel, setGutTrainingLevel] = useState<GutTrainingLevel | null>(
     profile?.gut_training_level ?? null
   );
+  const [bottleCount, setBottleCount] = useState(profile?.bottle_count ?? 2);
+  const [bottleCapacityMl, setBottleCapacityMl] = useState(profile?.bottle_capacity_ml ?? 500);
+  const [isSaltySweater, setIsSaltySweater] = useState(profile?.is_salty_sweater ?? false);
   const [touched, setTouched] = useState<Partial<Record<RequiredField, boolean>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -87,6 +108,31 @@ export function PhysiologicalProfileForm({
   const weightValid = Boolean(weight) && Number(weight) > 0;
   const ftpValid = Boolean(ftp) && Number(ftp) > 0;
   const isFormValid = Boolean(weightValid && ftpValid && athleteType && sweatRate && gutTrainingLevel);
+
+  const hasChanges = useMemo(
+    () =>
+      weight !== (profile?.weight_kg?.toString() ?? "") ||
+      ftp !== (profile?.ftp?.toString() ?? "") ||
+      athleteType !== (profile?.athlete_type ?? null) ||
+      sweatRate !== (profile?.sweat_rate ?? null) ||
+      gutTrainingLevel !== (profile?.gut_training_level ?? null) ||
+      bottleCount !== (profile?.bottle_count ?? 2) ||
+      bottleCapacityMl !== (profile?.bottle_capacity_ml ?? 500) ||
+      isSaltySweater !== (profile?.is_salty_sweater ?? false),
+    [
+      weight,
+      ftp,
+      athleteType,
+      sweatRate,
+      gutTrainingLevel,
+      bottleCount,
+      bottleCapacityMl,
+      isSaltySweater,
+      profile,
+    ]
+  );
+
+  const canSave = isFormValid && hasChanges && !isSubmitting;
 
   const weightInvalid = Boolean(touched.weight) && !weightValid;
   const ftpInvalid = Boolean(touched.ftp) && !ftpValid;
@@ -160,7 +206,8 @@ export function PhysiologicalProfileForm({
               <select
                 id="bottle_count"
                 name="bottle_count"
-                defaultValue={profile?.bottle_count ?? 2}
+                value={bottleCount}
+                onChange={(e) => setBottleCount(Number(e.target.value))}
                 className={selectableProfileInputClass}
               >
                 <option value={1}>1 bidón</option>
@@ -174,7 +221,8 @@ export function PhysiologicalProfileForm({
               <select
                 id="bottle_capacity_ml"
                 name="bottle_capacity_ml"
-                defaultValue={profile?.bottle_capacity_ml ?? 500}
+                value={bottleCapacityMl}
+                onChange={(e) => setBottleCapacityMl(Number(e.target.value))}
                 className={selectableProfileInputClass}
               >
                 <option value={500}>500 ml</option>
@@ -251,7 +299,8 @@ export function PhysiologicalProfileForm({
             <input
               type="checkbox"
               name="is_salty_sweater"
-              defaultChecked={profile?.is_salty_sweater ?? false}
+              checked={isSaltySweater}
+              onChange={(e) => setIsSaltySweater(e.target.checked)}
               className="mt-0.5 size-3.5 cursor-pointer accent-terracotta"
             />
             <span>
@@ -291,20 +340,26 @@ export function PhysiologicalProfileForm({
       <div className="flex flex-col items-center gap-2">
         <button
           type="submit"
-          disabled={!isFormValid || isSubmitting}
+          disabled={!canSave}
           className={cn(
-            "w-full rounded-lg py-3.5 text-xs shadow-sm",
-            isFormValid && !isSubmitting
+            "w-full rounded-lg py-3.5 text-xs transition-all duration-150",
+            canSave
               ? primaryButtonClass
-              : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg bg-neutral-300 font-mono text-xs font-semibold tracking-wider text-neutral-500 uppercase opacity-60"
+              : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-neutral-300/30 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase opacity-60 shadow-none"
           )}
         >
           {isSubmitting ? "Guardando…" : "Guardar cambios"}
         </button>
-        {!isFormValid && (
+        {!isFormValid ? (
           <span className="font-mono text-[11px] text-neutral-500">
             * Completa todos los campos obligatorios para guardar.
           </span>
+        ) : (
+          !hasChanges && (
+            <span className="font-mono text-[11px] text-neutral-500">
+              * Modifica al menos un dato para poder guardar.
+            </span>
+          )
         )}
       </div>
     </form>

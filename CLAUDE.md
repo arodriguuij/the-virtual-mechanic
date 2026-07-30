@@ -2012,9 +2012,27 @@ all three into one client-side validation pass:
   gutTrainingLevel)`, recomputed on every render from real controlled state (`useState` for
   each of the five required fields — Peso/FTP moved from `defaultValue` to `value`/
   `onChange`; `athleteType`/`sweatRate`/`gutTrainingLevel` from `defaultChecked` to
-  `checked`/`onChange`). `bottle_count`/`bottle_capacity_ml`/`is_salty_sweater` stay plain
-  uncontrolled inputs (`defaultValue`/`defaultChecked`) — a `<select>` is never "empty" and
-  none of the three are part of `isFormValid`, so there's nothing to validate.
+  `checked`/`onChange`). `bottle_count`/`bottle_capacity_ml`/`is_salty_sweater` are
+  controlled too (also moved off `defaultValue`/`defaultChecked`, see "Dirty-tracking gate"
+  below) but still aren't part of `isFormValid` — a `<select>` is never "empty," and an
+  unchecked checkbox is never invalid, so there's still nothing to validate on any of the
+  three.
+- **Dirty-tracking gate (`hasChanges`/`canSave`)** — a later pass found "Guardar cambios"
+  enabled the instant every required field was filled, even when reopening `/perfil` with an
+  already-complete profile and touching nothing at all; the button stayed clickable for a
+  save that would write back the exact same row. `hasChanges` (`useMemo`) compares each of
+  the 8 fields' current state against the `profile` prop's own values — `profile` doubles as
+  the "initial snapshot" with no separate ref needed, since a real save is a native `<form>`
+  POST that redirects the whole browser (to the Dashboard on success, back to `/perfil` with
+  a query-string error on failure) rather than an in-place client update, so the component
+  always remounts with a fresh `profile` whenever it matters. `canSave = isFormValid &&
+  hasChanges && !isSubmitting` is what the submit button's `disabled` prop and styling key
+  off now, not `isFormValid` alone. The disabled treatment itself reuses this app's existing
+  neutral "inert" look (`border-neutral-200 bg-neutral-300/30 text-neutral-400 opacity-60
+  shadow-none`) rather than introducing a new muted-token pair — a helper line under the
+  button distinguishes *why* it's disabled: "Completa todos los campos obligatorios..." when
+  `!isFormValid`, or "Modifica al menos un dato para poder guardar." when the form is valid
+  but untouched.
 - **`touched`** — a `Partial<Record<field, boolean>>` so a brand-new athlete's entirely
   blank form doesn't render five red errors before they've typed anything; a field only
   becomes `invalid` (touched **and** still empty) once the athlete has actually interacted
@@ -2284,6 +2302,17 @@ Server Action's own request intercepted/stalled (same Playwright pattern used el
 this file) — confirmed the button text/disabled/cursor/spinner and the root's
 opacity/pointer-events all flip correctly before the (stalled) redirect would otherwise
 fire; route removed again before committing.
+
+**No red/destructive hover on "Cerrar sesión."** An earlier version's resting `text-neutral-500`
+hovered to `bg-red-50/80 text-red-600` — a common "destructive action" affordance elsewhere
+on the web, but logging out isn't itself destructive (nothing is deleted or lost), and the
+red broke this app's own PNS palette on the one interactive row in the sidebar that didn't
+already follow it. Hover now shades toward the app's own accent instead: `hover:bg-terracotta/10
+hover:text-neutral-900` — the same near-black text color this app already reaches for
+elsewhere, at rest→hover, and a soft tint of `--terracotta` rather than a hardcoded hex.
+The `LogOut` icon carries no color class of its own (just `text-current`), so it already
+tracked whatever color the button's text was — swapping the button's own hover color was
+the only change needed, nothing icon-specific.
 
 - **`app/(app)/page.tsx`** — the Weekly Performance Panel (see above) sits above two
   `components/ui/tabs.tsx` (`@base-ui/react/tabs`) panels, labeled "Antes de salir"/"Al
