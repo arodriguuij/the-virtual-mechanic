@@ -280,20 +280,22 @@ structure:
   own `text-left` override against the card's `text-center` default — a technical data
   readout reads as a data sheet, not hero copy, the same "hero centered, technical readout
   left-aligned" convention as before.
-- **Telemetry readout — no card, no dividers, spacing only.** The route name/distance/
-  elevation/gradient line ("Sa Calobra – Coll dels Reis" · "9.5 km · 670m D+ · 7% avg ·
-  27°C (Calor Alto)"), the 3-column stat grid (Potencia NP / Deuda glucógeno / Tasa de
-  sudor), and the "Pauta de ingesta (tolerancia media)" block are separated purely by
-  `space-y-4 sm:space-y-5` on their shared wrapper now — every divider line this readout
-  used to carry (a `border-y` wrapping the whole block, `divide-x`/`border-y` between the
-  3 stat cells, a `border-l-2 border-terracotta` left-accent bar on the ingesta block) was
-  removed outright, along with the boxed `sm:bg-surface sm:border sm:rounded-xl` treatment
-  a still-earlier pass gave this block at `sm:` and up — an explicit "ultra-clean, no
-  hairlines anywhere" request, reasoning that vertical whitespace alone reads as more
-  editorial/premium than gray fills or rule lines separating every sub-block. Still
-  strictly 100% typographic (no icons, no emoji, no colored-dot indicator, no `bg-*`/
-  `border-*` box anywhere inside the readout) and still fully static/illustrative data
-  needing no network round-trip. The one-line subheader tag
+- **Telemetry readout — divider lines, reintroduced with generous padding.** The route
+  name/distance/elevation/gradient line ("Sa Calobra – Coll dels Reis" · "9.5 km · 670m D+ ·
+  7% avg · 27°C (Calor Alto)"), the 3-column stat grid (Potencia NP / Deuda glucógeno / Tasa
+  de sudor), and the "Pauta de ingesta (tolerancia media)" block went through two designs in
+  quick succession. An "ultra-clean" pass first removed every divider line this readout used
+  to carry (a `border-y` wrapping the whole block, `divide-x`/`border-y` between the 3 stat
+  cells, a `border-l-2 border-terracotta` left-accent bar on the ingesta block) in favor of
+  pure `space-y-4 sm:space-y-5` spacing. That was explicitly reverted one request later: the
+  3 sub-blocks now sit inside a `divide-y divide-zinc-200/80` wrapper again (thin hairlines
+  between them, none around the outside), but each sub-block carries a much more generous
+  `py-4 sm:py-5` this time — not the tight `py-2`/`py-3` rhythm this design had before its
+  brief removal — so the text has real room on both sides of each line rather than sitting
+  flush against it. Still strictly 100% typographic (no icons, no emoji, no colored-dot
+  indicator, no `bg-*` box anywhere inside the readout, no left-accent bar reinstated on the
+  ingesta block — only the horizontal separators came back) and still fully static/
+  illustrative data needing no network round-trip. The one-line subheader tag
   above it (`headerTagline` in `components/login-hero.tsx`, "Planificación &
   avituallamiento") went through several revisions before landing here — a 3-pill
   "ADAPTACIÓN DIGESTIVA • IMPACTO TÉRMICO • PLAN DE AVITUALLAMIENTO" line, then briefly an
@@ -1596,11 +1598,14 @@ inside the card the *sole* control for picking which ride gets analyzed:
   `useMap()`-based component rendering two plain Tailwind buttons in its place: no
   Tailwind class can reach into Leaflet's own bundled CSS to restyle its default control,
   and that default read as disproportionately large/heavy next to this app's otherwise
-  compact chrome. `size-7` (roughly Leaflet's own default footprint) on mobile, shrinking
-  to `md:size-6` with a smaller glyph — at the same `md:` breakpoint the layout itself
-  switches at, since a mouse cursor doesn't need as generous a touch target as a finger
-  does. This is a change to the shared `RouteMapPreview` component, so it applies equally
-  to the Fueling Planner's own map usage, not just this card.
+  compact chrome. Originally two buttons sharing one bordered/shadowed pill (`size-7` on
+  mobile, `md:size-6` on desktop, a `border-b` divider between them); a later PNS
+  fine-tuning pass (see "PNS premium redesign" in the Dashboard section) flattened this
+  further into two fully independent `size-6 rounded-md border-zinc-200/60 bg-white/90
+  shadow-sm` squares stacked with a small `gap-1`, at one flat size for every breakpoint
+  rather than shrinking at `md:`. This is a change to the shared `RouteMapPreview`
+  component, so it applies equally to the Fueling Planner's own map usage, not just this
+  card.
 - **Date/time stamp** — `formatActivityDateTime()` builds "Martes 28 de Julio · Inicio a
   las 17:30h" from three separate `Intl`/`toLocaleDateString` calls (weekday, day, month,
   time) rather than one combined format string, since `es-ES`'s own long-date output
@@ -2657,11 +2662,12 @@ still carried:
   (`app/(app)/page.tsx`) gained an explicit `gap-4` (replacing a `mr-2` on the greeting's own
   wrapper, now redundant) between the greeting and the Strava button.
 - **"Conectar Strava"/"Sincronizar" both shrink on mobile** — `px-3 py-1.5 text-xs`
-  (`sm:px-4 sm:py-2` restores the original size at `sm:` and up), applied as a `cn()`
-  override at each call site (`app/(app)/page.tsx`'s `StravaButton`, `components/
-  sync-button.tsx`'s `SyncButton`) rather than changing `primaryButtonClass`/
-  `secondaryButtonClass` themselves, since those shared tokens are also used by buttons
-  elsewhere (Copiar receta, Descargar GPX, Calcular estrategia) that don't need to shrink.
+  (`sm:px-4 sm:py-2` restores the original size at `sm:` and up), applied at each call site
+  (`app/(app)/page.tsx`'s `StravaButton`, `components/sync-button.tsx`'s `SyncButton`)
+  rather than changing `primaryButtonClass`/`secondaryButtonClass` themselves, since those
+  shared tokens are also used by buttons elsewhere (Copiar receta, Descargar GPX, Calcular
+  estrategia) that don't need to shrink. (`SyncButton`'s own styling was superseded again in
+  the very next pass below — see "Sincronizar goes fully transparent.")
 - **`DeparturePicker`'s outer box removed.** The "Fecha y hora de salida" segmented
   control + hour `<select>` used to sit inside their own `rounded-lg border
   border-neutral-200 px-3 py-3` container — removed outright, so the day-mode buttons and
@@ -2680,6 +2686,47 @@ still carried:
   focus state is a real (if minor) keyboard-accessibility tradeoff worth keeping in mind if
   focus visibility is ever reported as hard to see. Segmented buttons' active state also lost
   its `shadow-sm` for the same "no heavy shadows" reasoning (see above).
+
+**A third pass** aligned the remaining pieces exactly to the PNS brief:
+
+- **"Sincronizar" goes fully transparent.** `SyncButton` (`components/sync-button.tsx`) no
+  longer renders through the shared `secondaryButtonClass` at all — that token still keeps
+  its `uppercase font-mono tracking-wider` treatment for Copiar receta/Descargar GPX/
+  Recargar rutas, but this one button (sitting directly in the Dashboard header) needed a
+  quieter, sentence-case, no-fill look that diverges from `secondaryButtonClass` on almost
+  every axis. A new local `syncButtonClass` const replaces it entirely: `bg-transparent
+  border-terracotta/40`, `hover:border-terracotta hover:bg-white/50`, plain sentence-case
+  text (no `uppercase`/`font-mono`/`tracking-wider`). The JSX label string itself
+  ("Sincronizar"/"Sincronizando...") never changed — it was always correctly cased, just
+  visually forced upper-case by the old shared class.
+- **Inactive segmented buttons: `bg-white` → `bg-white/80`** across all 5 ternaries
+  (mode toggle ×3, `DeparturePicker`, Estrategia nutricional) — a barely-perceptible but
+  deliberate softening, matching the brief's literal "Fondo claro/transparente" spec for
+  the inactive state.
+- **Map zoom controls shrunk and decoupled.** `MapZoomControls`
+  (`components/route-map-preview.tsx`) used to be two buttons sharing one bordered/
+  shadowed pill (`overflow-hidden rounded-md border ... bg-white`, a `border-b` divider
+  between them), sized `size-7`/`md:size-6`. Now each button is its own independent
+  `size-6 rounded-md border-zinc-200/60 bg-white/90 shadow-sm` square, stacked with a
+  small `gap-1` — flatter, more compact, no shared wrapper chrome. The distance/elevation
+  badge (bottom-left corner) shrank from `px-3 py-1.5 text-xs` (plus a `border-neutral-200`
+  and `backdrop-blur-sm` this pass dropped) to `px-2.5 py-1 text-[10px] sm:text-xs`.
+- **Canvas background refined a third time** — `--background`/`--sidebar`
+  (`app/globals.css`) went `#f8f7f4` → `#f9f8f6` → `#f8f7f5`, each nudge barely
+  perceptible on its own; same "swap only the value" token convention as every other
+  palette refinement in this file's history.
+- **On the "verde musgo"/moss-green accent request**: the brief asked to "incorporar...
+  de forma sutil" a moss-green tone into labels/active borders. This app already has
+  exactly that tone wired in as `--sage` (`#526553`, marking carb-coverage
+  "cubierto"/positive-progress state — see the Code style section above) — no new usage
+  site was added for it in the Dashboard/login specifically, since the request was
+  explicitly "sutil" and this app's palette already reserves `--sage` for a specific,
+  meaningful state rather than decorative accenting; forcing a new decorative use elsewhere
+  risked contradicting both the "sutil" ask and the existing restrained, purposeful palette.
+  Flagged transparently rather than silently invented.
+- Verified live via Playwright with a real decoded polyline (not the earlier mock's `null`)
+  so the map itself actually rendered — confirmed the zoom control squares, the shrunk
+  badge, and the transparent "Sincronizar" button all match the brief visually at 1280px.
 
 ### Spanish-only UI text
 

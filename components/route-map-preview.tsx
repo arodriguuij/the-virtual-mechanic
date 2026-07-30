@@ -40,21 +40,22 @@ function FitBoundsToRoute({ points }: { points: [number, number][] }) {
  * place, since Leaflet's default `+`/`−` control only takes inline sizing
  * from its own bundled CSS (no Tailwind class of ours can reach it) and read
  * as disproportionately large/heavy next to this app's otherwise compact,
- * sober chrome. `size-7` on mobile keeps roughly Leaflet's own default
- * footprint; `md:size-6` with a smaller glyph shrinks it further at the same
- * `md:` breakpoint where callers switch to a desktop layout, since a cursor
- * doesn't need as generous a touch target as a finger does.
+ * sober chrome. A flat `size-6` at every breakpoint (down from an earlier
+ * responsive `size-7`/`md:size-6` pair) — a PNS fine-tuning pass asked for
+ * these "más compactos e integrados," so each button is now its own small
+ * independently-bordered/shadowed square rather than two buttons sharing one
+ * bigger divided pill.
  */
 function MapZoomControls() {
   const map = useMap();
 
   return (
-    <div className="absolute top-2 left-2 z-1000 flex flex-col overflow-hidden rounded-md border border-neutral-300 bg-white shadow-sm">
+    <div className="absolute top-2 left-2 z-1000 flex flex-col gap-1">
       <button
         type="button"
         onClick={() => map.zoomIn()}
         aria-label="Acercar mapa"
-        className="flex size-7 cursor-pointer items-center justify-center border-b border-neutral-300 text-sm leading-none font-bold text-neutral-700 transition-colors hover:bg-neutral-50 md:size-6 md:text-xs"
+        className="flex size-6 cursor-pointer items-center justify-center rounded-md border border-zinc-200/60 bg-white/90 text-xs leading-none font-bold text-zinc-800 shadow-sm transition-colors hover:bg-white"
       >
         +
       </button>
@@ -62,7 +63,7 @@ function MapZoomControls() {
         type="button"
         onClick={() => map.zoomOut()}
         aria-label="Alejar mapa"
-        className="flex size-7 cursor-pointer items-center justify-center text-sm leading-none font-bold text-neutral-700 transition-colors hover:bg-neutral-50 md:size-6 md:text-xs"
+        className="flex size-6 cursor-pointer items-center justify-center rounded-md border border-zinc-200/60 bg-white/90 text-xs leading-none font-bold text-zinc-800 shadow-sm transition-colors hover:bg-white"
       >
         −
       </button>
@@ -141,7 +142,7 @@ export function RouteMapPreview({
         <MapZoomControls />
       </MapContainer>
       {badgeParts.length > 0 && (
-        <div className="absolute bottom-2 left-2 z-[1000] rounded-md border border-neutral-200 bg-white/90 px-3 py-1.5 font-mono text-xs text-neutral-800 shadow-sm backdrop-blur-sm">
+        <div className="absolute bottom-2 left-2 z-[1000] rounded-md bg-white/90 px-2.5 py-1 font-mono text-[10px] text-zinc-800 shadow-sm sm:text-xs">
           {badgeParts.join(" · ")}
         </div>
       )}

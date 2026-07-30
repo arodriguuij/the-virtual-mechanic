@@ -156,17 +156,18 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
             {/* SECTION 2 — Vista previa fisiológica: a real mockup of the
                 app's own visual language (the Post-Ride telemetry card's
                 stat-grid pattern, the Fueling Planner's terracotta-accented
-                recommendation block). Ultra-clean pass: no boxed card, no
-                gray fill, no divider lines of any kind (no `border-y`, no
-                `divide-x`, no left-accent `border-l`) at any breakpoint —
-                the three sub-blocks (route header, stat row, ingesta block)
-                are separated purely by vertical space (`space-y-4 sm:space-y-5`
-                on this wrapper), the same "let whitespace do the work"
-                editorial principle applied everywhere else on this screen.
-                100% typographic — no icons, no emoji — and every figure here
-                is illustrative/static. */}
-            <div className="w-full space-y-4 text-left sm:space-y-5">
-              <div>
+                recommendation block). A prior "ultra-clean" pass removed
+                every divider line here in favor of pure spacing — reverted
+                on explicit request: the 3 sub-blocks (route header, stat
+                row, ingesta block) are separated by thin `divide-y
+                divide-zinc-200/80` rules again, but with generous `py-4
+                sm:py-5` on every block this time (not the tight `py-2`/
+                `py-3` this carried before removal), so the text has real
+                room to breathe on both sides of each line rather than
+                sitting flush against it. 100% typographic — no icons, no
+                emoji — and every figure here is illustrative/static. */}
+            <div className="w-full divide-y divide-zinc-200/80 text-left">
+              <div className="py-4 sm:py-5">
                 <p className="truncate font-mono text-xs font-bold text-neutral-900 sm:text-sm">
                   Sa Calobra – Coll dels Reis
                 </p>
@@ -175,7 +176,7 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
                 </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 text-center sm:gap-6">
+              <div className="grid grid-cols-3 gap-4 py-4 text-center sm:gap-6 sm:py-5">
                 {telemetryStats.map((stat) => (
                   <div key={stat.label}>
                     <p className="truncate font-mono text-[9px] uppercase text-neutral-400 sm:text-[10px]">
@@ -188,7 +189,7 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
                 ))}
               </div>
 
-              <div>
+              <div className="py-4 sm:py-5">
                 <span className="mb-0.5 block font-mono text-[9px] text-neutral-400 uppercase sm:text-[10px]">
                   Pauta de ingesta (tolerancia media)
                 </span>

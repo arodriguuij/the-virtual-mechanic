@@ -62,7 +62,7 @@
 }
 
 :root {
-  --background: #f9f8f6;
+  --background: #f8f7f5;
   --foreground: #181818;
   --card: #ffffff;
   --card-foreground: #181818;
@@ -86,7 +86,7 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.5rem;
-  --sidebar: #f9f8f6;
+  --sidebar: #f8f7f5;
   --sidebar-foreground: #181818;
   --sidebar-primary: #181818;
   --sidebar-primary-foreground: #faf9f5;

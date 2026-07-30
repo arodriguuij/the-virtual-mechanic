@@ -7,7 +7,22 @@ import { useFormStatus } from "react-dom";
 
 import { cn } from "@/lib/utils";
 import { Toast, type ToastData } from "@/components/toast";
-import { secondaryButtonClass } from "@/lib/ui-classes";
+
+/**
+ * A deliberately quieter treatment than the shared `secondaryButtonClass`
+ * (`lib/ui-classes.ts`, still used by Copiar receta/Descargar GPX/Recargar
+ * rutas) — this button sits directly in the Dashboard header next to the
+ * greeting, so it reads as PNS-style "transparent, barely-there chrome"
+ * rather than a bold outlined pill: no fill at rest, a hairline
+ * `terracotta/40` border, sentence-case label (no `uppercase`/`font-mono`/
+ * `tracking-wider`), and a soft `hover:bg-white/50` instead of the shared
+ * class's hover-fills-solid-bronze behavior. Kept as its own local class
+ * rather than an override of `secondaryButtonClass` — the two diverge on
+ * almost every axis (fill, case, tracking, font), so composing on top of
+ * the shared class would mean overriding most of it anyway.
+ */
+const syncButtonClass =
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border border-terracotta/40 bg-transparent px-3.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors duration-150 hover:border-terracotta hover:bg-white/50 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm";
 
 /**
  * `useFormStatus` only tracks pending state when the enclosing `<form>`'s
@@ -15,27 +30,15 @@ import { secondaryButtonClass } from "@/lib/ui-classes";
  * submission React never intercepts, so `pending` would stay `false`
  * forever. `SyncForm` below passes a client action function instead (still
  * hitting the exact same `POST /api/strava/sync` route), which is what
- * makes this component's pending state real.
- *
- * Now renders through the shared `secondaryButtonClass` (`lib/ui-classes.ts`)
- * instead of its own one-off `bg-white`/`text-[#FC4C02]` treatment — the
- * previous white-card-plus-Strava-orange pairing broke the PNS editorial
- * palette every other button in the app already follows, and gave this one
- * button a fourth, undocumented button style. The `RefreshCw` icon carries
+ * makes this component's pending state real. The `RefreshCw` icon carries
  * no color class of its own, so it simply inherits whatever text color the
- * button itself is using (`text-terracotta` at rest, `text-white` on hover/
- * disabled) rather than a hardcoded Strava-orange fill.
+ * button itself is using.
  */
 function SyncButton() {
   const { pending } = useFormStatus();
 
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      title="Sincronizar rutas con Strava"
-      className={cn(secondaryButtonClass, "shrink-0 px-3 py-1.5 text-xs sm:px-4 sm:py-2")}
-    >
+    <button type="submit" disabled={pending} title="Sincronizar rutas con Strava" className={syncButtonClass}>
       <RefreshCw className={cn("size-3.5", pending && "animate-spin")} />
       {pending ? "Sincronizando..." : "Sincronizar"}
     </button>
