@@ -7,41 +7,51 @@ import { MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
 
 import { cn } from "@/lib/utils";
 
-// CartoDB "Dark Matter" (`dark_all`) — a *real* dark basemap from the same
-// free, no-API-key CartoDB service this app already used for the light
-// `light_all` variant, not a light basemap hacked dark via CSS filters.
-// An earlier pass inverted `light_all` with `grayscale/invert/contrast/
-// brightness` instead, reasoning "no new tile provider needed" — but
-// inverting a light basemap can only approximate a dark one: land and
-// roads started at similar light luminance values, so after inversion they
-// end up crushed to similarly-dark tones with too little separation between
-// them, reported as the whole map reading "muddy." `dark_all` is drawn dark
-// from the start — land, roads, and labels each get real, independently
-// chosen tones, so there's proper separation without fighting a filter.
-const TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+// OpenTopoMap — a real, free, no-API-key topographic tile set (elevation-
+// shaded terrain, forest/water color-coded, genuine road network) rather
+// than CartoDB's monochrome `dark_all`/`light_all` basemaps this app used
+// before. This one specific request asked for a colorful "Strava Dark Mode
+// Topo" look (navy sea, forest-green terrain, slate urban grid, orange
+// route) — a monochrome graphite basemap has no color information left to
+// recover via a filter, so getting real hue differentiation back requires
+// starting from a tile source that actually has it.
+const TILE_URL = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png";
+// OpenTopoMap's own required attribution wording (its usage policy asks for
+// this exact form, not just a generic OSM credit) — SRTM is the elevation
+// dataset the terrain shading itself is computed from.
 const TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+  'map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)';
 
 // Leaflet's `TileLayer` forwards a `className` straight onto every tile
 // `<img>` it renders (a real `L.TileLayer` option, not react-leaflet's own
 // invention) — this is what lets a CSS filter reach the actual tile images
 // without also touching the `Polyline`/zoom controls/badge, which live in
-// separate panes/DOM nodes. `dark_all`'s own default palette is correct in
-// polarity (dark land, light roads/labels) but reads quite muted/low-
-// contrast straight out of the box — `brightness`/`contrast` lift it toward
-// a livelier graphite-with-silver-linework look without touching hue.
-// Approximate by nature (a CSS filter can't be tuned to land on an exact
-// target hex — the source tile's own pixel values vary by location/zoom),
-// verified visually against a real dense-city tile rather than computed.
-const TILE_DARK_FILTER_CLASS = "[filter:brightness(185%)_contrast(105%)]";
+// separate panes/DOM nodes. OpenTopoMap is natively a *light* map (its
+// labels are dark text, designed for a light background) — a plain
+// `brightness`-only darken would crush those same dark labels into the now-
+// dark background instead of lifting them. `invert(100%) hue-rotate(180deg)`
+// is the classic "dark-mode a light image" pair instead: inverting flips
+// every element's lightness (dark labels become light, light terrain
+// becomes dark) while the compensating 180° hue rotation approximately
+// restores each color's original hue (blue sea stays blue-ish rather than
+// flipping to its complementary orange) — together, real terrain colors
+// survive, just inverted to a dark register. `contrast`/`saturate` then
+// tune richness on top. Approximate by nature — a CSS filter can't be tuned
+// to land on an exact target hex, and the source tile's own pixel values
+// vary by location/zoom — verified visually against real coastal/mountain
+// terrain (Sa Calobra) and a dense city (Palma de Mallorca) rather than
+// computed.
+const TILE_DARK_FILTER_CLASS =
+  "[filter:invert(100%)_hue-rotate(180deg)_brightness(95%)_contrast(90%)_saturate(130%)]";
 
-// A brighter, warmer gold than this app's own `--terracotta` (`#6E6658`) —
-// deliberately not that token here specifically because this line has to
-// read clearly against the dark basemap, where `--terracotta`'s
-// comparatively low luminance would contrast poorly. Every other bronze
-// accent in the app (buttons, borders) stays `--terracotta`; this is the
-// one spot that trades token consistency for legibility on a dark surface.
-const ROUTE_LINE_COLOR = "#E2B96B";
+// Strava's own icon orange — the one deliberate exception to this app's
+// "route line uses a gold/bronze accent, not literal brand colors" pattern
+// from earlier passes, since this specific request asked for the Strava
+// look by name. Every other bronze accent in the app (buttons, borders)
+// stays `--terracotta`; only this map polyline uses Strava orange, and only
+// because it needs to read as unmistakably "Strava" against the new
+// colorful terrain.
+const ROUTE_LINE_COLOR = "#FC5200";
 
 /** `MapContainer` itself has no "fit to route" concept — this runs once
  * per `points` change and asks the underlying Leaflet map instance
@@ -65,8 +75,8 @@ function FitBoundsToRoute({ points }: { points: [number, number][] }) {
  * from its own bundled CSS (no Tailwind class of ours can reach it) and read
  * as disproportionately large/heavy next to this app's otherwise compact,
  * sober chrome. Restyled as translucent "glass" chips
- * (`bg-[#181818]/80 backdrop-blur-md border-white/10`) to sit on top of the
- * now-dark, inverted basemap (see `TILE_DARK_FILTER_CLASS` above) rather
+ * (`bg-[#181818]/80 backdrop-blur-md border-white/15`) to sit on top of the
+ * now-dark, colorful topo basemap (see `TILE_DARK_FILTER_CLASS` above) rather
  * than the flat opaque `bg-white` squares this used to be — a light square
  * would read as a jarring cutout against dark topography.
  */
@@ -79,7 +89,7 @@ function MapZoomControls() {
         type="button"
         onClick={() => map.zoomIn()}
         aria-label="Acercar mapa"
-        className="flex size-7 cursor-pointer items-center justify-center rounded-md border border-white/10 bg-[#181818]/80 text-xs leading-none font-bold text-white backdrop-blur-md transition-colors hover:bg-white/10"
+        className="flex size-7 cursor-pointer items-center justify-center rounded-md border border-white/15 bg-[#181818]/80 text-xs leading-none font-bold text-white backdrop-blur-md transition-colors hover:bg-white/10"
       >
         +
       </button>
@@ -87,7 +97,7 @@ function MapZoomControls() {
         type="button"
         onClick={() => map.zoomOut()}
         aria-label="Alejar mapa"
-        className="flex size-7 cursor-pointer items-center justify-center rounded-md border border-white/10 bg-[#181818]/80 text-xs leading-none font-bold text-white backdrop-blur-md transition-colors hover:bg-white/10"
+        className="flex size-7 cursor-pointer items-center justify-center rounded-md border border-white/15 bg-[#181818]/80 text-xs leading-none font-bold text-white backdrop-blur-md transition-colors hover:bg-white/10"
       >
         −
       </button>
@@ -161,12 +171,12 @@ export function RouteMapPreview({
         zoomControl={false}
       >
         <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} className={TILE_DARK_FILTER_CLASS} />
-        <Polyline positions={points} pathOptions={{ color: ROUTE_LINE_COLOR, weight: 4, opacity: 0.95 }} />
+        <Polyline positions={points} pathOptions={{ color: ROUTE_LINE_COLOR, weight: 4, opacity: 1 }} />
         <FitBoundsToRoute points={points} />
         <MapZoomControls />
       </MapContainer>
       {badgeParts.length > 0 && (
-        <div className="absolute bottom-2 left-2 z-[1000] rounded-md border border-white/10 bg-[#181818]/80 px-3 py-1.5 font-mono text-[11px] text-zinc-200 backdrop-blur-md">
+        <div className="absolute bottom-2 left-2 z-[1000] rounded-md border border-white/15 bg-[#181818]/80 px-3 py-1.5 font-mono text-[11px] text-zinc-200 backdrop-blur-md">
           {badgeParts.join(" · ")}
         </div>
       )}

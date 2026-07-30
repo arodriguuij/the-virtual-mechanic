@@ -1353,49 +1353,67 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   `MapContainer`/`TileLayer`/`Polyline`, plus a small `FitBoundsToRoute` child component
   that calls the underlying Leaflet map's `fitBounds()` imperatively via `useMap()` inside
   a `useEffect` — `react-leaflet` has no declarative "fit to these bounds" prop, so this
-  is the documented pattern for it. Tile layer is CartoDB **"Dark Matter"** (`dark_all`) —
-  a *real* dark basemap from the same free, no-API-key CartoDB service this app's earlier
-  `light_all` variant already used, not a light basemap forced dark via CSS filters (see
-  "Dark Vector HUD" below for why that first attempt was replaced). The route itself is
-  drawn in `#E2B96B`, a bright warm gold — a deliberate one-off divergence from this app's
-  own `--terracotta` (`#6E6658`), since the route line specifically needs to read clearly
-  against the dark basemap, where `--terracotta`'s own comparatively low luminance would
-  contrast poorly. Every other bronze accent in the app (buttons, borders) stays
-  `--terracotta`; only this map polyline uses the brighter gold, and only because it sits
-  directly on the dark tiles. `weight: 4` (up from an original `3`) for a stroke that reads
-  as unambiguously the foreground element against the topography behind it. Kept as its
-  own literal hex either way, since Leaflet's `Polyline` color prop needs a plain string,
-  not a class name.
-- **"Dark Vector HUD"** — the map used to sit on its basemap's own native light colors,
-  clashing visibly with the dark `#181818` Obsidian widget it's embedded in on the Fueling
-  Planner (see "Obsidian widget" in the Dashboard section below). **First attempt**: keep
-  the existing `light_all` tile and invert it dark via a CSS filter
-  (`grayscale(100%) invert(90%) contrast(120%) brightness(85%)`) on the tile layer's own
-  container — reasoned as "no new tile provider needed." This looked plausible in an
-  initial screenshot but was reported as reading "muddy," with too little separation
-  between land and roads — the real cause: `light_all`'s land and roads start at *similar*
-  light luminance values, so inverting them crushes both to similarly-dark tones with
-  little contrast between them; only originally-dark elements (label text) reliably
-  inverted to something legible. **Fixed by switching the tile source itself** to CartoDB's
-  real `dark_all` basemap instead of inverting `light_all` — land, roads, and labels there
-  are each independently designed with real dark-mode contrast in mind, not merely a
-  filtered light basemap. `dark_all`'s own default palette still reads somewhat muted, so a
-  lighter filter remains on top — `TILE_DARK_FILTER_CLASS`
-  (`components/route-map-preview.tsx`) is now just `[filter:brightness(185%)_contrast(105%)]`
-  — but this is now *lifting* an already-correct dark design rather than trying to
-  manufacture one from an inverted light source. Same delivery mechanism as before: Leaflet's
-  `TileLayer`/`GridLayer` accepts a real `className` option (`TileLayerProps extends
-  TileLayerOptions`, confirmed against `node_modules/@types/leaflet`) applied to the tile
-  layer's own container `<div>` — a sibling of the overlay pane the `Polyline` renders into
-  and the DOM the custom zoom controls/badge live in, so the filter reaches only the
-  basemap tiles, never the route line or the custom chrome floating on top. **A CSS filter
-  is inherently approximate, not a precise hex target** — the source tile's own pixel
-  values vary by location and zoom, so `brightness`/`contrast` percentages were tuned by
-  visual verification (a standalone Leaflet instance with this exact tile+filter, pointed
-  at a real dense city rather than the sparse rural Sa Calobra test route) rather than
-  computed to land on an exact color. Confirmed live: land renders as a legible graphite,
-  streets and place labels (tested against Barcelona) show clearly in light gray, and the
-  gold route line has strong, unambiguous contrast against all of it.
+  is the documented pattern for it. Tile layer is **OpenTopoMap** (`tile.opentopomap.org`) —
+  a free, no-API-key *topographic* tile set with real elevation-shaded terrain, forest/
+  water color-coding, and a genuine road network, not one of CartoDB's monochrome
+  `light_all`/`dark_all` basemaps this app used through two earlier passes (see "Dark Vector
+  HUD" below for the full history and why a colorful "Strava Dark Mode Topo" request forced
+  this second tile-provider switch). The route itself is drawn in `#FC5200` — Strava's own
+  icon orange, the one deliberate exception to this app's usual "route line uses a muted
+  gold/bronze accent, not a literal brand color" pattern from the prior CartoDB-based
+  passes, since this specific request asked for the Strava look by name. Every other bronze
+  accent in the app (buttons, borders) stays `--terracotta`; only this map polyline uses
+  Strava orange. `weight: 4`, `opacity: 1` for a stroke that reads as unmistakably the
+  foreground element against the topography behind it. Kept as its own literal hex, since
+  Leaflet's `Polyline` color prop needs a plain string, not a class name.
+- **"Dark Vector HUD" → real colorful "Strava Dark Mode Topo"** — three tile-provider/
+  filter iterations, each replacing the last:
+  1. **First attempt**: keep CartoDB's light `light_all` tile and invert it dark via a CSS
+     filter (`grayscale(100%) invert(90%) contrast(120%) brightness(85%)`). Reported as
+     reading "muddy" — `light_all`'s land and roads start at *similar* light luminance
+     values, so inverting them crushes both to similarly-dark tones with too little
+     separation between them.
+  2. **Second attempt**: switch the tile source to CartoDB's real dark `dark_all`
+     ("Dark Matter") basemap instead of inverting the light one, with a lighter
+     `brightness(185%) contrast(105%)` filter on top to lift its own somewhat-muted default
+     palette. This fixed the legibility/muddiness complaint (land, roads, and labels are
+     each independently dark-mode-designed there, not merely filtered) — but `dark_all` is
+     still fundamentally *monochrome* (graphite land, silver-gray roads/labels, no color
+     differentiation at all). That was fine until this request specifically asked for a
+     colorful "Strava Dark Mode Topo" look (navy sea, forest green, slate urban, distinct
+     from each other by *hue*, not just grayscale value) — a monochrome tile has no color
+     information left for any CSS filter to recover; `hue-rotate`/`saturate` on a grayscale
+     source does nothing, since there's no saturation to rotate.
+  3. **Third, current attempt**: switch tile providers again, this time to **OpenTopoMap** —
+     a genuinely multi-hue basemap (blue sea, green forest, tan/brown elevation bands, gray
+     urban areas, real road-network coloring) that just happens to be designed *light*
+     (dark label text, meant for a light background). A plain `brightness`-only darken would
+     crush those same dark labels into the new dark background instead of lifting them —
+     the classic **`invert(100%) hue-rotate(180deg)`** pairing solves this instead: inverting
+     flips every element's lightness (dark labels become light, light terrain becomes dark)
+     while the compensating 180° hue rotation approximately restores each element's original
+     hue (blue sea stays blue-ish rather than flipping to its RGB-inverted complementary
+     orange). `TILE_DARK_FILTER_CLASS` (`components/route-map-preview.tsx`) is
+     `[filter:invert(100%)_hue-rotate(180deg)_brightness(95%)_contrast(90%)_saturate(130%)]`
+     — `contrast`/`saturate` tune richness on top of the inverted result. `TILE_ATTRIBUTION`
+     changed to OpenTopoMap's own required wording (their usage policy asks for this exact
+     "map data / map style" phrasing, crediting both OpenStreetMap and the SRTM elevation
+     dataset the terrain shading is computed from, not just a generic OSM credit).
+  The delivery mechanism is unchanged across all three attempts: Leaflet's `TileLayer`/
+  `GridLayer` accepts a real `className` option (`TileLayerProps extends TileLayerOptions`,
+  confirmed against `node_modules/@types/leaflet`) applied to the tile layer's own container
+  `<div>` — a sibling of the overlay pane the `Polyline` renders into and the DOM the custom
+  zoom controls/badge live in, so the filter reaches only the basemap tiles, never the route
+  line or the custom chrome floating on top. **A CSS filter is inherently approximate, not a
+  precise hex target** — the source tile's own pixel values vary by location and zoom, so
+  every filter here was tuned by visual verification, not computed to land on an exact color:
+  a standalone Leaflet instance with the exact tile+filter combo, checked against both real
+  coastal/mountain terrain (Sa Calobra) and a dense city (Palma de Mallorca) for the current
+  OpenTopoMap version. Confirmed live: sea renders as a rich dark navy/teal, mountain terrain
+  shows genuine contour-line elevation shading in warm dark greens/browns, urban grids read
+  as slate gray, place/peak labels (tested down to "Puig Major," "sa Bretxa") invert to
+  crisp legible white, and the Strava-orange route has strong, unmistakable contrast against
+  all of it.
 - **The "Ruta" select's dark styling** (`selectableFieldDarkClass`, `lib/ui-classes.ts`)
   was originally a translucent `bg-white/10` over the widget's own `#181818` background —
   low-contrast, since a 10%-white overlay on near-black stays close to near-black. Switched
@@ -1661,11 +1679,12 @@ inside the card the *sole* control for picking which ride gets analyzed:
   and that default read as disproportionately large/heavy next to this app's otherwise
   compact chrome. Went through several iterations: two buttons sharing one bordered/
   shadowed pill, then two independent light `bg-white/90` squares, and now — as part of
-  the "Dark Vector HUD" pass (see the main `RouteMapPreview` section above) — two
-  translucent glass squares (`size-7 border-white/10 bg-[#181818]/80 text-white
-  backdrop-blur-md`, `hover:bg-white/10`) matching the map's own now-dark tiles rather than
-  a light square that would cut against them. This is a change to the shared
-  `RouteMapPreview` component, so it applies equally to the Fueling Planner's own map
+  the "Dark Vector HUD"/"Strava Dark Mode Topo" passes (see the main `RouteMapPreview`
+  section above) — two translucent glass squares (`size-7 border-white/15 bg-[#181818]/80
+  text-white backdrop-blur-md`, `hover:bg-white/10`) matching the map's own now-dark,
+  colorful topo tiles rather than a light square that would cut against them. This is a
+  change to the shared `RouteMapPreview` component, so it applies equally to the Fueling
+  Planner's own map
   usage, not just this card.
 - **Date/time stamp** — `formatActivityDateTime()` builds "Martes 28 de Julio · Inicio a
   las 17:30h" from three separate `Intl`/`toLocaleDateString` calls (weekday, day, month,
@@ -2885,6 +2904,16 @@ segmented-button state also gained a `hover:bg-white` alongside its existing
 `hover:border-terracotta` (all 5 call sites), so hovering lightens the fill slightly in
 addition to the border-color shift, matching a more literal reading of "imitando los
 botones de cabecera de PNS."
+
+**A seventh pass** replaced the monochrome dark basemap with a genuinely colorful "Strava
+Dark Mode Topo" — a request the two prior map passes' CartoDB-based approach fundamentally
+couldn't satisfy (both `light_all`-inverted and `dark_all` are monochrome by design, with no
+color information left for a filter to recover). Switched tile providers a second time, to
+OpenTopoMap, and replaced the route color with Strava's literal brand orange (`#FC5200`) —
+see "Dark Vector HUD" in the main `RouteMapPreview` documentation above for the full
+three-iteration history, the `invert(100%) hue-rotate(180deg)` technique that makes a
+light-designed topo tile work as a legible dark map, and the live verification against real
+coastal/mountain and urban terrain.
 
 ### Spanish-only UI text
 
