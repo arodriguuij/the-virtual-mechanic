@@ -276,23 +276,23 @@ structure:
   `bg-white` box of its own), and a left-accent-bordered (`border-l-2 border-terracotta`)
   "Pauta de ingesta (calibrada a tolerancia media)" block sit unwrapped inside the outer
   card/column — the *page-level* card wrapper (mobile only) is the one concession to
-  "cards," not a second nested one around this readout too. Still fully static/illustrative
-  data needing no network round-trip, and the subheader pill line above it
-  ("Gut training • Impacto térmico • Estrategia de bolsillo", `headerPills` in
-  `components/login-hero.tsx`) was rewritten to name the app's actual differentiating
-  features rather than the earlier, more generic "Ratio 1:0.8 • Meteo en vivo • Mezcla
-  casera." This block is no longer strictly typographic, though: the ingesta block's two new
-  lines — a `bg-neutral-100`/`border-neutral-200` pocket-food translation ("🎒 ESTRATEGIA: 2
-  geles (40g HC) + 1 bidón de electrolitos / hora") and a muted post-ride recovery line
-  ("🔄 RECUPERACIÓN POST-RUTA: 65g HC + 30g Proteína") — carry real emoji, a deliberate,
-  scoped exception to this app's usual no-emoji-in-chrome convention: this is a marketing
-  hero preview on an unauthenticated page, not the app's own interior UI, and the emoji here
-  are what make an illustrative "what this looks like in practice" translation read
-  instantly, the same reasoning that already makes an exception for the Strava icomark two
-  paragraphs below. The one deliberate icon exception on the whole page remains the Strava
-  icomark on the CTA button (`components/strava-login-button.tsx`, `w-full`, no `max-w-70`
-  cap) — Strava's API Agreement requires it for brand identification (see "Strava API
-  compliance" below).
+  "cards," not a second nested one around this readout too. Still strictly 100% typographic
+  (no icons, no emoji, no colored-dot indicator, no `bg-*`/`border-*` box anywhere inside the
+  readout) and still fully static/illustrative data needing no network round-trip. The
+  subheader pill line above it (`headerPills` in `components/login-hero.tsx`,
+  "Adaptación digestiva • Impacto térmico • Plan de avituallamiento") went through two
+  revisions before landing here: an English-leaning first pass ("Gut training • Impacto
+  térmico • Estrategia de bolsillo") and, briefly, a version of the ingesta block below it
+  with a `bg-neutral-100`/`border-neutral-200` boxed pocket-food line carrying real emoji
+  (🎒/🔄) — both reverted at explicit request, since this hero is meant to read as
+  ultra-clean PNS-style technical typography with zero English loanwords and zero
+  decoration competing with the numbers themselves; the "AVITUALLAMIENTO EN RUTA: 2 geles
+  (40g HC) + 1 bidón de electrolitos / h" and "RECUPERACIÓN POST-RUTA: 65g HC + 30g
+  Proteína" lines are now plain `block font-mono` text with no emoji and no
+  background/border of their own, same as every other line in this readout. The one
+  deliberate icon exception on the whole page remains the Strava icomark on the CTA button
+  (`components/strava-login-button.tsx`, `w-full`, no `max-w-70` cap) — Strava's API
+  Agreement requires it for brand identification (see "Strava API compliance" below).
   **Vertical spacing** — the whole readout carries its own `my-6 border-y
   border-neutral-200/60 py-5 sm:my-10 sm:py-8` (on top of, not instead of, the existing
   internal `my-4 sm:my-6` spacing between the route line/stat grid/prescription block) —

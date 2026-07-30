@@ -4,7 +4,7 @@ import { memo, type ReactNode } from "react";
 
 import { RatioLogo } from "@/components/icons/RatioLogo";
 
-const headerPills = ["Gut training", "Impacto térmico", "Estrategia de bolsillo"];
+const headerPills = ["Adaptación digestiva", "Impacto térmico", "Plan de avituallamiento"];
 
 const telemetryStats = [
   { label: "Potencia NP", value: "228 W" },
@@ -131,7 +131,7 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
             Nutrición de precisión para ciclistas
           </h1>
 
-          <p className="mb-6 block font-mono text-[10px] font-bold tracking-widest text-terracotta uppercase sm:text-xs">
+          <p className="mb-6 block font-mono text-[11px] tracking-widest text-terracotta uppercase">
             {headerPills.join(" • ")}
           </p>
 
@@ -186,11 +186,11 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
                 </span>
               </p>
 
-              <p className="mt-2 rounded-md border border-neutral-200 bg-neutral-100 p-2 font-mono text-xs text-neutral-700">
-                🎒 ESTRATEGIA: 2 geles (40g HC) + 1 bidón de electrolitos / hora
+              <p className="mt-2 block font-mono text-xs text-neutral-700">
+                AVITUALLAMIENTO EN RUTA: 2 geles (40g HC) + 1 bidón de electrolitos / h
               </p>
-              <p className="mt-1 font-mono text-[11px] text-neutral-500">
-                🔄 RECUPERACIÓN POST-RUTA: 65g HC + 30g Proteína
+              <p className="mt-1 block font-mono text-[11px] text-neutral-500">
+                RECUPERACIÓN POST-RUTA: 65g HC + 30g Proteína
               </p>
             </div>
           </div>
