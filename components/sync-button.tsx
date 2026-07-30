@@ -7,6 +7,7 @@ import { useFormStatus } from "react-dom";
 
 import { cn } from "@/lib/utils";
 import { Toast, type ToastData } from "@/components/toast";
+import { secondaryButtonClass } from "@/lib/ui-classes";
 
 /**
  * `useFormStatus` only tracks pending state when the enclosing `<form>`'s
@@ -16,10 +17,14 @@ import { Toast, type ToastData } from "@/components/toast";
  * hitting the exact same `POST /api/strava/sync` route), which is what
  * makes this component's pending state real.
  *
- * Ultra-compact at every breakpoint — a single icon + "Sincronizar" label,
- * no separate mobile/desktop text variants, since the button is small enough
- * now (`h-8`) that the shorter label reads fine next to the Dashboard's own
- * greeting/title on any screen size.
+ * Now renders through the shared `secondaryButtonClass` (`lib/ui-classes.ts`)
+ * instead of its own one-off `bg-white`/`text-[#FC4C02]` treatment — the
+ * previous white-card-plus-Strava-orange pairing broke the PNS editorial
+ * palette every other button in the app already follows, and gave this one
+ * button a fourth, undocumented button style. The `RefreshCw` icon carries
+ * no color class of its own, so it simply inherits whatever text color the
+ * button itself is using (`text-terracotta` at rest, `text-white` on hover/
+ * disabled) rather than a hardcoded Strava-orange fill.
  */
 function SyncButton() {
   const { pending } = useFormStatus();
@@ -29,12 +34,10 @@ function SyncButton() {
       type="submit"
       disabled={pending}
       title="Sincronizar rutas con Strava"
-      className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-neutral-300/80 bg-white px-3 font-mono text-[11px] font-bold text-neutral-800 shadow-2xs transition-all duration-150 hover:bg-neutral-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+      className={cn(secondaryButtonClass, "shrink-0")}
     >
-      <RefreshCw className={cn("size-3.5 text-[#FC4C02]", pending && "animate-spin")} />
-      <span className="uppercase tracking-wider">
-        {pending ? "Sincronizando..." : "Sincronizar"}
-      </span>
+      <RefreshCw className={cn("size-3.5", pending && "animate-spin")} />
+      {pending ? "Sincronizando..." : "Sincronizar"}
     </button>
   );
 }

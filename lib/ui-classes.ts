@@ -17,10 +17,16 @@
 export const primaryButtonClass =
   "inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-terracotta bg-terracotta px-4 py-2.5 font-mono text-xs font-semibold tracking-wider text-white uppercase shadow-sm transition-all duration-150 hover:bg-terracotta-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-terracotta";
 
-/** The unselected/outline counterpart — inactive segmented-control pills,
- * secondary actions. */
+/** The outlined secondary-action treatment — Copiar Receta, Descargar GPX,
+ * Sincronizar, Recargar rutas. A muted `--terracotta`-outlined pill on the
+ * resting `--surface` tone, filling solid on hover — replacing an earlier
+ * plain `border-neutral-200 bg-white text-neutral-700` treatment that read as
+ * a generic gray button disconnected from this app's own PNS accent color.
+ * Any icon inside inherits this button's text color automatically as long as
+ * it has no hardcoded color class of its own (`text-current` or, more
+ * commonly, simply no color class at all). */
 export const secondaryButtonClass =
-  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 font-mono text-xs font-medium tracking-wider text-neutral-700 uppercase transition-all duration-150 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-terracotta/30 bg-surface px-4 py-2.5 font-mono text-xs font-medium tracking-wider text-terracotta uppercase shadow-sm transition-all duration-150 hover:bg-terracotta hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface disabled:hover:text-terracotta";
 
 /** Every plain `<input>`/`<select>` — profile form fields, quick-mode
  * duration/watts, GPX duration override. White by default (not `bg-surface`,

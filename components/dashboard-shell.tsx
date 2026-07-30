@@ -218,10 +218,19 @@ export function DashboardShell({
         onClick={() => setMobileOpen(false)}
       />
 
+      {/* Mobile: anchored to the right edge, sliding in from
+          `translate-x-full` (off-screen right) to `translate-x-0` — a
+          right-hand hamburger button (below) opening a right-hand drawer is
+          the more familiar mobile-nav convention than the left/left pairing
+          this used to be. Desktop (`lg:`) is untouched: the same element is
+          also the permanent left sidebar there, so every mobile-only class
+          above has an `lg:` override putting it back on the left, borderless
+          side flipped to `border-r`, and always visible regardless of
+          `mobileOpen`. */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-10000 w-64 border-r border-neutral-200 bg-background transition-transform lg:translate-x-0",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 right-0 z-10000 w-64 border-l border-neutral-200 bg-background transition-transform lg:right-auto lg:left-0 lg:translate-x-0 lg:border-l-0 lg:border-r",
+          mobileOpen ? "translate-x-0" : "translate-x-full"
         )}
       >
         <SidebarContent
@@ -236,13 +245,6 @@ export function DashboardShell({
 
       <div className="flex flex-1 flex-col lg:pl-64">
         <header className="sticky top-0 z-40 flex w-full items-center justify-center border-b border-neutral-200/80 bg-white/90 px-6 py-4 backdrop-blur-md transition-all lg:hidden">
-          <button
-            type="button"
-            className="absolute left-6 cursor-pointer text-neutral-500 transition-colors duration-150 hover:text-neutral-900"
-            onClick={() => setMobileOpen(true)}
-          >
-            <Menu className="size-5" />
-          </button>
           <Link
             href="/"
             onClick={(e) => scrollToTopIfHome(e, pathname)}
@@ -252,6 +254,13 @@ export function DashboardShell({
             <RatioLogo className="size-6 shrink-0 text-terracotta" />
             RATIO
           </Link>
+          <button
+            type="button"
+            className="absolute right-6 cursor-pointer text-neutral-500 transition-colors duration-150 hover:text-neutral-900"
+            onClick={() => setMobileOpen(true)}
+          >
+            <Menu className="size-5" />
+          </button>
         </header>
 
         <main className="mx-auto w-full max-w-7xl flex-1 px-6 pt-10 pb-12 sm:px-8 sm:pt-14 sm:pb-16">

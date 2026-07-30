@@ -2218,7 +2218,22 @@ everything else that can render above the page on mobile: the drawer backdrop/`<
 are `z-9999`/`z-10000` (well above the header's `z-40`, so opening the drawer fully covers
 it) and `RouteMapPreview`'s Leaflet container is `relative z-0 isolate` (so its internal
 panes/zoom-control z-indexes, up to `1000`, stay contained below the sticky header and can
-never escape upward past their own container while scrolling).
+never escape upward past their own container while scrolling.
+
+**Mobile drawer now opens from the right, not the left.** The hamburger button moved from
+the mobile header's left edge (`absolute left-6`, first child before the centered brand
+`Link`) to its right edge (`absolute right-6`, now the last child) — a right-hand hamburger
+opening a right-hand drawer is the more familiar mobile-nav convention than the left/left
+pairing this used to be. The `<aside>` itself is the *same* element as the desktop's
+permanent left sidebar (see "The `(app)` route group..." above), so only its mobile-specific
+classes flipped: `right-0`/`border-l` at the base (was `left-0`/`border-r`), with the closed/
+open transform swapping from `-translate-x-full`/`translate-x-0` to `translate-x-full`/
+`translate-x-0` (off-screen to the *right* now, not the left) — each paired with an `lg:`
+override (`lg:right-auto lg:left-0 lg:border-l-0 lg:border-r`, plus the pre-existing
+`lg:translate-x-0`) putting the desktop sidebar right back on the left, unaffected. The
+in-panel "X" close button (`SidebarContent`'s own header row) didn't need to move — it
+already sat at the *panel's own* right edge, which now also happens to be the true viewport's
+right edge once the panel itself moved there, still a clean, reachable corner either way.
 
 The sidebar's bottom identity card (`components/viewer-identity.tsx`) is a separate,
 Suspense-streamed Server Component (`ViewerIdentity`/`ViewerIdentitySkeleton`) rather than
@@ -2389,7 +2404,11 @@ TypeScript identifiers, types, and code comments (`FuelingMode`, `fuelingMode` s
 were deliberately left alone — renaming those has no user-visible effect and would be a
 large, risk-only mechanical refactor across API routes/DB-adjacent code. Changes:
 
-- Dashboard tabs: "Pre-Ride"/"Post-Ride" → "Antes de salir"/"Al llegar".
+- Dashboard tabs: "Pre-Ride"/"Post-Ride" → "Antes de salir"/"Al llegar" — later renamed
+  again to "Pre-ruta"/"Post-ruta" for a more technical/professional register (see the
+  "Code style" section's `TabsTrigger`/`font-mono` note above). The internal `"pre-ride"`/
+  `"post-ride"` `Tabs` `value`s stayed the same through both renames, same "copy changes,
+  identifiers don't" convention as everything else in this section.
 - "Planificador de fueling" → "Planificador de nutrición" (both the Fueling Planner's own
   `CardTitle` and the no-profile-yet fallback card in `app/(app)/page.tsx`).
 - "Receta DIY"/"Dosis DIY"/"(DIY)" → "receta casera"/"Dosis casera" (`fueling-planner.tsx`
@@ -2565,11 +2584,17 @@ layout, not an afterthought squeezed into a desktop grid. The `app/(app)/page.ts
 greeting/title in their own `min-w-0` truncating column — an earlier `flex-col`-wrapping
 version let a long label clip the greeting text on a narrow phone; truncating each side
 independently instead of wrapping the whole row fixed that. The Sync button itself
-(`components/sync-button.tsx`) has since shrunk to one ultra-compact style at every
-breakpoint (`h-8 px-3 rounded-md border border-neutral-300/80 bg-white shadow-2xs`, a
-single "Sincronizar" label, no separate mobile/desktop text variants) — small enough now
+(`components/sync-button.tsx`) has since shrunk to one compact style at every breakpoint —
+a single "Sincronizar" label, no separate mobile/desktop text variants — small enough now
 that the old responsive two-label split (a short mobile-only label vs. a longer desktop
-one) was no longer needed to avoid clipping. The planner's
+one) was no longer needed to avoid clipping. It now renders through the shared
+`secondaryButtonClass` (see "Code style" below) rather than its own one-off
+`h-8 border-neutral-300/80 bg-white` treatment, which also carried a hardcoded
+Strava-orange (`#FC4C02`) `RefreshCw` icon — restyled to this app's own `--surface`/
+`--terracotta` palette, with the icon simply inheriting the button's own text color
+instead of a hardcoded brand color unrelated to Strava-specific branding requirements
+(unlike the CTA button on `/login`, this Dashboard-internal button has no Strava-branding
+obligation to keep its icon orange — see "Strava API compliance" below). The planner's
 route/quick/GPX mode toggle is a compact
 `grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1` segmented control (an inner
 `rounded-md bg-neutral-900 shadow-sm` pill marks the active mode) rather than a row of
@@ -2619,7 +2644,11 @@ native swipe gestures (back/forward navigation) with zero interference from this
 which a custom edge-swipe handler and an `overscroll-behavior` override necessarily work
 against. If drawer gestures are ever revisited, keep in mind this exact tension — a
 edge-swipe-to-open drawer and "never touch Safari's own back-swipe" are close to mutually
-exclusive on the same edge of the screen.
+exclusive on the same edge of the screen. This was written when the drawer opened from the
+left, the same edge iOS Safari's own back-swipe lives on; now that the drawer opens from the
+right instead (see "Mobile drawer now opens from the right" above), that specific conflict
+no longer applies to *this* edge — still tap/click-only, though, since no gesture layer was
+ever added back.
 
 **Mobile dashboard priority reorder.** A brand-new athlete's first useful action is
 calculating a fueling strategy, not reading a week of stats they don't have yet — so on
@@ -2709,25 +2738,56 @@ status bar blends with the page instead of showing a mismatched color.
   component. `--badge-bg`/`--badge-foreground`/`--badge-border` (`bg-badge`/
   `text-badge-foreground`/`border-badge-border`) style small data pills (weather readouts,
   Gut Training level) via `badgeClass` below.
+- **No `tailwind.config.ts`/`.js` exists in this project, deliberately.** Tailwind v4's
+  CSS-first setup (`@import "tailwindcss"` at the top of `app/globals.css`) makes the
+  `@theme inline` block above the actual, current way to extend the theme — a legacy
+  `tailwind.config.ts` with its own `theme.extend.colors`/`fontFamily` block wouldn't just
+  be redundant here, it would go largely *unread* by this version of Tailwind. A pass that
+  formalized this app's "PNS design system" was scoped accordingly: rather than introducing
+  a second, `pns-*`-prefixed color namespace (`pns-brand`, `pns-bg`, etc.) sitting alongside
+  the existing `--terracotta`/`--surface`/`--background` tokens — which, hex-for-hex, are
+  already the same PNS palette under different names (`--terracotta` is already `#827b66`,
+  the exact "PNS Bronze" value) — the existing token set was confirmed complete and reused
+  as-is, with one genuinely missing piece added: a brand-colored `::selection` rule in
+  `app/globals.css`'s `@layer base` (`background-color: var(--terracotta); color: #ffffff`),
+  so selecting text anywhere in the app shows this app's own accent instead of the browser's
+  default blue highlight. A codebase-wide audit for stray bright colors outside the token
+  system (`grep` for `hover:`/`focus:`/plain `bg-`/`text-`/`border-` utilities in red/
+  orange/blue/etc.) turned up only semantically-justified exceptions already documented
+  elsewhere — inline form-validation red (`invalidFieldClass`), the logout button's
+  destructive-action red hover, the amber `ProfileRequiredBanner`'s own darker-amber hover,
+  and the Strava icomark's required brand orange (`components/strava-mark.tsx`, `#FC4C02`,
+  see "Strava API compliance" below) — plus the Sync button's own now-fixed stray orange
+  icon (see "Strava OAuth" below). Nothing else needed changing.
 - **`lib/ui-classes.ts`** is the shared button/field/badge class-string baseline — every
   hand-rolled `<button>`/`<input>`/`<select>` across the Dashboard, Pre-Ride planner,
   Post-Ride analysis, and Physiological Profile form imports `primaryButtonClass`
   (terracotta fill, `rounded-lg`, `font-mono` uppercase — CALCULAR ESTRATEGIA, ANALIZAR,
-  GUARDAR, GUARDAR CONSUMO REAL), `secondaryButtonClass` (white/outline counterpart —
-  Copiar receta, Descargar GPX, Sincronizar), `fieldClass`/`selectableFieldClass` (every
+  GUARDAR, GUARDAR CONSUMO REAL), `secondaryButtonClass` (terracotta-outlined counterpart,
+  filling solid `bg-terracotta`/`text-white` on hover — Copiar receta, Descargar GPX,
+  Sincronizar; originally a plain `border-neutral-200 bg-white text-neutral-700` gray
+  treatment, restyled off this app's own `--surface`/`--terracotta` tokens once the Sync
+  button's own one-off white-card-plus-Strava-orange style was identified as a fourth,
+  undocumented button variant — see "Strava OAuth" below for `SyncButton` specifically),
+  `fieldClass`/`selectableFieldClass` (every
   plain input vs. every select/date field), or `badgeClass` — plain exported strings
   composed via `cn()` at each call site for its own state-dependent classes (disabled,
   active, etc.), not a wrapping component, since every call site already needs that
   composition anyway. A file-local `const inputClass = fieldClass` alias is fine where a
   file already had many call sites under that name; don't invent a *second* set of
   near-identical classes for a new button/field — import from here.
-- Bold uppercase tracked headers (`CardTitle`'s default, the page `<h1>`, `TabsTrigger`
-  labels) stay in the same clean geometric sans as everything else — never a monospace/
-  retro face for names or labels — with `font-mono` reserved strictly for *displayed
-  numeric metrics* (stat blocks, recipe grams, ride distances, the pocket-food carb
-  figures — never on user-editable form inputs like a `<select>` full of words, and never
-  on a food/label *name*, only the number next to it) and, as of the design-system pass
-  above, also the uppercase label text on every shared button/badge class. Structural
+- Bold uppercase tracked headers (`CardTitle`'s default, the page `<h1>`) stay in the same
+  clean geometric sans as everything else — never a monospace/retro face for names or
+  labels — with `font-mono` reserved strictly for *displayed numeric metrics* (stat blocks,
+  recipe grams, ride distances, the pocket-food carb figures — never on user-editable form
+  inputs like a `<select>` full of words, and never on a food/label *name*, only the number
+  next to it), the uppercase label text on every shared button/badge class (design-system
+  pass), and — as of the Dashboard's "Pre-ruta"/"Post-ruta" rename — `TabsTrigger` labels
+  too. `TabsTrigger` was a deliberate, later exception to "never on names": the Dashboard's
+  two tabs are short, technical-reading labels (closer to a mode/status indicator than a
+  prose name), so this one spot intentionally reads as mono/caps like the rest of this
+  app's technical chrome rather than staying in the sans face `CardTitle`/`<h1>` keep.
+  Structural
   dividers are soft `border-neutral-200`/`border-neutral-300` lines, not `border-neutral-900`
   — a stark black divider reads as heavy-handed/brutalist rather than clean; `border-neutral-900`
   itself is no longer used for "active/selected" states either (that's `border-terracotta`

@@ -229,15 +229,15 @@ export default async function Home({
         <TabsList variant="line" className="w-full justify-start border-b border-neutral-200">
           <TabsTrigger
             value="pre-ride"
-            className="flex-none text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
+            className="flex-none font-mono text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
           >
-            Antes de salir
+            Pre-ruta
           </TabsTrigger>
           <TabsTrigger
             value="post-ride"
-            className="flex-none text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
+            className="flex-none font-mono text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
           >
-            Al llegar
+            Post-ruta
           </TabsTrigger>
         </TabsList>
 
