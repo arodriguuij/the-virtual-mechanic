@@ -1,10 +1,17 @@
+import type { Metadata } from "next";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 import { RatioLogo } from "@/components/icons/RatioLogo";
 
-export const metadata = {
-  title: "Política de Privacidad — RATIO",
+// Just the page-specific segment — the root layout's own `title.template`
+// (`"%s | RATIO"`) appends the brand suffix, so this resolves to "Política de
+// Privacidad | RATIO" rather than hardcoding the old "— RATIO" em-dash
+// format that predates that template convention. No `icons`/`openGraph`
+// override here either — this route inherits the root layout's real
+// favicon/OG config rather than silently shadowing it.
+export const metadata: Metadata = {
+  title: "Política de Privacidad",
 };
 
 const h2Class = "font-mono text-sm font-bold tracking-wide text-neutral-900 uppercase";
