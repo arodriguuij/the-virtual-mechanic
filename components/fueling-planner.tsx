@@ -767,7 +767,7 @@ export function FuelingPlanner({
                   just inverted to dark. */}
               <div className="rounded-2xl border border-white/10 bg-[#181818] p-4 text-white shadow-xl sm:col-span-2 sm:p-6">
                 <div className="flex items-center justify-between gap-2">
-                  <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-400 uppercase">
+                  <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-300 uppercase">
                     Ruta
                   </label>
                   <button
@@ -775,7 +775,7 @@ export function FuelingPlanner({
                     onClick={handleRefreshRoutes}
                     disabled={refreshingRoutes}
                     title="Recargar rutas desde Strava"
-                    className="flex cursor-pointer items-center gap-1 text-[10px] font-mono tracking-widest text-zinc-400 uppercase transition-colors duration-150 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex cursor-pointer items-center gap-1 text-[10px] font-mono tracking-widest text-zinc-300 uppercase transition-colors duration-150 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <RefreshCw className={cn("size-3", refreshingRoutes && "animate-spin")} />
                     {refreshingRoutes ? "Sincronizando…" : "Recargar"}

@@ -55,9 +55,14 @@ export const selectableFieldClass =
 
 /** The same `selectableFieldClass` treatment, restyled for a `<select>`
  * sitting on a near-black surface — the Route map's "Obsidian" widget is
- * the one place in the app dark enough to need this. */
+ * the one place in the app dark enough to need this. A solid `#242424` fill
+ * (not the earlier translucent `bg-white/10`, which blended toward the
+ * `#181818` card behind it and read as low-contrast) gives this control its
+ * own distinct, consistent surface — a "control panel" sitting a shade
+ * lighter than the card itself, with `border-white/15` and `text-zinc-100`
+ * for a crisp, legible route name against it. */
 export const selectableFieldDarkClass =
-  "w-full cursor-pointer appearance-none rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 pr-9 text-sm text-white shadow-sm transition-all duration-150 hover:border-white/40 focus:border-white/50 focus:outline-none focus:ring-1 focus:ring-white/40";
+  "w-full cursor-pointer appearance-none rounded-xl border border-white/15 bg-[#242424] px-4 py-2.5 pr-9 text-sm font-medium text-zinc-100 shadow-sm transition-all duration-150 hover:border-white/30 focus:border-white/40 focus:outline-none focus:ring-1 focus:ring-white/30";
 
 /** Pairs with every `selectableFieldClass`/`selectableFieldDarkClass` — the
  * `<ChevronDown>` that replaces the native dropdown arrow stripped by

@@ -1353,35 +1353,58 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   `MapContainer`/`TileLayer`/`Polyline`, plus a small `FitBoundsToRoute` child component
   that calls the underlying Leaflet map's `fitBounds()` imperatively via `useMap()` inside
   a `useEffect` — `react-leaflet` has no declarative "fit to these bounds" prop, so this
-  is the documented pattern for it. Tile layer is still CartoDB Positron (`light_all`) —
-  the *light* variant, deliberately, even though the map now renders dark (see "Dark Vector
-  HUD" below) — inverting a light basemap at render time avoids needing a real dark tile
-  provider/API key. The route itself is drawn in `#C5A059`, a warmer/lighter gold than this
-  app's own `--terracotta` (`#6E6658`) — a deliberate one-off divergence from that token,
-  since the route line specifically needs to read clearly against the now-dark, inverted
-  tiles, where `--terracotta`'s own comparatively low luminance would contrast poorly. Every
-  other bronze accent in the app (buttons, borders) stays `--terracotta`; only this map
-  polyline uses the lighter gold, and only because it sits directly on the filtered dark
-  tiles. Kept as its own literal hex either way, since Leaflet's `Polyline` color prop needs
-  a plain string, not a class name.
+  is the documented pattern for it. Tile layer is CartoDB **"Dark Matter"** (`dark_all`) —
+  a *real* dark basemap from the same free, no-API-key CartoDB service this app's earlier
+  `light_all` variant already used, not a light basemap forced dark via CSS filters (see
+  "Dark Vector HUD" below for why that first attempt was replaced). The route itself is
+  drawn in `#E2B96B`, a bright warm gold — a deliberate one-off divergence from this app's
+  own `--terracotta` (`#6E6658`), since the route line specifically needs to read clearly
+  against the dark basemap, where `--terracotta`'s own comparatively low luminance would
+  contrast poorly. Every other bronze accent in the app (buttons, borders) stays
+  `--terracotta`; only this map polyline uses the brighter gold, and only because it sits
+  directly on the dark tiles. `weight: 4` (up from an original `3`) for a stroke that reads
+  as unambiguously the foreground element against the topography behind it. Kept as its
+  own literal hex either way, since Leaflet's `Polyline` color prop needs a plain string,
+  not a class name.
 - **"Dark Vector HUD"** — the map used to sit on its basemap's own native light colors,
   clashing visibly with the dark `#181818` Obsidian widget it's embedded in on the Fueling
-  Planner (see "Obsidian widget" in the Dashboard section below). Fixed with a CSS filter on
-  the tile layer itself, not the whole map: Leaflet's `TileLayer`/`GridLayer` accepts a real
-  `className` option (`TileLayerProps extends TileLayerOptions`, confirmed against
-  `node_modules/@types/leaflet`) applied to the tile layer's own container `<div>` — a
-  sibling of the overlay pane the `Polyline` renders into and the DOM the custom zoom
-  controls/badge live in, so a filter placed here can invert *only* the basemap tiles
-  without touching the route line or any of the custom chrome floating on top of them.
-  `TILE_DARK_FILTER_CLASS` (`components/route-map-preview.tsx`) is `[filter:grayscale(100%)
-  _invert(90%)_contrast(120%)_brightness(85%)]` — `grayscale` strips CartoDB Positron's own
-  light greens/blues, `invert` flips the now-monochrome light basemap to dark, `contrast`/
-  `brightness` keep roads and labels legible rather than washing out to pure black. Verified
-  live (a standalone Leaflet + this exact filter, pointed at a real dense city rather than
-  the sparse rural Sa Calobra test route, to confirm street/label detail survives the
-  filter rather than just going solid black) — streets, water, and place labels all render
-  clearly in a moody dark monochrome, a convincing "dark topography" look from a light
-  basemap with zero extra tile-provider dependency.
+  Planner (see "Obsidian widget" in the Dashboard section below). **First attempt**: keep
+  the existing `light_all` tile and invert it dark via a CSS filter
+  (`grayscale(100%) invert(90%) contrast(120%) brightness(85%)`) on the tile layer's own
+  container — reasoned as "no new tile provider needed." This looked plausible in an
+  initial screenshot but was reported as reading "muddy," with too little separation
+  between land and roads — the real cause: `light_all`'s land and roads start at *similar*
+  light luminance values, so inverting them crushes both to similarly-dark tones with
+  little contrast between them; only originally-dark elements (label text) reliably
+  inverted to something legible. **Fixed by switching the tile source itself** to CartoDB's
+  real `dark_all` basemap instead of inverting `light_all` — land, roads, and labels there
+  are each independently designed with real dark-mode contrast in mind, not merely a
+  filtered light basemap. `dark_all`'s own default palette still reads somewhat muted, so a
+  lighter filter remains on top — `TILE_DARK_FILTER_CLASS`
+  (`components/route-map-preview.tsx`) is now just `[filter:brightness(185%)_contrast(105%)]`
+  — but this is now *lifting* an already-correct dark design rather than trying to
+  manufacture one from an inverted light source. Same delivery mechanism as before: Leaflet's
+  `TileLayer`/`GridLayer` accepts a real `className` option (`TileLayerProps extends
+  TileLayerOptions`, confirmed against `node_modules/@types/leaflet`) applied to the tile
+  layer's own container `<div>` — a sibling of the overlay pane the `Polyline` renders into
+  and the DOM the custom zoom controls/badge live in, so the filter reaches only the
+  basemap tiles, never the route line or the custom chrome floating on top. **A CSS filter
+  is inherently approximate, not a precise hex target** — the source tile's own pixel
+  values vary by location and zoom, so `brightness`/`contrast` percentages were tuned by
+  visual verification (a standalone Leaflet instance with this exact tile+filter, pointed
+  at a real dense city rather than the sparse rural Sa Calobra test route) rather than
+  computed to land on an exact color. Confirmed live: land renders as a legible graphite,
+  streets and place labels (tested against Barcelona) show clearly in light gray, and the
+  gold route line has strong, unambiguous contrast against all of it.
+- **The "Ruta" select's dark styling** (`selectableFieldDarkClass`, `lib/ui-classes.ts`)
+  was originally a translucent `bg-white/10` over the widget's own `#181818` background —
+  low-contrast, since a 10%-white overlay on near-black stays close to near-black. Switched
+  to a solid `bg-[#242424]` fill with `border-white/15` and `text-zinc-100 font-medium` —
+  its own distinct, consistently-colored "control panel" surface a shade lighter than the
+  card behind it, rather than a translucency that depends on what's behind it. The "Ruta"/
+  "Recargar" labels above it (`components/fueling-planner.tsx`) went from `text-zinc-400`
+  to `text-zinc-300` for the same reason — slightly brighter, more confidently legible
+  uppercase technical labels against the dark card.
 - **Must be dynamically imported with `ssr: false`, never statically**: Leaflet reads
   `window`/`document` at module scope, which breaks Next's server-render pass for the
   initial HTML — this is true even inside a `"use client"` file, since every client

@@ -7,13 +7,18 @@ import { MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
 
 import { cn } from "@/lib/utils";
 
-// CartoDB Positron — a clean, low-saturation basemap (no busy POI icons/
-// labels competing with the route line) that fits this app's sober
-// editorial look better than a default OSM tile set. Still the light
-// variant, deliberately — `TILE_DARK_FILTER_CLASS` below inverts it into a
-// dark "vector HUD" look at render time rather than switching to a real
-// dark tile provider, which would need its own API key/service.
-const TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+// CartoDB "Dark Matter" (`dark_all`) — a *real* dark basemap from the same
+// free, no-API-key CartoDB service this app already used for the light
+// `light_all` variant, not a light basemap hacked dark via CSS filters.
+// An earlier pass inverted `light_all` with `grayscale/invert/contrast/
+// brightness` instead, reasoning "no new tile provider needed" — but
+// inverting a light basemap can only approximate a dark one: land and
+// roads started at similar light luminance values, so after inversion they
+// end up crushed to similarly-dark tones with too little separation between
+// them, reported as the whole map reading "muddy." `dark_all` is drawn dark
+// from the start — land, roads, and labels each get real, independently
+// chosen tones, so there's proper separation without fighting a filter.
+const TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
@@ -21,22 +26,22 @@ const TILE_ATTRIBUTION =
 // `<img>` it renders (a real `L.TileLayer` option, not react-leaflet's own
 // invention) — this is what lets a CSS filter reach the actual tile images
 // without also touching the `Polyline`/zoom controls/badge, which live in
-// separate panes/DOM nodes and would otherwise get inverted right along
-// with the basemap if the filter were applied to the map container itself.
-// `grayscale` strips the tile's own light greens/blues, `invert` flips the
-// now-monochrome light basemap to dark, `contrast`/`brightness` tune the
-// result so roads/labels stay legible rather than washing out to pure
-// black — together, a light basemap reads as dark topography.
-const TILE_DARK_FILTER_CLASS = "[filter:grayscale(100%)_invert(90%)_contrast(120%)_brightness(85%)]";
+// separate panes/DOM nodes. `dark_all`'s own default palette is correct in
+// polarity (dark land, light roads/labels) but reads quite muted/low-
+// contrast straight out of the box — `brightness`/`contrast` lift it toward
+// a livelier graphite-with-silver-linework look without touching hue.
+// Approximate by nature (a CSS filter can't be tuned to land on an exact
+// target hex — the source tile's own pixel values vary by location/zoom),
+// verified visually against a real dense-city tile rather than computed.
+const TILE_DARK_FILTER_CLASS = "[filter:brightness(185%)_contrast(105%)]";
 
-// A warmer, lighter gold than this app's own `--terracotta` (`#6E6658`) —
+// A brighter, warmer gold than this app's own `--terracotta` (`#6E6658`) —
 // deliberately not that token here specifically because this line has to
-// read clearly against the now-dark, inverted basemap tiles, where
-// `--terracotta`'s comparatively low luminance would contrast poorly. Every
-// other bronze accent in the app (buttons, borders) stays `--terracotta`;
-// this is the one spot that trades token consistency for legibility on a
-// dark surface.
-const ROUTE_LINE_COLOR = "#C5A059";
+// read clearly against the dark basemap, where `--terracotta`'s
+// comparatively low luminance would contrast poorly. Every other bronze
+// accent in the app (buttons, borders) stays `--terracotta`; this is the
+// one spot that trades token consistency for legibility on a dark surface.
+const ROUTE_LINE_COLOR = "#E2B96B";
 
 /** `MapContainer` itself has no "fit to route" concept — this runs once
  * per `points` change and asks the underlying Leaflet map instance
@@ -156,7 +161,7 @@ export function RouteMapPreview({
         zoomControl={false}
       >
         <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} className={TILE_DARK_FILTER_CLASS} />
-        <Polyline positions={points} pathOptions={{ color: ROUTE_LINE_COLOR, weight: 3, opacity: 0.9 }} />
+        <Polyline positions={points} pathOptions={{ color: ROUTE_LINE_COLOR, weight: 4, opacity: 0.95 }} />
         <FitBoundsToRoute points={points} />
         <MapZoomControls />
       </MapContainer>
