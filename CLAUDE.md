@@ -280,22 +280,29 @@ structure:
   own `text-left` override against the card's `text-center` default — a technical data
   readout reads as a data sheet, not hero copy, the same "hero centered, technical readout
   left-aligned" convention as before.
-- **Telemetry readout — divider lines, reintroduced with generous padding.** The route
-  name/distance/elevation/gradient line ("Sa Calobra – Coll dels Reis" · "9.5 km · 670m D+ ·
-  7% avg · 27°C (Calor Alto)"), the 3-column stat grid (Potencia NP / Deuda glucógeno / Tasa
-  de sudor), and the "Pauta de ingesta (tolerancia media)" block went through two designs in
-  quick succession. An "ultra-clean" pass first removed every divider line this readout used
-  to carry (a `border-y` wrapping the whole block, `divide-x`/`border-y` between the 3 stat
-  cells, a `border-l-2 border-terracotta` left-accent bar on the ingesta block) in favor of
-  pure `space-y-4 sm:space-y-5` spacing. That was explicitly reverted one request later: the
-  3 sub-blocks now sit inside a `divide-y divide-zinc-200/80` wrapper again (thin hairlines
-  between them, none around the outside), but each sub-block carries a much more generous
-  `py-4 sm:py-5` this time — not the tight `py-2`/`py-3` rhythm this design had before its
-  brief removal — so the text has real room on both sides of each line rather than sitting
-  flush against it. Still strictly 100% typographic (no icons, no emoji, no colored-dot
-  indicator, no `bg-*` box anywhere inside the readout, no left-accent bar reinstated on the
-  ingesta block — only the horizontal separators came back) and still fully static/
-  illustrative data needing no network round-trip. The one-line subheader tag
+- **Telemetry readout — divider lines with generous padding, plus a continuous left
+  accent.** The route name/distance/elevation/gradient line ("Sa Calobra – Coll dels Reis" ·
+  "9.5 km · 670m D+ · 7% avg · 27°C (Calor Alto)"), the 3-column stat grid (Potencia NP /
+  Deuda glucógeno / Tasa de sudor), and the "Pauta de ingesta (tolerancia media)" block went
+  through three designs. An "ultra-clean" pass first removed every divider line this readout
+  used to carry (a `border-y` wrapping the whole block, `divide-x`/`border-y` between the 3
+  stat cells, a `border-l-2 border-terracotta` left-accent bar on the ingesta block alone) in
+  favor of pure `space-y-4 sm:space-y-5` spacing. A second pass reverted that: the 3
+  sub-blocks sit inside a `divide-y divide-zinc-200/80` wrapper again, each with a much more
+  generous `py-4 sm:py-5` (not the tight `py-2`/`py-3` rhythm this carried before its brief
+  removal). A third pass added the left accent back too, but restructured: instead of a
+  `border-l-2` on the ingesta block alone, one continuous `border-l-2 border-terracotta
+  pl-4 sm:pl-5` now wraps the *entire* 3-block group from the outside — a single accent
+  marking the whole data section as one unit, coexisting with the horizontal `divide-y`
+  rules rather than replacing them. Also part of this pass: the gap below `BrandMark` (the
+  "RATIO" logo+wordmark) grew from `gap-2` to `gap-8 sm:gap-10` — deliberately much larger
+  than the `gap-4 sm:gap-6` separating the 3 top-level sections themselves, so the brand
+  mark reads as this screen's own app-level header rather than just the hero copy's first
+  line. Still strictly 100% typographic (no icons, no emoji, no colored-dot indicator, no
+  `bg-*` box anywhere inside the readout) and still fully static/illustrative data needing
+  no network round-trip. Verified live via Playwright at 375×667/390×844/360×640: still zero
+  scroll overflow despite both the larger brand-to-title gap and the left-border padding.
+  The one-line subheader tag
   above it (`headerTagline` in `components/login-hero.tsx`, "Planificación &
   avituallamiento") went through several revisions before landing here — a 3-pill
   "ADAPTACIÓN DIGESTIVA • IMPACTO TÉRMICO • PLAN DE AVITUALLAMIENTO" line, then briefly an
@@ -2785,6 +2792,35 @@ around the Fueling Planner's own title/label groups:
   "Sincronizar" appears correctly under the mocked identity block, and the title-to-buttons
   gap is now clearly visible on both a narrow phone and desktop.
 
+**A fifth pass** removed two more divider lines and the root `Card`'s outer border, in
+favor of whitespace/background alone as the separators:
+
+- **Dashboard header's `border-b` removed.** `app/(app)/page.tsx`'s `<header>` used to
+  carry `border-b border-neutral-200/80 pb-4` under the greeting, right before the
+  Pre-ruta/Post-ruta tabs. Removed outright — the outer page wrapper's own `gap-4 sm:gap-6`
+  (already there, already separating every top-level block on this page) is now the only
+  thing between the greeting and the tabs, same "let whitespace do the work" treatment
+  already applied elsewhere on this page.
+- **`/perfil`'s header `border-b` removed** the same way — `app/(app)/perfil/page.tsx`'s
+  `<header className="border-b border-neutral-200 pb-6">` (wrapping "Perfil fisiológico" +
+  its subtitle) lost the border/padding, relying on the page wrapper's own `gap-6` before
+  "01 · Métricas físicas y equipamiento" instead.
+- **`flatMobileCardClass` (`lib/ui-classes.ts`) drops its `sm:border sm:border-neutral-200`
+  entirely** — the shared class flattening the Fueling Planner's/Post-Ride Analysis's root
+  `Card` on mobile now stays borderless at every breakpoint, not just `< sm:`. `sm:bg-card
+  sm:shadow-sm sm:rounded-xl` are unchanged, so the card still visually lifts off the
+  porcelain `bg-background` canvas via a soft fill + faint shadow — background contrast
+  alone is now the differentiator, not an outline. Scoped deliberately to just this one
+  shared root-card token: the internal accordions/result panels inside the planner (Comida
+  en bolsillo, the DIY-recipe/reload-strategy/carb-loading `<details>` blocks, the Objetivo/
+  En bolsillo/Restante summary panel) keep their own existing borders — those are distinct
+  functional sub-widgets with their own visual definition, not the "outer section container"
+  this request was about, and removing their borders wasn't asked for.
+- Verified live via Playwright (a mocked Dashboard header + card, plus a mocked `/perfil`
+  header) — both headers now flow straight into their content with no rule line, and the
+  Fueling Planner's card reads as a clean white fill with a soft shadow against the
+  porcelain background, no border anywhere.
+
 ### Spanish-only UI text
 
 A pass removed the remaining "Spanglish" — English words left over in otherwise-Spanish
@@ -2974,8 +3010,10 @@ at every breakpoint — on mobile, that meant the card's own border and padding 
 `DashboardShell`'s `<main>` padding, doubling up into a visibly boxed-in, narrower content
 area exactly when screen width is already scarcest. **`flatMobileCardClass`**
 (`lib/ui-classes.ts`) strips the card down to nothing on mobile — `rounded-none border-0
-bg-transparent shadow-none` — and restores the real card look at `sm:` and up
-(`sm:rounded-xl sm:border sm:border-neutral-200 sm:bg-card sm:shadow-sm`), applied as the
+bg-transparent shadow-none` — and restores the real card look at `sm:` and up (`sm:rounded-xl
+sm:bg-card sm:shadow-sm` — no border, not even at `sm:`, since a later PNS pass dropped it
+app-wide in favor of background-only contrast against the porcelain canvas; see "PNS premium
+redesign" above), applied as the
 `className` on both components' root `<Card>` (`cn()`'s "later utility wins" merge lets this
 override `Card`'s own built-in `border`/`bg-card`/`rounded-sm` defaults). The trickier part
 is padding: `Card`/`CardHeader`/`CardContent` all key their own `py-`/`px-` off one shared

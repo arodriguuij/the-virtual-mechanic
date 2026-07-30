@@ -138,8 +138,15 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
               reopen the mobile-scroll issue fixed earlier (verified below).
               Section 2's own internal spacing is untouched. */}
           <div className="flex flex-col gap-4 sm:gap-6">
-            {/* SECTION 1 — Branding & Header */}
-            <div className="flex flex-col items-center gap-2">
+            {/* SECTION 1 — Branding & Header. The gap below `BrandMark` is
+                deliberately much larger than every other gap on this screen
+                (`gap-8 sm:gap-10`, vs. the `gap-4 sm:gap-6` separating the 3
+                top-level sections themselves) — "RATIO" reads as this
+                screen's own app-level header, not just the first line of
+                the hero copy, so it needs to visually detach from the title
+                block beneath it rather than sitting at the same rhythm as
+                everything else. */}
+            <div className="flex flex-col items-center gap-8 sm:gap-10">
               <BrandMark />
 
               <div>
@@ -156,17 +163,18 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
             {/* SECTION 2 — Vista previa fisiológica: a real mockup of the
                 app's own visual language (the Post-Ride telemetry card's
                 stat-grid pattern, the Fueling Planner's terracotta-accented
-                recommendation block). A prior "ultra-clean" pass removed
-                every divider line here in favor of pure spacing — reverted
-                on explicit request: the 3 sub-blocks (route header, stat
+                recommendation block). The 3 sub-blocks (route header, stat
                 row, ingesta block) are separated by thin `divide-y
-                divide-zinc-200/80` rules again, but with generous `py-4
-                sm:py-5` on every block this time (not the tight `py-2`/
-                `py-3` this carried before removal), so the text has real
-                room to breathe on both sides of each line rather than
-                sitting flush against it. 100% typographic — no icons, no
-                emoji — and every figure here is illustrative/static. */}
-            <div className="w-full divide-y divide-zinc-200/80 text-left">
+                divide-zinc-200/80` rules, each with generous `py-4 sm:py-5`
+                padding so text never sits flush against a line. A
+                continuous `border-l-2 border-terracotta` runs down the
+                *outside* of the whole group (not on any one sub-block) —
+                one elegant accent marking this entire data section as a
+                single unit, rather than the left-accent bar an earlier
+                design put on just the ingesta block alone. 100%
+                typographic — no icons, no emoji — and every figure here is
+                illustrative/static. */}
+            <div className="w-full divide-y divide-zinc-200/80 border-l-2 border-terracotta pl-4 text-left sm:pl-5">
               <div className="py-4 sm:py-5">
                 <p className="truncate font-mono text-xs font-bold text-neutral-900 sm:text-sm">
                   Sa Calobra – Coll dels Reis

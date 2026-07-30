@@ -142,7 +142,11 @@ export default async function PerfilPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="border-b border-neutral-200 pb-6">
+      {/* No divider line below the subtitle — the wrapper's own `gap-6`
+          is the only separator before "01 · Métricas físicas..." now,
+          matching the same "let whitespace do the work" treatment applied
+          to the Dashboard's own header. */}
+      <header>
         <h1 className="text-xl font-bold font-mono text-neutral-900 uppercase tracking-tight sm:text-2xl">
           Perfil fisiológico
         </h1>

@@ -191,7 +191,11 @@ export default async function Home({
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
       {profileSaved && <ProfileSavedToast />}
-      <header className="w-full border-b border-neutral-200/80 pb-4">
+      {/* No divider line below the greeting anymore — the wrapper's own
+          `gap-4 sm:gap-6` (see the outer flex column above) is the only
+          separator between this and the tabs now, letting the space flow
+          rather than drawing a hard rule under "Hola, Alejandro." */}
+      <header className="w-full">
         <Suspense fallback={<GreetingSkeleton />}>
           <GreetingSection />
         </Suspense>
