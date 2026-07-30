@@ -66,15 +66,17 @@ export const metadata: Metadata = {
   },
 };
 
-// Matches the mobile sticky header's own `bg-white` (`components/
-// dashboard-shell.tsx`) — iOS Safari's status bar (clock/battery) fuses
-// with whatever color sits at the very top of the viewport, and the header
-// is that topmost element on every interior route. Previously the porcelain
-// `--background` value (`#F8F7F5`), back when the header itself was
-// translucent porcelain rather than opaque white; updated here to stay in
-// sync with that header's own reversal to pure white.
+// The porcelain `--background` token's own literal value — matches the
+// warm cream canvas every page (and every card) sits on, so iOS Safari's
+// status bar (clock/battery) reads as a continuation of the page itself.
+// Briefly flipped to pure `#FFFFFF` to match the mobile sticky header's own
+// `bg-white` (`components/dashboard-shell.tsx`) once that header stopped
+// blending with the page — reverted back to porcelain on a later, explicit
+// request: the header itself stays white (its own shadow is what separates
+// it from the page now, not a matching status-bar tone), but the status
+// bar syncs with the canvas beneath it instead.
 export const viewport: Viewport = {
-  themeColor: "#FFFFFF",
+  themeColor: "#F8F7F5",
   width: "device-width",
   initialScale: 1,
 };

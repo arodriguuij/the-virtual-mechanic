@@ -3543,6 +3543,22 @@ Three related PNS-editorial requests, applied together:
   (porcelain) unchanged — this reversal is scoped to the header bar and the status-bar color
   it dictates, not the page canvas underneath it, which every card in the app still floats
   over as porcelain.
+
+  **A further pass replaced this header's own approximated shadow with Pas Normal Studios'
+  real `box-shadow` value verbatim.** PNS's own site uses a two-layer stack —
+  `box-shadow: 0 0 #0000, 0 0 #0000, 0 4px 6px -1px #0000001a, 0 2px 4px -2px #0000001a`
+  (the first two `0 0 #0000` entries are inert — Tailwind's own multi-layer shadow
+  utilities always emit a 4-value stack with unused layers zeroed out like this; only the
+  last two entries are visually real). Translated directly to Tailwind's arbitrary-value
+  syntax: `shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-2px_rgba(0,0,0,0.1)]` — this
+  replaced the header's own prior *approximation* of that same PNS look
+  (`shadow-[0_6px_20px_rgba(0,0,0,0.07)]`, a single-layer, wider/softer guess) with PNS's
+  literal recipe. **`viewport.themeColor` reverted from `#FFFFFF` back to the porcelain
+  `#F8F7F5`** in the same pass — a deliberate, explicit instruction: the header itself
+  stays pure white (its own shadow, not a matching status-bar tone, is what separates it
+  from the page), but iOS Safari's status bar now fuses with the porcelain page canvas
+  beneath the header instead of the header's own white — the two are intentionally
+  different tones now, not synced the way they were in the immediately prior pass.
 - **Lateral padding tightened**: `<main>`'s own `px-6 sm:px-8` → `px-4 sm:px-6 md:px-8` (16px
   on a phone, was 24px) — PNS's own mobile layout sits much closer to the viewport edge than
   this app previously did, and the header's own horizontal padding was updated to match
