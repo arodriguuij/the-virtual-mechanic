@@ -297,23 +297,37 @@ structure:
   (`components/strava-login-button.tsx`, `w-full`, no `max-w-70` cap) — Strava's API
   Agreement requires it for brand identification (see "Strava API compliance" below).
 
-  **Vertical spacing, condensed to fit one mobile screen with no scroll.** The card's major
-  blocks (brand mark; hero title+tagline, kept together in their own wrapper so they don't
-  get separated by the outer rhythm; the telemetry readout; the error banner; the CTA+footer
-  group) are now spaced via a single `space-y-3.5 sm:space-y-5` on their shared parent,
-  replacing what used to be each block's own individual `mb-6`/`my-6 sm:my-10`/`mt-6` —
-  those larger, ad hoc margins were sized for a hero that could scroll if it needed to; once
-  the goal became "the whole card must fit a single mobile viewport," they were the first
-  thing to shrink. The telemetry block's own *internal* spacing (the `my-4 sm:my-6` between
-  its route line/stat grid/prescription block, and the `py-5 sm:py-8` that gives its own
-  `border-y` breathing room) is untouched — only the space *between* major blocks was
-  unified and reduced. Verified live via Playwright at 375×667 (iPhone SE, the smallest
-  commonly-supported viewport) and 390×844: `document.documentElement.scrollHeight` exactly
-  equals the viewport height at both sizes (no overflow, no scrollbar) — the gap between the
-  tagline and the route name measures 35px on mobile / 53px on desktop (down from the
-  previous pass's 45px/73px), and the gap between the CTA button and the footer line is a
-  steady 24px at both (12px from the CTA-wrapper's own `gap-3` plus the footer line's own
-  `mt-3`).
+  **Vertical spacing and type scale, condensed to fit one mobile screen with real margin to
+  spare.** This went through two passes. The first replaced each block's own individual
+  `mb-6`/`my-6 sm:my-10`/`mt-6` with a single `space-y-3.5 sm:space-y-5` on their shared
+  parent — an improvement, but a follow-up report said the card was *still* causing scroll
+  on a real phone, and a closer look found two compounding causes: `BrandMark` still carried
+  its own leftover `mb-6` on top of the new `space-y`, silently double-spacing that one gap,
+  and the underlying type scale itself (route title, stat values, the telemetry block's own
+  internal `py-5 sm:py-8`/`my-4 sm:my-6`) was still sized for a hero that could scroll if it
+  needed to, not one that had to fit a single small viewport with margin to spare. The
+  second pass fixed both: `space-y-*` was replaced with a plain `gap-2.5 sm:gap-4` flex
+  column (functionally the same idea, just the more direct primitive for a flex parent), the
+  stray `mb-6` on `BrandMark` was removed outright, and nearly every text size on the card
+  was stepped down one notch (route title `text-xs sm:text-sm`, stat labels
+  `text-[9px] sm:text-[10px] text-neutral-400`, stat values `text-xs sm:text-sm
+  text-neutral-800`, the ingesta label `text-[9px] sm:text-[10px]`, the en-ruta/post-ruta
+  lines `text-[10px] sm:text-xs text-neutral-600`) — with one deliberate exception in the
+  other direction: the "85 g/h" headline figure grew to `text-lg sm:text-2xl` specifically
+  so the one number that matters most still reads as the clear visual anchor even as
+  everything around it shrank. The telemetry block's own internal padding/margins
+  (`py-5 sm:py-8` → `py-3 sm:py-5`, `my-4 sm:my-6` → `my-2.5 sm:my-4`) were tightened too,
+  and each stat cell gained its own explicit `px-2 py-1.5` rather than relying solely on the
+  grid's own padding. `BrandMark`'s logo shrank to `size-6 sm:size-8` (from a flat `size-8`),
+  and the CTA button (`components/strava-login-button.tsx`) went from `py-4` to
+  `py-2.5 sm:py-3`. The outer centering wrapper's own padding shrank from
+  `px-4 py-8 sm:p-8 lg:p-12` to `p-3 sm:p-4 lg:p-12`, plus an explicit `overflow-hidden` as a
+  defensive backstop. Verified live via Playwright at four mobile viewports (375×667 iPhone
+  SE, 390×844, 360×640, and a deliberately conservative 375×600 to approximate a real
+  browser's on-screen chrome eating into the visible viewport) — all four report
+  `document.documentElement.scrollHeight` exactly matching their own viewport height (no
+  overflow), and at 375×667 the card itself measures only ~430px tall against the 667px
+  viewport — over 230px of real margin, not a bare fit.
 - **`app/layout.tsx` deliberately untouched.** The brief also asked for the shared root
   layout's background to go dark, aimed at the same iOS Safari white-strip class of bug —
   not implemented, and deliberately so: `app/layout.tsx` wraps every route in the app, and

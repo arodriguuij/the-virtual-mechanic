@@ -82,8 +82,8 @@ const BackgroundMedia = memo(function BackgroundMedia() {
  */
 function BrandMark() {
   return (
-    <div className="mb-6 flex items-center justify-center gap-3">
-      <RatioLogo className="size-8 text-terracotta" />
+    <div className="flex items-center justify-center gap-3">
+      <RatioLogo className="size-6 text-terracotta sm:size-8" />
       <span className="font-mono text-sm font-bold tracking-[0.35em] whitespace-nowrap text-neutral-900 uppercase sm:text-base">
         RATIO
       </span>
@@ -123,24 +123,22 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
           and just sits centered on the split screen's own cream column
           background — one component doing both jobs via responsive classes
           rather than two separate markup trees. */}
-      <div className="relative z-10 flex min-h-dvh w-full items-center justify-center px-4 py-8 sm:p-8 lg:p-12">
+      <div className="relative z-10 flex min-h-dvh w-full items-center justify-center overflow-hidden p-3 sm:p-4 lg:p-12">
         <div className="w-full max-w-md rounded-xl border border-neutral-200/80 bg-white p-4 text-center shadow-2xl sm:p-6 lg:max-w-lg lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
           {/* Vertical rhythm between the major blocks (brand mark, hero
-              title+tagline, telemetry readout, error banner, CTA) is now a
-              single `space-y-3.5 sm:space-y-5` on this wrapper rather than
-              each block carrying its own `mb-*`/`mt-*` — condensed
-              specifically so the whole card fits one mobile screen without
-              scrolling, which the previous per-block margins (`mb-6`,
-              `my-6 sm:my-10`, `mt-6`) didn't leave room for. The telemetry
-              block's own *internal* spacing (route line/stat grid/
-              prescription block, and its `py-*` breathing room against its
-              own `border-y`) is untouched — this only affects the space
-              *between* blocks, not within one. */}
-          <div className="flex flex-col space-y-3.5 sm:space-y-5">
+              title+tagline, telemetry readout, error banner, CTA) is a
+              single `gap-2.5 sm:gap-4` on this flex column rather than each
+              block carrying its own `mb-*`/`mt-*` — condensed as tight as
+              this app's own type scale allows so the whole card fits one
+              mobile screen without scrolling. The telemetry block's own
+              *internal* spacing (route line/stat grid/prescription block)
+              is untouched — this only affects the space *between* blocks,
+              not within one. */}
+          <div className="flex flex-col gap-2.5 sm:gap-4">
             <BrandMark />
 
             <div>
-              <h1 className="mb-2 font-mono text-lg font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
+              <h1 className="mb-1 font-mono text-base leading-snug font-bold tracking-tight text-neutral-900 uppercase sm:text-xl">
                 Nutrición de precisión para ciclistas
               </h1>
 
@@ -162,21 +160,21 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
                 indicator. Every figure here is illustrative/static — this
                 exists purely to preview the *shape* of a real result, not to
                 claim it's live data. */}
-            <div className="w-full border-y border-neutral-200/60 py-5 text-left sm:py-8">
-              <p className="truncate font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">
+            <div className="w-full border-y border-neutral-200/60 py-3 text-left sm:py-5">
+              <p className="truncate font-mono text-xs font-bold text-neutral-900 sm:text-sm">
                 Sa Calobra – Coll dels Reis
               </p>
-              <p className="font-mono text-[9px] text-neutral-500 sm:text-xs">
+              <p className="font-mono text-[10px] text-neutral-500 sm:text-xs">
                 9.5 km · 670m D+ · 7% avg · 27°C (Calor Alto)
               </p>
 
-              <div className="my-4 grid grid-cols-3 divide-x divide-neutral-300/80 border-y border-neutral-300/80 py-3 text-center sm:my-6">
+              <div className="my-2.5 grid grid-cols-3 divide-x divide-neutral-300/80 border-y border-neutral-300/80 text-center sm:my-4">
                 {telemetryStats.map((stat) => (
-                  <div key={stat.label}>
-                    <p className="truncate font-mono text-[7px] font-semibold tracking-wide text-neutral-500 uppercase sm:text-[9px]">
+                  <div key={stat.label} className="px-2 py-1.5">
+                    <p className="truncate font-mono text-[9px] uppercase text-neutral-400 sm:text-[10px]">
                       {stat.label}
                     </p>
-                    <p className="font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">
+                    <p className="font-mono text-xs font-bold text-neutral-800 sm:text-sm">
                       {stat.value}
                     </p>
                   </div>
@@ -184,20 +182,18 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
               </div>
 
               <div className="border-l-2 border-terracotta py-1 pl-3.5 text-left">
-                <span className="mb-0.5 block font-mono text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                <span className="mb-0.5 block font-mono text-[9px] text-neutral-400 uppercase sm:text-[10px]">
                   Pauta de ingesta (tolerancia media)
                 </span>
                 <p className="flex flex-wrap items-baseline gap-x-1.5 font-mono text-neutral-900">
-                  <span className="text-base font-bold sm:text-xl">85 g/h</span>
-                  <span className="text-[10px] font-normal text-neutral-500 sm:text-xs">
-                    · 750 ml/h · 850 mg Sodio
-                  </span>
+                  <span className="text-lg font-bold sm:text-2xl">85 g/h</span>
+                  <span className="font-mono text-xs text-neutral-500">· 750 ml/h · 850 mg Sodio</span>
                 </p>
 
-                <p className="mt-2 block font-mono text-[11px] text-neutral-500">
+                <p className="mt-1.5 block font-mono text-[10px] leading-tight text-neutral-600 sm:text-xs">
                   EN RUTA: 2 geles (40g HC) + 1 bidón/h
                 </p>
-                <p className="mt-1 block font-mono text-[11px] text-neutral-500">
+                <p className="mt-0.5 block font-mono text-[10px] leading-tight text-neutral-600 sm:text-xs">
                   POST-RUTA: 65g HC + 30g Proteína
                 </p>
               </div>
@@ -210,7 +206,7 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
               </div>
             )}
 
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               {cta}
 
               {/* A single condensed line replaces the previous 4-line
@@ -220,7 +216,7 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
                   in CLAUDE.md), just no longer spelling out every clause
                   inline on a screen that needs to fit in one mobile
                   viewport. */}
-              <p className="mt-3 block text-center font-mono text-[10px] text-neutral-400 sm:text-xs">
+              <p className="mt-2 block text-center font-mono text-[9px] leading-tight text-neutral-400">
                 Conexión segura vía OAuth con Strava ·{" "}
                 <Link href="/privacidad" className="underline underline-offset-2 hover:text-neutral-600">
                   Política de Privacidad
