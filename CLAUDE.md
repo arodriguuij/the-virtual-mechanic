@@ -3149,6 +3149,80 @@ date card, the weather stat block, the Hero result card, the accordions) were le
 flattening every one of those into divider-separated sections would be a much larger
 redesign than "remove the outer card," and wasn't part of this pass.
 
+**Pure white cards, zero borders — the full "PNS card system" pass.** A later request
+asked for every card app-wide to replicate Pas Normal Studios' own hierarchy explicitly:
+pure white (`#FFFFFF`) cards floating with **no border at all**, separated from the warm
+porcelain canvas purely through a soft diffuse shadow, and nested sub-blocks (breakdown
+rows, stat groups) using the porcelain tone itself rather than a border to read as
+"inside" their parent card. This landed as one shared token plus a handful of scoped
+call-site changes:
+
+- **`cardShadowClass`** (`lib/ui-classes.ts`) — `shadow-[0_2px_12px_rgba(0,0,0,0.03)]`,
+  the one shadow value every card in the app now shares, deliberately not Tailwind's
+  generic `shadow-sm` (flatter, harder-edged by comparison). Every place a card used to
+  pair `border-neutral-200`/`border-zinc-200` with `shadow-sm` now pairs zero border with
+  this token instead.
+- **The base `Card` primitive** (`components/ui/card.tsx`) — its long-standing
+  `border border-neutral-200` was removed outright and `cardShadowClass` added directly to
+  its own default class string. This is a genuine hand-edit to a shadcn-managed primitive
+  (normally left alone per this project's convention), justified because every plain
+  `<Card>` in the app (all 3 numbered cards on `/perfil`, all 6 on `/estadisticas`, all 5 on
+  `/historial`, and the Dashboard's own "sin perfil" fallback card) needed the exact same
+  change — patching each call site individually would have meant 15+ near-identical edits
+  instead of one shared-token fix, and no call site currently passes its own conflicting
+  `border-*`/`shadow-*` override that this could have clobbered (verified via a full grep
+  before making the change). `bg-card` itself needed no change — it was already pure white
+  (`#ffffff`) per this app's existing design tokens.
+- **`flatMobileCardClass`** (`lib/ui-classes.ts`) — its `sm:shadow-sm` (a plain Tailwind
+  default) switched to `sm:${cardShadowClass}` via template-literal interpolation, so the
+  Fueling Planner's and Post-Ride Analysis's own root cards (already borderless at every
+  breakpoint, see "Flat mobile cards" above) now share the exact same shadow value as
+  every other card in the app instead of a slightly different generic one.
+- **"Comida en bolsillo" (`components/fueling-planner.tsx`)** — the unified white card
+  (see the section by that name above) picked up `cardShadowClass` in place of its own
+  `shadow-sm`. Its one internal "desglose interno" — the objetivo/en bolsillo/déficit
+  breakdown + progress bar, previously floating bare on the white card with no background
+  of its own — gained the same `bg-[#F8F7F5] rounded-lg p-3` treatment the empty-state
+  placeholder in that same slot already used, so both states of this slot (calculated vs.
+  not-yet-calculated) now read as one consistent porcelain-tinted sub-block rather than
+  the placeholder alone standing out as boxed while the real result floated free.
+- **Post-Ride Analysis's telemetry summary card** (`components/post-ride-analysis.tsx`) —
+  the "Ruta sincronizada desde Strava" card (and its two alternate-state siblings rendered
+  into the exact same slot: the loading skeleton and the `needsRpe` "¿cómo sentiste el
+  esfuerzo?" prompt) all switched from `border border-neutral-200 bg-surface` to
+  `bg-white` + `cardShadowClass` — all three needed the same treatment since a loading
+  fallback must mirror the real eventual shape (this app's own established "granular
+  loading states" convention) and the RPE prompt occupies that identical visual slot.
+- **Balance neto de recuperación** — the outer wrapper around the three
+  Carbohidratos/Líquido/Sodio rows switched from `border border-neutral-200` to
+  `rounded-lg bg-[#F8F7F5]` (no border) — the porcelain tone marking it as a sub-block
+  nested inside the (borderless, white-at-`sm:`) parent card. Each individual
+  `BalanceNetoRow` already used `bg-surface` with no border of its own (unchanged by this
+  pass) — a subtly darker shade one layer inside the new porcelain wrapper, giving a clear
+  three-tier hierarchy: porcelain page → white card → porcelain sub-block → surface row.
+- **Fase 1 / Fase 2, and their sibling Grasas límite / Rehidratación stat cards** — all
+  four switched from `border border-neutral-200` to `bg-white` + `cardShadowClass` (Grasas
+  límite/Rehidratación weren't named explicitly in the request, but share the exact same
+  `border border-neutral-200 px-3 py-2.5` shape immediately below Fase 1/2 in the same
+  "Objetivo de recuperación post-ruta" block — leaving them bordered would have read as a
+  half-migrated inconsistency in the same visual group, not a deliberate choice).
+- **Deliberately left untouched**: form-field-shaped containers that happen to share the
+  `border border-neutral-200`/`rounded-lg` look but aren't "cards" in this system's sense —
+  the Consumo Real input rows (Carbohidratos/Agua/Sodio), the "Cambiar salida" `<select>`
+  wrapper, the DIY-recipe/reload-strategy/carb-loading `<details>` accordions, the Net Carb
+  Deficit 3-column stat row, warning/status banners (`bg-status-warning/10`), and the
+  pocket-food stepper's own list-row borders — all pre-existing, deliberately-scoped
+  decisions from earlier passes (see "Result panel visual hierarchy" and "Hybrid
+  nutrition" above) that this request didn't ask to reopen.
+- Verified live via a temporary unauthenticated route rendering a plain `<Card>`, the
+  Fueling Planner (with a mocked Strava route), and Post-Ride Analysis (with a mocked
+  `/api/post-ride/analysis` response covering the Balance Neto and Fase 1/2 blocks) side by
+  side — confirmed every card renders pure white with zero visible border and a clearly
+  perceptible soft shadow against the porcelain canvas at both mobile (390px) and desktop
+  (1280px), and that the porcelain sub-blocks (Comida en bolsillo's breakdown, Balance
+  Neto's wrapper) read as visually nested inside their white parent cards rather than
+  floating independently.
+
 The multi-column grids across the Dashboard and Perfil pages (profile form, planner
 inputs, result-panel stat rows, the Net Carb Deficit breakdown) stack to a single column
 at the default breakpoint and only go multi-column at `sm:` — mobile is the default
@@ -3468,7 +3542,9 @@ accurately — no invented pricing/category to game a rich-result eligibility ch
   button's own one-off white-card-plus-Strava-orange style was identified as a fourth,
   undocumented button variant — see "Strava OAuth" below for `SyncButton` specifically),
   `fieldClass`/`selectableFieldClass` (every
-  plain input vs. every select/date field), or `badgeClass` — plain exported strings
+  plain input vs. every select/date field), `badgeClass`, or `cardShadowClass` (the one
+  diffuse shadow every borderless white card in the app shares — see "Pure white cards,
+  zero borders" above) — plain exported strings
   composed via `cn()` at each call site for its own state-dependent classes (disabled,
   active, etc.), not a wrapping component, since every call site already needs that
   composition anyway. A file-local `const inputClass = fieldClass` alias is fine where a

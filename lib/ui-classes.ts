@@ -66,6 +66,16 @@ export const selectChevronClass =
 export const badgeClass =
   "inline-flex items-center gap-1 rounded-md border border-badge-border bg-badge px-2.5 py-1 font-mono text-badge-foreground";
 
+/** The one diffuse, borderless card shadow — pairs with a pure `bg-white`
+ * fill and zero border everywhere a card needs to read as "floating" over
+ * the porcelain canvas through elevation alone (the Pas Normal Studios
+ * "white cards, no borders" system): the base `Card` primitive, the
+ * flattened mobile root cards, and every hand-rolled white sub-block
+ * (Comida en bolsillo, the Post-Ride telemetry summary, Fase 1/Fase 2).
+ * Deliberately not Tailwind's generic `shadow-sm` — that reads flatter and
+ * harder-edged than this wider, softer spread. */
+export const cardShadowClass = "shadow-[0_2px_12px_rgba(0,0,0,0.03)]";
+
 /** Flattens the Fueling Planner's/Post-Ride Analysis's own root `<Card>` on
  * mobile — no border, no background, no shadow, no padding, so the card's
  * content sits flush against the page's own edges instead of a "card inside
@@ -74,12 +84,11 @@ export const badgeClass =
  * extra width means a boxed container reads as organized structure rather
  * than lost horizontal space — but background alone is the differentiator
  * now, not a border: a PNS-style pass dropped the `border-neutral-200`
- * entirely, so the card reads as a soft `bg-card` fill (plus a faint
- * `shadow-sm` lift) contrasting against the porcelain canvas behind it,
- * with no hard outline. Overrides `Card`'s own `border`/`bg-card`/
- * `rounded-sm` defaults (`cn()` lets the later, more specific utility win)
- * and, via the `--card-spacing` custom property `Card`/`CardHeader`/
- * `CardContent` all key off, zeroes their internal `py-`/`px-` padding at
- * the same breakpoint rather than needing a separate override on each. */
-export const flatMobileCardClass =
-  "rounded-none border-0 bg-transparent shadow-none [--card-spacing:0px] sm:rounded-lg sm:border-0 sm:bg-card sm:shadow-sm sm:[--card-spacing:--spacing(6)]";
+ * entirely, so the card reads as a soft `bg-card` fill (plus `cardShadowClass`'s
+ * diffuse lift) contrasting against the porcelain canvas behind it, with no
+ * hard outline. Overrides `Card`'s own `border`/`bg-card`/`rounded-sm`
+ * defaults (`cn()` lets the later, more specific utility win) and, via the
+ * `--card-spacing` custom property `Card`/`CardHeader`/`CardContent` all key
+ * off, zeroes their internal `py-`/`px-` padding at the same breakpoint
+ * rather than needing a separate override on each. */
+export const flatMobileCardClass = `rounded-none border-0 bg-transparent shadow-none [--card-spacing:0px] sm:rounded-lg sm:border-0 sm:bg-card sm:${cardShadowClass} sm:[--card-spacing:--spacing(6)]`;

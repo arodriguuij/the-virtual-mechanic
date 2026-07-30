@@ -35,6 +35,7 @@ import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
 import { ProfileRequiredBanner } from "@/components/profile-required-banner";
 import {
+  cardShadowClass,
   fieldClass,
   flatMobileCardClass,
   primaryButtonClass,
@@ -1054,10 +1055,11 @@ export function FuelingPlanner({
             summary (or its "sin calcular aún" placeholder) and the "Comida
             en bolsillo" accordion used to be two separate bordered boxes
             stacked on top of each other, reading as two unrelated concepts.
-            Now a single `bg-white` card (no border anywhere — background
-            alone differentiates it from the porcelain canvas behind it)
-            holds both, separated purely by `space-y-4`. */}
-        <div className="space-y-4 rounded-lg bg-white p-5 shadow-sm">
+            Now a single pure-white (`bg-white`) card (no border anywhere —
+            `cardShadowClass`'s diffuse shadow alone differentiates it from
+            the porcelain canvas behind it) holds both, separated purely by
+            `space-y-4`. */}
+        <div className={cn("space-y-4 rounded-lg bg-white p-5", cardShadowClass)}>
           {result ? (
             (() => {
               const coveredPct =
@@ -1066,7 +1068,15 @@ export function FuelingPlanner({
                   : 0;
               const deficitG = Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG);
               return (
-                <div className="space-y-2">
+                // The objetivo/cubierto/déficit breakdown is itself a
+                // "desglose interno" of the white card above — a soft
+                // `bg-[#F8F7F5]` porcelain tint (border-0), the same
+                // treatment the empty-state placeholder below already used,
+                // so both states of this slot read consistently as one
+                // internal sub-block rather than the result state floating
+                // bare on the white card while only the placeholder got a
+                // background.
+                <div className="space-y-2 rounded-lg bg-[#F8F7F5] p-3">
                   <div className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-2">
                     <span className="font-mono text-xs text-neutral-500">
                       OBJETIVO {result.totalRideCarbsG}g HC
@@ -1089,10 +1099,9 @@ export function FuelingPlanner({
               );
             })()
           ) : (
-            // "Option B" internal banner — a soft `bg-[#F8F7F5]` tint (the
-            // canvas tone itself, not a new gray) rather than a border, so
-            // this empty-state note still reads as *inside* the white card,
-            // not a box of its own.
+            // A soft `bg-[#F8F7F5]` tint (the canvas tone itself, not a new
+            // gray) rather than a border, so this empty-state note still
+            // reads as *inside* the white card, not a box of its own.
             <div className="rounded-lg bg-[#F8F7F5] p-3 font-mono text-xs text-zinc-600">
               Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
             </div>

@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { cardShadowClass } from "@/lib/ui-classes"
 import { cn } from "@/lib/utils"
 
 function Card({
@@ -12,7 +13,10 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-sm border border-neutral-200 bg-card py-(--card-spacing) text-sm text-card-foreground [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-sm *:[img:last-child]:rounded-b-sm",
+        // PNS-style "white card, no border" system — pure `bg-card` (white)
+        // fill with zero border, differentiated from the porcelain page
+        // behind it through `cardShadowClass`'s diffuse elevation alone.
+        `group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-sm border-0 bg-card py-(--card-spacing) text-sm text-card-foreground ${cardShadowClass} [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-sm *:[img:last-child]:rounded-b-sm`,
         className
       )}
       {...props}
