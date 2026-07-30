@@ -2197,10 +2197,18 @@ single-line flip back to `false`, not restoring deleted markup. A disabled entry
 a plain `<div aria-disabled="true">` (not a `<Link>`, not a `Link` with a blocked `onClick`)
 — there's no `href` to accidentally trigger prefetching or a stray navigation on middle-
 click/keyboard-Enter the way suppressing a real anchor's default behavior would still risk.
-Visually it's `opacity-50 cursor-not-allowed select-none`, the same icon+label layout as an
-active entry, plus a trailing "Próximamente" pill (`bg-neutral-200/60 text-neutral-500`,
-`text-[9px] font-mono uppercase tracking-wider`) and a native `title` tooltip ("Sección en
-desarrollo — Próximamente") for a hovering desktop pointer. Verified live: clicking the
+Visually it's `opacity-50 cursor-not-allowed select-none`, plus a trailing "Próximamente"
+pill (`bg-neutral-200/60 text-neutral-500`, `text-[9px] font-mono uppercase
+tracking-wider`) and a native `title` tooltip ("Sección en desarrollo — Próximamente") for
+a hovering desktop pointer. **No `item.icon` is rendered for a disabled entry** — an
+earlier version did render it (dimmed like the rest of the row), which left Historial with
+a visible icon glyph next to Estadísticas' own icon rendering inconsistently faint/absent
+at a glance, an unintended visual asymmetry between two entries meant to read as equally
+"disabled." In its place sits a plain `size-4 shrink-0` empty spacer (`aria-hidden`,
+`gap-3` unchanged) — matching the exact width an active entry's icon+gap occupies, so
+Estadísticas'/Historial's own labels still line up flush with Dashboard's/Perfil's label
+text one row above, rather than sitting flush against the sidebar's own left edge with no
+icon column to indent past. Verified live: clicking the
 disabled entry leaves the URL unchanged.
 
 The same `SidebarContent` header

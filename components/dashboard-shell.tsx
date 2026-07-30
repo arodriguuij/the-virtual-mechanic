@@ -84,7 +84,12 @@ function SidebarContent({
                 title="Sección en desarrollo — Próximamente"
                 className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-xs font-medium tracking-wider text-neutral-600 uppercase opacity-50 select-none"
               >
-                <item.icon className="size-4" strokeWidth={1.5} />
+                {/* No icon for disabled/in-progress items (see CLAUDE.md) —
+                    this spacer reserves the exact same size-4 + gap-3 width
+                    an active item's icon occupies, so the label text still
+                    lines up flush with every enabled item's label instead of
+                    sitting flush against the container's own left edge. */}
+                <span className="size-4 shrink-0" aria-hidden="true" />
                 {item.label}
                 <span className="ml-auto rounded bg-neutral-200/60 px-1.5 py-0.5 font-mono text-[9px] tracking-wider text-neutral-500 uppercase">
                   Próximamente
