@@ -174,7 +174,7 @@ function SidebarContent({
               type="submit"
               disabled={isLoggingOut}
               className={cn(
-                "flex w-full items-center space-x-2 rounded-lg px-3 py-2.5 font-mono text-xs uppercase tracking-wider transition-colors duration-150",
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-xs uppercase tracking-wider transition-colors duration-150",
                 isLoggingOut
                   ? "cursor-wait text-neutral-500 opacity-70"
                   : "cursor-pointer text-neutral-500 hover:bg-terracotta/10 hover:text-neutral-900"
@@ -186,7 +186,7 @@ function SidebarContent({
                   aria-hidden="true"
                 />
               ) : (
-                <LogOut className="size-4 text-current" strokeWidth={1.5} />
+                <LogOut className="size-4 shrink-0 text-current" strokeWidth={1.5} />
               )}
               {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
             </button>

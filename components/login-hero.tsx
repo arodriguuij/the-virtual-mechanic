@@ -4,7 +4,7 @@ import { memo, type ReactNode } from "react";
 
 import { RatioLogo } from "@/components/icons/RatioLogo";
 
-const headerPills = ["Adaptación digestiva", "Impacto térmico", "Plan de avituallamiento"];
+const headerTagline = "Planificación & avituallamiento";
 
 const telemetryStats = [
   { label: "Potencia NP", value: "228 W" },
@@ -124,94 +124,109 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
           background — one component doing both jobs via responsive classes
           rather than two separate markup trees. */}
       <div className="relative z-10 flex min-h-dvh w-full items-center justify-center px-4 py-8 sm:p-8 lg:p-12">
-        <div className="w-full max-w-md rounded-xl border border-neutral-200/80 bg-white p-6 text-center shadow-2xl lg:max-w-lg lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
-          <BrandMark />
+        <div className="w-full max-w-md rounded-xl border border-neutral-200/80 bg-white p-4 text-center shadow-2xl sm:p-6 lg:max-w-lg lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
+          {/* Vertical rhythm between the major blocks (brand mark, hero
+              title+tagline, telemetry readout, error banner, CTA) is now a
+              single `space-y-3.5 sm:space-y-5` on this wrapper rather than
+              each block carrying its own `mb-*`/`mt-*` — condensed
+              specifically so the whole card fits one mobile screen without
+              scrolling, which the previous per-block margins (`mb-6`,
+              `my-6 sm:my-10`, `mt-6`) didn't leave room for. The telemetry
+              block's own *internal* spacing (route line/stat grid/
+              prescription block, and its `py-*` breathing room against its
+              own `border-y`) is untouched — this only affects the space
+              *between* blocks, not within one. */}
+          <div className="flex flex-col space-y-3.5 sm:space-y-5">
+            <BrandMark />
 
-          <h1 className="mb-2 font-mono text-lg font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
-            Nutrición de precisión para ciclistas
-          </h1>
+            <div>
+              <h1 className="mb-2 font-mono text-lg font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
+                Nutrición de precisión para ciclistas
+              </h1>
 
-          <p className="mb-6 block font-mono text-[11px] tracking-widest text-terracotta uppercase">
-            {headerPills.join(" • ")}
-          </p>
-
-          {/* Telemetry readout — a real mockup of the app's own visual
-              language (the Post-Ride telemetry card's stat-grid pattern,
-              the Fueling Planner's terracotta-accented recommendation
-              block), unwrapped from any card/border/shadow container of its
-              own so it sits directly on the parent card/column — thin
-              dividers and a left accent rule are the only structure.
-              Deliberately left-aligned even though the card around it
-              defaults to centered text: a technical data readout reads as a
-              data sheet, not hero copy. Deliberately 100% typographic — no
-              icons, no emoji, not even a colored-dot "synced" indicator.
-              Every figure here is illustrative/static — this exists purely
-              to preview the *shape* of a real result, not to claim it's
-              live data.
-
-              The block's own `my-*`/`py-*`/`border-y` (on top of the
-              existing internal `my-4 sm:my-6` spacing between the route
-              line/stat grid/prescription block, left untouched) is what
-              actually separates this whole readout from the spec line above
-              and the CTA below — at every breakpoint, not just desktop,
-              since a phone-width card is exactly where the un-padded
-              version read cramped. */}
-          <div className="my-6 w-full border-y border-neutral-200/60 py-5 text-left sm:my-10 sm:py-8">
-            <p className="truncate font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">
-              Sa Calobra – Coll dels Reis
-            </p>
-            <p className="font-mono text-[9px] text-neutral-500 sm:text-xs">
-              9.5 km · 670m D+ · 7% avg · 27°C (Calor Alto)
-            </p>
-
-            <div className="my-4 grid grid-cols-3 divide-x divide-neutral-300/80 border-y border-neutral-300/80 py-3 text-center sm:my-6">
-              {telemetryStats.map((stat) => (
-                <div key={stat.label}>
-                  <p className="truncate font-mono text-[7px] font-semibold tracking-wide text-neutral-500 uppercase sm:text-[9px]">
-                    {stat.label}
-                  </p>
-                  <p className="font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">{stat.value}</p>
-                </div>
-              ))}
+              <p className="block font-mono text-[10px] tracking-widest text-terracotta uppercase sm:text-xs">
+                {headerTagline}
+              </p>
             </div>
 
-            <div className="my-4 border-l-2 border-terracotta py-1 pl-3.5 text-left sm:my-6">
-              <span className="mb-0.5 block font-mono text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
-                Pauta de ingesta (calibrada a tolerancia media)
-              </span>
-              <p className="flex flex-wrap items-baseline gap-x-1.5 font-mono text-neutral-900">
-                <span className="text-base font-bold sm:text-xl">85 g/h</span>
-                <span className="text-[10px] font-normal text-neutral-500 sm:text-xs">
-                  · 750 ml/h · 850 mg Sodio
+            {/* Telemetry readout — a real mockup of the app's own visual
+                language (the Post-Ride telemetry card's stat-grid pattern,
+                the Fueling Planner's terracotta-accented recommendation
+                block), unwrapped from any card/border/shadow container of
+                its own so it sits directly on the parent card/column — thin
+                dividers and a left accent rule are the only structure.
+                Deliberately left-aligned even though the card around it
+                defaults to centered text: a technical data readout reads as
+                a data sheet, not hero copy. Deliberately 100% typographic —
+                no icons, no emoji, not even a colored-dot "synced"
+                indicator. Every figure here is illustrative/static — this
+                exists purely to preview the *shape* of a real result, not to
+                claim it's live data. */}
+            <div className="w-full border-y border-neutral-200/60 py-5 text-left sm:py-8">
+              <p className="truncate font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">
+                Sa Calobra – Coll dels Reis
+              </p>
+              <p className="font-mono text-[9px] text-neutral-500 sm:text-xs">
+                9.5 km · 670m D+ · 7% avg · 27°C (Calor Alto)
+              </p>
+
+              <div className="my-4 grid grid-cols-3 divide-x divide-neutral-300/80 border-y border-neutral-300/80 py-3 text-center sm:my-6">
+                {telemetryStats.map((stat) => (
+                  <div key={stat.label}>
+                    <p className="truncate font-mono text-[7px] font-semibold tracking-wide text-neutral-500 uppercase sm:text-[9px]">
+                      {stat.label}
+                    </p>
+                    <p className="font-mono text-[11px] font-bold text-neutral-900 sm:text-sm">
+                      {stat.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-l-2 border-terracotta py-1 pl-3.5 text-left">
+                <span className="mb-0.5 block font-mono text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                  Pauta de ingesta (tolerancia media)
                 </span>
-              </p>
+                <p className="flex flex-wrap items-baseline gap-x-1.5 font-mono text-neutral-900">
+                  <span className="text-base font-bold sm:text-xl">85 g/h</span>
+                  <span className="text-[10px] font-normal text-neutral-500 sm:text-xs">
+                    · 750 ml/h · 850 mg Sodio
+                  </span>
+                </p>
 
-              <p className="mt-2 block font-mono text-[11px] text-neutral-500">
-                EN RUTA: 2 geles (40g HC) + 1 bidón electrolitos / h
-              </p>
-              <p className="mt-1 block font-mono text-[11px] text-neutral-500">
-                POST-RUTA: 65g HC + 30g Proteína
+                <p className="mt-2 block font-mono text-[11px] text-neutral-500">
+                  EN RUTA: 2 geles (40g HC) + 1 bidón/h
+                </p>
+                <p className="mt-1 block font-mono text-[11px] text-neutral-500">
+                  POST-RUTA: 65g HC + 30g Proteína
+                </p>
+              </div>
+            </div>
+
+            {error && (
+              <div className="flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-left text-xs text-status-warning sm:px-4 sm:py-3 sm:text-sm">
+                <TriangleAlert className="size-4 shrink-0" />
+                {error}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3">
+              {cta}
+
+              {/* A single condensed line replaces the previous 4-line
+                  OAuth/data-use/privacy paragraph — still links to
+                  `/privacidad` (Strava's API Agreement requires the privacy
+                  policy be reachable from here, see "Strava API compliance"
+                  in CLAUDE.md), just no longer spelling out every clause
+                  inline on a screen that needs to fit in one mobile
+                  viewport. */}
+              <p className="mt-3 block text-center font-mono text-[10px] text-neutral-400 sm:text-xs">
+                Conexión segura vía OAuth con Strava ·{" "}
+                <Link href="/privacidad" className="underline underline-offset-2 hover:text-neutral-600">
+                  Política de Privacidad
+                </Link>
               </p>
             </div>
-          </div>
-
-          {error && (
-            <div className="mt-2 mb-2 flex w-full items-center gap-2 border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-left text-xs text-status-warning sm:px-4 sm:py-3 sm:text-sm">
-              <TriangleAlert className="size-4 shrink-0" />
-              {error}
-            </div>
-          )}
-
-          <div className="mt-6 flex flex-col gap-3">
-            {cta}
-
-            <p className="text-left font-mono text-[10px] text-neutral-500 sm:text-[11px]">
-              Acceso seguro mediante OAuth. Solo lectura de rutas — nunca vendemos ni compartimos
-              tus datos.{" "}
-              <Link href="/privacidad" className="underline underline-offset-2 hover:text-neutral-700">
-                Política de Privacidad
-              </Link>
-            </p>
           </div>
         </div>
       </div>

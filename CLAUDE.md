@@ -257,7 +257,7 @@ structure:
   needs to be that block's first element, no separate positioning layer required.
 - **Content column, mobile vs. desktop** — one component doing both jobs via responsive
   classes rather than two separate markup trees: `w-full max-w-md rounded-xl border
-  border-neutral-200/80 bg-white p-6 text-center shadow-2xl` on mobile — an elevated, opaque
+  border-neutral-200/80 bg-white p-4 sm:p-6 text-center shadow-2xl` on mobile — an elevated, opaque
   white modal card, centered over the fixed video via the outer wrapper's `flex
   items-center justify-center` — versus `lg:max-w-lg lg:border-0 lg:bg-transparent lg:p-0
   lg:shadow-none` at `lg:`, which strips every card affordance away entirely so the exact
@@ -274,37 +274,46 @@ structure:
   Alto)"), a `divide-x`/`border-y` 3-column telemetry grid (Potencia NP / Deuda glucógeno /
   Tasa de sudor, just thin `divide-neutral-300/80`/`border-neutral-300/80` rules, no
   `bg-white` box of its own), and a left-accent-bordered (`border-l-2 border-terracotta`)
-  "Pauta de ingesta (calibrada a tolerancia media)" block sit unwrapped inside the outer
-  card/column — the *page-level* card wrapper (mobile only) is the one concession to
-  "cards," not a second nested one around this readout too. Still strictly 100% typographic
-  (no icons, no emoji, no colored-dot indicator, no `bg-*`/`border-*` box anywhere inside the
-  readout) and still fully static/illustrative data needing no network round-trip. The
-  subheader pill line above it (`headerPills` in `components/login-hero.tsx`,
-  "Adaptación digestiva • Impacto térmico • Plan de avituallamiento") went through two
-  revisions before landing here: an English-leaning first pass ("Gut training • Impacto
-  térmico • Estrategia de bolsillo") and, briefly, a version of the ingesta block below it
-  with a `bg-neutral-100`/`border-neutral-200` boxed pocket-food line carrying real emoji
-  (🎒/🔄) — both reverted at explicit request, since this hero is meant to read as
-  ultra-clean PNS-style technical typography with zero English loanwords and zero
-  decoration competing with the numbers themselves. A follow-up pass then trimmed the
-  wording further and unified the two lines' styling — "EN RUTA: 2 geles (40g HC) + 1
-  bidón electrolitos / h" and "POST-RUTA: 65g HC + 30g Proteína," both sharing the exact
-  same `text-[11px] font-mono text-neutral-500` treatment (the first used to be a size/
-  weight/color step darker, `text-xs text-neutral-700`, reading as a visually distinct
-  tier from the second rather than one homogeneous secondary-hierarchy pair). The one
-  deliberate icon exception on the whole page remains the Strava icomark on the CTA button
+  "Pauta de ingesta (tolerancia media)" block sit unwrapped inside the outer card/column —
+  the *page-level* card wrapper (mobile only) is the one concession to "cards," not a second
+  nested one around this readout too. Still strictly 100% typographic (no icons, no emoji,
+  no colored-dot indicator, no `bg-*`/`border-*` box anywhere inside the readout) and still
+  fully static/illustrative data needing no network round-trip. The one-line subheader tag
+  above it (`headerTagline` in `components/login-hero.tsx`, "Planificación &
+  avituallamiento") went through several revisions before landing here — a 3-pill
+  "ADAPTACIÓN DIGESTIVA • IMPACTO TÉRMICO • PLAN DE AVITUALLAMIENTO" line, then briefly an
+  English-leaning "Gut training • Impacto térmico • Estrategia de bolsillo," and, separately,
+  a version of the ingesta block below it with a `bg-neutral-100`/`border-neutral-200` boxed
+  pocket-food line carrying real emoji (🎒/🔄) — all reverted, since this hero is meant to
+  read as ultra-clean PNS-style technical typography with zero English loanwords and zero
+  decoration competing with the numbers themselves. The 3-pill version was finally condensed
+  to this single short tag once a later pass needed to shrink the whole card's vertical
+  footprint to fit one mobile screen without scrolling (see "Vertical spacing" below) — one
+  line reads faster and takes less height than three pills joined by "•". "EN RUTA: 2 geles
+  (40g HC) + 1 bidón/h" (trimmed further from an earlier "...+ 1 bidón electrolitos / h",
+  which could wrap onto two lines on a narrow phone) and "POST-RUTA: 65g HC + 30g Proteína"
+  share the exact same `text-[11px] font-mono text-neutral-500` treatment. The one deliberate
+  icon exception on the whole page remains the Strava icomark on the CTA button
   (`components/strava-login-button.tsx`, `w-full`, no `max-w-70` cap) — Strava's API
   Agreement requires it for brand identification (see "Strava API compliance" below).
-  **Vertical spacing** — the whole readout carries its own `my-6 border-y
-  border-neutral-200/60 py-5 sm:my-10 sm:py-8` (on top of, not instead of, the existing
-  internal `my-4 sm:my-6` spacing between the route line/stat grid/prescription block) —
-  an earlier version had none of this, so the readout sat immediately against the spec line
-  above and the CTA below with no breathing room, most visible on a phone-width card where
-  there's no surrounding whitespace to compensate. The `border-y` reads as a clean top/
-  bottom rule bounding the whole block rather than just more empty space, at every
-  breakpoint — verified live via Playwright at 320/390px and 1280px: the gap between the
-  spec line and the route name grew from ~0 to 45px on mobile / 73px on desktop, and
-  similarly between the prescription block and the CTA button.
+
+  **Vertical spacing, condensed to fit one mobile screen with no scroll.** The card's major
+  blocks (brand mark; hero title+tagline, kept together in their own wrapper so they don't
+  get separated by the outer rhythm; the telemetry readout; the error banner; the CTA+footer
+  group) are now spaced via a single `space-y-3.5 sm:space-y-5` on their shared parent,
+  replacing what used to be each block's own individual `mb-6`/`my-6 sm:my-10`/`mt-6` —
+  those larger, ad hoc margins were sized for a hero that could scroll if it needed to; once
+  the goal became "the whole card must fit a single mobile viewport," they were the first
+  thing to shrink. The telemetry block's own *internal* spacing (the `my-4 sm:my-6` between
+  its route line/stat grid/prescription block, and the `py-5 sm:py-8` that gives its own
+  `border-y` breathing room) is untouched — only the space *between* major blocks was
+  unified and reduced. Verified live via Playwright at 375×667 (iPhone SE, the smallest
+  commonly-supported viewport) and 390×844: `document.documentElement.scrollHeight` exactly
+  equals the viewport height at both sizes (no overflow, no scrollbar) — the gap between the
+  tagline and the route name measures 35px on mobile / 53px on desktop (down from the
+  previous pass's 45px/73px), and the gap between the CTA button and the footer line is a
+  steady 24px at both (12px from the CTA-wrapper's own `gap-3` plus the footer line's own
+  `mt-3`).
 - **`app/layout.tsx` deliberately untouched.** The brief also asked for the shared root
   layout's background to go dark, aimed at the same iOS Safari white-strip class of bug —
   not implemented, and deliberately so: `app/layout.tsx` wraps every route in the app, and
@@ -550,9 +559,14 @@ together:
   `/privacidad`'s `scrollHeight` is ~1891px against an 844px viewport, genuinely
   scrollable). Plain top bar (brand mark + a "Volver" link back to `/login`) plus a normal
   scrolling `<article>`-style `<main>`.
-  Linked from `/login`'s own footer note ("Acceso seguro mediante OAuth. Solo lectura de
-  rutas — nunca vendemos ni compartimos tus datos. **Política de Privacidad**") — verified
-  the added text doesn't reintroduce mobile scroll on the login screen itself.
+  Linked from `/login`'s own footer note — originally a full sentence spelling out the
+  OAuth/data-use guarantee ("Acceso seguro mediante OAuth. Solo lectura de rutas — nunca
+  vendemos ni compartimos tus datos. **Política de Privacidad**"), condensed to a single
+  line ("Conexión segura vía OAuth con Strava · **Política de Privacidad**") once the whole
+  card needed to shrink to fit one mobile screen without scrolling (see "Login & loading
+  screens" above) — the link itself, and the compliance guarantee it points to, are
+  unchanged; only the inline legal-sounding prose around it was trimmed. Verified the
+  shorter text doesn't reintroduce mobile scroll on the login screen itself.
 - **Data-use disclosure, matching the real scopes** — the policy states the exact three
   OAuth scopes this app actually requests (`read`, `activity:read_all`,
   `profile:read_all` — see `STRAVA_SCOPES` in `lib/strava.ts`), what each is used for, and
@@ -2361,6 +2375,17 @@ elsewhere, at rest→hover, and a soft tint of `--terracotta` rather than a hard
 The `LogOut` icon carries no color class of its own (just `text-current`), so it already
 tracked whatever color the button's text was — swapping the button's own hover color was
 the only change needed, nothing icon-specific.
+
+**Icon-to-label gap, fixed.** The button's own container used `space-x-2` while every other
+Sidebar row (the `Link`s in `NAV_ITEMS`, the locked-entry `<div>`s) used `gap-3` — a real
+bug, not just an inconsistent value: `space-x-*` applies `margin-left` to non-first *element*
+children, but this button's label is a bare string (`{isLoggingOut ? "..." : "Cerrar
+sesión"}`), which renders as an anonymous text run, not an element `space-x-*`'s CSS selector
+can target — so no visible gap ever actually applied between the icon and the label. `gap`
+on a flex container, by contrast, applies to every flex item including anonymous text-run
+boxes, which is exactly why the other rows (icon + bare-string label, same shape) already
+had correct spacing. Switched to `gap-3` to match every other row exactly — verified live: a
+12px gap on both this button and the "Perfil fisiológico" `Link`, measured identically.
 
 - **`app/(app)/page.tsx`** — the Weekly Performance Panel (see above) sits above two
   `components/ui/tabs.tsx` (`@base-ui/react/tabs`) panels, labeled "Antes de salir"/"Al
