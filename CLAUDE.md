@@ -1217,6 +1217,66 @@ recipe for that specific ride's real forecast conditions.
   and the nutrition-export button (see "Nutrition export" below) — see "Result panel visual
   hierarchy" below for how these are actually arranged on screen.
 
+### Numbered-step input layout (01 · / 02 · / 03 ·)
+
+The planner's *input* half (everything before a result exists) used to be one flat
+sequence of controls with no explicit reading order — the mode toggle, the route/quick/
+GPX fields, Estrategia nutricional, and Comida en bolsillo all sat in the same undifferen-
+tiated column. Restructured to mirror `/perfil`'s own numbered-card convention
+(`01 · Métricas físicas...`, `02 · Fenotipo metabólico...`, `03 · Adaptación digestiva...`)
+exactly: three separate "tarjeta madre" white cards (`bg-white`, `rounded-xl`, zero border,
+zero shadow — this app's established flat-card system), each opening with a
+`font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase` eyebrow, spaced
+apart by `CardContent`'s own `gap-6` (no change needed there — the three step cards and
+the closing CTA are just its direct children now, same as any other top-level block).
+
+- **`01 · Selección y origen de ruta`** — the Ruta Strava/Calculadora/Subir GPX mode
+  toggle, plus whichever source-specific fields that mode needs: the route `<select>` +
+  map (route mode), Duración/Vatios inputs (Calculadora — these read as "manually
+  specifying the ride" and belong here, not in Paso 02, even though they don't involve a
+  literal route), or the GPX dropzone + map (GPX mode). This card keeps the exact
+  "full-bleed map" structure documented under "Route map preview" above (a `p-4 sm:p-6`
+  padded div for the label/select/dropzone, `RouteMapPreview` as a padding-less sibling
+  bleeding to the card's own edges, `overflow-hidden` on the outer card clipping the map's
+  corners) — Paso 01 *is* that same card now, just with the `01 ·` eyebrow and mode toggle
+  added inside its padded section, not a separate wrapper around it.
+- **`02 · Condiciones de la salida`** — Intensidad Objetivo (Sub-sección A) and Fecha y
+  Hora de Salida (Sub-sección B, `DeparturePicker`), laid out per mode: route mode shows
+  both side by side (`sm:grid-cols-2`); Calculadora mode shows only Fecha y Hora, since
+  real watts already *is* the intensity input there and there's no natural second control
+  to put beside it; GPX mode shows Intensidad + Fecha y Hora + the "Tiempo estimado
+  (editar)" override together (`sm:grid-cols-3`, only once a file's been parsed — before
+  that, a plain one-line placeholder explains what will appear once one is). No nested
+  sub-cards inside this one — `DeparturePicker` was never wrapped in its own box to begin
+  with, so simple `gap-5` spacing between the sub-sections was already enough.
+- **`03 · Estrategia y comida en bolsillo`** — the Óptimo/Mi Inventario/Híbrido selector
+  and its explanatory legend, plus the objetivo/cubierto/déficit breakdown (or its
+  "sin calcular aún" placeholder) and the "Comida en bolsillo" accordion — all integrated
+  directly as this card's own content rather than the intermediate design's separate
+  nested white sub-card. Since Paso 03 itself is already the white "tarjeta madre," the
+  breakdown/placeholder's own `bg-[#F8F7F5]` porcelain tint is what keeps it visually
+  distinct as a sub-block now — removing the old wrapper didn't remove that inner
+  differentiation, just one layer of now-redundant white-on-white nesting around it.
+- **The final CTA** ("Calcular estrategia nutricional," the "Ruta objetivo / Competición"
+  checkbox, the profile-required banner, and the target-event micro-copy) sits *after* all
+  three step cards as their own plain block, not inside any of them — matching `/perfil`'s
+  own "single full-width action button after the numbered cards" convention exactly.
+- **`CardTitle`'s own styling was overridden for this one card specifically** —
+  `text-xl font-semibold text-zinc-900 normal-case tracking-normal`, cancelling the shared
+  `CardTitle` default (`text-sm font-bold uppercase tracking-wide`) via `cn()`'s
+  later-utility-wins merge — so "Planificador de nutrición" reads like a page-level `<h1>`
+  now that it introduces a whole numbered-step structure below it, without changing
+  `CardTitle`'s own shared default for every other card in the app. `mb-6` (not the
+  literal, unconditional value it might look like) is still paired with `sm:mb-0` — the
+  documented fix for `flatMobileCardClass` zeroing `--card-spacing` on mobile still
+  applies unchanged; only the title's *own* type styling is new.
+- Verified live via a temporary unauthenticated route rendering `FuelingPlanner` directly
+  (same Playwright pattern used throughout this project's history) across all three modes
+  (Ruta Strava, Calculadora, Subir GPX) at both a 390px mobile viewport and 1280px desktop
+  — confirmed each mode's Paso 01/02 content renders correctly, the map still bleeds
+  edge-to-edge inside Paso 01, and the closing CTA sits cleanly below Paso 03 in every
+  mode.
+
 ### Result panel visual hierarchy (Hero card + collapsible technical breakdown)
 
 The result panel used to be one long flat column of same-weight text — every section from

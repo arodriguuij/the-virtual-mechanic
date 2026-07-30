@@ -726,66 +726,83 @@ export function FuelingPlanner({
   return (
     <Card className={flatMobileCardClass}>
       <CardHeader>
-        <CardTitle className="mb-3.5 sm:mb-0">Planificador de nutrición</CardTitle>
+        {/* `text-xl font-semibold text-zinc-900` overrides `CardTitle`'s own
+            shared default (`text-sm font-bold uppercase tracking-wide`) —
+            this one card's title is elevated to read like a page-level `<h1>`
+            now that it houses the numbered 01/02/03 step structure below,
+            matching `/perfil`'s own heavier title treatment. `mb-6` (not
+            `sm:mb-0` this time) is still needed on mobile specifically,
+            where `flatMobileCardClass` zeroes `--card-spacing` and would
+            otherwise leave the title flush against Paso 01 below it — `sm:`
+            and up already get a real gap from `--card-spacing` itself, so
+            the margin cancels there to avoid doubling up. */}
+        <CardTitle className="mb-6 text-xl font-semibold tracking-normal text-zinc-900 normal-case sm:mb-0">
+          Planificador de nutrición
+        </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            type="button"
-            onClick={() => setMode("route")}
-            className={cn(
-              segmentedButtonClass,
-              mode === "route"
-                ? "border-transparent bg-terracotta text-white"
-                : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
-            )}
-          >
-            <span className={segmentedButtonLabelClass}>Ruta Strava</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("quick")}
-            className={cn(
-              segmentedButtonClass,
-              mode === "quick"
-                ? "border-transparent bg-terracotta text-white"
-                : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
-            )}
-          >
-            <span className={segmentedButtonLabelClass}>Calculadora</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("gpx")}
-            className={cn(
-              segmentedButtonClass,
-              mode === "gpx"
-                ? "border-transparent bg-terracotta text-white"
-                : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
-            )}
-          >
-            <span className={segmentedButtonLabelClass}>Subir GPX</span>
-          </button>
-        </div>
+        {/* PASO 01 · Selección y origen de ruta — the mode toggle plus
+            whichever source-specific fields that mode needs (Strava route
+            select + map, manual duration/watts, or a GPX upload + map). Full
+            white "tarjeta madre" (`bg-white`, zero border, zero shadow,
+            `rounded-xl`) matching `/perfil`'s own numbered-card convention —
+            see the `01 ·`/`02 ·`/`03 ·` eyebrow labels throughout this
+            component. The map itself still bleeds edge-to-edge: the
+            label/select/dropzone portion keeps its own `p-4 sm:p-6` padding,
+            but `RouteMapPreview` is a direct sibling with none of its own,
+            so it touches this card's own left/right/bottom boundary —
+            `overflow-hidden` on the outer card clips the map's rectangular
+            Leaflet container to match `rounded-xl`; `RouteMapPreview`'s own
+            default `mt-3`/`rounded-lg` are overridden via its `className`
+            prop specifically for this reason. */}
+        <div className="overflow-hidden rounded-xl bg-white shadow-none">
+          <div className="p-4 sm:p-6">
+            <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+              01 · Selección y origen de ruta
+            </span>
 
-        {mode === "route" ? (
-          routes.length > 0 ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              {/* The route selector and its map preview used to float on a
-                  near-black "Obsidian" card, then a porcelain `bg-surface`
-                  one — both since superseded by this app's "pure white card"
-                  layering system: `bg-white`, zero border, zero shadow,
-                  `rounded-xl`. The label/button/select row keeps its own
-                  `p-4 sm:p-6` padding, but that padding stops there — the
-                  map below is a direct sibling with none of its own, so it
-                  bleeds edge-to-edge to the card's own left/right/bottom
-                  boundary. `overflow-hidden` on this outer card is what
-                  actually clips the map's rectangular Leaflet container into
-                  the card's own `rounded-xl` corners; `RouteMapPreview`'s own
-                  default `mt-3`/`rounded-lg` are overridden via its
-                  `className` prop specifically for this reason. */}
-              <div className="overflow-hidden rounded-xl bg-white shadow-none sm:col-span-2">
-                <div className="p-4 sm:p-6">
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setMode("route")}
+                className={cn(
+                  segmentedButtonClass,
+                  mode === "route"
+                    ? "border-transparent bg-terracotta text-white"
+                    : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
+                )}
+              >
+                <span className={segmentedButtonLabelClass}>Ruta Strava</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("quick")}
+                className={cn(
+                  segmentedButtonClass,
+                  mode === "quick"
+                    ? "border-transparent bg-terracotta text-white"
+                    : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
+                )}
+              >
+                <span className={segmentedButtonLabelClass}>Calculadora</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("gpx")}
+                className={cn(
+                  segmentedButtonClass,
+                  mode === "gpx"
+                    ? "border-transparent bg-terracotta text-white"
+                    : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
+                )}
+              >
+                <span className={segmentedButtonLabelClass}>Subir GPX</span>
+              </button>
+            </div>
+
+            {mode === "route" &&
+              (routes.length > 0 ? (
+                <div className="mt-4">
                   <div className="flex items-center justify-between gap-2">
                     <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase">
                       Ruta
@@ -845,13 +862,137 @@ export function FuelingPlanner({
                     )}
                   </div>
                 </div>
-                <RouteMapPreview
-                  points={selectedRoutePoints}
-                  distanceKm={selectedRoute?.distanceKm ?? null}
-                  elevationGainM={selectedRoute?.elevationGainM ?? null}
-                  className="mt-0 rounded-none"
-                />
+              ) : (
+                <div className="mt-4 flex flex-col items-start gap-2 border border-dashed border-neutral-300 px-4 py-3">
+                  <p className="text-sm text-neutral-500">
+                    Sin rutas en Strava — usa la calculadora rápida o sube un GPX.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleRefreshRoutes}
+                    disabled={refreshingRoutes}
+                    className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <RefreshCw className={cn("size-3.5", refreshingRoutes && "animate-spin")} />
+                    {refreshingRoutes ? "Sincronizando…" : "Buscar rutas de nuevo"}
+                  </button>
+                </div>
+              ))}
+
+            {mode === "quick" && (
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="duration" className={eyebrow}>
+                    Duración (h)
+                  </label>
+                  <input
+                    id="duration"
+                    type="number"
+                    inputMode="decimal"
+                    min={0.5}
+                    step={0.5}
+                    className={inputClass}
+                    value={quickDurationHours}
+                    onChange={(e) => setQuickDurationHours(Number(e.target.value))}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="watts" className={eyebrow}>
+                    Vatios objetivo
+                  </label>
+                  <input
+                    id="watts"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    className={inputClass}
+                    value={quickAverageWatts}
+                    onChange={(e) => setQuickAverageWatts(Number(e.target.value))}
+                  />
+                </div>
               </div>
+            )}
+
+            {mode === "gpx" && (
+              <div className="mt-4">
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDraggingGpx(true);
+                  }}
+                  onDragLeave={() => setIsDraggingGpx(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDraggingGpx(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleGpxFile(file);
+                  }}
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-2 border-2 border-dashed px-4 py-8 text-center transition-colors duration-150",
+                    isDraggingGpx ? "border-neutral-900 bg-neutral-50" : "border-neutral-300"
+                  )}
+                >
+                  <Upload className="size-5 text-neutral-400" />
+                  <p className="text-sm text-neutral-600">
+                    Arrastra tu archivo .gpx aquí, o{" "}
+                    <label
+                      htmlFor="gpx-upload"
+                      className="cursor-pointer font-semibold text-neutral-900 underline underline-offset-2"
+                    >
+                      selecciona un archivo
+                    </label>
+                  </p>
+                  <input
+                    id="gpx-upload"
+                    type="file"
+                    accept=".gpx"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleGpxFile(file);
+                    }}
+                  />
+                  {parsedGpx && (
+                    <p className="mt-1 font-mono text-xs text-neutral-500">
+                      {parsedGpx.name} · {parsedGpx.distanceKm}km · {parsedGpx.elevationGainM}m D+
+                    </p>
+                  )}
+                </div>
+                {gpxError && <p className="mt-2 text-sm text-status-warning">{gpxError}</p>}
+              </div>
+            )}
+          </div>
+
+          {mode === "route" && routes.length > 0 && (
+            <RouteMapPreview
+              points={selectedRoutePoints}
+              distanceKm={selectedRoute?.distanceKm ?? null}
+              elevationGainM={selectedRoute?.elevationGainM ?? null}
+              className="mt-0 rounded-none"
+            />
+          )}
+          {mode === "gpx" && (
+            <RouteMapPreview
+              points={parsedGpx?.points ?? null}
+              distanceKm={parsedGpx?.distanceKm ?? null}
+              elevationGainM={parsedGpx?.elevationGainM ?? null}
+              className="mt-0 rounded-none"
+            />
+          )}
+        </div>
+
+        {/* PASO 02 · Condiciones de la salida — Intensidad Objetivo (Sub-
+            sección A, skipped in Calculadora mode since real watts already
+            *is* the intensity input there) and Fecha y Hora de Salida (Sub-
+            sección B, every mode). One flat white "tarjeta madre," no nested
+            sub-cards — `gap-5` alone separates the sub-sections. */}
+        <div className="rounded-xl bg-white p-4 sm:p-6 shadow-none">
+          <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+            02 · Condiciones de la salida
+          </span>
+
+          {mode === "route" && (
+            <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <label htmlFor="intensity" className={eyebrow}>
                   Intensidad objetivo
@@ -881,329 +1022,245 @@ export function FuelingPlanner({
                 onHourChange={setDepartureHour}
               />
             </div>
-          ) : (
-            <div className="flex flex-col items-start gap-2 border border-dashed border-neutral-300 px-4 py-3">
-              <p className="text-sm text-neutral-500">
-                Sin rutas en Strava — usa la calculadora rápida o sube un GPX.
-              </p>
-              <button
-                type="button"
-                onClick={handleRefreshRoutes}
-                disabled={refreshingRoutes}
-                className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <RefreshCw className={cn("size-3.5", refreshingRoutes && "animate-spin")} />
-                {refreshingRoutes ? "Sincronizando…" : "Buscar rutas de nuevo"}
-              </button>
-            </div>
-          )
-        ) : mode === "quick" ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="flex flex-col gap-2">
-              <label htmlFor="duration" className={eyebrow}>
-                Duración (h)
-              </label>
-              <input
-                id="duration"
-                type="number"
-                inputMode="decimal"
-                min={0.5}
-                step={0.5}
-                className={inputClass}
-                value={quickDurationHours}
-                onChange={(e) => setQuickDurationHours(Number(e.target.value))}
+          )}
+
+          {mode === "quick" && (
+            <div className="mt-4 grid grid-cols-1 gap-5">
+              <DeparturePicker
+                dayMode={departureDayMode}
+                onDayModeChange={setDepartureDayMode}
+                customDate={departureCustomDate}
+                onCustomDateChange={setDepartureCustomDate}
+                hour={departureHour}
+                onHourChange={setDepartureHour}
               />
-            </div>
-            <div className="flex flex-col gap-2">
-              <label htmlFor="watts" className={eyebrow}>
-                Vatios objetivo
-              </label>
-              <input
-                id="watts"
-                type="number"
-                inputMode="numeric"
-                min={1}
-                className={inputClass}
-                value={quickAverageWatts}
-                onChange={(e) => setQuickAverageWatts(Number(e.target.value))}
-              />
-            </div>
-            <DeparturePicker
-              dayMode={departureDayMode}
-              onDayModeChange={setDepartureDayMode}
-              customDate={departureCustomDate}
-              onCustomDateChange={setDepartureCustomDate}
-              hour={departureHour}
-              onHourChange={setDepartureHour}
-            />
-          </div>
-        ) : null}
-
-        {mode === "gpx" && (
-          <div className="flex flex-col gap-4">
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDraggingGpx(true);
-              }}
-              onDragLeave={() => setIsDraggingGpx(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setIsDraggingGpx(false);
-                const file = e.dataTransfer.files?.[0];
-                if (file) handleGpxFile(file);
-              }}
-              className={cn(
-                "flex flex-col items-center justify-center gap-2 border-2 border-dashed px-4 py-8 text-center transition-colors duration-150",
-                isDraggingGpx ? "border-neutral-900 bg-neutral-50" : "border-neutral-300"
-              )}
-            >
-              <Upload className="size-5 text-neutral-400" />
-              <p className="text-sm text-neutral-600">
-                Arrastra tu archivo .gpx aquí, o{" "}
-                <label
-                  htmlFor="gpx-upload"
-                  className="cursor-pointer font-semibold text-neutral-900 underline underline-offset-2"
-                >
-                  selecciona un archivo
-                </label>
-              </p>
-              <input
-                id="gpx-upload"
-                type="file"
-                accept=".gpx"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleGpxFile(file);
-                }}
-              />
-              {parsedGpx && (
-                <p className="mt-1 font-mono text-xs text-neutral-500">
-                  {parsedGpx.name} · {parsedGpx.distanceKm}km · {parsedGpx.elevationGainM}m D+
-                </p>
-              )}
-            </div>
-
-            <RouteMapPreview
-              points={parsedGpx?.points ?? null}
-              distanceKm={parsedGpx?.distanceKm ?? null}
-              elevationGainM={parsedGpx?.elevationGainM ?? null}
-            />
-
-            {gpxError && <p className="text-sm text-status-warning">{gpxError}</p>}
-
-            {parsedGpx && (
-              <>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <div className="flex flex-col gap-2">
-                    <label htmlFor="intensity-gpx" className={eyebrow}>
-                      Intensidad objetivo
-                    </label>
-                    <div className="relative">
-                      <select
-                        id="intensity-gpx"
-                        className={selectableInputClass}
-                        value={intensity}
-                        onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
-                      >
-                        {INTENSITY_OPTIONS.map((level) => (
-                          <option key={level} value={level}>
-                            {intensityLabels[level]}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className={selectChevronClass} />
-                    </div>
-                  </div>
-                  <DeparturePicker
-                    dayMode={departureDayMode}
-                    onDayModeChange={setDepartureDayMode}
-                    customDate={departureCustomDate}
-                    onCustomDateChange={setDepartureCustomDate}
-                    hour={departureHour}
-                    onHourChange={setDepartureHour}
-                  />
-                  <div className="flex flex-col gap-2">
-                    <label htmlFor="gpx-duration" className={eyebrow}>
-                      <Pencil className="mr-1 inline size-3" />
-                      Tiempo estimado (editar)
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        id="gpx-duration"
-                        type="number"
-                        inputMode="decimal"
-                        min={0.25}
-                        step={0.25}
-                        className={inputClass}
-                        value={gpxDurationHours}
-                        onChange={(e) => setGpxDurationHours(Math.max(0.25, Number(e.target.value) || 0))}
-                      />
-                      <span className="font-mono text-xs whitespace-nowrap text-neutral-500">
-                        {formatHoursMinutes(gpxDurationHours)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-xs text-neutral-500">
-                  {avgSpeedKmh
-                    ? `Estimado a tu ritmo medio real de Strava (${Math.round(avgSpeedKmh)}km/h) — edítalo si lo necesitas.`
-                    : `Sin historial de Strava suficiente — estimación genérica a ${FALLBACK_AVG_SPEED_KMH}km/h, ajusta el tiempo manualmente.`}
-                </p>
-              </>
-            )}
-          </div>
-        )}
-
-        <div className="flex flex-col gap-2">
-          <span className={eyebrow}>Estrategia nutricional</span>
-          <div className="grid grid-cols-3 gap-2">
-            {FUELING_MODE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setFuelingMode(opt.value)}
-                className={cn(
-                  segmentedButtonClass,
-                  fuelingMode === opt.value
-                    ? "border-transparent bg-terracotta text-white"
-                    : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
-                )}
-              >
-                <span className={segmentedButtonLabelClass}>{opt.label}</span>
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-neutral-500">{FUELING_MODE_DESCRIPTIONS[fuelingMode]}</p>
-        </div>
-
-        {/* One unified, frameless, 100%-flat card — the objetivo/cubierto/
-            déficit summary (or its "sin calcular aún" placeholder) and the
-            "Comida en bolsillo" accordion used to be two separate bordered
-            boxes stacked on top of each other, reading as two unrelated
-            concepts. Now a single pure-white (`bg-white`) card — zero
-            border, zero shadow, differentiated from the porcelain canvas
-            purely through background contrast (this app's flat-UI
-            convention) — holds both, separated purely by `space-y-4`. */}
-        <div className="space-y-4 rounded-xl bg-white p-5 shadow-none">
-          {result ? (
-            (() => {
-              const coveredPct =
-                result.totalRideCarbsG > 0
-                  ? Math.min(100, (result.pocketFoodCarbsG / result.totalRideCarbsG) * 100)
-                  : 0;
-              const deficitG = Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG);
-              return (
-                // The objetivo/cubierto/déficit breakdown is itself a
-                // "desglose interno" (sub-block) of the white card above — a
-                // soft `bg-[#F8F7F5]` porcelain tint, zero border, zero
-                // shadow, the same treatment the empty-state placeholder
-                // below already uses, so both states of this slot read
-                // consistently as one internal sub-block rather than the
-                // result state floating bare on the white card while only
-                // the placeholder got a background.
-                <div className="space-y-2 rounded-lg bg-[#F8F7F5] p-4 shadow-none">
-                  <div className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-2">
-                    <span className="font-mono text-xs text-neutral-500">
-                      OBJETIVO {result.totalRideCarbsG}g HC
-                    </span>
-                    <span className="font-mono text-xs font-bold text-emerald-700">
-                      EN BOLSILLO {result.pocketFoodCarbsG}g HC
-                    </span>
-                    <span className="font-mono text-xs font-bold text-terracotta">
-                      DÉFICIT EN BIDÓN {deficitG}g HC
-                    </span>
-                  </div>
-                  <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-badge">
-                    <div
-                      className="bg-sage transition-all duration-300"
-                      style={{ width: `${coveredPct}%` }}
-                    />
-                    <div className="bg-terracotta/20" style={{ width: `${100 - coveredPct}%` }} />
-                  </div>
-                </div>
-              );
-            })()
-          ) : (
-            // A soft `bg-[#F8F7F5]` tint (the canvas tone itself, not a new
-            // gray), zero border, zero shadow, so this empty-state note
-            // still reads as *inside* the white card, not a box of its own.
-            <div className="rounded-lg bg-[#F8F7F5] p-4 font-mono text-xs text-zinc-600 shadow-none">
-              Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
             </div>
           )}
 
-          {/* `key={fuelingMode}` forces a full remount whenever the athlete
-              switches Estrategia nutricional — that's what makes `open`
-              actually re-apply as a fresh initial value each time, instead of
-              React's own prop-diffing silently skipping the DOM write because
-              the previous render already had the same `open` value. Óptimo
-              mode is the one case with nothing for the athlete to configure
-              here (it's server-computed), so it's the only one that starts
-              collapsed; Mi Inventario/Híbrido both start open, since those are
-              exactly the two modes where this list is the athlete's own input,
-              not just a preview. Once mounted, the athlete can freely collapse
-              or reopen it without this forcing it back — only an actual mode
-              switch does that. */}
-          <details key={fuelingMode} open={fuelingMode !== "optimal"} className="group">
-            <summary className="flex list-none cursor-pointer items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
-              <span className="font-mono text-xs font-bold tracking-wider text-neutral-900 uppercase">
-                Comida en bolsillo
-              </span>
-              <span className="flex shrink-0 items-center gap-2">
-                <span className="font-mono text-[11px] whitespace-nowrap text-neutral-500">
-                  {pocketFoodItemCount} items seleccionados · {pocketFoodCarbsPreview}g HC
-                </span>
-                <ChevronDown className="size-4 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
-              </span>
-            </summary>
-            <div className="flex flex-col gap-1.5 pt-3">
-              {fuelingMode === "optimal" && (
-                <p className="text-xs text-neutral-500">
-                  Automático — solo geles y bidón en modo Óptimo, sin alimentos sólidos.
-                </p>
-              )}
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {(fuelingMode === "optimal" ? GEL_DOSE_TYPES : ALL_POCKET_FOOD_TYPES).map((type) => (
-                  <PocketFoodStepperRow
-                    key={type}
-                    type={type}
-                    qty={
-                      fuelingMode === "optimal"
-                        ? (result?.pocketFood[type] ?? 0)
-                        : (pocketFood[type] ?? 0)
-                    }
-                    onChange={(qty) => setPocketFoodQty(type, qty)}
-                    disabled={fuelingMode === "optimal"}
-                  />
-                ))}
-                {fuelingMode !== "optimal" && (
-                  <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-1 py-2.5 md:border md:px-3 md:py-1.5">
-                    <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
-                      Personalizado
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        id="custom-carbs"
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        max={MAX_CUSTOM_CARBS_G}
-                        value={customCarbsG || ""}
-                        onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
-                        placeholder="0"
-                        className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
-                      />
-                      <span className="font-mono text-xs text-neutral-500">g HC</span>
-                    </div>
+          {mode === "gpx" && !parsedGpx && (
+            <p className="mt-4 text-xs text-neutral-500">
+              Sube un archivo GPX en el Paso 01 para configurar la intensidad y la fecha de
+              salida.
+            </p>
+          )}
+
+          {mode === "gpx" && parsedGpx && (
+            <div className="mt-4 flex flex-col gap-2">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="intensity-gpx" className={eyebrow}>
+                    Intensidad objetivo
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="intensity-gpx"
+                      className={selectableInputClass}
+                      value={intensity}
+                      onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
+                    >
+                      {INTENSITY_OPTIONS.map((level) => (
+                        <option key={level} value={level}>
+                          {intensityLabels[level]}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className={selectChevronClass} />
                   </div>
-                )}
+                </div>
+                <DeparturePicker
+                  dayMode={departureDayMode}
+                  onDayModeChange={setDepartureDayMode}
+                  customDate={departureCustomDate}
+                  onCustomDateChange={setDepartureCustomDate}
+                  hour={departureHour}
+                  onHourChange={setDepartureHour}
+                />
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="gpx-duration" className={eyebrow}>
+                    <Pencil className="mr-1 inline size-3" />
+                    Tiempo estimado (editar)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="gpx-duration"
+                      type="number"
+                      inputMode="decimal"
+                      min={0.25}
+                      step={0.25}
+                      className={inputClass}
+                      value={gpxDurationHours}
+                      onChange={(e) => setGpxDurationHours(Math.max(0.25, Number(e.target.value) || 0))}
+                    />
+                    <span className="font-mono text-xs whitespace-nowrap text-neutral-500">
+                      {formatHoursMinutes(gpxDurationHours)}
+                    </span>
+                  </div>
+                </div>
               </div>
+              <p className="text-xs text-neutral-500">
+                {avgSpeedKmh
+                  ? `Estimado a tu ritmo medio real de Strava (${Math.round(avgSpeedKmh)}km/h) — edítalo si lo necesitas.`
+                  : `Sin historial de Strava suficiente — estimación genérica a ${FALLBACK_AVG_SPEED_KMH}km/h, ajusta el tiempo manualmente.`}
+              </p>
             </div>
-          </details>
+          )}
         </div>
 
+        {/* PASO 03 · Estrategia y comida en bolsillo — Óptimo/Mi Inventario/
+            Híbrido plus its own subtle explanatory legend, with the
+            objetivo/cubierto/déficit breakdown and the "Comida en bolsillo"
+            accordion integrated directly into this same card (no separate
+            nested white box — they're porcelain `bg-[#F8F7F5]` sub-blocks
+            living straight inside this already-white "tarjeta madre" now,
+            same flat-hierarchy convention as PASO 02 above). */}
+        <div className="rounded-xl bg-white p-4 sm:p-6 shadow-none">
+          <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+            03 · Estrategia y comida en bolsillo
+          </span>
+
+          <div className="mt-4 flex flex-col gap-2">
+            <div className="grid grid-cols-3 gap-2">
+              {FUELING_MODE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setFuelingMode(opt.value)}
+                  className={cn(
+                    segmentedButtonClass,
+                    fuelingMode === opt.value
+                      ? "border-transparent bg-terracotta text-white"
+                      : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
+                  )}
+                >
+                  <span className={segmentedButtonLabelClass}>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs font-mono text-zinc-500">{FUELING_MODE_DESCRIPTIONS[fuelingMode]}</p>
+          </div>
+
+          <div className="mt-4 space-y-4">
+            {result ? (
+              (() => {
+                const coveredPct =
+                  result.totalRideCarbsG > 0
+                    ? Math.min(100, (result.pocketFoodCarbsG / result.totalRideCarbsG) * 100)
+                    : 0;
+                const deficitG = Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG);
+                return (
+                  // The objetivo/cubierto/déficit breakdown is itself a
+                  // "desglose interno" (sub-block) of PASO 03's own white
+                  // card — a soft `bg-[#F8F7F5]` porcelain tint, zero
+                  // border, zero shadow, the same treatment the empty-state
+                  // placeholder below already uses, so both states of this
+                  // slot read consistently as one internal sub-block rather
+                  // than the result state floating bare on the white card
+                  // while only the placeholder got a background.
+                  <div className="space-y-2 rounded-lg bg-[#F8F7F5] p-4 shadow-none">
+                    <div className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-2">
+                      <span className="font-mono text-xs text-neutral-500">
+                        OBJETIVO {result.totalRideCarbsG}g HC
+                      </span>
+                      <span className="font-mono text-xs font-bold text-emerald-700">
+                        EN BOLSILLO {result.pocketFoodCarbsG}g HC
+                      </span>
+                      <span className="font-mono text-xs font-bold text-terracotta">
+                        DÉFICIT EN BIDÓN {deficitG}g HC
+                      </span>
+                    </div>
+                    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-badge">
+                      <div
+                        className="bg-sage transition-all duration-300"
+                        style={{ width: `${coveredPct}%` }}
+                      />
+                      <div className="bg-terracotta/20" style={{ width: `${100 - coveredPct}%` }} />
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              // A soft `bg-[#F8F7F5]` tint (the canvas tone itself, not a new
+              // gray), zero border, zero shadow, so this empty-state note
+              // still reads as *inside* the white card, not a box of its own.
+              <div className="rounded-lg bg-[#F8F7F5] p-4 font-mono text-xs text-zinc-600 shadow-none">
+                Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
+              </div>
+            )}
+
+            {/* `key={fuelingMode}` forces a full remount whenever the athlete
+                switches Estrategia nutricional — that's what makes `open`
+                actually re-apply as a fresh initial value each time, instead of
+                React's own prop-diffing silently skipping the DOM write because
+                the previous render already had the same `open` value. Óptimo
+                mode is the one case with nothing for the athlete to configure
+                here (it's server-computed), so it's the only one that starts
+                collapsed; Mi Inventario/Híbrido both start open, since those are
+                exactly the two modes where this list is the athlete's own input,
+                not just a preview. Once mounted, the athlete can freely collapse
+                or reopen it without this forcing it back — only an actual mode
+                switch does that. */}
+            <details key={fuelingMode} open={fuelingMode !== "optimal"} className="group">
+              <summary className="flex list-none cursor-pointer items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+                <span className="font-mono text-xs font-bold tracking-wider text-neutral-900 uppercase">
+                  Comida en bolsillo
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="font-mono text-[11px] whitespace-nowrap text-neutral-500">
+                    {pocketFoodItemCount} items seleccionados · {pocketFoodCarbsPreview}g HC
+                  </span>
+                  <ChevronDown className="size-4 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
+                </span>
+              </summary>
+              <div className="flex flex-col gap-1.5 pt-3">
+                {fuelingMode === "optimal" && (
+                  <p className="text-xs text-neutral-500">
+                    Automático — solo geles y bidón en modo Óptimo, sin alimentos sólidos.
+                  </p>
+                )}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {(fuelingMode === "optimal" ? GEL_DOSE_TYPES : ALL_POCKET_FOOD_TYPES).map((type) => (
+                    <PocketFoodStepperRow
+                      key={type}
+                      type={type}
+                      qty={
+                        fuelingMode === "optimal"
+                          ? (result?.pocketFood[type] ?? 0)
+                          : (pocketFood[type] ?? 0)
+                      }
+                      onChange={(qty) => setPocketFoodQty(type, qty)}
+                      disabled={fuelingMode === "optimal"}
+                    />
+                  ))}
+                  {fuelingMode !== "optimal" && (
+                    <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-1 py-2.5 md:border md:px-3 md:py-1.5">
+                      <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
+                        Personalizado
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          id="custom-carbs"
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          max={MAX_CUSTOM_CARBS_G}
+                          value={customCarbsG || ""}
+                          onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
+                          placeholder="0"
+                          className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                        />
+                        <span className="font-mono text-xs text-neutral-500">g HC</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        {/* Final CTA — sits after all 3 numbered steps, not inside any of
+            them, matching `/perfil`'s own "single full-width action button
+            after the numbered cards" convention. */}
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-4">
             <button
@@ -1216,7 +1273,7 @@ export function FuelingPlanner({
                 (mode === "gpx" && !parsedGpx)
               }
               className={cn(
-                "mt-4 w-full py-3.5 text-sm",
+                "w-full py-3.5 text-sm",
                 isProfileComplete
                   ? primaryButtonClass
                   : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
