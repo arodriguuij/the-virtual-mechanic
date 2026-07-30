@@ -719,8 +719,13 @@ evenly across the ride's duration/distance, never right at the start or finish, 
 the "Hitos de Nutrición" in both nutrition-export mechanisms below. The Pre-Ride UI
 (`PocketFoodStepperRow` in `components/fueling-planner.tsx`) renders the four non-gel
 items, the three gel doses, and the custom entry as a compact `grid grid-cols-1
-md:grid-cols-2 gap-3` — each its own soft `border-neutral-200` cell rather than one
-harder-edged block, keeping the form short even with 8 catalog entries. Each cell's
+md:grid-cols-2 gap-3`. Each row's border is responsive, not a fixed cell shape at every
+width: on mobile, a plain `border-b border-neutral-200` (no side/top borders) so a stacked
+list of these reads as clean list rows flush to the full available width, rather than a
+column of individually boxed cells eating into already-scarce horizontal space; at `md:`,
+where the grid becomes 2 columns and width is no longer scarce, each row gets its own full
+`border` back, matching the "each its own soft cell" look this always had at wider widths.
+Each cell's
 food name is rendered without emoji, in the same clean sans as everything else (via a
 local `pocketFoodName()` helper that calls `stripEmoji()`, imported from
 `lib/gpx-export.ts` and reused rather than duplicated, on `pocketFoodLabels[type]` at
@@ -1145,12 +1150,36 @@ supporting detail. Restructured around a "glance vs. dig deeper" split instead:
   "DÉFICIT EN …"), which defeats the entire point of a scannable metric; letting each
   figure take its own full-width row instead never truncates, at the cost of a slightly
   taller block on mobile only.
-- **Comida de bolsillo en maillot accordion** — the pocket-food catalog/stepper grid (see
-  "Hybrid nutrition" above) is now behind a `<details>` closed by default, headed by a
-  live "N items · Mg HC" summary computed from `getPocketFoodTotalCarbsG()` against
-  whichever selection is actually in effect (the athlete's own `pocketFood` state in every
-  mode except Óptimo, where it's `result.pocketFood` — the server-computed selection —
-  since the athlete never edits it there).
+- **"Comida en bolsillo" accordion** — the pocket-food catalog/stepper grid (see "Hybrid
+  nutrition" above) sits behind a `<details>`, headed by a clear section title ("Comida en
+  bolsillo," bold uppercase `font-mono`) plus a live "N items seleccionados · Mg HC" summary
+  computed from `getPocketFoodTotalCarbsG()` against whichever selection is actually in
+  effect (the athlete's own `pocketFood` state in every mode except Óptimo, where it's
+  `result.pocketFood` — the server-computed selection — since the athlete never edits it
+  there). An earlier version of this header was a single line of plain `font-medium` text
+  on a flat gray-on-white `<summary>` with no visual distinction between title and count —
+  it read as a generic, already-collapsed accordion rather than a live section header, so
+  it was split into two visually distinct pieces (bold title left, muted count right) the
+  way every other section header in this app already reads.
+
+  **Default open/closed state now depends on the selected Estrategia nutricional** (see
+  "Fueling mode selector" below), rather than always starting closed: Mi Inventario and
+  Híbrido are the two modes where this list is genuinely the athlete's own input (not a
+  server-computed preview), so both start expanded — collapsing on load hid the one control
+  those two modes actually revolve around, forcing an extra tap before the athlete could see
+  or touch anything. Óptimo has nothing to configure here (server-computed), so it's the
+  one mode that still starts collapsed. Implemented as `<details key={fuelingMode} open=
+  {fuelingMode !== "optimal"}>` — the `key` is what makes this work correctly: without it,
+  React's own prop-diffing could silently skip re-applying `open` on a re-render where the
+  prop's value happened not to change, so switching modes might not reliably force a fresh
+  open/closed state. Keying by `fuelingMode` forces a full remount on every mode switch,
+  so `open` always re-applies as a genuinely fresh initial value — but *between* mode
+  switches (the same key), the athlete's own manual collapse/expand via the native
+  `<summary>` click is never fought or reverted, since React only re-writes `open` when its
+  value actually changes between renders. Verified live: Mi Inventario starts open,
+  switching to Óptimo collapses it, switching to Híbrido reopens it, a manual collapse
+  sticks until the next mode change, and switching between two non-Óptimo modes (Híbrido →
+  Mi Inventario) still forces it back open each time, exactly as intended.
 - **Collapsible technical breakdown** — the DIY recipe + bottle architecture (+ the
   hypertonic-concentration warning, when it fires), the dynamic ingestion timeline, and
   the reload strategy (when applicable) are each their own `<details>`, closed by default,
@@ -2186,9 +2215,12 @@ enforcement, which lives in `proxy.ts`'s Edge Middleware, not here):
   direct URL but the sidebar itself shouldn't invite a click into a section that's actively
   in flux. Each `NAV_ITEMS` entry carries its own `permanentlyDisabled` boolean rather than
   a second parallel list, so re-enabling one later is a single-line flip back to `false`,
-  not restoring deleted markup. Shows the trailing "Próximamente" pill (`bg-neutral-200/60
-  text-neutral-500`, `text-[9px] font-mono uppercase tracking-wider`) and a `title` of
-  "Sección en desarrollo — Próximamente."
+  not restoring deleted markup. Shows the trailing "Próx." pill (`bg-neutral-200/60
+  text-neutral-500`, `text-[9px] font-mono uppercase tracking-wider`, `whitespace-nowrap` so
+  it can never wrap onto its own line) and a `title` of "Sección en desarrollo —
+  Próximamente" (the full word still appears in the tooltip — only the on-screen pill itself
+  was shortened, once the mobile drawer's narrower width made "Próximamente" read as
+  cramped against a label like "Estadísticas").
 - **`lockedByIncompleteProfile`** (computed per-render, not a static field) — every entry
   but `/perfil` itself, while the Sidebar's `isProfileComplete` prop (passed down from
   `app/(app)/layout.tsx`) is `false`. No "Próximamente" pill here — a profile lock isn't
@@ -2201,18 +2233,27 @@ Either way, a locked entry renders as a plain `<div aria-disabled="true">` (not 
 not a `Link` with a blocked `onClick`) — there's no `href` to accidentally trigger
 prefetching or a stray navigation on middle-click/keyboard-Enter the way suppressing a real
 anchor's default behavior would still risk. Visually it's `opacity-50 cursor-not-allowed
-select-none` for both reasons. **No `item.icon` is ever rendered for a locked entry** — an
-earlier version did render it (dimmed like the rest of the row) for the permanently-disabled
-case specifically, which left Historial with a visible icon glyph next to Estadísticas' own
-icon rendering inconsistently faint/absent at a glance, an unintended visual asymmetry
-between two entries meant to read as equally "disabled." In its place sits a plain `size-4
-shrink-0` empty spacer (`aria-hidden`, `gap-3` unchanged) — matching the exact width an
-active entry's icon+gap occupies, so a locked entry's label still lines up flush with every
-enabled entry's label, rather than sitting flush against the sidebar's own left edge with no
-icon column to indent past. Verified live: clicking a locked entry leaves the URL unchanged,
-and toggling the Sidebar's `isProfileComplete` prop between `true`/`false` correctly locks/
-unlocks Dashboard specifically while leaving Perfil always clickable and Estadísticas/
-Historial always locked regardless.
+select-none` for both reasons.
+
+**Every entry renders its own `<item.icon>`, locked or not.** This went through two
+revisions: the original design always rendered it; a later pass replaced it with a blank
+`size-4 shrink-0` spacer on every locked entry specifically because Historial's icon had
+been rendering visibly while Estadísticas' own icon read as inconsistently faint at a
+glance — an unintended visual asymmetry between two entries meant to read as equally
+"disabled." Removing icons from *all* locked entries fixed that asymmetry, but it also
+broke the sidebar's own left-edge symmetry the other direction — every row's icon column is
+what keeps every label starting at the same x-position, and without it, locked labels lined
+up with the icon+gap spacer stayed vertically flush by design, but Estadísticas/Historial
+losing their icons altogether now read as visually incomplete rather than "temporarily
+locked." Icons are back on every entry, including locked ones — the wrapping div's own
+`opacity-50` already dims the icon (and the "Próx." badge) right along with the label, so a
+locked entry's icon reads as visibly muted without needing a separate opacity class of its
+own, and the original Historial/Estadísticas inconsistency can't recur since both now render
+through the exact same `<item.icon className="size-4 shrink-0" />` unconditionally. Verified
+live: clicking a locked entry leaves the URL unchanged, and toggling the Sidebar's
+`isProfileComplete` prop between `true`/`false` correctly locks/unlocks Dashboard
+specifically while leaving Perfil always clickable and Estadísticas/Historial always locked
+regardless — all four entries showing their icon in every state.
 
 The same `SidebarContent` header
 (`RatioLogo` + "RATIO") and the mobile top header's own logo+text are both
@@ -2252,6 +2293,13 @@ override (`lg:right-auto lg:left-0 lg:border-l-0 lg:border-r`, plus the pre-exis
 in-panel "X" close button (`SidebarContent`'s own header row) didn't need to move — it
 already sat at the *panel's own* right edge, which now also happens to be the true viewport's
 right edge once the panel itself moved there, still a clean, reachable corner either way.
+
+**Drawer width: `w-[85vw] max-w-[320px]` on mobile, `lg:w-64` on desktop.** The original
+fixed `w-64` (256px) at every breakpoint read as cramped on a narrow phone once labels
+carried a trailing badge too (Estadísticas/Historial's own "Próx." pill, see "Locked nav
+entries" above) — a relative `85vw` gives the drawer room proportional to the actual device
+width (capped at `320px` so it doesn't balloon on a larger phone/small tablet), while the
+desktop's permanent sidebar stays exactly the `w-64` it always was via the `lg:` override.
 
 The sidebar's bottom identity card (`components/viewer-identity.tsx`) is a separate,
 Suspense-streamed Server Component (`ViewerIdentity`/`ViewerIdentitySkeleton`) rather than
@@ -2604,6 +2652,27 @@ this codebase — added to `proxy.ts`'s `PUBLIC_PATH_PREFIXES` and `useState(tru
 for the one client state that needed to be pinned open, both reverted before committing).
 
 ### Mobile-first layout
+
+**Flat mobile cards (no "muñeca rusa"/Russian-doll nesting).** The Fueling Planner's and
+Post-Ride Analysis's own root `<Card>` used to render as a real bordered/shadowed/padded box
+at every breakpoint — on mobile, that meant the card's own border and padding sat *inside*
+`DashboardShell`'s `<main>` padding, doubling up into a visibly boxed-in, narrower content
+area exactly when screen width is already scarcest. **`flatMobileCardClass`**
+(`lib/ui-classes.ts`) strips the card down to nothing on mobile — `rounded-none border-0
+bg-transparent shadow-none` — and restores the real card look at `sm:` and up
+(`sm:rounded-xl sm:border sm:border-neutral-200 sm:bg-card sm:shadow-sm`), applied as the
+`className` on both components' root `<Card>` (`cn()`'s "later utility wins" merge lets this
+override `Card`'s own built-in `border`/`bg-card`/`rounded-sm` defaults). The trickier part
+is padding: `Card`/`CardHeader`/`CardContent` all key their own `py-`/`px-` off one shared
+`--card-spacing` CSS custom property that `Card` itself declares and its children inherit —
+so `flatMobileCardClass` only needs to override that *one* variable
+(`[--card-spacing:0px] sm:[--card-spacing:--spacing(6)]`) on the outer `Card`, and every
+descendant's padding zeroes out on mobile and returns to `24px` at `sm:` for free, with no
+separate override needed on `CardHeader`/`CardContent` themselves. Scoped deliberately to
+just the outer card — the many smaller nested boxes *inside* the planner (the departure-
+date card, the weather stat block, the Hero result card, the accordions) were left as-is;
+flattening every one of those into divider-separated sections would be a much larger
+redesign than "remove the outer card," and wasn't part of this pass.
 
 The multi-column grids across the Dashboard and Perfil pages (profile form, planner
 inputs, result-panel stat rows, the Net Carb Deficit breakdown) stack to a single column

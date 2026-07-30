@@ -106,16 +106,20 @@ function SidebarContent({
                 }
                 className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-xs font-medium tracking-wider text-neutral-600 uppercase opacity-50 select-none"
               >
-                {/* No icon for any locked item (see CLAUDE.md) — this spacer
-                    reserves the exact same size-4 + gap-3 width an active
-                    item's icon occupies, so the label text still lines up
-                    flush with every enabled item's label instead of sitting
-                    flush against the container's own left edge. */}
-                <span className="size-4 shrink-0" aria-hidden="true" />
+                {/* Every entry renders its own icon now, locked or not — the
+                    wrapping div's own `opacity-50` already dims the icon
+                    (and the badge) right along with the label, so a locked
+                    entry's icon reads as visibly muted without needing its
+                    own separate opacity class. An earlier pass replaced this
+                    with a blank spacer to avoid Historial/Estadísticas
+                    looking visually inconsistent with each other — restored
+                    once both render through this exact same `<item.icon>`
+                    unconditionally, so that inconsistency can't recur. */}
+                <item.icon className="size-4 shrink-0" strokeWidth={1.5} />
                 {item.label}
                 {item.permanentlyDisabled && (
-                  <span className="ml-auto rounded bg-neutral-200/60 px-1.5 py-0.5 font-mono text-[9px] tracking-wider text-neutral-500 uppercase">
-                    Próximamente
+                  <span className="ml-auto shrink-0 rounded bg-neutral-200/60 px-1.5 py-0.5 font-mono text-[9px] tracking-wider whitespace-nowrap text-neutral-500 uppercase">
+                    Próx.
                   </span>
                 )}
               </div>
@@ -236,7 +240,7 @@ export function DashboardShell({
           `mobileOpen`. */}
       <aside
         className={cn(
-          "fixed inset-y-0 right-0 z-10000 w-64 border-l border-neutral-200 bg-background transition-transform lg:right-auto lg:left-0 lg:translate-x-0 lg:border-l-0 lg:border-r",
+          "fixed inset-y-0 right-0 z-10000 w-[85vw] max-w-[320px] border-l border-neutral-200 bg-background transition-transform lg:right-auto lg:left-0 lg:w-64 lg:translate-x-0 lg:border-l-0 lg:border-r",
           mobileOpen ? "translate-x-0" : "translate-x-full"
         )}
       >

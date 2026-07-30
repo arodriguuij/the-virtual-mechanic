@@ -16,7 +16,7 @@ import {
   type IntensityLevel,
 } from "@/lib/metabolic-engine";
 import { cn } from "@/lib/utils";
-import { primaryButtonClass } from "@/lib/ui-classes";
+import { flatMobileCardClass, primaryButtonClass } from "@/lib/ui-classes";
 
 // Leaflet reads `window`/`document` at module scope — same `ssr: false`
 // requirement as `components/fueling-planner.tsx`'s own dynamic import of
@@ -365,7 +365,7 @@ export function PostRideAnalysis({
 
   if (activities.length === 0) {
     return (
-      <Card>
+      <Card className={flatMobileCardClass}>
         <CardHeader>
           <CardTitle>Análisis post-ruta</CardTitle>
           <CardDescription className={eyebrow}>
@@ -384,7 +384,7 @@ export function PostRideAnalysis({
   }
 
   return (
-    <Card>
+    <Card className={flatMobileCardClass}>
       <CardHeader>
         <CardTitle>Análisis post-ruta</CardTitle>
         <CardDescription className={eyebrow}>

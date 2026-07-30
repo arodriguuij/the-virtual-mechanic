@@ -36,6 +36,7 @@ import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
 import { ProfileRequiredBanner } from "@/components/profile-required-banner";
 import {
   fieldClass,
+  flatMobileCardClass,
   primaryButtonClass,
   secondaryButtonClass,
   selectableFieldClass,
@@ -352,7 +353,13 @@ function PocketFoodStepperRow({
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5",
+        // Mobile: a clean, full-width list row with just a thin bottom
+        // divider — no wrapping border/box per item, so a stacked list of
+        // these doesn't read as "boxes inside boxes." The `md:` 2-column
+        // grid this renders inside (see its call site) is spacious enough
+        // that a full border per cell reads fine there instead, matching
+        // the breakpoint the grid itself already switches at.
+        "flex items-center justify-between gap-2 border-b border-neutral-200 px-1 py-2.5 md:border md:px-3 md:py-1.5",
         disabled && "opacity-50"
       )}
     >
@@ -693,7 +700,7 @@ export function FuelingPlanner({
   }
 
   return (
-    <Card>
+    <Card className={flatMobileCardClass}>
       <CardHeader>
         <CardTitle>Planificador de nutrición</CardTitle>
         <CardDescription className={eyebrow}>
@@ -1060,11 +1067,33 @@ export function FuelingPlanner({
           )}
         </div>
 
-        <details className="group border border-neutral-200 rounded-lg">
-          <summary className="flex list-none items-center justify-between gap-2 rounded-lg p-3 bg-white cursor-pointer text-sm font-medium text-neutral-900 [&::-webkit-details-marker]:hidden">
-            Comida de bolsillo en maillot ({pocketFoodItemCount} items · {pocketFoodCarbsPreview}g
-            HC)
-            <ChevronDown className="size-4 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
+        {/* `key={fuelingMode}` forces a full remount whenever the athlete
+            switches Estrategia nutricional — that's what makes `open`
+            actually re-apply as a fresh initial value each time, instead of
+            React's own prop-diffing silently skipping the DOM write because
+            the previous render already had the same `open` value. Óptimo
+            mode is the one case with nothing for the athlete to configure
+            here (it's server-computed), so it's the only one that starts
+            collapsed; Mi Inventario/Híbrido both start open, since those are
+            exactly the two modes where this list is the athlete's own input,
+            not just a preview. Once mounted, the athlete can freely collapse
+            or reopen it without this forcing it back — only an actual mode
+            switch does that. */}
+        <details
+          key={fuelingMode}
+          open={fuelingMode !== "optimal"}
+          className="group rounded-lg border border-neutral-200"
+        >
+          <summary className="flex list-none cursor-pointer items-center justify-between gap-3 rounded-lg bg-white p-3 [&::-webkit-details-marker]:hidden">
+            <span className="font-mono text-xs font-bold tracking-wider text-neutral-900 uppercase">
+              Comida en bolsillo
+            </span>
+            <span className="flex shrink-0 items-center gap-2">
+              <span className="font-mono text-[11px] whitespace-nowrap text-neutral-500">
+                {pocketFoodItemCount} items seleccionados · {pocketFoodCarbsPreview}g HC
+              </span>
+              <ChevronDown className="size-4 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
+            </span>
           </summary>
           <div className="flex flex-col gap-1.5 border-t border-neutral-200 p-3">
             {fuelingMode === "optimal" && (
@@ -1087,7 +1116,7 @@ export function FuelingPlanner({
                 />
               ))}
               {fuelingMode !== "optimal" && (
-                <div className="flex items-center justify-between gap-2 border border-neutral-200 px-3 py-1.5">
+                <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-1 py-2.5 md:border md:px-3 md:py-1.5">
                   <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
                     Personalizado
                   </label>
