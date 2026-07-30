@@ -9,15 +9,34 @@ import { cn } from "@/lib/utils";
 
 // CartoDB Positron — a clean, low-saturation basemap (no busy POI icons/
 // labels competing with the route line) that fits this app's sober
-// editorial look better than a default OSM tile set.
+// editorial look better than a default OSM tile set. Still the light
+// variant, deliberately — `TILE_DARK_FILTER_CLASS` below inverts it into a
+// dark "vector HUD" look at render time rather than switching to a real
+// dark tile provider, which would need its own API key/service.
 const TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
-// Matches `--terracotta`'s current value (`app/globals.css`) — kept as its
-// own literal hex rather than reading the CSS variable, since Leaflet's
-// `Polyline` color prop needs a plain string, not a class name.
-const ROUTE_LINE_COLOR = "#6E6658";
+// Leaflet's `TileLayer` forwards a `className` straight onto every tile
+// `<img>` it renders (a real `L.TileLayer` option, not react-leaflet's own
+// invention) — this is what lets a CSS filter reach the actual tile images
+// without also touching the `Polyline`/zoom controls/badge, which live in
+// separate panes/DOM nodes and would otherwise get inverted right along
+// with the basemap if the filter were applied to the map container itself.
+// `grayscale` strips the tile's own light greens/blues, `invert` flips the
+// now-monochrome light basemap to dark, `contrast`/`brightness` tune the
+// result so roads/labels stay legible rather than washing out to pure
+// black — together, a light basemap reads as dark topography.
+const TILE_DARK_FILTER_CLASS = "[filter:grayscale(100%)_invert(90%)_contrast(120%)_brightness(85%)]";
+
+// A warmer, lighter gold than this app's own `--terracotta` (`#6E6658`) —
+// deliberately not that token here specifically because this line has to
+// read clearly against the now-dark, inverted basemap tiles, where
+// `--terracotta`'s comparatively low luminance would contrast poorly. Every
+// other bronze accent in the app (buttons, borders) stays `--terracotta`;
+// this is the one spot that trades token consistency for legibility on a
+// dark surface.
+const ROUTE_LINE_COLOR = "#C5A059";
 
 /** `MapContainer` itself has no "fit to route" concept — this runs once
  * per `points` change and asks the underlying Leaflet map instance
@@ -40,11 +59,11 @@ function FitBoundsToRoute({ points }: { points: [number, number][] }) {
  * place, since Leaflet's default `+`/`−` control only takes inline sizing
  * from its own bundled CSS (no Tailwind class of ours can reach it) and read
  * as disproportionately large/heavy next to this app's otherwise compact,
- * sober chrome. A flat `size-6` at every breakpoint (down from an earlier
- * responsive `size-7`/`md:size-6` pair) — a PNS fine-tuning pass asked for
- * these "más compactos e integrados," so each button is now its own small
- * independently-bordered/shadowed square rather than two buttons sharing one
- * bigger divided pill.
+ * sober chrome. Restyled as translucent "glass" chips
+ * (`bg-[#181818]/80 backdrop-blur-md border-white/10`) to sit on top of the
+ * now-dark, inverted basemap (see `TILE_DARK_FILTER_CLASS` above) rather
+ * than the flat opaque `bg-white` squares this used to be — a light square
+ * would read as a jarring cutout against dark topography.
  */
 function MapZoomControls() {
   const map = useMap();
@@ -55,7 +74,7 @@ function MapZoomControls() {
         type="button"
         onClick={() => map.zoomIn()}
         aria-label="Acercar mapa"
-        className="flex size-6 cursor-pointer items-center justify-center rounded-md border border-zinc-200/60 bg-white/90 text-xs leading-none font-bold text-zinc-800 shadow-sm transition-colors hover:bg-white"
+        className="flex size-7 cursor-pointer items-center justify-center rounded-md border border-white/10 bg-[#181818]/80 text-xs leading-none font-bold text-white backdrop-blur-md transition-colors hover:bg-white/10"
       >
         +
       </button>
@@ -63,7 +82,7 @@ function MapZoomControls() {
         type="button"
         onClick={() => map.zoomOut()}
         aria-label="Alejar mapa"
-        className="flex size-6 cursor-pointer items-center justify-center rounded-md border border-zinc-200/60 bg-white/90 text-xs leading-none font-bold text-zinc-800 shadow-sm transition-colors hover:bg-white"
+        className="flex size-7 cursor-pointer items-center justify-center rounded-md border border-white/10 bg-[#181818]/80 text-xs leading-none font-bold text-white backdrop-blur-md transition-colors hover:bg-white/10"
       >
         −
       </button>
@@ -136,13 +155,13 @@ export function RouteMapPreview({
         attributionControl={false}
         zoomControl={false}
       >
-        <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+        <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} className={TILE_DARK_FILTER_CLASS} />
         <Polyline positions={points} pathOptions={{ color: ROUTE_LINE_COLOR, weight: 3, opacity: 0.9 }} />
         <FitBoundsToRoute points={points} />
         <MapZoomControls />
       </MapContainer>
       {badgeParts.length > 0 && (
-        <div className="absolute bottom-2 left-2 z-[1000] rounded-md bg-white/90 px-2.5 py-1 font-mono text-[10px] text-zinc-800 shadow-sm sm:text-xs">
+        <div className="absolute bottom-2 left-2 z-[1000] rounded-md border border-white/10 bg-[#181818]/80 px-3 py-1.5 font-mono text-[11px] text-zinc-200 backdrop-blur-md">
           {badgeParts.join(" · ")}
         </div>
       )}

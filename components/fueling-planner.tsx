@@ -309,7 +309,7 @@ function DeparturePicker({
               segmentedButtonClass,
               dayMode === opt.value
                 ? "border-terracotta bg-terracotta text-white"
-                : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta"
+                : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta hover:bg-white"
             )}
           >
             <span className={segmentedButtonLabelClass}>{opt.label}</span>
@@ -719,7 +719,7 @@ export function FuelingPlanner({
               segmentedButtonClass,
               mode === "route"
                 ? "border-terracotta bg-terracotta text-white"
-                : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta"
+                : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta hover:bg-white"
             )}
           >
             <span className={segmentedButtonLabelClass}>Ruta Strava</span>
@@ -731,7 +731,7 @@ export function FuelingPlanner({
               segmentedButtonClass,
               mode === "quick"
                 ? "border-terracotta bg-terracotta text-white"
-                : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta"
+                : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta hover:bg-white"
             )}
           >
             <span className={segmentedButtonLabelClass}>Calculadora</span>
@@ -743,7 +743,7 @@ export function FuelingPlanner({
               segmentedButtonClass,
               mode === "gpx"
                 ? "border-terracotta bg-terracotta text-white"
-                : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta"
+                : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta hover:bg-white"
             )}
           >
             <span className={segmentedButtonLabelClass}>Subir GPX</span>
@@ -1033,7 +1033,7 @@ export function FuelingPlanner({
                   segmentedButtonClass,
                   fuelingMode === opt.value
                     ? "border-terracotta bg-terracotta text-white"
-                    : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta"
+                    : "border-terracotta/30 bg-white/80 text-zinc-700 hover:border-terracotta hover:bg-white"
                 )}
               >
                 <span className={segmentedButtonLabelClass}>{opt.label}</span>

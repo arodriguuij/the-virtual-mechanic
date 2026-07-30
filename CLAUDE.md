@@ -1347,12 +1347,35 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   `MapContainer`/`TileLayer`/`Polyline`, plus a small `FitBoundsToRoute` child component
   that calls the underlying Leaflet map's `fitBounds()` imperatively via `useMap()` inside
   a `useEffect` — `react-leaflet` has no declarative "fit to these bounds" prop, so this
-  is the documented pattern for it. Tile layer is CartoDB Positron (`light_all`) — a clean,
-  low-saturation basemap with no busy POI icons/labels to compete with the route line,
-  which is drawn in the app's own terracotta accent (`#6E6658` — matches `--terracotta` in
-  `app/globals.css`, kept as its own literal hex since Leaflet's `Polyline` color prop needs
-  a plain string, updated by hand whenever the token's own value changes) rather than
-  Leaflet's default blue.
+  is the documented pattern for it. Tile layer is still CartoDB Positron (`light_all`) —
+  the *light* variant, deliberately, even though the map now renders dark (see "Dark Vector
+  HUD" below) — inverting a light basemap at render time avoids needing a real dark tile
+  provider/API key. The route itself is drawn in `#C5A059`, a warmer/lighter gold than this
+  app's own `--terracotta` (`#6E6658`) — a deliberate one-off divergence from that token,
+  since the route line specifically needs to read clearly against the now-dark, inverted
+  tiles, where `--terracotta`'s own comparatively low luminance would contrast poorly. Every
+  other bronze accent in the app (buttons, borders) stays `--terracotta`; only this map
+  polyline uses the lighter gold, and only because it sits directly on the filtered dark
+  tiles. Kept as its own literal hex either way, since Leaflet's `Polyline` color prop needs
+  a plain string, not a class name.
+- **"Dark Vector HUD"** — the map used to sit on its basemap's own native light colors,
+  clashing visibly with the dark `#181818` Obsidian widget it's embedded in on the Fueling
+  Planner (see "Obsidian widget" in the Dashboard section below). Fixed with a CSS filter on
+  the tile layer itself, not the whole map: Leaflet's `TileLayer`/`GridLayer` accepts a real
+  `className` option (`TileLayerProps extends TileLayerOptions`, confirmed against
+  `node_modules/@types/leaflet`) applied to the tile layer's own container `<div>` — a
+  sibling of the overlay pane the `Polyline` renders into and the DOM the custom zoom
+  controls/badge live in, so a filter placed here can invert *only* the basemap tiles
+  without touching the route line or any of the custom chrome floating on top of them.
+  `TILE_DARK_FILTER_CLASS` (`components/route-map-preview.tsx`) is `[filter:grayscale(100%)
+  _invert(90%)_contrast(120%)_brightness(85%)]` — `grayscale` strips CartoDB Positron's own
+  light greens/blues, `invert` flips the now-monochrome light basemap to dark, `contrast`/
+  `brightness` keep roads and labels legible rather than washing out to pure black. Verified
+  live (a standalone Leaflet + this exact filter, pointed at a real dense city rather than
+  the sparse rural Sa Calobra test route, to confirm street/label detail survives the
+  filter rather than just going solid black) — streets, water, and place labels all render
+  clearly in a moody dark monochrome, a convincing "dark topography" look from a light
+  basemap with zero extra tile-provider dependency.
 - **Must be dynamically imported with `ssr: false`, never statically**: Leaflet reads
   `window`/`document` at module scope, which breaks Next's server-render pass for the
   initial HTML — this is true even inside a `"use client"` file, since every client
@@ -1366,10 +1389,12 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   dropzone in GPX mode (using the parsed file's own `points` — `null` before any file is
   selected, which is what triggers the component's built-in neutral placeholder: "Selecciona
   una ruta de Strava o sube un GPX para visualizar el trazado."). Not shown in quick-
-  calculator mode, which has no geographic data at all. A floating `bg-white/90
-  backdrop-blur-sm` badge in the map's bottom-left corner echoes the same distance/D+
-  figures the route `<select>`/GPX filename line already show, for at-a-glance reference
-  without needing to scroll back up.
+  calculator mode, which has no geographic data at all. A floating badge in the map's
+  bottom-left corner echoes the same distance/D+ figures the route `<select>`/GPX filename
+  line already show, for at-a-glance reference without needing to scroll back up — restyled
+  as a translucent "glass" chip (`border-white/10 bg-[#181818]/80 text-zinc-200
+  backdrop-blur-md`) to match the Dark Vector HUD treatment above, replacing an earlier
+  opaque `bg-white/90` pill that read as a jarring light cutout against the now-dark tiles.
 - **Stacking-context isolation**: Leaflet assigns its own internal panes/controls
   z-indexes up to `1000` (tile pane, overlay pane, the zoom `+`/`−` control, etc.) —
   comfortably higher than this app's own chrome layers, which meant the map's zoom
@@ -1605,14 +1630,14 @@ inside the card the *sole* control for picking which ride gets analyzed:
   `useMap()`-based component rendering two plain Tailwind buttons in its place: no
   Tailwind class can reach into Leaflet's own bundled CSS to restyle its default control,
   and that default read as disproportionately large/heavy next to this app's otherwise
-  compact chrome. Originally two buttons sharing one bordered/shadowed pill (`size-7` on
-  mobile, `md:size-6` on desktop, a `border-b` divider between them); a later PNS
-  fine-tuning pass (see "PNS premium redesign" in the Dashboard section) flattened this
-  further into two fully independent `size-6 rounded-md border-zinc-200/60 bg-white/90
-  shadow-sm` squares stacked with a small `gap-1`, at one flat size for every breakpoint
-  rather than shrinking at `md:`. This is a change to the shared `RouteMapPreview`
-  component, so it applies equally to the Fueling Planner's own map usage, not just this
-  card.
+  compact chrome. Went through several iterations: two buttons sharing one bordered/
+  shadowed pill, then two independent light `bg-white/90` squares, and now — as part of
+  the "Dark Vector HUD" pass (see the main `RouteMapPreview` section above) — two
+  translucent glass squares (`size-7 border-white/10 bg-[#181818]/80 text-white
+  backdrop-blur-md`, `hover:bg-white/10`) matching the map's own now-dark tiles rather than
+  a light square that would cut against them. This is a change to the shared
+  `RouteMapPreview` component, so it applies equally to the Fueling Planner's own map
+  usage, not just this card.
 - **Date/time stamp** — `formatActivityDateTime()` builds "Martes 28 de Julio · Inicio a
   las 17:30h" from three separate `Intl`/`toLocaleDateString` calls (weekday, day, month,
   time) rather than one combined format string, since `es-ES`'s own long-date output
@@ -2820,6 +2845,17 @@ favor of whitespace/background alone as the separators:
   header) — both headers now flow straight into their content with no rule line, and the
   Fueling Planner's card reads as a clean white fill with a soft shadow against the
   porcelain background, no border anywhere.
+
+**A sixth pass** was mostly a verification pass against an already-mature design (card
+borders, header dividers, `Sincronizar` placement, button radius/color, and the canvas/
+bronze palette were all re-confirmed already correct against a fresh, detailed brief rather
+than re-applied) — the one substantive addition was the map's "Dark Vector HUD" redesign
+(see the main `RouteMapPreview`/"Zoom controls" documentation above for the CSS-filter
+technique, the gold route line, and the glass badge/zoom-control styling). The inactive
+segmented-button state also gained a `hover:bg-white` alongside its existing
+`hover:border-terracotta` (all 5 call sites), so hovering lightens the fill slightly in
+addition to the border-color shift, matching a more literal reading of "imitando los
+botones de cabecera de PNS."
 
 ### Spanish-only UI text
 
