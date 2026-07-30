@@ -3077,6 +3077,46 @@ replaced with a real background-color fill instead — never left with nothing a
   background-color differentiation against whatever surface surrounds it, at both mobile
   and desktop widths.
 
+**A tenth pass partially reversed the ninth pass above** — a follow-up request
+specifically for every *segmented/toggle selector group* (not the whole zero-border
+system) to read as a clearly bordered, shadow-free control again, rather than
+differentiating purely by background fill. Scoped narrowly to genuine multi-option
+toggle groups where one option is persistently "selected" — not a reversal of the
+broader zero-border pass on plain action buttons, disabled states, or porcelain
+sub-blocks, all of which stayed exactly as the ninth pass left them:
+
+- **`segmentedButtonClass`** (`components/fueling-planner.tsx` — Ruta Strava/Calculadora/
+  Subir GPX, Hoy/Mañana/Elegir fecha, Óptimo/Mi Inventario/Híbrido, all 5 ternary call
+  sites) — a plain `border` (color supplied per ternary) and an explicit `shadow-none`
+  went back onto the base class. Active: `border-transparent bg-terracotta text-white`
+  (border present but invisible, keeping the box model identical to the inactive
+  state — no 1px size jump switching between them). Inactive:
+  `border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400` — a real, visible
+  hairline border on a pure white fill, replacing the ninth pass's borderless
+  `bg-zinc-100 hover:bg-zinc-200`.
+- **`components/radio-card.tsx`** (Fenotipo metabólico/Tasa de sudoración/Gut Training on
+  `/perfil` — also a "grupo de botones selectores," per this request's own catch-all)
+  — the exact same treatment: active `border-transparent bg-terracotta text-white`,
+  inactive `border-zinc-300/70 bg-white text-neutral-800 hover:border-zinc-400`,
+  replacing the ninth pass's `bg-zinc-100 hover:bg-zinc-200`.
+- **Post-Ride Analysis's RPE picker** (Suave/Moderado/Duro — a genuine "select one of
+  three" group in "Análisis Post-Ruta," explicitly in scope) — has no persistent active
+  state of its own (each tap immediately submits and re-triggers analysis, so there's
+  nothing to mark "currently selected"), so only the inactive/secondary treatment
+  applies: `border border-zinc-300/70 bg-white text-zinc-700 shadow-none
+  hover:border-terracotta hover:text-terracotta`, replacing the ninth pass's borderless
+  `bg-zinc-100 hover:bg-terracotta/10`.
+- **Deliberately left untouched**: the pocket-food quantity stepper (a single compound
+  −/+ control, not a multi-option toggle group), the consumption preset pills (+1 Gel/+1
+  Bidón/+1 Barrita — one-shot "add" actions a rider can tap several of, not a
+  mutually-exclusive selection), every disabled-button variant, and every porcelain
+  sub-block (Balance Neto, Fase 1/2, the Net Carb Deficit row, the accordions) — none of
+  these are "botones selectores/toggle secundarios" in the sense this request means, so
+  the ninth pass's borderless treatment stands for all of them.
+- Verified via `npm run build` (clean) and a live Playwright check confirming every
+  segmented control now shows a clearly visible 1px border in its inactive state and the
+  solid bronze fill in its active state, at both mobile and desktop widths.
+
 ### Spanish-only UI text
 
 A pass removed the remaining "Spanglish" — English words left over in otherwise-Spanish

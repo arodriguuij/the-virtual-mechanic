@@ -131,18 +131,21 @@ const selectableInputClass = selectableFieldClass;
 // buttons (PNS editorial style), not a pill/track, so each call site only
 // adds its own active/inactive color ternary via `cn()`, not the shape/
 // sizing rules — a narrow-viewport fix to one can't silently drift from the
-// other two. No border here (this app's 100%-frameless pass dropped the
-// bordered-button look entirely) — each call site's own ternary
-// differentiates active/inactive purely by background fill instead (see
-// each ternary's own comment for the exact tones). Sentence case, not
-// uppercase/mono — these are real UI actions ("Ruta Strava", "Hoy",
+// other two. A real `border` (color supplied per call site's own ternary —
+// see each one's own comment) is back on the base class: this app's
+// briefly-tried "zero-border" pass removed it in favor of pure background-
+// fill differentiation, reversed on a later, explicit request for the
+// inactive/secondary state to read as a clearly bordered, shadow-free
+// control again — `shadow-none` stays explicit here for the same reason,
+// even though no shadow utility was ever actually applied. Sentence case,
+// not uppercase/mono — these are real UI actions ("Ruta Strava", "Hoy",
 // "Óptimo"), not technical data labels (see `eyebrow` for that convention).
 // `min-w-0` is what lets a CSS grid column actually shrink below its
 // content's natural width — a grid item defaults to `min-width: auto`,
 // which would otherwise force the column (and the whole row) wider than its
 // share of the grid instead of ever truncating.
 const segmentedButtonClass =
-  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center rounded-md px-1 text-center text-xs font-medium transition-colors duration-150 sm:px-3 sm:text-sm";
+  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center rounded-md border px-1 text-center text-xs font-medium shadow-none transition-colors duration-150 sm:px-3 sm:text-sm";
 // Applied to the label text itself, not the button — `overflow-hidden`/
 // `text-ellipsis` on a `flex items-center justify-center` button clips
 // symmetrically from *both* sides of the centered content (verified live:
@@ -311,8 +314,8 @@ function DeparturePicker({
             className={cn(
               segmentedButtonClass,
               dayMode === opt.value
-                ? "bg-terracotta text-white"
-                : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                ? "border-transparent bg-terracotta text-white"
+                : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
             )}
           >
             <span className={segmentedButtonLabelClass}>{opt.label}</span>
@@ -733,8 +736,8 @@ export function FuelingPlanner({
             className={cn(
               segmentedButtonClass,
               mode === "route"
-                ? "bg-terracotta text-white"
-                : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                ? "border-transparent bg-terracotta text-white"
+                : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
             )}
           >
             <span className={segmentedButtonLabelClass}>Ruta Strava</span>
@@ -745,8 +748,8 @@ export function FuelingPlanner({
             className={cn(
               segmentedButtonClass,
               mode === "quick"
-                ? "bg-terracotta text-white"
-                : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                ? "border-transparent bg-terracotta text-white"
+                : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
             )}
           >
             <span className={segmentedButtonLabelClass}>Calculadora</span>
@@ -757,8 +760,8 @@ export function FuelingPlanner({
             className={cn(
               segmentedButtonClass,
               mode === "gpx"
-                ? "bg-terracotta text-white"
-                : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                ? "border-transparent bg-terracotta text-white"
+                : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
             )}
           >
             <span className={segmentedButtonLabelClass}>Subir GPX</span>
@@ -1064,8 +1067,8 @@ export function FuelingPlanner({
                 className={cn(
                   segmentedButtonClass,
                   fuelingMode === opt.value
-                    ? "bg-terracotta text-white"
-                    : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                    ? "border-transparent bg-terracotta text-white"
+                    : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                 )}
               >
                 <span className={segmentedButtonLabelClass}>{opt.label}</span>

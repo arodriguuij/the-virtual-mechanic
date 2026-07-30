@@ -441,7 +441,7 @@ export function PostRideAnalysis({
                   type="button"
                   disabled={loading}
                   onClick={() => handleAnalyze(opt.value, opt.label)}
-                  className="cursor-pointer rounded-sm bg-zinc-100 px-3 py-1.5 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:bg-terracotta/10 hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-50"
+                  className="cursor-pointer rounded-sm border border-zinc-300/70 bg-white px-3 py-1.5 text-[11px] font-semibold tracking-widest text-zinc-700 uppercase shadow-none transition-colors duration-150 hover:border-terracotta hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {opt.label}
                 </button>
