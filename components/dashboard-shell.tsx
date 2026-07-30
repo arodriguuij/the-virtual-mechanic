@@ -265,12 +265,17 @@ export function DashboardShell({
             separates it from scrolled content instead, matching how iOS
             Safari's own status bar reads as one continuous surface with the
             page color beneath it (see `viewport.themeColor` in
-            `app/layout.tsx`, set to this same tone). Horizontal padding
-            matches `<main>`'s own `px-4 sm:px-6` below, so the brand mark's
-            left edge and the hamburger's right edge line up with the card
-            edges in the content underneath instead of sitting inset from
-            them. */}
-        <header className="sticky top-0 z-40 flex w-full items-center justify-center bg-background/80 px-4 py-4 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur-md transition-all sm:px-6 lg:hidden">
+            `app/layout.tsx`, set to this same tone). The shadow itself was
+            intensified from an earlier, barely-perceptible
+            `shadow-[0_2px_12px_rgba(0,0,0,0.03)]` to a more pronounced,
+            wider-spread `shadow-[0_4px_20px_rgba(0,0,0,0.06)]` — matching
+            Pas Normal Studios' own floating-header depth, where the bar
+            clearly reads as lifted above the scrolled content rather than
+            merely tinted. Horizontal padding matches `<main>`'s own
+            `px-4 sm:px-6` below, so the brand mark's left edge and the
+            hamburger's right edge line up with the card edges in the
+            content underneath instead of sitting inset from them. */}
+        <header className="sticky top-0 z-40 flex w-full items-center justify-center bg-background/80 px-4 py-4 shadow-[0_4px_20px_rgba(0,0,0,0.06)] backdrop-blur-md transition-all sm:px-6 lg:hidden">
           <Link
             href="/"
             onClick={(e) => scrollToTopIfHome(e, pathname)}

@@ -53,23 +53,10 @@ export const fieldClass =
 export const selectableFieldClass =
   "w-full cursor-pointer appearance-none rounded-md border border-zinc-200/80 bg-white px-4 py-2 pr-9 text-sm font-sans text-zinc-800 transition-colors duration-150 hover:border-zinc-300 focus:border-terracotta focus:outline-none";
 
-/** The same `selectableFieldClass` treatment, restyled for a `<select>`
- * sitting on a near-black surface — the Route map's "Obsidian" widget is
- * the one place in the app dark enough to need this. A solid `#242424` fill
- * (not the earlier translucent `bg-white/10`, which blended toward the
- * `#181818` card behind it and read as low-contrast) gives this control its
- * own distinct, consistent surface — a "control panel" sitting a shade
- * lighter than the card itself, with `border-white/15` and `text-zinc-100`
- * for a crisp, legible route name against it. */
-export const selectableFieldDarkClass =
-  "w-full cursor-pointer appearance-none rounded-md border border-white/15 bg-[#242424] px-4 py-2.5 pr-9 text-sm font-medium text-zinc-100 shadow-sm transition-all duration-150 hover:border-white/30 focus:border-white/40 focus:outline-none focus:ring-1 focus:ring-white/30";
-
-/** Pairs with every `selectableFieldClass`/`selectableFieldDarkClass` — the
- * `<ChevronDown>` that replaces the native dropdown arrow stripped by
- * `appearance-none`. Positioned inside whatever `relative` wrapper the call
- * site already has around its `<select>`. One shared class for both the
- * light and dark select variants — `zinc-400` reads clearly against both a
- * white field and the Obsidian widget's `bg-white/10`. */
+/** Pairs with every `selectableFieldClass` — the `<ChevronDown>` that
+ * replaces the native dropdown arrow stripped by `appearance-none`.
+ * Positioned inside whatever `relative` wrapper the call site already has
+ * around its `<select>`. */
 export const selectChevronClass =
   "pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-zinc-400";
 

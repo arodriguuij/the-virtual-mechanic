@@ -7,51 +7,30 @@ import { MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
 
 import { cn } from "@/lib/utils";
 
-// OpenTopoMap — a real, free, no-API-key topographic tile set (elevation-
-// shaded terrain, forest/water color-coded, genuine road network) rather
-// than CartoDB's monochrome `dark_all`/`light_all` basemaps this app used
-// before. This one specific request asked for a colorful "Strava Dark Mode
-// Topo" look (navy sea, forest-green terrain, slate urban grid, orange
-// route) — a monochrome graphite basemap has no color information left to
-// recover via a filter, so getting real hue differentiation back requires
-// starting from a tile source that actually has it.
-const TILE_URL = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png";
-// OpenTopoMap's own required attribution wording (its usage policy asks for
-// this exact form, not just a generic OSM credit) — SRTM is the elevation
-// dataset the terrain shading itself is computed from.
+// CartoDB Positron — a soft, low-contrast, minimalist basemap (pale porcelain
+// land, muted blue water, faint gray roads/labels) rendered natively light,
+// not derived from a dark tile via a CSS filter. Replaces the earlier
+// "Strava Dark Mode Topo" experiment (OpenTopoMap +
+// `invert(100%) hue-rotate(180deg)`) outright — that approach worked, but a
+// filter-derived dark map is inherently a step removed from what it's
+// approximating; a genuinely light, Apple Maps/Mapbox-Light-style tile needs
+// no filter at all, which is simpler and reads cleaner against this app's own
+// porcelain canvas.
+const TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+// CartoDB's own required attribution wording for this tile set.
 const TILE_ATTRIBUTION =
-  'map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)';
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
-// Leaflet's `TileLayer` forwards a `className` straight onto every tile
-// `<img>` it renders (a real `L.TileLayer` option, not react-leaflet's own
-// invention) — this is what lets a CSS filter reach the actual tile images
-// without also touching the `Polyline`/zoom controls/badge, which live in
-// separate panes/DOM nodes. OpenTopoMap is natively a *light* map (its
-// labels are dark text, designed for a light background) — a plain
-// `brightness`-only darken would crush those same dark labels into the now-
-// dark background instead of lifting them. `invert(100%) hue-rotate(180deg)`
-// is the classic "dark-mode a light image" pair instead: inverting flips
-// every element's lightness (dark labels become light, light terrain
-// becomes dark) while the compensating 180° hue rotation approximately
-// restores each color's original hue (blue sea stays blue-ish rather than
-// flipping to its complementary orange) — together, real terrain colors
-// survive, just inverted to a dark register. `contrast`/`saturate` then
-// tune richness on top. Approximate by nature — a CSS filter can't be tuned
-// to land on an exact target hex, and the source tile's own pixel values
-// vary by location/zoom — verified visually against real coastal/mountain
-// terrain (Sa Calobra) and a dense city (Palma de Mallorca) rather than
-// computed.
-const TILE_DARK_FILTER_CLASS =
-  "[filter:invert(100%)_hue-rotate(180deg)_brightness(95%)_contrast(90%)_saturate(130%)]";
-
-// Strava's own icon orange — the one deliberate exception to this app's
-// "route line uses a gold/bronze accent, not literal brand colors" pattern
-// from earlier passes, since this specific request asked for the Strava
-// look by name. Every other bronze accent in the app (buttons, borders)
-// stays `--terracotta`; only this map polyline uses Strava orange, and only
-// because it needs to read as unmistakably "Strava" against the new
-// colorful terrain.
+// Strava's own icon orange — reads as an unmistakable, high-contrast accent
+// against Positron's pale, low-saturation basemap, same as it did against the
+// darker topo tile before this pass.
 const ROUTE_LINE_COLOR = "#FC5200";
+// A wider, softer, near-black line rendered directly underneath the route
+// itself — Leaflet's `Polyline` has no `box-shadow`-style prop of its own, so
+// stacking a second, more transparent stroke beneath the real one is the
+// standard way to fake one, giving the route a subtle sense of depth over the
+// pale terrain rather than sitting perfectly flat on it.
+const ROUTE_SHADOW_COLOR = "#1a1a1a";
 
 /** `MapContainer` itself has no "fit to route" concept — this runs once
  * per `points` change and asks the underlying Leaflet map instance
@@ -74,11 +53,11 @@ function FitBoundsToRoute({ points }: { points: [number, number][] }) {
  * place, since Leaflet's default `+`/`−` control only takes inline sizing
  * from its own bundled CSS (no Tailwind class of ours can reach it) and read
  * as disproportionately large/heavy next to this app's otherwise compact,
- * sober chrome. Restyled as translucent "glass" chips
- * (`bg-[#181818]/80 backdrop-blur-md border-white/15`) to sit on top of the
- * now-dark, colorful topo basemap (see `TILE_DARK_FILTER_CLASS` above) rather
- * than the flat opaque `bg-white` squares this used to be — a light square
- * would read as a jarring cutout against dark topography.
+ * sober chrome. Restyled as translucent light "glass" chips
+ * (`bg-white/80 backdrop-blur-md border-zinc-200/60`) to sit on the pale
+ * Positron basemap — the same clear/frosted look Apple Maps' own floating
+ * controls use, replacing the dark-glass treatment this carried while the
+ * map itself was still dark.
  */
 function MapZoomControls() {
   const map = useMap();
@@ -89,7 +68,7 @@ function MapZoomControls() {
         type="button"
         onClick={() => map.zoomIn()}
         aria-label="Acercar mapa"
-        className="flex size-7 cursor-pointer items-center justify-center rounded-md border border-white/15 bg-[#181818]/80 text-xs leading-none font-bold text-white backdrop-blur-md transition-colors hover:bg-white/10"
+        className="flex size-7 cursor-pointer items-center justify-center rounded-md border border-zinc-200/60 bg-white/80 text-xs leading-none font-bold text-zinc-900 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
       >
         +
       </button>
@@ -97,7 +76,7 @@ function MapZoomControls() {
         type="button"
         onClick={() => map.zoomOut()}
         aria-label="Alejar mapa"
-        className="flex size-7 cursor-pointer items-center justify-center rounded-md border border-white/15 bg-[#181818]/80 text-xs leading-none font-bold text-white backdrop-blur-md transition-colors hover:bg-white/10"
+        className="flex size-7 cursor-pointer items-center justify-center rounded-md border border-zinc-200/60 bg-white/80 text-xs leading-none font-bold text-zinc-900 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
       >
         −
       </button>
@@ -158,7 +137,7 @@ export function RouteMapPreview({
   return (
     <div
       className={cn(
-        "relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-lg border border-neutral-200",
+        "relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-lg border border-zinc-200/60 bg-white shadow-sm",
         className
       )}
     >
@@ -170,13 +149,35 @@ export function RouteMapPreview({
         attributionControl={false}
         zoomControl={false}
       >
-        <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} className={TILE_DARK_FILTER_CLASS} />
-        <Polyline positions={points} pathOptions={{ color: ROUTE_LINE_COLOR, weight: 4, opacity: 1 }} />
+        <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+        {/* Shadow stroke first (wider, translucent dark), the real Strava-
+            orange route drawn on top — gives the line a subtle sense of
+            depth over the pale terrain without needing a CSS filter. */}
+        <Polyline
+          positions={points}
+          pathOptions={{
+            color: ROUTE_SHADOW_COLOR,
+            weight: 6,
+            opacity: 0.15,
+            lineCap: "round",
+            lineJoin: "round",
+          }}
+        />
+        <Polyline
+          positions={points}
+          pathOptions={{
+            color: ROUTE_LINE_COLOR,
+            weight: 3.5,
+            opacity: 1,
+            lineCap: "round",
+            lineJoin: "round",
+          }}
+        />
         <FitBoundsToRoute points={points} />
         <MapZoomControls />
       </MapContainer>
       {badgeParts.length > 0 && (
-        <div className="absolute bottom-2 left-2 z-[1000] rounded-md border border-white/15 bg-[#181818]/80 px-3 py-1.5 font-mono text-[11px] text-zinc-200 backdrop-blur-md">
+        <div className="absolute bottom-2 left-2 z-1000 rounded-lg border border-zinc-200/60 bg-white/80 px-3 py-1.5 font-mono text-xs text-zinc-900 shadow-sm backdrop-blur-md">
           {badgeParts.join(" · ")}
         </div>
       )}

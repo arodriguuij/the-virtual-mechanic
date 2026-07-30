@@ -1353,21 +1353,27 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   `MapContainer`/`TileLayer`/`Polyline`, plus a small `FitBoundsToRoute` child component
   that calls the underlying Leaflet map's `fitBounds()` imperatively via `useMap()` inside
   a `useEffect` — `react-leaflet` has no declarative "fit to these bounds" prop, so this
-  is the documented pattern for it. Tile layer is **OpenTopoMap** (`tile.opentopomap.org`) —
-  a free, no-API-key *topographic* tile set with real elevation-shaded terrain, forest/
-  water color-coding, and a genuine road network, not one of CartoDB's monochrome
-  `light_all`/`dark_all` basemaps this app used through two earlier passes (see "Dark Vector
-  HUD" below for the full history and why a colorful "Strava Dark Mode Topo" request forced
-  this second tile-provider switch). The route itself is drawn in `#FC5200` — Strava's own
-  icon orange, the one deliberate exception to this app's usual "route line uses a muted
-  gold/bronze accent, not a literal brand color" pattern from the prior CartoDB-based
-  passes, since this specific request asked for the Strava look by name. Every other bronze
-  accent in the app (buttons, borders) stays `--terracotta`; only this map polyline uses
-  Strava orange. `weight: 4`, `opacity: 1` for a stroke that reads as unmistakably the
-  foreground element against the topography behind it. Kept as its own literal hex, since
-  Leaflet's `Polyline` color prop needs a plain string, not a class name.
-- **"Dark Vector HUD" → real colorful "Strava Dark Mode Topo"** — three tile-provider/
-  filter iterations, each replacing the last:
+  is the documented pattern for it. Tile layer is **CartoDB Positron**
+  (`basemaps.cartocdn.com/light_all`) — a free, no-API-key, genuinely light/minimalist
+  basemap (pale porcelain land, muted pastel-blue water, faint gray roads/labels), rendered
+  with **no CSS filter at all**. The route itself is drawn in `#FC5200` — Strava's own icon
+  orange, the one deliberate exception to this app's usual "route line uses a muted
+  gold/bronze accent, not a literal brand color" pattern, since an earlier request
+  specifically asked for the Strava look by name and this reads as unmistakably high-
+  contrast against Positron's pale, low-saturation terrain. Every other bronze accent in the
+  app (buttons, borders) stays `--terracotta`; only this map polyline uses Strava orange.
+  `weight: 3.5`, `opacity: 1`, `lineCap`/`lineJoin: "round"`. A second, wider
+  (`weight: 6`), near-black (`#1a1a1a`) `Polyline` at `opacity: 0.15` is rendered directly
+  underneath the real route line — Leaflet's `Polyline` has no `box-shadow`-equivalent prop
+  of its own, so stacking a second, more transparent stroke beneath the visible one is the
+  standard way to fake a soft drop shadow, giving the route a little depth over the flat
+  pale terrain. Both colors are kept as literal hex strings, since Leaflet's `Polyline`
+  `color` prop needs a plain string, not a class name.
+- **From a filter-derived dark "Strava Dark Mode Topo" back to a genuinely light, Apple
+  Maps-style basemap.** This tile went through four full iterations before landing here —
+  the first three all pursued a *dark* map and are kept below as a record of what was tried
+  and why each one was superseded; the fourth reversed course entirely back to a light map,
+  which is the current, live implementation:
   1. **First attempt**: keep CartoDB's light `light_all` tile and invert it dark via a CSS
      filter (`grayscale(100%) invert(90%) contrast(120%) brightness(85%)`). Reported as
      reading "muddy" — `light_all`'s land and roads start at *similar* light luminance
@@ -1376,53 +1382,49 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   2. **Second attempt**: switch the tile source to CartoDB's real dark `dark_all`
      ("Dark Matter") basemap instead of inverting the light one, with a lighter
      `brightness(185%) contrast(105%)` filter on top to lift its own somewhat-muted default
-     palette. This fixed the legibility/muddiness complaint (land, roads, and labels are
-     each independently dark-mode-designed there, not merely filtered) — but `dark_all` is
-     still fundamentally *monochrome* (graphite land, silver-gray roads/labels, no color
-     differentiation at all). That was fine until this request specifically asked for a
-     colorful "Strava Dark Mode Topo" look (navy sea, forest green, slate urban, distinct
-     from each other by *hue*, not just grayscale value) — a monochrome tile has no color
-     information left for any CSS filter to recover; `hue-rotate`/`saturate` on a grayscale
-     source does nothing, since there's no saturation to rotate.
-  3. **Third, current attempt**: switch tile providers again, this time to **OpenTopoMap** —
-     a genuinely multi-hue basemap (blue sea, green forest, tan/brown elevation bands, gray
-     urban areas, real road-network coloring) that just happens to be designed *light*
-     (dark label text, meant for a light background). A plain `brightness`-only darken would
-     crush those same dark labels into the new dark background instead of lifting them —
-     the classic **`invert(100%) hue-rotate(180deg)`** pairing solves this instead: inverting
-     flips every element's lightness (dark labels become light, light terrain becomes dark)
-     while the compensating 180° hue rotation approximately restores each element's original
-     hue (blue sea stays blue-ish rather than flipping to its RGB-inverted complementary
-     orange). `TILE_DARK_FILTER_CLASS` (`components/route-map-preview.tsx`) is
-     `[filter:invert(100%)_hue-rotate(180deg)_brightness(95%)_contrast(90%)_saturate(130%)]`
-     — `contrast`/`saturate` tune richness on top of the inverted result. `TILE_ATTRIBUTION`
-     changed to OpenTopoMap's own required wording (their usage policy asks for this exact
-     "map data / map style" phrasing, crediting both OpenStreetMap and the SRTM elevation
-     dataset the terrain shading is computed from, not just a generic OSM credit).
-  The delivery mechanism is unchanged across all three attempts: Leaflet's `TileLayer`/
-  `GridLayer` accepts a real `className` option (`TileLayerProps extends TileLayerOptions`,
-  confirmed against `node_modules/@types/leaflet`) applied to the tile layer's own container
-  `<div>` — a sibling of the overlay pane the `Polyline` renders into and the DOM the custom
-  zoom controls/badge live in, so the filter reaches only the basemap tiles, never the route
-  line or the custom chrome floating on top. **A CSS filter is inherently approximate, not a
-  precise hex target** — the source tile's own pixel values vary by location and zoom, so
-  every filter here was tuned by visual verification, not computed to land on an exact color:
-  a standalone Leaflet instance with the exact tile+filter combo, checked against both real
-  coastal/mountain terrain (Sa Calobra) and a dense city (Palma de Mallorca) for the current
-  OpenTopoMap version. Confirmed live: sea renders as a rich dark navy/teal, mountain terrain
-  shows genuine contour-line elevation shading in warm dark greens/browns, urban grids read
-  as slate gray, place/peak labels (tested down to "Puig Major," "sa Bretxa") invert to
-  crisp legible white, and the Strava-orange route has strong, unmistakable contrast against
-  all of it.
-- **The "Ruta" select's dark styling** (`selectableFieldDarkClass`, `lib/ui-classes.ts`)
-  was originally a translucent `bg-white/10` over the widget's own `#181818` background —
-  low-contrast, since a 10%-white overlay on near-black stays close to near-black. Switched
-  to a solid `bg-[#242424]` fill with `border-white/15` and `text-zinc-100 font-medium` —
-  its own distinct, consistently-colored "control panel" surface a shade lighter than the
-  card behind it, rather than a translucency that depends on what's behind it. The "Ruta"/
-  "Recargar" labels above it (`components/fueling-planner.tsx`) went from `text-zinc-400`
-  to `text-zinc-300` for the same reason — slightly brighter, more confidently legible
-  uppercase technical labels against the dark card.
+     palette. Fixed the legibility/muddiness complaint, but `dark_all` is fundamentally
+     *monochrome* (graphite land, silver-gray roads/labels, no color differentiation at
+     all) — a problem once a later request specifically asked for a colorful "Strava Dark
+     Mode Topo" look (navy sea, forest green, slate urban, distinct from each other by
+     *hue*, not just grayscale value): a monochrome tile has no color information left for
+     any CSS filter to recover; `hue-rotate`/`saturate` on a grayscale source does nothing,
+     since there's no saturation to rotate.
+  3. **Third attempt**: switch tile providers to **OpenTopoMap** — a genuinely multi-hue
+     basemap (blue sea, green forest, tan/brown elevation bands, gray urban areas) that just
+     happens to be designed *light* (dark label text). The classic
+     `invert(100%) hue-rotate(180deg)` pairing made it work as a dark map (inverting flips
+     lightness — dark labels become light, light terrain becomes dark — while the
+     compensating hue rotation approximately restores each color's original hue), with
+     `contrast`/`saturate` tuning richness on top. This is the version documented in every
+     "Dark Vector HUD"/"PNS premium redesign" pass below, and it worked as specified at the
+     time — verified live against real coastal/mountain terrain (Sa Calobra) and a dense
+     city (Palma de Mallorca).
+  4. **Fourth, current attempt — reversal back to a light map.** A later request asked to
+     drop the dark-map aesthetic entirely in favor of a simple, clean, low-contrast look
+     "similar to Apple Maps / Mapbox Light." Since the destination was light anyway, this
+     didn't need a filter tuned against a dark basemap at all — it's simpler and more
+     faithful to switch straight to a tile that's *natively* the look being asked for:
+     **CartoDB Positron** (`light_all`, see above), zero CSS filter. This is a genuine
+     simplification, not just a fourth filter recipe — `TILE_DARK_FILTER_CLASS` was deleted
+     outright, not replaced with a lighter equivalent.
+  The delivery mechanism (Leaflet's `TileLayer`/`GridLayer` `className` option, applied to
+  the tile layer's own container `<div>` — a sibling of the overlay pane the `Polyline`
+  renders into, so a filter would only ever reach the basemap tiles, never the route line
+  or custom chrome) is unchanged in principle across every iteration; it's simply unused
+  now that there's no filter to apply.
+- **The "Ruta" select and its surrounding widget went light too.** The route
+  selector/map used to float on a near-black "Obsidian" card
+  (`bg-[#181818]`) with its own dark `<select>` variant
+  (`selectableFieldDarkClass` — a solid `bg-[#242424]` fill, `border-white/15`,
+  `text-zinc-100`) — the one deliberately dark surface in an otherwise all-light UI, built
+  specifically to house the dark map. Once the map itself moved to a genuinely light
+  basemap, keeping this wrapper dark would have looked like a light map trapped inside a
+  black frame, so the whole widget was restyled to `border-zinc-200/60 bg-surface
+  shadow-sm` (this app's own porcelain-adjacent "read-only container" token) with plain
+  `text-zinc-500`/`text-zinc-900` labels — one continuous light surface, no separate dark
+  island. `selectableFieldDarkClass` is now genuinely dead code (its one call site switched
+  to the ordinary `selectableFieldClass`) and was deleted from `lib/ui-classes.ts` outright
+  rather than left unused "just in case."
 - **Must be dynamically imported with `ssr: false`, never statically**: Leaflet reads
   `window`/`document` at module scope, which breaks Next's server-render pass for the
   initial HTML — this is true even inside a `"use client"` file, since every client
@@ -1438,10 +1440,11 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   una ruta de Strava o sube un GPX para visualizar el trazado."). Not shown in quick-
   calculator mode, which has no geographic data at all. A floating badge in the map's
   bottom-left corner echoes the same distance/D+ figures the route `<select>`/GPX filename
-  line already show, for at-a-glance reference without needing to scroll back up — restyled
-  as a translucent "glass" chip (`border-white/10 bg-[#181818]/80 text-zinc-200
-  backdrop-blur-md`) to match the Dark Vector HUD treatment above, replacing an earlier
-  opaque `bg-white/90` pill that read as a jarring light cutout against the now-dark tiles.
+  line already show, for at-a-glance reference without needing to scroll back up — now a
+  translucent *light* glass chip (`border-zinc-200/60 bg-white/80 text-zinc-900
+  backdrop-blur-md shadow-sm`), matching the map's own reversal back to a light basemap
+  (replacing the dark-glass `border-white/15 bg-[#181818]/80 text-zinc-200` treatment this
+  carried through the "Dark Vector HUD" passes).
 - **Stacking-context isolation**: Leaflet assigns its own internal panes/controls
   z-indexes up to `1000` (tile pane, overlay pane, the zoom `+`/`−` control, etc.) —
   comfortably higher than this app's own chrome layers, which meant the map's zoom
@@ -1678,13 +1681,14 @@ inside the card the *sole* control for picking which ride gets analyzed:
   Tailwind class can reach into Leaflet's own bundled CSS to restyle its default control,
   and that default read as disproportionately large/heavy next to this app's otherwise
   compact chrome. Went through several iterations: two buttons sharing one bordered/
-  shadowed pill, then two independent light `bg-white/90` squares, and now — as part of
-  the "Dark Vector HUD"/"Strava Dark Mode Topo" passes (see the main `RouteMapPreview`
-  section above) — two translucent glass squares (`size-7 border-white/15 bg-[#181818]/80
-  text-white backdrop-blur-md`, `hover:bg-white/10`) matching the map's own now-dark,
-  colorful topo tiles rather than a light square that would cut against them. This is a
-  change to the shared `RouteMapPreview` component, so it applies equally to the Fueling
-  Planner's own map
+  shadowed pill, then two independent light `bg-white/90` squares, then — during the
+  "Dark Vector HUD"/"Strava Dark Mode Topo" passes — two translucent *dark*-glass squares
+  matching the map's then-dark colorful topo tiles. Once the map itself reversed back to a
+  genuinely light basemap (see "Route map preview" above), these reverted to a light-glass
+  treatment too: `size-7 border-zinc-200/60 bg-white/80 text-zinc-900 shadow-sm
+  backdrop-blur-md`, `hover:bg-white` — the same clear/frosted "Apple Maps floating
+  control" look as the distance badge. This is a change to the shared `RouteMapPreview`
+  component, so it applies equally to the Fueling Planner's own map
   usage, not just this card.
 - **Date/time stamp** — `formatActivityDateTime()` builds "Martes 28 de Julio · Inicio a
   las 17:30h" from three separate `Intl`/`toLocaleDateString` calls (weekday, day, month,
@@ -2915,6 +2919,30 @@ three-iteration history, the `invert(100%) hue-rotate(180deg)` technique that ma
 light-designed topo tile work as a legible dark map, and the live verification against real
 coastal/mountain and urban terrain.
 
+**An eighth pass reversed the entire dark-map direction** — a request to drop the
+"Dark Vector HUD"/"Strava Dark Mode Topo" look outright in favor of a simple, low-contrast,
+Apple Maps/Mapbox-Light-style aesthetic. Rather than a fifth filter recipe, the tile
+provider switched a third time to **CartoDB Positron** with **zero CSS filter** — the
+straightforward move once the destination itself is a light map, since a natively-light
+tile needs no dark-moding trick at all. The route line kept its Strava orange (`#FC5200`,
+now unmistakably high-contrast against Positron's pale terrain instead of the dark topo)
+and gained a soft drop-shadow effect via a second, wider, near-black `Polyline` stacked
+underneath at low opacity. The "Obsidian" dark widget wrapping the route selector + map in
+`components/fueling-planner.tsx` was restyled to a light `bg-surface` container to match
+(a light map floating inside a black frame would have read as broken), and its dark
+`<select>` variant (`selectableFieldDarkClass`) was deleted outright as genuinely dead
+code rather than left unused. The map's zoom controls and distance/elevation badge both
+reverted from dark-glass (`bg-[#181818]/80`) to light-glass (`bg-white/80`) chips to match.
+See "Route map preview" above for the full four-iteration tile history and the current
+implementation in detail.
+
+**In the same pass**, the mobile sticky header's floating shadow (see "iOS status-bar
+fusion..." below) was intensified from a barely-perceptible
+`shadow-[0_2px_12px_rgba(0,0,0,0.03)]` to a more pronounced, wider-spread
+`shadow-[0_4px_20px_rgba(0,0,0,0.06)]` — the header reads as clearly lifted above scrolled
+content now, matching Pas Normal Studios' own floating-header depth, still with zero
+`border-b` anywhere.
+
 ### Spanish-only UI text
 
 A pass removed the remaining "Spanglish" — English words left over in otherwise-Spanish
@@ -3174,12 +3202,17 @@ Three related PNS-editorial requests, applied together:
   `<body>`'s pre-existing one, so there's no unstyled flash at either level.
 - **The mobile sticky header** (`components/dashboard-shell.tsx`) dropped its
   `border-b border-neutral-200/80` and opaque `bg-white/90` entirely, replaced by
-  `bg-background/80` (the same porcelain token, translucent, not literal white) plus
-  `shadow-[0_2px_12px_rgba(0,0,0,0.03)]` — a soft diffuse shadow that only reads once
-  content has actually scrolled underneath it, rather than a permanent hard rule always
-  visible even at the very top of the page. This is what makes the header read as "the same
-  surface as the page, just floating," matching the iOS status-bar fusion above rather than
-  fighting it with a visibly different white bar directly beneath a porcelain status bar.
+  `bg-background/80` (the same porcelain token, translucent, not literal white) plus a soft
+  diffuse shadow that only reads once content has actually scrolled underneath it, rather
+  than a permanent hard rule always visible even at the very top of the page. This is what
+  makes the header read as "the same surface as the page, just floating," matching the iOS
+  status-bar fusion above rather than fighting it with a visibly different white bar
+  directly beneath a porcelain status bar. The shadow itself started at a barely-perceptible
+  `shadow-[0_2px_12px_rgba(0,0,0,0.03)]` and was later intensified — a follow-up request
+  found it too subtle to actually read as "floating" — to a more pronounced, wider-spread
+  `shadow-[0_4px_20px_rgba(0,0,0,0.06)]`, matching Pas Normal Studios' own floating-header
+  depth. Still zero `border-b` at either version — only the shadow's spread/opacity
+  changed, not the underlying "no rigid line" approach.
 - **Lateral padding tightened**: `<main>`'s own `px-6 sm:px-8` → `px-4 sm:px-6 md:px-8` (16px
   on a phone, was 24px) — PNS's own mobile layout sits much closer to the viewport edge than
   this app previously did, and the header's own horizontal padding was updated to match

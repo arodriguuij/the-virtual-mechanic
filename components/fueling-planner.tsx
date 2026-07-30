@@ -40,7 +40,6 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
   selectableFieldClass,
-  selectableFieldDarkClass,
   selectChevronClass,
 } from "@/lib/ui-classes";
 import {
@@ -759,15 +758,18 @@ export function FuelingPlanner({
         {mode === "route" ? (
           routes.length > 0 ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              {/* "Obsidian widget" — the route selector and its map preview
-                  float on a near-black card rather than sitting flush on the
-                  page, the one deliberately dark surface in an otherwise
-                  all-light UI. `border-white/10`/`shadow-xl` give it the
-                  same "elevated" quality the login hero's floating card has,
-                  just inverted to dark. */}
-              <div className="rounded-lg border border-white/10 bg-[#181818] p-4 text-white shadow-xl sm:col-span-2 sm:p-6">
+              {/* The route selector and its map preview used to float on a
+                  near-black "Obsidian" card — the one deliberately dark
+                  surface in an otherwise all-light UI. Once the map itself
+                  moved to a genuinely light Apple-Maps-style basemap (see
+                  `RouteMapPreview`), keeping this wrapper dark would have
+                  read as a light map trapped inside a black frame — restyled
+                  to a soft, porcelain-integrated container (`bg-surface`)
+                  instead, so the whole widget reads as one continuous light
+                  surface. */}
+              <div className="rounded-lg border border-zinc-200/60 bg-surface p-4 shadow-sm sm:col-span-2 sm:p-6">
                 <div className="flex items-center justify-between gap-2">
-                  <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-300 uppercase">
+                  <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase">
                     Ruta
                   </label>
                   <button
@@ -775,7 +777,7 @@ export function FuelingPlanner({
                     onClick={handleRefreshRoutes}
                     disabled={refreshingRoutes}
                     title="Recargar rutas desde Strava"
-                    className="flex cursor-pointer items-center gap-1 text-[10px] font-mono tracking-widest text-zinc-300 uppercase transition-colors duration-150 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex cursor-pointer items-center gap-1 text-[10px] font-mono tracking-widest text-zinc-500 uppercase transition-colors duration-150 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <RefreshCw className={cn("size-3", refreshingRoutes && "animate-spin")} />
                     {refreshingRoutes ? "Sincronizando…" : "Recargar"}
@@ -790,7 +792,7 @@ export function FuelingPlanner({
                 <div className="relative mt-1.5">
                   <select
                     id="route"
-                    className={cn(selectableFieldDarkClass, refreshingRoutes && "text-zinc-500")}
+                    className={cn(selectableInputClass, refreshingRoutes && "text-zinc-400")}
                     value={refreshingRoutes ? "__syncing" : selectedRouteId}
                     onChange={(e) => setSelectedRouteId(e.target.value)}
                     disabled={refreshingRoutes}
@@ -809,7 +811,7 @@ export function FuelingPlanner({
                   </select>
                   {refreshingRoutes ? (
                     <span
-                      className="pointer-events-none absolute top-1/2 right-9 size-3.5 -translate-y-1/2 animate-spin rounded-full border-2 border-white/20 border-t-white"
+                      className="pointer-events-none absolute top-1/2 right-9 size-3.5 -translate-y-1/2 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-700"
                       aria-hidden="true"
                     />
                   ) : (
@@ -820,7 +822,6 @@ export function FuelingPlanner({
                   points={selectedRoutePoints}
                   distanceKm={selectedRoute?.distanceKm ?? null}
                   elevationGainM={selectedRoute?.elevationGainM ?? null}
-                  className="border-white/10"
                 />
               </div>
               <div className="flex flex-col gap-2">
