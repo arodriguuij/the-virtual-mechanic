@@ -24,7 +24,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { stripEmoji } from "@/lib/gpx-export";
@@ -40,6 +40,8 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
   selectableFieldClass,
+  selectableFieldDarkClass,
+  selectChevronClass,
 } from "@/lib/ui-classes";
 import {
   calculateHouseholdMeasures,
@@ -116,7 +118,7 @@ function pocketFoodName(type: PocketFoodItemType): string {
   return stripEmoji(pocketFoodLabels[type]);
 }
 
-const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
+const eyebrow = "text-[10px] font-mono uppercase tracking-widest text-zinc-500";
 const statLabel = "text-[10px] sm:text-xs font-mono tracking-wider text-neutral-500 uppercase truncate";
 const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
 // Shared with every other field/button across the app (`lib/ui-classes.ts`) —
@@ -124,18 +126,20 @@ const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums
 // input/select/date call site below.
 const inputClass = fieldClass;
 const selectableInputClass = selectableFieldClass;
-// Shared sizing/typography for every 3-column segmented control in this file
-// (Salida's Hoy/Mañana/Elegir fecha, the Ruta/Calculadora/GPX mode toggle,
-// Estrategia nutricional's Óptimo/Mi Inventario/Híbrido) — each still adds
-// its own border/background/active-state classes via `cn()`, but the
-// text-sizing and centering rules live in one place so a narrow-viewport fix
-// to one can't silently drift from the other two. `min-w-0` is what lets a
-// CSS grid column actually shrink below its content's natural width — a
-// grid item defaults to `min-width: auto`, which would otherwise force the
-// column (and the whole row) wider than its share of the grid instead of
-// ever truncating.
+// Shared sizing/typography/shape for every 3-column segmented control in
+// this file (Salida's Hoy/Mañana/Elegir fecha, the Ruta/Calculadora/GPX mode
+// toggle, Estrategia nutricional's Óptimo/Mi Inventario/Híbrido) — rectangular
+// bordered buttons (PNS editorial style), not a pill/track, so each call site
+// only adds its own active/inactive color ternary via `cn()`, not the
+// shape/sizing rules — a narrow-viewport fix to one can't silently drift from
+// the other two. Sentence case, not uppercase/mono — these are real UI
+// actions ("Ruta Strava", "Hoy", "Óptimo"), not technical data labels (see
+// `eyebrow` for that convention). `min-w-0` is what lets a CSS grid column
+// actually shrink below its content's natural width — a grid item defaults to
+// `min-width: auto`, which would otherwise force the column (and the whole
+// row) wider than its share of the grid instead of ever truncating.
 const segmentedButtonClass =
-  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center px-1 text-center text-[10px] font-mono font-bold tracking-tight uppercase transition-all duration-150 sm:px-3 sm:text-xs";
+  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center rounded-lg border px-1 text-center text-xs font-medium transition-colors duration-150 sm:px-3 sm:text-sm";
 // Applied to the label text itself, not the button — `overflow-hidden`/
 // `text-ellipsis` on a `flex items-center justify-center` button clips
 // symmetrically from *both* sides of the centered content (verified live:
@@ -295,7 +299,7 @@ function DeparturePicker({
   return (
     <div className="flex w-full min-w-0 max-w-full flex-col gap-2 rounded-lg border border-neutral-200 px-3 py-3">
       <span className={eyebrow}>Fecha y hora de salida</span>
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-3 gap-2">
         {DEPARTURE_DAY_MODE_OPTIONS.map((opt) => (
           <button
             key={opt.value}
@@ -303,10 +307,9 @@ function DeparturePicker({
             onClick={() => onDayModeChange(opt.value)}
             className={cn(
               segmentedButtonClass,
-              "rounded-md border",
               dayMode === opt.value
-                ? "border-terracotta bg-terracotta text-white"
-                : "border-neutral-300 bg-white text-neutral-600 hover:border-neutral-400"
+                ? "border-terracotta bg-terracotta text-white shadow-sm"
+                : "border-terracotta/30 bg-white text-zinc-700 hover:border-terracotta"
             )}
           >
             <span className={segmentedButtonLabelClass}>{opt.label}</span>
@@ -323,18 +326,21 @@ function DeparturePicker({
           className={fieldClass}
         />
       )}
-      <select
-        aria-label="Hora de salida"
-        className={selectableFieldClass}
-        value={hour}
-        onChange={(e) => onHourChange(e.target.value)}
-      >
-        {DEPARTURE_HOUR_OPTIONS.map((h) => (
-          <option key={h} value={h}>
-            {h}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          aria-label="Hora de salida"
+          className={selectableFieldClass}
+          value={hour}
+          onChange={(e) => onHourChange(e.target.value)}
+        >
+          {DEPARTURE_HOUR_OPTIONS.map((h) => (
+            <option key={h} value={h}>
+              {h}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className={selectChevronClass} />
+      </div>
     </div>
   );
 }
@@ -703,21 +709,17 @@ export function FuelingPlanner({
     <Card className={flatMobileCardClass}>
       <CardHeader>
         <CardTitle>Planificador de nutrición</CardTitle>
-        <CardDescription className={eyebrow}>
-          Estrategia de bolsillo y receta casera para tu próxima salida
-        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <div className="grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1">
+        <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
             onClick={() => setMode("route")}
             className={cn(
               segmentedButtonClass,
-              "rounded-md tracking-wide",
               mode === "route"
-                ? "bg-terracotta text-white shadow-sm"
-                : "text-neutral-500 hover:text-neutral-900"
+                ? "border-terracotta bg-terracotta text-white shadow-sm"
+                : "border-terracotta/30 bg-white text-zinc-700 hover:border-terracotta"
             )}
           >
             <span className={segmentedButtonLabelClass}>Ruta Strava</span>
@@ -727,10 +729,9 @@ export function FuelingPlanner({
             onClick={() => setMode("quick")}
             className={cn(
               segmentedButtonClass,
-              "rounded-md tracking-wide",
               mode === "quick"
-                ? "bg-terracotta text-white shadow-sm"
-                : "text-neutral-500 hover:text-neutral-900"
+                ? "border-terracotta bg-terracotta text-white shadow-sm"
+                : "border-terracotta/30 bg-white text-zinc-700 hover:border-terracotta"
             )}
           >
             <span className={segmentedButtonLabelClass}>Calculadora</span>
@@ -740,10 +741,9 @@ export function FuelingPlanner({
             onClick={() => setMode("gpx")}
             className={cn(
               segmentedButtonClass,
-              "rounded-md tracking-wide",
               mode === "gpx"
-                ? "bg-terracotta text-white shadow-sm"
-                : "text-neutral-500 hover:text-neutral-900"
+                ? "border-terracotta bg-terracotta text-white shadow-sm"
+                : "border-terracotta/30 bg-white text-zinc-700 hover:border-terracotta"
             )}
           >
             <span className={segmentedButtonLabelClass}>Subir GPX</span>
@@ -753,9 +753,15 @@ export function FuelingPlanner({
         {mode === "route" ? (
           routes.length > 0 ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5 sm:col-span-2">
+              {/* "Obsidian widget" — the route selector and its map preview
+                  float on a near-black card rather than sitting flush on the
+                  page, the one deliberately dark surface in an otherwise
+                  all-light UI. `border-white/10`/`shadow-xl` give it the
+                  same "elevated" quality the login hero's floating card has,
+                  just inverted to dark. */}
+              <div className="rounded-2xl border border-white/10 bg-[#181818] p-6 text-white shadow-xl sm:col-span-2">
                 <div className="flex items-center justify-between gap-2">
-                  <label htmlFor="route" className={eyebrow}>
+                  <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-400 uppercase">
                     Ruta
                   </label>
                   <button
@@ -763,7 +769,7 @@ export function FuelingPlanner({
                     onClick={handleRefreshRoutes}
                     disabled={refreshingRoutes}
                     title="Recargar rutas desde Strava"
-                    className="flex cursor-pointer items-center gap-1 text-[10px] font-semibold tracking-widest text-neutral-500 uppercase transition-colors duration-150 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex cursor-pointer items-center gap-1 text-[10px] font-mono tracking-widest text-zinc-400 uppercase transition-colors duration-150 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <RefreshCw className={cn("size-3", refreshingRoutes && "animate-spin")} />
                     {refreshingRoutes ? "Sincronizando…" : "Recargar"}
@@ -774,11 +780,11 @@ export function FuelingPlanner({
                     a generic loading block. While `refreshingRoutes` is
                     true, it's simply disabled with one muted placeholder
                     option plus a micro-spinner overlaid to its own left of
-                    the native arrow, so the control's shape never jumps. */}
-                <div className="relative">
+                    the chevron, so the control's shape never jumps. */}
+                <div className="relative mt-1.5">
                   <select
                     id="route"
-                    className={cn(selectableInputClass, refreshingRoutes && "text-neutral-400")}
+                    className={cn(selectableFieldDarkClass, refreshingRoutes && "text-zinc-500")}
                     value={refreshingRoutes ? "__syncing" : selectedRouteId}
                     onChange={(e) => setSelectedRouteId(e.target.value)}
                     disabled={refreshingRoutes}
@@ -795,35 +801,41 @@ export function FuelingPlanner({
                       ))
                     )}
                   </select>
-                  {refreshingRoutes && (
+                  {refreshingRoutes ? (
                     <span
-                      className="pointer-events-none absolute top-1/2 right-8 size-3.5 -translate-y-1/2 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-800"
+                      className="pointer-events-none absolute top-1/2 right-9 size-3.5 -translate-y-1/2 animate-spin rounded-full border-2 border-white/20 border-t-white"
                       aria-hidden="true"
                     />
+                  ) : (
+                    <ChevronDown className={selectChevronClass} />
                   )}
                 </div>
                 <RouteMapPreview
                   points={selectedRoutePoints}
                   distanceKm={selectedRoute?.distanceKm ?? null}
                   elevationGainM={selectedRoute?.elevationGainM ?? null}
+                  className="border-white/10"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="intensity" className={eyebrow}>
                   Intensidad objetivo
                 </label>
-                <select
-                  id="intensity"
-                  className={selectableInputClass}
-                  value={intensity}
-                  onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
-                >
-                  {INTENSITY_OPTIONS.map((level) => (
-                    <option key={level} value={level}>
-                      {intensityLabels[level]}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    id="intensity"
+                    className={selectableInputClass}
+                    value={intensity}
+                    onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
+                  >
+                    {INTENSITY_OPTIONS.map((level) => (
+                      <option key={level} value={level}>
+                        {intensityLabels[level]}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className={selectChevronClass} />
+                </div>
               </div>
               <DeparturePicker
                 dayMode={departureDayMode}
@@ -953,18 +965,21 @@ export function FuelingPlanner({
                     <label htmlFor="intensity-gpx" className={eyebrow}>
                       Intensidad objetivo
                     </label>
-                    <select
-                      id="intensity-gpx"
-                      className={selectableInputClass}
-                      value={intensity}
-                      onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
-                    >
-                      {INTENSITY_OPTIONS.map((level) => (
-                        <option key={level} value={level}>
-                          {intensityLabels[level]}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        id="intensity-gpx"
+                        className={selectableInputClass}
+                        value={intensity}
+                        onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
+                      >
+                        {INTENSITY_OPTIONS.map((level) => (
+                          <option key={level} value={level}>
+                            {intensityLabels[level]}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className={selectChevronClass} />
+                    </div>
                   </div>
                   <DeparturePicker
                     dayMode={departureDayMode}
@@ -1008,7 +1023,7 @@ export function FuelingPlanner({
 
         <div className="flex flex-col gap-1.5">
           <span className={eyebrow}>Estrategia nutricional</span>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-3 gap-2">
             {FUELING_MODE_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -1016,10 +1031,9 @@ export function FuelingPlanner({
                 onClick={() => setFuelingMode(opt.value)}
                 className={cn(
                   segmentedButtonClass,
-                  "rounded-sm border tracking-wide",
                   fuelingMode === opt.value
-                    ? "border-terracotta bg-terracotta text-white"
-                    : "border-neutral-300 text-neutral-600 hover:border-terracotta hover:text-terracotta"
+                    ? "border-terracotta bg-terracotta text-white shadow-sm"
+                    : "border-terracotta/30 bg-white text-zinc-700 hover:border-terracotta"
                 )}
               >
                 <span className={segmentedButtonLabelClass}>{opt.label}</span>

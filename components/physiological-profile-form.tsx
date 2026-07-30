@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import { useMemo, useState, type FocusEvent } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,7 +17,12 @@ import {
   type GutTrainingLevel,
   type SweatRate,
 } from "@/lib/metabolic-engine";
-import { fieldClass, primaryButtonClass, selectableFieldClass } from "@/lib/ui-classes";
+import {
+  fieldClass,
+  primaryButtonClass,
+  selectableFieldClass,
+  selectChevronClass,
+} from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
 const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
@@ -203,33 +209,39 @@ export function PhysiologicalProfileForm({
               <label htmlFor="bottle_count" className={eyebrow}>
                 Soportes de bidón
               </label>
-              <select
-                id="bottle_count"
-                name="bottle_count"
-                value={bottleCount}
-                onChange={(e) => setBottleCount(Number(e.target.value))}
-                className={selectableProfileInputClass}
-              >
-                <option value={1}>1 bidón</option>
-                <option value={2}>2 bidones</option>
-              </select>
+              <div className="relative">
+                <select
+                  id="bottle_count"
+                  name="bottle_count"
+                  value={bottleCount}
+                  onChange={(e) => setBottleCount(Number(e.target.value))}
+                  className={selectableProfileInputClass}
+                >
+                  <option value={1}>1 bidón</option>
+                  <option value={2}>2 bidones</option>
+                </select>
+                <ChevronDown className={selectChevronClass} />
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="bottle_capacity_ml" className={eyebrow}>
                 Capacidad por bidón
               </label>
-              <select
-                id="bottle_capacity_ml"
-                name="bottle_capacity_ml"
-                value={bottleCapacityMl}
-                onChange={(e) => setBottleCapacityMl(Number(e.target.value))}
-                className={selectableProfileInputClass}
-              >
-                <option value={500}>500 ml</option>
-                <option value={600}>600 ml</option>
-                <option value={750}>750 ml</option>
-                <option value={950}>950 ml</option>
-              </select>
+              <div className="relative">
+                <select
+                  id="bottle_capacity_ml"
+                  name="bottle_capacity_ml"
+                  value={bottleCapacityMl}
+                  onChange={(e) => setBottleCapacityMl(Number(e.target.value))}
+                  className={selectableProfileInputClass}
+                >
+                  <option value={500}>500 ml</option>
+                  <option value={600}>600 ml</option>
+                  <option value={750}>750 ml</option>
+                  <option value={950}>950 ml</option>
+                </select>
+                <ChevronDown className={selectChevronClass} />
+              </div>
             </div>
           </div>
         </CardContent>

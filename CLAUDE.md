@@ -1339,9 +1339,10 @@ regardless of source, so it doesn't need to know whether they came from a Strava
   a `useEffect` — `react-leaflet` has no declarative "fit to these bounds" prop, so this
   is the documented pattern for it. Tile layer is CartoDB Positron (`light_all`) — a clean,
   low-saturation basemap with no busy POI icons/labels to compete with the route line,
-  which is drawn in the app's own terracotta accent (`#827B66` — matches `--terracotta` in
+  which is drawn in the app's own terracotta accent (`#6E6658` — matches `--terracotta` in
   `app/globals.css`, kept as its own literal hex since Leaflet's `Polyline` color prop needs
-  a plain string) rather than Leaflet's default blue.
+  a plain string, updated by hand whenever the token's own value changes) rather than
+  Leaflet's default blue.
 - **Must be dynamically imported with `ssr: false`, never statically**: Leaflet reads
   `window`/`document` at module scope, which breaks Next's server-render pass for the
   initial HTML — this is true even inside a `"use client"` file, since every client
@@ -2524,21 +2525,117 @@ other two routes use.
 
 ### Dynamic greeting
 
-The Dashboard's eyebrow line above the `<h1>` used to be a hardcoded "Buenas tardes,
-Alejandro" — always the wrong time-of-day prefix outside actual afternoon hours, and
-always this one developer's name regardless of who's actually signed in.
-`GreetingSection` (`app/(app)/page.tsx`) replaces it with `getGreetingPrefix(new
-Date().getHours())` (`05:00-11:59` "Buenos días", `12:00-19:59` "Buenas tardes",
-`20:00-04:59` "Buenas noches") plus the real signed-in athlete's first name, taken from
-`getViewerIdentity()` (`lib/dashboard-data.ts` — the same Strava-backed identity source
-`components/viewer-identity.tsx`'s sidebar card already uses; `cache()`-deduped, so
-calling it a second time this request costs no extra Strava round-trip). It's its own
-`Suspense` boundary (`GreetingSkeleton` fallback), same pattern as `StravaButton` below, so
-the greeting's Strava-dependent fetch never blocks the rest of the Dashboard from
-rendering. Computed and rendered entirely server-side with
-no client component involved, so there's no hydration mismatch risk — the server-rendered
-markup is the only markup, never re-computed client-side against a possibly different
-`Date()`.
+The Dashboard's headline used to be a hardcoded "Buenas tardes, Alejandro" — always the
+wrong time-of-day prefix outside actual afternoon hours, and always this one developer's
+name regardless of who's actually signed in. `GreetingSection` (`app/(app)/page.tsx`)
+replaces it with `getGreetingPrefix(new Date().getHours())` (`05:00-11:59` "Buenos días",
+`12:00-19:59` "Buenas tardes", `20:00-04:59` "Buenas noches") plus the real signed-in
+athlete's first name, taken from `getViewerIdentity()` (`lib/dashboard-data.ts` — the same
+Strava-backed identity source `components/viewer-identity.tsx`'s sidebar card already uses;
+`cache()`-deduped, so calling it a second time this request costs no extra Strava
+round-trip). It's its own `Suspense` boundary (`GreetingSkeleton` fallback), same pattern as
+`StravaButton` below, so the greeting's Strava-dependent fetch never blocks the rest of the
+Dashboard from rendering. Computed and rendered entirely server-side with no client
+component involved, so there's no hydration mismatch risk — the server-rendered markup is
+the only markup, never re-computed client-side against a possibly different `Date()`. As of
+the "PNS premium redesign" below, this renders as the Dashboard's single `<h1>` in sentence
+case (`greetingClass`, `text-3xl sm:text-4xl font-semibold tracking-tight text-[#181818]`)
+rather than a small uppercase eyebrow line sitting above a separate all-caps "DASHBOARD"
+title — the dynamic prefix/name logic itself is unchanged, only its typographic treatment.
+
+### PNS premium redesign (color tokens, typography, buttons, dark "Obsidian" widget)
+
+A pass explicitly aimed at "Pas Normal Studios-grade editorial premium" rather than this
+app's earlier flatter utility look. Scoped to the Dashboard (`app/(app)/page.tsx`,
+`components/fueling-planner.tsx`, `components/post-ride-analysis.tsx`) and the shared
+design-system files everything else inherits from (`app/globals.css`,
+`lib/ui-classes.ts`) — `/perfil`'s own copy/layout was deliberately left untouched beyond
+the one *mechanical* fix a shared token change forced on it (see the select bullet below).
+
+- **Token refinement, not a new palette.** `--terracotta` (`#827b66` → `#6e6658`),
+  `--terracotta-hover` (`#706a57` → `#5e574b`), `--background`/`--sidebar` (`#f8f7f4` →
+  `#f9f8f6`), and every near-black text token (`--foreground`/`--card-foreground`/
+  `--primary`/`--sidebar-*`, `#171717` → `#181818`) all had their *values* nudged — same
+  "swap only the value, never the token/class name" convention this app's palette has
+  followed through two earlier rebrands (see the `--terracotta` token's own comment in
+  `app/globals.css`), so every existing `bg-terracotta`/`text-neutral-900` usage
+  app-wide picked up the refined tone automatically with zero per-component edits.
+  `components/route-map-preview.tsx`'s `ROUTE_LINE_COLOR` (a literal hex, since Leaflet's
+  `Polyline` needs a plain string, not a class) was updated to match by hand — the one
+  place a CSS variable change doesn't propagate on its own.
+- **Sentence case, uppercase reserved for technical labels only.** The Dashboard's
+  headline (see "Dynamic greeting" above) and both tab cards' `CardTitle`s
+  ("Planificador de nutrición," "Análisis post-ruta") read as plain sentence-case prose
+  now. Their old `CardDescription` subtext ("Estrategia de bolsillo y receta casera para
+  tu próxima salida," "Deuda de glucógeno y objetivo de recuperación por macros," "Sin
+  actividades registradas todavía") was removed outright rather than restyled — a card
+  whose title already says what it does doesn't need a second line repeating it. The
+  `eyebrow` constant (three independent file-local copies — `app/(app)/page.tsx`,
+  `components/fueling-planner.tsx`, `components/post-ride-analysis.tsx`, matching this
+  codebase's existing "small enough not worth sharing a module" convention) is the one
+  place uppercase survives: `text-[10px] font-mono uppercase tracking-widest text-zinc-500`
+  for genuine data labels (Ruta, Intensidad objetivo, Distancia, Frecuencia cardíaca, etc.)
+  — technical readouts, not headlines.
+- **Segmented controls rebuilt as independent bordered buttons, not a sliding pill on a
+  shared track.** The mode toggle (Ruta Strava/Calculadora/Subir GPX), `DeparturePicker`
+  (Hoy/Mañana/Elegir fecha — this one was already close to this shape), and the Estrategia
+  nutricional selector (Óptimo/Mi Inventario/Híbrido) all shared one base class,
+  `segmentedButtonClass` (`components/fueling-planner.tsx`) — previously `uppercase
+  font-mono font-bold tracking-tight` with no border of its own (the mode toggle's inactive
+  state sat transparent on a shared `bg-neutral-100` track), now `rounded-lg border
+  text-xs font-medium` with **no shape classes added per call site** — each of the 3 call
+  sites now only supplies its own two-state color ternary: active
+  `border-terracotta bg-terracotta text-white shadow-sm`, inactive `border-terracotta/30
+  bg-white text-zinc-700 hover:border-terracotta`. Removing the CSS `uppercase` transform
+  was enough on its own to reveal correct sentence-case labels — "Ruta Strava," "Mi
+  Inventario," etc. were already properly cased in the JSX source, just visually forced
+  upper-case by the old class. `FuelingPlannerSkeleton`'s own mirror of the mode-toggle
+  shape (`app/(app)/page.tsx`) was updated to match (3 bordered placeholder cells instead
+  of a `bg-neutral-100` track with 3 pill-shaped bars), keeping this codebase's "a loading
+  fallback must mirror the real eventual shape" convention intact.
+- **Every `<select>` now gets a custom chevron.** `lib/ui-classes.ts`'s
+  `selectableFieldClass` gained `appearance-none` (stripping the browser's native dropdown
+  arrow) plus `pr-9` (reserving the room a `<ChevronDown>` sits in) and switched its own
+  shape to `rounded-xl border-zinc-300` with a `terracotta` focus ring, matching `fieldClass`
+  (also moved to `rounded-xl`/`border-zinc-300`/`focus:ring-terracotta`) so an `<input>` and
+  an adjacent `<select>` never look like two different design systems side by side. A new
+  `selectableFieldDarkClass` is the same treatment inverted for the one dark surface in the
+  app (see the Obsidian widget below), and `selectChevronClass` is the one shared
+  `<ChevronDown>` positioning class both variants pair with. **This is a shared-token
+  change, so it silently broke every `<select>`'s visible arrow app-wide** (a stripped
+  native arrow with no replacement icon yet) until each of the 7 call sites was
+  individually wrapped in its own `relative` container with the chevron added:
+  `components/fueling-planner.tsx` (Ruta — dark variant, Intensidad objetivo ×2 [route and
+  GPX mode], Hora de salida), `components/physiological-profile-form.tsx` (Soportes de
+  bidón, Capacidad por bidón — the two selects on `/perfil`, fixed as a required
+  consequence of the shared class change even though that page's own design was otherwise
+  left alone), and `components/post-ride-analysis.tsx`'s "Cambiar salida" switcher, which
+  already had its own bespoke `appearance-none`-plus-chevron treatment predating this pass
+  and needed no change.
+- **The Route map + "Ruta" selector became a dark "Obsidian widget"** — the one
+  deliberately near-black surface in an otherwise all-light UI, `rounded-2xl border
+  border-white/10 bg-[#181818] p-6 text-white shadow-xl`, wrapping what used to be a
+  plain light `flex flex-col` (the "Ruta" label, its "Recargar" refresh button, the route
+  `<select>`, and `RouteMapPreview`) inside route mode's grid. Internal text switched to
+  `zinc-400`/white (labels `text-zinc-400`, hover states `hover:text-white`), the select
+  uses `selectableFieldDarkClass`, and `RouteMapPreview` is passed `className="border-white/10"`
+  (merged via its own existing `cn()`-based `className` prop) so its outer border blends
+  with the card instead of keeping its light-context `border-neutral-200`. The refresh
+  spinner overlay (shown mid-`refreshingRoutes`, sitting just left of where the chevron/
+  arrow would be) was restyled from `border-neutral-300 border-t-neutral-800` to
+  `border-white/20 border-t-white` and nudged from `right-8` to `right-9` to sit correctly
+  next to the new chevron's position. Scoped deliberately to *only* the Route-mode
+  selector+map — GPX mode's own map preview (no selector, just a dropzone) was left on its
+  existing light treatment, matching the request's literal pairing of "the map and the
+  route selector," not every map surface in the file.
+- **Verified visually**, not just type-checked: a temporary unauthenticated route
+  (`app/test-dashboard-preview`, added to `proxy.ts`'s `PUBLIC_PATH_PREFIXES` and reverted
+  before committing — same disposable-preview-route pattern used throughout this app's own
+  history) rendered `FuelingPlanner` directly with a mocked Strava route, screenshotted via
+  Playwright at 1280px and 390px. Confirmed: the sentence-case headline, all three
+  rectangular segmented controls (active bronze fill / inactive white-bordered), every
+  select's chevron, and the dark Obsidian widget all render correctly with no layout
+  regressions at either width.
 
 ### Spanish-only UI text
 
@@ -2955,17 +3052,19 @@ accurately — no invented pricing/category to game a rich-result eligibility ch
 - Design tokens live in `app/globals.css` (`@theme inline` maps each `--color-*` Tailwind
   utility to a plain CSS custom property in `:root`); reuse them instead of hardcoding hex
   colors. As of the Pas Normal Studios-style editorial palette pass, the base is a warm
-  cream (`--background` `#f8f7f4`, `bg-background`) rather than a cold white/gray, with
-  `--card`/`--popover` pure white (`#ffffff`) so cards visually lift off that base, and
+  porcelain white (`--background` `#f9f8f6`, `bg-background`) rather than a cold white/gray,
+  with `--card`/`--popover` pure white (`#ffffff`) so cards visually lift off that base, and
   `--surface` (`#f1efea`, `bg-surface`) one layer between the two for input backgrounds
   and secondary containers. Earth-tone technical accents replace the old monochrome
-  black-on-white for anything "active"/"primary": `--terracotta` (`#827b66` — "PNS Bronze,"
-  a muted bronze/olive; a brighter terracotta/orange, `#c85231`, was used here until a later
-  rebrand pass swapped only the *value*, never the token/class name, since every component
-  already reuses this one semantic token — see `app/globals.css`'s own comment on this —
-  `bg-terracotta`/`text-terracotta`/`border-terracotta`, `--terracotta-hover` (`#706a57`) on
-  hover) is the one accent for every primary action button, active tab, and active
-  segmented-control pill; `--sage` (`#526553`) marks carb-coverage "cubierto"/positive-progress state,
+  black-on-white for anything "active"/"primary": `--terracotta` (`#6e6658` — "PNS Bronze,"
+  a muted, matte bronze/olive; a brighter terracotta/orange, `#c85231`, was used here until a
+  later rebrand pass swapped only the *value*, never the token/class name, since every
+  component already reuses this one semantic token — see `app/globals.css`'s own comment on
+  this — `bg-terracotta`/`text-terracotta`/`border-terracotta`, a second refinement pass
+  later darkened it again from an intermediate `#827b66`, still the same token/class name
+  both times, `--terracotta-hover` (`#5e574b`) on hover) is the one accent for every primary
+  action button, active tab, and active segmented-control pill; `--sage` (`#526553`) marks
+  carb-coverage "cubierto"/positive-progress state,
   distinct from the older, more muted `--status-good` (`#526553` too, same hex, kept as a
   separate token since status banners and the carb-coverage meter may need to diverge
   later); `--sand` (`#d5cfbf`) is the "restante/déficit" tone — deliberately not a second
@@ -2982,8 +3081,8 @@ accurately — no invented pricing/category to game a rich-result eligibility ch
   formalized this app's "PNS design system" was scoped accordingly: rather than introducing
   a second, `pns-*`-prefixed color namespace (`pns-brand`, `pns-bg`, etc.) sitting alongside
   the existing `--terracotta`/`--surface`/`--background` tokens — which, hex-for-hex, are
-  already the same PNS palette under different names (`--terracotta` is already `#827b66`,
-  the exact "PNS Bronze" value) — the existing token set was confirmed complete and reused
+  already the same PNS palette under different names (`--terracotta` is already "PNS
+  Bronze," refined since to `#6e6658`) — the existing token set was confirmed complete and reused
   as-is, with one genuinely missing piece added: a brand-colored `::selection` rule in
   `app/globals.css`'s `@layer base` (`background-color: var(--terracotta); color: #ffffff`),
   so selecting text anywhere in the app shows this app's own accent instead of the browser's

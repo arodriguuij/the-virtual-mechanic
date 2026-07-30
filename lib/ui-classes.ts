@@ -28,20 +28,44 @@ export const primaryButtonClass =
 export const secondaryButtonClass =
   "inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-terracotta/30 bg-surface px-4 py-2.5 font-mono text-xs font-medium tracking-wider text-terracotta uppercase shadow-sm transition-all duration-150 hover:bg-terracotta hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface disabled:hover:text-terracotta";
 
-/** Every plain `<input>`/`<select>` — profile form fields, quick-mode
- * duration/watts, GPX duration override. White by default (not `bg-surface`,
- * which is reserved for genuinely read-only/calculated containers — see
- * that token's own comment in `app/globals.css`) so an editable field never
- * reads as disabled/read-only next to the surrounding beige page chrome; a
- * visible `border-neutral-300` (darker than the old `neutral-200`) plus
- * `shadow-sm` is what gives it definition against a white card instead. */
+/** Every plain `<input>` — profile form fields, quick-mode duration/watts,
+ * GPX duration override, the custom-date picker. White by default (not
+ * `bg-surface`, which is reserved for genuinely read-only/calculated
+ * containers — see that token's own comment in `app/globals.css`) so an
+ * editable field never reads as disabled/read-only next to the surrounding
+ * beige page chrome. `rounded-xl`/`border-zinc-300`/a `terracotta` focus
+ * ring — the PNS editorial redesign's field treatment, matched by
+ * `selectableFieldClass` below so an `<input>` and an adjacent `<select>`
+ * (e.g. the custom-date input next to the departure-hour select) never
+ * look like two different design systems sitting side by side. */
 export const fieldClass =
-  "w-full rounded-lg border border-neutral-300 bg-white px-3.5 py-2.5 text-sm font-sans text-neutral-900 shadow-sm transition-all duration-150 hover:border-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900";
+  "w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-sans text-neutral-900 shadow-sm transition-all duration-150 hover:border-zinc-400 focus:border-terracotta focus:outline-none focus:ring-1 focus:ring-terracotta";
 
-/** Same field treatment plus a pointer cursor — `<select>`s and the
- * `datetime-local` inputs are "pick one" controls, unlike a free-typed
- * number field sharing `fieldClass` alone. */
-export const selectableFieldClass = `${fieldClass} cursor-pointer`;
+/** Every `<select>`. `appearance-none` strips the browser's own native
+ * dropdown arrow — every call site pairs this with a `<ChevronDown>`
+ * (`lucide-react`) absolutely positioned inside a `relative` wrapper, since
+ * a bare `<select>` can't host an icon of its own; `pr-9` reserves the room
+ * that icon sits in so the selected option's own text never runs underneath
+ * it. Otherwise the same field treatment as `fieldClass` plus a pointer
+ * cursor, since a `<select>` is a "pick one" control, not a free-typed
+ * field. */
+export const selectableFieldClass =
+  "w-full cursor-pointer appearance-none rounded-xl border border-zinc-300 bg-white px-4 py-2.5 pr-9 text-sm font-sans text-neutral-900 shadow-sm transition-all duration-150 hover:border-zinc-400 focus:border-terracotta focus:outline-none focus:ring-1 focus:ring-terracotta";
+
+/** The same `selectableFieldClass` treatment, restyled for a `<select>`
+ * sitting on a near-black surface — the Route map's "Obsidian" widget is
+ * the one place in the app dark enough to need this. */
+export const selectableFieldDarkClass =
+  "w-full cursor-pointer appearance-none rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 pr-9 text-sm text-white shadow-sm transition-all duration-150 hover:border-white/40 focus:border-white/50 focus:outline-none focus:ring-1 focus:ring-white/40";
+
+/** Pairs with every `selectableFieldClass`/`selectableFieldDarkClass` — the
+ * `<ChevronDown>` that replaces the native dropdown arrow stripped by
+ * `appearance-none`. Positioned inside whatever `relative` wrapper the call
+ * site already has around its `<select>`. One shared class for both the
+ * light and dark select variants — `zinc-400` reads clearly against both a
+ * white field and the Obsidian widget's `bg-white/10`. */
+export const selectChevronClass =
+  "pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-zinc-400";
 
 /** A small data-pill — weather readouts, Gut Training level, and other
  * short label+value chips that read as a distinct "tag" rather than a

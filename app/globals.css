@@ -62,20 +62,20 @@
 }
 
 :root {
-  --background: #f8f7f4;
-  --foreground: #171717;
+  --background: #f9f8f6;
+  --foreground: #181818;
   --card: #ffffff;
-  --card-foreground: #171717;
+  --card-foreground: #181818;
   --popover: #ffffff;
-  --popover-foreground: #171717;
-  --primary: #171717;
+  --popover-foreground: #181818;
+  --primary: #181818;
   --primary-foreground: #faf9f5;
   --secondary: #f1efea;
-  --secondary-foreground: #171717;
+  --secondary-foreground: #181818;
   --muted: #f1efea;
   --muted-foreground: #737373;
   --accent: #f1efea;
-  --accent-foreground: #171717;
+  --accent-foreground: #181818;
   --destructive: oklch(0.577 0.245 27.325);
   --border: #e5e2d9;
   --input: #e5e2d9;
@@ -86,18 +86,18 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.5rem;
-  --sidebar: #f8f7f4;
-  --sidebar-foreground: #171717;
-  --sidebar-primary: #171717;
+  --sidebar: #f9f8f6;
+  --sidebar-foreground: #181818;
+  --sidebar-primary: #181818;
   --sidebar-primary-foreground: #faf9f5;
   --sidebar-accent: #f1efea;
-  --sidebar-accent-foreground: #171717;
+  --sidebar-accent-foreground: #181818;
   --sidebar-border: #e5e2d9;
   --sidebar-ring: #a3a3a3;
 
   /* Editorial accents — Pas Normal Studios inspired: warm cream base, earth-tone
      technical accents (bronze/sage/slate) rather than a cold monochrome UI. */
-  --brand: #171717;
+  --brand: #181818;
   --status-good: #526553;
   --status-warning: #8f5f58;
   --status-critical: #7a342b;
@@ -112,14 +112,16 @@
   /* Primary action accent — CALCULAR/ANALIZAR/GUARDAR/active tabs & pills.
      "PNS Bronze" — a muted bronze/olive, replacing the earlier brighter
      terracotta/orange (#c85231) for a more sober, monochrome-leaning
-     editorial palette. Token/class names (`--terracotta`, `bg-terracotta`,
-     etc.) were deliberately left unrenamed — every component already
+     editorial palette. Refined again to #6e6658 (from #827b66) as part of
+     the premium/editorial redesign pass — a slightly darker, more matte
+     bronze. Token/class names (`--terracotta`, `bg-terracotta`, etc.) were
+     deliberately left unrenamed both times — every component already
      references this one semantic token, so only its *value* needed to
      change; renaming the token itself would be a large, purely mechanical
      find-and-replace across every file that uses it, for zero visual or
      functional benefit. */
-  --terracotta: #827b66;
-  --terracotta-hover: #706a57;
+  --terracotta: #6e6658;
+  --terracotta-hover: #5e574b;
   /* "Cubierto"/positive-progress accent — distinct from `--status-good` so the
      carb-coverage meter can be tuned independently of the status-banner color. */
   --sage: #526553;

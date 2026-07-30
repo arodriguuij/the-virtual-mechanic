@@ -1,7 +1,7 @@
 import { Link2 } from "lucide-react";
 import { Suspense } from "react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FuelingPlanner } from "@/components/fueling-planner";
@@ -20,9 +20,17 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
-const greetingClass =
-  "truncate font-mono text-[10px] tracking-wider text-neutral-500 uppercase sm:text-xs";
+// Technical/data-label convention (weather stats, field labels, badges) —
+// small, uppercase, wide-tracked, mono. This is the *only* place uppercase
+// survives in the redesigned Dashboard typography; everything that reads as
+// prose (headings, greetings, descriptions) is sentence case instead.
+const eyebrow = "text-[10px] font-mono uppercase tracking-widest text-zinc-500";
+// The Dashboard's single headline — replaces the old two-line "eyebrow +
+// uppercase DASHBOARD title" block with one sentence-case greeting, PNS
+// editorial style rather than a shouty all-caps app-shell label. Still real
+// data underneath (time-of-day prefix + the signed-in athlete's actual first
+// name via `getViewerIdentity()`), just restyled.
+const greetingClass = "truncate text-3xl font-semibold tracking-tight text-[#181818] sm:text-4xl";
 
 function getGreetingPrefix(hour: number): string {
   if (hour >= 5 && hour < 12) return "Buenos días";
@@ -40,14 +48,14 @@ async function GreetingSection() {
   const firstName = identity.name.split(" ")[0];
   const greeting = getGreetingPrefix(new Date().getHours());
   return (
-    <p className={greetingClass}>
+    <h1 className={greetingClass}>
       {greeting}, {firstName}
-    </p>
+    </h1>
   );
 }
 
 function GreetingSkeleton() {
-  return <Skeleton className="h-3 w-28" />;
+  return <Skeleton className="h-9 w-48 sm:h-10 sm:w-64" />;
 }
 
 // Fetches the athlete's saved Strava routes/average speed and renders the
@@ -101,13 +109,12 @@ function FuelingPlannerSkeleton() {
     <Card>
       <CardHeader>
         <CardTitle>Planificador de nutrición</CardTitle>
-        <CardDescription className={eyebrow}>Estrategia de bolsillo &amp; receta casera</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="grid grid-cols-3 gap-1 rounded-lg bg-neutral-100 p-1">
-          <div className="h-9 animate-pulse rounded-md bg-neutral-200/60" />
-          <div className="h-9 animate-pulse rounded-md bg-neutral-200/60" />
-          <div className="h-9 animate-pulse rounded-md bg-neutral-200/60" />
+        <div className="grid grid-cols-3 gap-2">
+          <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
+          <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
+          <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -135,10 +142,10 @@ function FuelingPlannerSkeleton() {
           <div className="flex flex-col gap-1.5">
             <span className={eyebrow}>Fecha y hora de salida</span>
             <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 px-3 py-3">
-              <div className="grid grid-cols-3 gap-1">
-                <div className="h-9 animate-pulse rounded-md bg-neutral-100" />
-                <div className="h-9 animate-pulse rounded-md bg-neutral-100" />
-                <div className="h-9 animate-pulse rounded-md bg-neutral-100" />
+              <div className="grid grid-cols-3 gap-2">
+                <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
+                <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
+                <div className="h-9 animate-pulse rounded-lg border border-terracotta/20 bg-neutral-100" />
               </div>
               <div className={cn(selectableFieldClass, "animate-pulse bg-neutral-100")} />
             </div>
@@ -212,13 +219,10 @@ export default async function Home({
     <div className="flex flex-col gap-4 sm:gap-6">
       {profileSaved && <ProfileSavedToast />}
       <header className="flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
-        <div className="mr-2 flex min-w-0 flex-col">
+        <div className="mr-2 min-w-0">
           <Suspense fallback={<GreetingSkeleton />}>
             <GreetingSection />
           </Suspense>
-          <h1 className="truncate font-mono text-xl font-bold tracking-tight text-neutral-900 uppercase sm:text-2xl">
-            Dashboard
-          </h1>
         </div>
         <Suspense fallback={<StravaButtonSkeleton />}>
           <StravaButton />

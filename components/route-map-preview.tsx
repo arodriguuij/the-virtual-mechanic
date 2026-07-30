@@ -17,7 +17,7 @@ const TILE_ATTRIBUTION =
 // Matches `--terracotta`'s current value (`app/globals.css`) — kept as its
 // own literal hex rather than reading the CSS variable, since Leaflet's
 // `Polyline` color prop needs a plain string, not a class name.
-const ROUTE_LINE_COLOR = "#827B66";
+const ROUTE_LINE_COLOR = "#6E6658";
 
 /** `MapContainer` itself has no "fit to route" concept — this runs once
  * per `points` change and asks the underlying Leaflet map instance

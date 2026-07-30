@@ -4,7 +4,7 @@ import { ChevronDown, Lock, Sun, Utensils, Zap } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileRequiredBanner } from "@/components/profile-required-banner";
@@ -33,7 +33,7 @@ const RouteMapPreview = dynamic(
 // choice twice), capped at 5 so the dropdown itself stays short and scannable.
 const ACTIVITY_SWITCHER_LIMIT = 5;
 
-const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
+const eyebrow = "text-[10px] font-mono uppercase tracking-widest text-zinc-500";
 const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
 
@@ -368,9 +368,6 @@ export function PostRideAnalysis({
       <Card className={flatMobileCardClass}>
         <CardHeader>
           <CardTitle>Análisis post-ruta</CardTitle>
-          <CardDescription className={eyebrow}>
-            Sin actividades registradas todavía
-          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-start gap-3">
           <p className="max-w-sm text-sm text-neutral-500">
@@ -387,9 +384,6 @@ export function PostRideAnalysis({
     <Card className={flatMobileCardClass}>
       <CardHeader>
         <CardTitle>Análisis post-ruta</CardTitle>
-        <CardDescription className={eyebrow}>
-          Deuda de glucógeno y objetivo de recuperación por macros
-        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         {/* Stat labels render immediately — only the numbers themselves
