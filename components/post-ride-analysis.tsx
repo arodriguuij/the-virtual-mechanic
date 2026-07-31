@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Lock, Sun, Utensils, Zap } from "lucide-react";
+import { Lock, Sun, Utensils, Zap } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
@@ -23,15 +23,8 @@ import { flatMobileCardClass, primaryButtonClass } from "@/lib/ui-classes";
 // this component, never a static one.
 const RouteMapPreview = dynamic(
   () => import("@/components/route-map-preview").then((mod) => mod.RouteMapPreview),
-  { ssr: false, loading: () => <Skeleton className="h-36 w-full rounded-lg md:col-span-5 md:h-52" /> }
+  { ssr: false, loading: () => <Skeleton className="h-48 w-full rounded-none" /> }
 );
-
-// How many of the athlete's most recent synced rides the in-card "Cambiar
-// salida" switcher offers — the sole way to pick which ride this analysis
-// audits (the standalone "Actividad" selector + "Analizar" button above the
-// card were removed once this switcher existed, to stop showing the same
-// choice twice), capped at 5 so the dropdown itself stays short and scannable.
-const ACTIVITY_SWITCHER_LIMIT = 5;
 
 const eyebrow = "text-[10px] font-mono uppercase tracking-widest text-zinc-500";
 const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
@@ -196,7 +189,7 @@ export function PostRideAnalysis({
   activities: ActivityOption[];
   isProfileComplete: boolean;
 }) {
-  const [selectedId, setSelectedId] = useState(activities[0]?.id ?? "");
+  const [selectedId] = useState(activities[0]?.id ?? "");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -227,26 +220,18 @@ export function PostRideAnalysis({
   // position is never touched by data loading.
 
   // Auto-loads the athlete's most recent synced ride the moment this
-  // component mounts — "Cambiar salida" (inside the telemetry card below) is
-  // now the *only* way to pick a different ride, so the very first analysis
-  // has to kick off on its own rather than waiting on a manual "Analizar"
-  // click that no longer exists.
+  // component mounts — there's no manual "Analizar" trigger or activity
+  // switcher in this UI anymore, so the very first (and only) analysis has
+  // to kick off on its own.
   useEffect(() => {
     if (selectedId) {
       handleAnalyze();
     }
-    // Deliberately runs once on mount only — `handleSwitchActivity` already
-    // re-triggers analysis for every subsequent selection change; depending
-    // on `selectedId` here would double-fire it.
+    // Deliberately runs once on mount only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // `activityIdOverride` exists for the telemetry card's own "Cambiar
-  // salida" switcher (see below): switching activities there both updates
-  // `selectedId` and immediately re-runs the analysis, but `setSelectedId`
-  // doesn't take effect until the next render — passing the id straight
-  // through avoids a stale-closure request against the *previous* selection.
-  async function handleAnalyze(rpeLevel?: IntensityLevel, rpeLabel?: string, activityIdOverride?: string) {
+  async function handleAnalyze(rpeLevel?: IntensityLevel, rpeLabel?: string) {
     setLoading(true);
     setError(null);
     try {
@@ -254,7 +239,7 @@ export function PostRideAnalysis({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          activityId: activityIdOverride ?? selectedId,
+          activityId: selectedId,
           ...(rpeLevel ? { rpeLevel } : {}),
         }),
       });
@@ -289,17 +274,6 @@ export function PostRideAnalysis({
     } finally {
       setLoading(false);
     }
-  }
-
-  // The telemetry card's "Cambiar salida" quick switcher — the only control
-  // for picking which ride gets analyzed. Updates `selectedId` and
-  // immediately re-runs the analysis in place; there's no separate
-  // "Analizar" button to click anymore.
-  function handleSwitchActivity(activityId: string) {
-    setSelectedId(activityId);
-    setNeedsRpe(false);
-    setError(null);
-    handleAnalyze(undefined, undefined, activityId);
   }
 
   // Adds a preset's fixed doses on top of whatever the athlete already typed
@@ -393,23 +367,22 @@ export function PostRideAnalysis({
             never reads as a different, generic loading card. */}
         {loading && !result && (
           <div className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
-            {/* Mirrors the real "Ruta sincronizada desde Strava" card's own
-                pure-white, borderless treatment below (a loading fallback
-                must mirror the real eventual shape — this app's own
-                established convention). */}
-            <div className="flex flex-col gap-3 rounded-xl bg-white px-4 py-3 shadow-none">
-              <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-100 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-neutral-500 uppercase">
-                <span
-                  className="size-2.5 shrink-0 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-600"
-                  aria-hidden="true"
-                />
-                Analizando tu última salida…
-              </span>
+            {/* Mirrors the real telemetry card's own unified-with-Pre-Ruta
+                shape below (a loading fallback must mirror the real
+                eventual shape — this app's own established convention): a
+                padded top section over a full-bleed map placeholder, both
+                inside one `overflow-hidden rounded-xl` shell. */}
+            <div className="overflow-hidden rounded-xl bg-white shadow-none">
+              <div className="flex flex-col gap-3 p-4">
+                <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-100 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-neutral-500 uppercase">
+                  <span
+                    className="size-2.5 shrink-0 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-600"
+                    aria-hidden="true"
+                  />
+                  Analizando tu última salida…
+                </span>
 
-              <div className="grid grid-cols-1 gap-4 pt-1 md:grid-cols-12 md:items-center md:gap-6">
-                <div className="h-36 w-full animate-pulse rounded-lg bg-neutral-200/60 md:col-span-5 md:h-52" />
-
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:col-span-7 md:grid-cols-2">
+                <div className="grid grid-cols-2 gap-3 border-t border-neutral-200 pt-3 sm:grid-cols-4">
                   {["Distancia", "Tiempo en movimiento", "Potencia", "Gasto energético", "Frecuencia cardíaca"].map(
                     (label) => (
                       <div key={label} className="flex flex-col gap-1">
@@ -422,6 +395,8 @@ export function PostRideAnalysis({
                   )}
                 </div>
               </div>
+
+              <div className="h-48 w-full animate-pulse bg-neutral-200/60" />
             </div>
           </div>
         )}
@@ -452,68 +427,26 @@ export function PostRideAnalysis({
 
         {result && (
           <div className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
-            <div className="flex flex-col gap-3 rounded-xl bg-white px-4 py-3 shadow-none">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200/60 bg-emerald-50 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-emerald-700 uppercase">
-                  <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
-                  Ruta sincronizada desde Strava
-                </span>
+            {/* Unified with Pre-Ruta's own "01 · Selección y origen de ruta"
+                widget: one `overflow-hidden rounded-xl bg-white shadow-none`
+                shell holding a padded content section on top and the map
+                bleeding edge-to-edge as the last, unpadded child — the outer
+                `overflow-hidden` + `rounded-xl` is what clips the map's
+                rectangular Leaflet container into the shell's own rounded
+                bottom corners. `RouteMapPreview` itself, its route-line
+                color, tiles, and floating zoom/badge chrome are the exact
+                same shared component Pre-Ruta uses, so both maps are
+                pixel-identical by construction. */}
+            <div className="overflow-hidden rounded-xl bg-white shadow-none">
+              <div className="flex flex-col gap-3 p-4">
+                <div>
+                  <span className="text-sm font-medium text-neutral-900">{result.activity.name}</span>
+                  <p className="font-mono text-xs text-neutral-500">
+                    {formatActivityDateTime(result.activity.activityDate)}
+                  </p>
+                </div>
 
-                {/* "Cambiar salida" — a quick way to re-audit a different one
-                    of the athlete's last few synced rides without scrolling
-                    back up to the "Actividad" selector above. Native
-                    `<select>` (this codebase has no custom dropdown
-                    primitive), with a persistent "Cambiar salida" label so
-                    it reads as an action rather than just echoing back
-                    whichever ride is currently selected. */}
-                <label className="flex cursor-pointer items-center gap-1.5 font-mono text-[10px] font-bold tracking-wider text-neutral-500 uppercase">
-                  Cambiar salida
-                  <span className="relative flex items-center">
-                    <select
-                      aria-label="Cambiar salida"
-                      value={selectedId}
-                      disabled={loading}
-                      onChange={(e) => handleSwitchActivity(e.target.value)}
-                      className="cursor-pointer appearance-none rounded-md border border-neutral-300 bg-white py-1 pr-5 pl-2 text-neutral-700 normal-case hover:border-neutral-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {activities.slice(0, ACTIVITY_SWITCHER_LIMIT).map((activity) => (
-                        <option key={activity.id} value={activity.id}>
-                          {activity.name} ·{" "}
-                          {new Date(activity.activity_date).toLocaleDateString("es-ES", {
-                            day: "numeric",
-                            month: "short",
-                          })}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-1.5 size-3 text-neutral-400" />
-                  </span>
-                </label>
-              </div>
-
-              <div>
-                <span className="text-sm font-medium text-neutral-900">{result.activity.name}</span>
-                <p className="font-mono text-xs text-neutral-500">
-                  {formatActivityDateTime(result.activity.activityDate)}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 border-t border-neutral-200 pt-3 md:grid-cols-12 md:items-center md:gap-6">
-                {/* Compact square-ish preview on mobile (`h-36`, unchanged
-                    — stacked above the stats); a contained side column on
-                    desktop (`h-52`, capped well below the full-bleed 16:9
-                    version this went through first — that one pushed every
-                    stat below the fold on tall screens) rather than the
-                    stats flowing beneath it. */}
-                <RouteMapPreview
-                  points={result.activity.points}
-                  distanceKm={result.activity.distanceKm}
-                  elevationGainM={result.activity.elevationGainM}
-                  className="mt-0 h-36 w-full md:col-span-5 md:h-52"
-                  emptyMessage="Sin datos de trazado GPS para esta actividad."
-                />
-
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:col-span-7 md:grid-cols-2">
+                <div className="grid grid-cols-2 gap-3 border-t border-neutral-200 pt-3 sm:grid-cols-4">
                   <div className="flex flex-col gap-1">
                     <span className={statLabel}>Distancia</span>
                     <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
@@ -578,24 +511,32 @@ export function PostRideAnalysis({
                     </span>
                   </div>
                 </div>
+
+                <div className="flex flex-col gap-1 border-t border-neutral-200 pt-2 font-mono text-[10px] text-neutral-400">
+                  <p>
+                    Cálculo de deuda metabólica generado a partir de la telemetría real de tu
+                    ciclocomputador.
+                  </p>
+                  {result.activity.temperatureAvgC != null && (
+                    <p className="flex items-center gap-1">
+                      <Sun className="size-3 shrink-0" />
+                      Temperatura de ruta: {result.activity.temperatureAvgC}°C — vía Open-Meteo
+                    </p>
+                  )}
+                  <p className="flex items-center gap-1">
+                    <Zap className="size-3 shrink-0" />
+                    Glucógeno: {sourceLabels[result.source]}
+                  </p>
+                </div>
               </div>
 
-              <div className="flex flex-col gap-1 border-t border-neutral-200 pt-2 font-mono text-[10px] text-neutral-400">
-                <p>
-                  Cálculo de deuda metabólica generado a partir de la telemetría real de tu
-                  ciclocomputador.
-                </p>
-                {result.activity.temperatureAvgC != null && (
-                  <p className="flex items-center gap-1">
-                    <Sun className="size-3 shrink-0" />
-                    Temperatura de ruta: {result.activity.temperatureAvgC}°C — vía Open-Meteo
-                  </p>
-                )}
-                <p className="flex items-center gap-1">
-                  <Zap className="size-3 shrink-0" />
-                  Glucógeno: {sourceLabels[result.source]}
-                </p>
-              </div>
+              <RouteMapPreview
+                points={result.activity.points}
+                distanceKm={result.activity.distanceKm}
+                elevationGainM={result.activity.elevationGainM}
+                className="mt-0 rounded-none"
+                emptyMessage="Sin datos de trazado GPS para esta actividad."
+              />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2">

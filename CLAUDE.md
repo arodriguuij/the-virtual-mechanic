@@ -815,20 +815,27 @@ unchanged, since that's what feeds the clipboard/GPX nutrition exports elsewhere
 this one UI surface strips it), with its carb figure directly underneath in `font-mono`
 — monospace is reserved for the numeric readout, never the food name, so a name like
 "Bollo de arroz" stays unambiguous instead of rendering in a terminal-style face where
-similar letterforms (o/u) are easy to misread. The stepper itself went through three
-designs before landing on its current flat, sober geometry: an earlier design had −/+ as
-each their own individually bordered/shadowed square flanking a bare number (three
-misaligned pieces rather than one compact control); a second, "PNS Pill Stepper" pass
-unified those into one `rounded-full` capsule (`border border-zinc-200 bg-white
-shadow-sm`); a third, current pass flattened that capsule to match this app's own
-button/field geometry exactly — `rounded-md` (not `rounded-full`), `border
-border-zinc-200/80`, `shadow-none` (no drop shadow at all, matching the app-wide flat-UI
-pass — see "Pure white cards, zero borders" below), `h-8 px-2.5 py-1` — since a rounded
-capsule with its own shadow read as a visually distinct, one-off control next to every
-other rectangular, flat-shadowed interactive element in the app. The −/+ buttons
-themselves still carry no border/shadow of their own (`text-zinc-600
-hover:text-zinc-900`, `disabled:opacity-30`) — only the wrapper's own geometry changed
-across all three passes, not this inner button treatment. The result panel still
+similar letterforms (o/u) are easy to misread. The stepper itself went through four
+designs before landing on its current compact, transparent, delineated geometry: an
+earlier design had −/+ as each their own individually bordered/shadowed square flanking a
+bare number (three misaligned pieces rather than one compact control); a second, "PNS
+Pill Stepper" pass unified those into one `rounded-full` capsule (`border border-zinc-200
+bg-white shadow-sm`); a third pass flattened that capsule to match this app's own button/
+field geometry (`rounded-md`, `border-zinc-200/80`, `shadow-none`, `h-8 px-2.5 py-1`) but
+then dropped that border for a solid `bg-zinc-100` fill instead, as part of the ninth
+"zero-border" pass (see "PNS premium redesign" above); a fourth, current pass reverses
+that specific choice — an explicit request for the stepper to read as "compact,
+transparent, and delineated" rather than filled — dropping `bg-zinc-100` back to
+`bg-transparent` in favor of a thin `border border-zinc-200` outline, and shrinking the
+whole control further — `h-7` (from `h-8`), `min-w-20` (from `min-w-24`),
+`px-2 py-0.5` (from `px-2.5 py-1`), the −/+ buttons and the quantity digit both stepped
+down a notch (`size-5`/`text-sm` and `text-xs font-medium text-zinc-800`, from
+`size-6`/`text-base` and `text-sm font-semibold`) — reading as a smaller, quieter widget
+that differentiates itself from the card purely through its own outline rather than a
+background fill. The −/+ buttons themselves still carry no border/shadow of their own
+(`text-zinc-600 hover:text-zinc-900`, `disabled:opacity-30`) — only the wrapper's own
+geometry/fill changed across all four passes, not this inner button treatment. The result
+panel still
 shows a one-line "Comida de bolsillo cubre Xg de Yg HC — el resto va en el bidón" (with a
 small `Utensils` icon, not an emoji) whenever any item is selected —
 that summary line isn't part of the pocket-food *catalog* UI, so it keeps its emoji.
@@ -1901,6 +1908,60 @@ an activity `<select>` (defaulting to the most recent) plus an "Analizar" button
 (matching the same manual-trigger interaction pattern as the pre-ride planner rather than
 auto-fetching on mount), and — once analyzed — the net-debt breakdown and recovery-target
 grid described next.
+
+#### Map unified with Pre-Ruta (badge and "Cambiar salida" removed)
+
+A later pass asked for the Post-Ruta telemetry card's map to become visually identical to
+the Pre-Ruta Fueling Planner's own "01 · Selección y origen de ruta" widget — same
+full-bleed treatment, same shared `RouteMapPreview` chrome — rather than the bounded
+`md:grid-cols-12` side-by-side layout documented above. Two elements were removed outright
+to get there, both explicitly requested:
+
+- **The "Ruta sincronizada desde Strava" emerald status pill** — gone from the card header
+  entirely, with nothing replacing it.
+- **The "Cambiar salida" `<select>` switcher** — also gone entirely, with no replacement
+  control anywhere in this UI. This is a genuine functionality removal, not just a visual
+  one: per the "Telemetry card" documentation above, "Cambiar salida" was *the sole way to
+  pick which ride gets analyzed" once the earlier standalone "Actividad" selector +
+  "Analizar" button had already been removed in its favor. With both gone, `PostRideAnalysis`
+  now only ever shows the athlete's single most recent synced ride (`activities[0]`,
+  auto-loaded on mount) — there is no in-UI path to audit an older ride anymore. Flagged
+  here transparently, matching this codebase's "flag rather than silently invent" convention,
+  in case ride-switching is wanted back in a future pass (elsewhere in the UI, not
+  necessarily this card).
+
+  Removing the switcher meant `handleSwitchActivity()`, the `ACTIVITY_SWITCHER_LIMIT`
+  constant, and the now-unused `ChevronDown` import were all deleted outright as genuinely
+  dead code (no remaining caller) — `handleAnalyze()`'s `activityIdOverride` parameter,
+  which existed solely to serve the switcher's stale-closure problem, was removed too, and
+  `selectedId`'s own setter (`setSelectedId`) dropped from its `useState` destructure since
+  nothing calls it anymore (`const [selectedId] = useState(...)`, read-only for the
+  lifetime of the component now).
+
+**Layout: padded content on top, map bleeding full-width at the bottom** — replacing the
+`md:grid-cols-12` side-by-side split (map as a `md:col-span-5` side column, stats as
+`md:col-span-7`) with the exact structural pattern Pre-Ruta's own Ruta widget uses: one
+`overflow-hidden rounded-xl bg-white shadow-none` shell, a `p-4` padded inner `<div>`
+holding the ride name/date, the stat grid (now a plain `grid-cols-2 sm:grid-cols-4` row at
+every width — the `md:grid-cols-2` variant that used to exist specifically to fit 5 stats
+into a narrower 7/12 column is gone now that stats span the card's full width again), and
+the footnotes — followed by `RouteMapPreview` as a padding-less sibling, passed
+`className="mt-0 rounded-none"` (the same override Pre-Ruta's Ruta widget already uses) so
+it bleeds edge-to-edge and the outer card's own `overflow-hidden`/`rounded-xl` clips the
+map's corners instead of the map having its own. Since this is the exact same shared
+`RouteMapPreview` component, its tiles, route-line color, and floating zoom-control/badge
+chrome are pixel-identical to Pre-Ruta's map by construction, not a second hand-tuned copy.
+The `loading && !result` skeleton (see "Granular loading states" above) was updated to
+mirror this same shape — a padded muted-stat block over a plain `h-48 w-full
+animate-pulse bg-neutral-200/60` full-bleed rectangle, replacing its own prior
+`md:grid-cols-12` mirror.
+
+Verified live via the same temporary-route/Playwright pattern used throughout this
+project's history (`PostRideAnalysis` rendered with a mocked `/api/post-ride/analysis`
+response including a real decoded-looking polyline) at 390px mobile and 1280px desktop —
+confirmed the badge and switcher are both gone, the map bleeds edge-to-edge with its
+distance/D+ badge and `+`/`−` zoom controls intact, and the stat grid/footnotes render
+correctly above it at both widths.
 
 #### Net recovery debt ("¿Qué consumiste realmente durante la ruta?")
 

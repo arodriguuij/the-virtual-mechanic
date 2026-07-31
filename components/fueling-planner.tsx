@@ -381,36 +381,31 @@ function PocketFoodStepperRow({
           {POCKET_FOOD_CARBS_G[type]}g HC
         </span>
       </span>
-      {/* Flat quantity stepper — one unified rectangular control rather than
-          two separately bordered/shadowed square buttons flanking a bare
-          number. `rounded-md` (not the earlier `rounded-full` capsule) with
-          zero border and zero shadow matches the exact geometry of every
-          other interactive control in the app (buttons, fields, selects —
-          all `rounded-md`, all frameless/shadow-free per the app-wide
-          flat-UI pass). A `bg-zinc-100` fill (this control used to rely on a
-          hairline `border-zinc-200/80` for definition instead) is what
-          differentiates it now against whatever card background surrounds
-          it. The −/+ buttons themselves still carry no border/shadow of
-          their own, so the whole control still reads as one compact object,
-          not three misaligned pieces. */}
-      <div className="flex h-8 min-w-24 items-center justify-between rounded-md bg-zinc-100 px-2.5 py-1">
+      {/* Compact, transparent, delineated stepper — a hairline
+          `border-zinc-200` is what defines this control now (the prior
+          `bg-zinc-100` solid fill was dropped in favor of a clean outline on
+          a transparent background), reduced to `h-7`/`min-w-[80px]` and
+          tighter `px-2 py-0.5` so it reads as a small compact widget rather
+          than a full-size button. `rounded-md` still matches the geometry of
+          every other interactive control in the app. */}
+      <div className="flex h-7 min-w-20 items-center justify-between rounded-md border border-zinc-200 bg-transparent px-2 py-0.5">
         <button
           type="button"
           onClick={() => onChange(qty - 1)}
           disabled={disabled}
-          className="flex size-6 cursor-pointer items-center justify-center text-base leading-none font-normal text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex size-5 cursor-pointer items-center justify-center text-sm leading-none font-normal text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
           aria-label={`Quitar ${pocketFoodLabels[type]}`}
         >
           −
         </button>
-        <span className="min-w-5 px-2 text-center font-sans text-sm font-semibold text-zinc-900 tabular-nums">
+        <span className="min-w-4 px-1 text-center font-sans text-xs font-medium text-zinc-800 tabular-nums">
           {qty}
         </span>
         <button
           type="button"
           onClick={() => onChange(qty + 1)}
           disabled={disabled}
-          className="flex size-6 cursor-pointer items-center justify-center text-base leading-none font-normal text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex size-5 cursor-pointer items-center justify-center text-sm leading-none font-normal text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
           aria-label={`Añadir ${pocketFoodLabels[type]}`}
         >
           +
