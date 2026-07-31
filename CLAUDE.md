@@ -2289,6 +2289,49 @@ single-shared-Card approach would have shown it), the full-width terracotta "Gua
 consumo real" button, and the empty/zero-activities state rendering as its own single white
 card rather than the old Card-wrapped version.
 
+#### "Unificación de Títulos y Padding Estándar" — matching Pre-Ruta's title, p-4 everywhere
+
+A later pass asked for maximum visual coherence between the two Dashboard tabs: the same
+title typography on "Análisis post-ruta" as Pre-Ruta's own "Planificador de nutrición," and
+a standardized `p-4` card density in place of the `p-5` this section's cards had carried
+since the "Reestructuración UX por Tarjetas Numeradas" pass above.
+
+- **`sectionHeadingClass`** (`components/post-ride-analysis.tsx`) — used to match
+  `CardTitle`'s own *default* styling (`font-heading text-sm font-bold tracking-wide
+  text-neutral-900 uppercase`), preserving the old `<CardTitle>Análisis post-ruta
+  </CardTitle>` shell's visual weight from before this component stopped wrapping its
+  content in a `Card` at all. Now matches `fueling-planner.tsx`'s own `CardTitle`
+  *override* instead — `"text-xl leading-snug font-semibold tracking-normal text-zinc-900
+  normal-case"` — since that's the class string that actually determines "Planificador de
+  nutrición"'s rendered style (`CardTitle`'s `uppercase`/`font-bold`/`tracking-wide`/
+  `text-neutral-900`/`text-sm` defaults are all overridden there; `leading-snug` survives
+  unclaimed in both, since neither override string touches line-height). The two headings
+  now render byte-for-byte identical in size, weight, and case.
+- **Every top-level white card in this file stepped from `p-5` to `p-4`** — the empty
+  state, the loading skeleton, the `needsRpe` prompt, and all 3 numbered cards (Tarjeta
+  01's title/metadata block and metrics grid, Tarjeta 02, Tarjeta 03). Tarjeta 01's metrics
+  grid also dropped `gap-x-6 gap-y-5` to a flat `gap-x-4 gap-y-4` (matching the loading
+  skeleton's own mirrored grid, updated identically), and its footnotes block's `px-5`
+  became `px-4` to stay flush with the card's own new padding.
+- **Nested porcelain (`bg-[#F8F7F5]`) sub-blocks stepped down proportionally** — the ones
+  that were `p-4` (the consumption sub-block, Balance Neto's wrapper, Fase 1/Fase 2/Grasas
+  límite/Rehidratación) moved to `p-3.5`, one notch below the new `p-4` card padding around
+  them; the one sub-block that was already `p-3` (the RPE-driven telemetry stat block) was
+  left as-is — both `p-3` and `p-3.5` are within the range this pass asked nested blocks to
+  use.
+- **Deliberately left untouched: `FuelingPlanner`'s own `p-4 sm:p-6` card padding.** This
+  request's concrete edits were explicitly scoped to "la sección 'Análisis post-ruta'"
+  only — Pre-Ruta's cards were the *reference* for the title-typography match, not
+  themselves named for a padding change. `FuelingPlanner`'s numbered-step cards already
+  render at `p-4` on mobile (identical to Post-Ruta's new flat `p-4`), but still widen to
+  `p-6` at `sm:` and up — a residual desktop-only density difference between the two tabs,
+  flagged here transparently rather than silently resolved by expanding scope on an
+  inference the request didn't actually make.
+- Verified via `npm run build` (clean) and a live Playwright check (mocked Strava route +
+  mocked `/api/post-ride/analysis` response) at 390px — confirmed "Planificador de
+  nutrición" and "Análisis post-ruta" now render with identical title typography, and
+  Post-Ruta's cards show the tighter `p-4` density with `p-3.5` nested sub-blocks.
+
 #### Net recovery debt ("¿Qué consumiste realmente durante la ruta?")
 
 A ride's raw burn/loss figures overstate what's actually left to replace whenever the

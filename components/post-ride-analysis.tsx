@@ -15,13 +15,20 @@ import {
 } from "@/lib/metabolic-engine";
 import { cn } from "@/lib/utils";
 
-// Matches `CardTitle`'s own former default styling exactly (`font-heading
-// text-sm font-bold tracking-wide text-neutral-900 uppercase`) — this
-// component no longer wraps its content in a `Card` at all (see
-// "Reestructuración UX por Tarjetas Numeradas" below), so this plain
-// heading preserves the same visual weight the old `<CardTitle>Análisis
-// post-ruta</CardTitle>` had, just sitting outside any card now.
-const sectionHeadingClass = "font-heading text-sm leading-snug font-bold tracking-wide text-neutral-900 uppercase";
+// "Unificación de Títulos" pass — this used to match `CardTitle`'s own
+// former *default* styling (`font-heading text-sm font-bold tracking-wide
+// text-neutral-900 uppercase`), preserving the old `<CardTitle>Análisis
+// post-ruta</CardTitle>` shell's visual weight after this component
+// stopped wrapping its content in a `Card` (see "Reestructuración UX por
+// Tarjetas Numeradas" below). A later request asked for maximum visual
+// coherence with Pre-Ruta's own "Planificador de nutrición" title
+// instead — that title overrides `CardTitle`'s default via its own
+// `className` (see `fueling-planner.tsx`'s `CardTitle`), so this constant
+// now matches *that* resolved style byte-for-byte (`text-xl`/`font-semibold`/
+// `tracking-normal`/`text-zinc-900`/`normal-case`, `leading-snug` kept from
+// `CardTitle`'s own base, since the override string never touches
+// line-height) rather than `CardTitle`'s plain default.
+const sectionHeadingClass = "text-xl leading-snug font-semibold tracking-normal text-zinc-900 normal-case";
 
 // Leaflet reads `window`/`document` at module scope — same `ssr: false`
 // requirement as `components/fueling-planner.tsx`'s own dynamic import of
@@ -344,7 +351,7 @@ export function PostRideAnalysis({
 
   if (activities.length === 0) {
     return (
-      <div className="flex flex-col gap-3 rounded-sm border-0 bg-white p-5 shadow-none">
+      <div className="flex flex-col gap-3 rounded-sm border-0 bg-white p-4 shadow-none">
         <h2 className={sectionHeadingClass}>Análisis post-ruta</h2>
         <p className="max-w-sm text-sm text-neutral-500">
           En cuanto sincronices tu última salida desde Strava, aparecerá aquí lista para
@@ -359,7 +366,9 @@ export function PostRideAnalysis({
     <div className="flex flex-col gap-3">
       {/* "Reestructuración UX por Tarjetas Numeradas" — every card below is
           now an independent white box (`border-0 bg-white shadow-none
-          rounded-sm p-5`) sitting directly on the Dashboard's own porcelain
+          rounded-sm p-4` — stepped down from an earlier `p-5` by a later
+          "Unificación de Títulos y Padding Estándar" pass, see below)
+          sitting directly on the Dashboard's own porcelain
           canvas, mirroring `/perfil`'s own 3-independent-`<Card>` pattern
           exactly (not `FuelingPlanner`'s single-outer-Card-with-inner-divs
           shape) — this is what actually makes the porcelain background
@@ -388,7 +397,7 @@ export function PostRideAnalysis({
           (Distancia/Tiempo en Movimiento/Potencia Media/Gasto Energético/
           Frecuencia Cardíaca) exactly. */}
       {loading && !result && (
-        <div className="animate-pulse space-y-3 rounded-sm border-0 bg-white p-5 shadow-none">
+        <div className="animate-pulse space-y-3 rounded-sm border-0 bg-white p-4 shadow-none">
           <div className="space-y-2">
             <div className="h-6 w-3/5 rounded-sm bg-zinc-200" />
             <div className="h-3.5 w-2/5 rounded-sm bg-zinc-100" />
@@ -396,7 +405,7 @@ export function PostRideAnalysis({
 
           <div className="h-48 w-full rounded-sm bg-zinc-200/80 sm:h-56" />
 
-          <div className="grid grid-cols-2 gap-x-6 gap-y-5 pt-2">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-4 pt-2">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="space-y-2">
                 <div className="h-3 w-1/2 rounded bg-zinc-100" />
@@ -410,7 +419,7 @@ export function PostRideAnalysis({
       {error && <p className="text-sm text-status-warning">{error}</p>}
 
       {needsRpe && (
-        <div className="flex flex-col gap-2 rounded-sm border-0 bg-white p-5 shadow-none">
+        <div className="flex flex-col gap-2 rounded-sm border-0 bg-white p-4 shadow-none">
           <p className="text-sm text-neutral-700">
             Esta ruta no tiene datos de potenciómetro ni pulsómetro — ¿cómo sentiste el
             esfuerzo?
@@ -446,7 +455,7 @@ export function PostRideAnalysis({
                 app) — a one-off exception matching Strava's own plain-sans
                 numeral display. */}
             <div className="overflow-hidden rounded-sm border-0 bg-white shadow-none">
-              <div className="px-5 pt-5">
+              <div className="px-4 pt-4">
                 <h3 className="mb-1 text-xl font-bold tracking-tight text-zinc-900">
                   {result.activity.name}
                 </h3>
@@ -467,7 +476,7 @@ export function PostRideAnalysis({
                 emptyMessage="Sin datos de trazado GPS para esta actividad."
               />
 
-              <div className="grid grid-cols-2 gap-x-6 gap-y-5 px-5 pt-5 text-left">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4 px-4 pt-4 text-left">
                 <div>
                   <p className="mb-0.5 text-xs font-medium text-zinc-500">Distancia</p>
                   <p className="text-lg font-bold text-zinc-900">
@@ -522,7 +531,7 @@ export function PostRideAnalysis({
                   layout, kept so real temperature/glycogen-source data
                   already surfaced elsewhere in this app is never silently
                   dropped by a redesign that didn't ask for its removal. */}
-              <div className="mt-5 flex flex-col gap-1 border-t border-neutral-200 px-5 py-3 font-mono text-[10px] text-neutral-400">
+              <div className="mt-5 flex flex-col gap-1 border-t border-neutral-200 px-4 py-3 font-mono text-[10px] text-neutral-400">
                 <p>
                   Cálculo de deuda metabólica generado a partir de la telemetría real de tu
                   ciclocomputador.
@@ -548,7 +557,7 @@ export function PostRideAnalysis({
                 duplication once this card gained its own eyebrow — the same
                 source label already appears in Tarjeta 01's own footnote
                 ("Glucógeno: {sourceLabels[...]}"). */}
-            <div className="rounded-sm border-0 bg-white p-5 shadow-none">
+            <div className="rounded-sm border-0 bg-white p-4 shadow-none">
               <span className="mb-2 block font-mono text-xs font-bold tracking-widest text-neutral-500 uppercase">
                 01 · Deuda metabólica y registro real
               </span>
@@ -582,7 +591,7 @@ export function PostRideAnalysis({
                   it switch to a plain white fill (from their previous
                   porcelain one) so they stay visually distinct against this
                   now-porcelain sub-block instead of disappearing into it. */}
-              <div className="mt-4 rounded-sm bg-[#F8F7F5] p-4">
+              <div className="mt-4 rounded-sm bg-[#F8F7F5] p-3.5">
                 <span className="block font-mono text-xs text-zinc-500 uppercase">
                   ¿Qué consumiste realmente durante la ruta?
                 </span>
@@ -703,7 +712,7 @@ export function PostRideAnalysis({
             {/* "Tarjeta 03 · Balance neto y pauta de recuperación" — the
                 Balance Neto rows and the biphasic recovery target, both
                 folded into one numbered white card. */}
-            <div className="rounded-sm border-0 bg-white p-5 shadow-none">
+            <div className="rounded-sm border-0 bg-white p-4 shadow-none">
               <span className="mb-2 block font-mono text-xs font-bold tracking-widest text-neutral-500 uppercase">
                 02 · Balance neto y recuperación bifásica
               </span>
@@ -740,7 +749,7 @@ export function PostRideAnalysis({
                     distintas, no en una sola comida
                   </span>
                   <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="rounded-sm bg-[#F8F7F5] p-4 shadow-none">
+                    <div className="rounded-sm bg-[#F8F7F5] p-3.5 shadow-none">
                       <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
                         <Zap className="size-3.5 shrink-0" />
                         Fase 1 · {biphasicRecoveryTarget.phase1.windowLabel}
@@ -753,7 +762,7 @@ export function PostRideAnalysis({
                         Líquido/rápido (batido, fruta) — vía GLUT-4, no depende de insulina
                       </span>
                     </div>
-                    <div className="rounded-sm bg-[#F8F7F5] p-4 shadow-none">
+                    <div className="rounded-sm bg-[#F8F7F5] p-3.5 shadow-none">
                       <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
                         <Utensils className="size-3.5 shrink-0" />
                         Fase 2 · {biphasicRecoveryTarget.phase2.windowLabel}
@@ -774,7 +783,7 @@ export function PostRideAnalysis({
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-3">
-                    <div className="rounded-sm bg-[#F8F7F5] p-4 shadow-none">
+                    <div className="rounded-sm bg-[#F8F7F5] p-3.5 shadow-none">
                       <span className={statLabel}>Grasas límite</span>
                       <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
                         &lt;{recoveryTarget.fatLimitG}
@@ -784,7 +793,7 @@ export function PostRideAnalysis({
                         Vaciado gástrico rápido
                       </span>
                     </div>
-                    <div className="rounded-sm bg-[#F8F7F5] p-4 shadow-none">
+                    <div className="rounded-sm bg-[#F8F7F5] p-3.5 shadow-none">
                       <span className={statLabel}>Rehidratación</span>
                       <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
                         {(recoveryTarget.fluidMl / 1000).toFixed(1)}
