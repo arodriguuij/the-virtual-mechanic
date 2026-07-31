@@ -48,7 +48,7 @@ export const secondaryButtonClass =
  * input next to the departure-hour select) never look like two different
  * design systems sitting side by side. */
 export const fieldClass =
-  "w-full rounded-md border border-zinc-200/80 bg-white px-4 py-2 text-sm font-sans text-zinc-800 transition-colors duration-150 hover:border-zinc-300 focus:border-terracotta focus:outline-none";
+  "w-full rounded-lg border border-zinc-200/80 bg-white px-4 py-2 text-sm font-sans text-zinc-800 transition-colors duration-150 hover:border-zinc-300 focus:border-terracotta focus:outline-none";
 
 /** Every `<select>`. `appearance-none` strips the browser's own native
  * dropdown arrow — every call site pairs this with a `<ChevronDown>`
@@ -59,7 +59,7 @@ export const fieldClass =
  * cursor, since a `<select>` is a "pick one" control, not a free-typed
  * field. */
 export const selectableFieldClass =
-  "w-full cursor-pointer appearance-none rounded-md border border-zinc-200/80 bg-white px-4 py-2 pr-9 text-sm font-sans text-zinc-800 transition-colors duration-150 hover:border-zinc-300 focus:border-terracotta focus:outline-none";
+  "w-full cursor-pointer appearance-none rounded-lg border border-zinc-200/80 bg-white px-4 py-2 pr-9 text-sm font-sans text-zinc-800 transition-colors duration-150 hover:border-zinc-300 focus:border-terracotta focus:outline-none";
 
 /** Pairs with every `selectableFieldClass` — the `<ChevronDown>` that
  * replaces the native dropdown arrow stripped by `appearance-none`.

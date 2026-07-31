@@ -415,7 +415,7 @@ export function PostRideAnalysis({
                 type="button"
                 disabled={loading}
                 onClick={() => handleAnalyze(opt.value, opt.label)}
-                className="cursor-pointer rounded-sm border border-zinc-300/70 bg-white px-3 py-1.5 text-[11px] font-semibold tracking-widest text-zinc-700 uppercase shadow-none transition-colors duration-150 hover:border-terracotta hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-50"
+                className="cursor-pointer rounded-lg border border-zinc-300/70 bg-white px-3 py-1.5 text-[11px] font-semibold tracking-widest text-zinc-700 uppercase shadow-none transition-colors duration-150 hover:border-terracotta hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {opt.label}
               </button>
@@ -542,7 +542,7 @@ export function PostRideAnalysis({
                 source label already appears in Tarjeta 01's own footnote
                 ("Glucógeno: {sourceLabels[...]}"). */}
             <div className="rounded-xl border-0 bg-white p-5 shadow-none">
-              <span className="mb-3 block font-mono text-xs font-bold tracking-widest text-neutral-500 uppercase">
+              <span className="mb-2 block font-mono text-xs font-bold tracking-widest text-neutral-500 uppercase">
                 01 · Deuda metabólica y registro real
               </span>
 
@@ -697,7 +697,7 @@ export function PostRideAnalysis({
                 Balance Neto rows and the biphasic recovery target, both
                 folded into one numbered white card. */}
             <div className="rounded-xl border-0 bg-white p-5 shadow-none">
-              <span className="mb-3 block font-mono text-xs font-bold tracking-widest text-neutral-500 uppercase">
+              <span className="mb-2 block font-mono text-xs font-bold tracking-widest text-neutral-500 uppercase">
                 02 · Balance neto y recuperación bifásica
               </span>
 

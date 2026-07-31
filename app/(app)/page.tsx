@@ -198,12 +198,18 @@ export default async function Home({
   const profileSaved = params.profile_saved === "1";
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6">
+    <div className="flex flex-col gap-6">
       {profileSaved && <ProfileSavedToast />}
-      {/* No divider line below the greeting anymore — the wrapper's own
-          `gap-4 sm:gap-6` (see the outer flex column above) is the only
-          separator between this and the tabs now, letting the space flow
-          rather than drawing a hard rule under "Hola, Alejandro." */}
+      {/* "Jerarquía de Espaciado Editorial" — a generous, flat `gap-6`
+          between the greeting and the tabs (no `sm:` reduction on mobile
+          this time; a prior pass had tightened this to `gap-4 sm:gap-6`
+          specifically to fit more content above the fold on a phone, but a
+          later, explicit request re-asked for a "margen generoso" here
+          specifically, so this macro relationship wins over that earlier
+          mobile-fit concern). No divider line below the greeting — this gap
+          alone is the only separator between it and the tabs, letting the
+          space flow rather than drawing a hard rule under "Hola,
+          Alejandro." */}
       <header className="w-full">
         <Suspense fallback={<GreetingSkeleton />}>
           <GreetingSection />
@@ -226,8 +232,13 @@ export default async function Home({
           </TabsTrigger>
         </TabsList>
 
+        {/* Tabs → title gap reduced to a flat `pt-4` (down from `pt-4
+            sm:pt-6`) — the "Jerarquía de Espaciado Editorial" pass's own
+            macro scale calls for this relationship tighter than the
+            generous one above, since the tab bar and the card title below
+            it read as one continuous unit, not two separate blocks. */}
         <TabsContent value="pre-ride">
-          <div className="flex flex-col gap-10 pt-4 sm:pt-6">
+          <div className="flex flex-col gap-10 pt-4">
             <Suspense fallback={<FuelingPlannerSkeleton />}>
               <FuelingPlannerSection />
             </Suspense>
@@ -235,7 +246,7 @@ export default async function Home({
         </TabsContent>
 
         <TabsContent value="post-ride">
-          <div className="flex flex-col gap-10 pt-4 sm:pt-6">
+          <div className="flex flex-col gap-10 pt-4">
             <Suspense fallback={<DashboardSectionSkeleton />}>
               <PostRideAnalysisSection />
             </Suspense>

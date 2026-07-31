@@ -3517,6 +3517,69 @@ behind both the Pre-Ruta map (Fueling Planner) and the Post-Ruta map (Post-Ride 
 this single-constant change applied to both automatically — no separate edit needed per
 call site. See "Route map preview" above for the full color history in one place.
 
+**A twelfth pass — "Jerarquía de Espaciado Editorial y Estructura Frameless" — introduced
+a deliberate gradual spacing scale (macro relationships stay generous, micro relationships
+inside a card get tighter) and reversed a couple of earlier radius decisions.** This
+followed directly on from a user-reported concern that the Post-Ruta numbered cards
+(see "'Reestructuración UX por Tarjetas Numeradas'" under "Post-Ride Analysis" above)
+weren't visually separating from each other — investigated first, since a real bug there
+would need fixing before any further styling pass made sense:
+
+- **The reported fusion bug didn't reproduce.** A live check of the actual `/` route
+  (via a temporary preview rendering the real `DashboardShell` + `PostRideAnalysis`/
+  `FuelingPlanner`, not just the components in isolation) confirmed `DashboardShell`'s
+  root/`<main>` are genuinely porcelain (`bg-background`, no `bg-white` ancestor anywhere
+  between the page canvas and each numbered card), and the 3 Post-Ruta cards already
+  rendered as clearly independent white boxes with real porcelain gaps between them, at
+  both mobile and desktop widths — the "'Reestructuración UX por Tarjetas Numeradas'" pass
+  had already fixed this correctly. Nothing needed reverting; this pass proceeded straight
+  to the newly-requested spacing/radius work instead.
+- **Macro spacing (`app/(app)/page.tsx`)** — the outer page wrapper's greeting→tabs gap
+  went from a mobile-tightened `gap-4 sm:gap-6` back to a flat, generous `gap-6` at every
+  width (a deliberate reversal of an earlier pass's mobile-fit tightening, superseded here
+  by an explicit "margen generoso" request for this exact relationship); the tabs→card-
+  title gap tightened the other direction, from `pt-4 sm:pt-6` to a flat `pt-4` — the tab
+  bar and the card title below it now read as one continuous unit rather than two
+  separately-spaced blocks.
+- **Micro spacing inside numbered cards** — the gap between each "01 ·"/"02 ·"/"03 ·"
+  eyebrow and the first control beneath it tightened from `mt-4`/`mb-3` to `mt-2`/`mb-2`
+  across all 3 Fueling Planner steps (`components/fueling-planner.tsx`) and both Post-Ride
+  Analysis numbered cards (`components/post-ride-analysis.tsx`) — a title sitting close to
+  its own first field reads as "these belong together," which a full `mt-4` gap was
+  undercutting. Independently, every literal `gap-5` between sibling controls inside Paso
+  02 (Intensidad Objetivo next to Fecha y Hora de Salida, in all three of its mode
+  variants — route/quick/GPX) tightened to `gap-3`, the same "related controls sit closer"
+  logic applied to side-by-side fields rather than a title-to-field relationship. The
+  `gap-6` separating the 3 numbered cards themselves from each other was deliberately left
+  untouched — that's a macro relationship (independent step cards), not micro spacing
+  within one.
+- **Border radius, reversed on two specific controls.** `fieldClass`/`selectableFieldClass`
+  (`lib/ui-classes.ts`) and `segmentedButtonClass` (`components/fueling-planner.tsx`) all
+  went `rounded-md` → `rounded-lg`, and the RPE picker (`components/post-ride-analysis.tsx`)
+  went `rounded-sm` → `rounded-lg` — reversing the "Border-radius sobered app-wide" pass's
+  own step-down for every genuine *selector* control (fields, selects, segmented toggles,
+  the RPE picker), per this pass's explicit "rounded-lg para todos los selectores"
+  instruction. `RadioCard` was already `rounded-lg` and needed no change.
+  **The pocket-food quantity stepper reverses the other direction** — back to `rounded-full`
+  (a capsule), from the `rounded-md` the stepper's own fourth redesign iteration had settled
+  on (see "Hybrid nutrition" above for that control's full 4-iteration history) — explicitly
+  kept as the *one* exception to "every selector is `rounded-lg`" now, so it reads as its
+  own distinct control type (a quantity stepper, not a mutually-exclusive selector) rather
+  than blending into the same geometry as everything else. `primaryButtonClass`/
+  `secondaryButtonClass` were deliberately left at `rounded-md` — action buttons ("Calcular
+  estrategia," "Guardar consumo real"), not selectors, so this pass's "para todos los
+  selectores" scope doesn't reach them.
+- **Sidebar "Sincronizar" placement** — verified already correct, no code change needed:
+  `SyncForm` renders only inside `components/viewer-identity.tsx`'s sidebar identity card
+  (`identity.isStravaConnected && <SyncForm />`) and, separately, as the empty-state CTA
+  inside `PostRideAnalysis` itself — never in the Dashboard header, which has carried only
+  the plain greeting since the "PNS premium redesign"'s own fourth pass moved it out.
+- Verified via `npm run build` (clean) and the same temporary-`DashboardShell`-preview
+  Playwright check used to investigate the reported fusion bug above — confirmed the
+  tightened macro/micro gaps, the `rounded-lg` selectors, and the `rounded-full` stepper
+  all render correctly at both 390px mobile and 1280px desktop, on both the Pre-Ruta and
+  Post-Ruta tabs.
+
 ### Spanish-only UI text
 
 A pass removed the remaining "Spanglish" — English words left over in otherwise-Spanish

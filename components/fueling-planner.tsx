@@ -145,7 +145,7 @@ const selectableInputClass = selectableFieldClass;
 // which would otherwise force the column (and the whole row) wider than its
 // share of the grid instead of ever truncating.
 const segmentedButtonClass =
-  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center rounded-md border px-1 text-center text-xs font-medium shadow-none transition-colors duration-150 sm:px-3 sm:text-sm";
+  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center rounded-lg border px-1 text-center text-xs font-medium shadow-none transition-colors duration-150 sm:px-3 sm:text-sm";
 // Applied to the label text itself, not the button — `overflow-hidden`/
 // `text-ellipsis` on a `flex items-center justify-center` button clips
 // symmetrically from *both* sides of the centered content (verified live:
@@ -386,9 +386,12 @@ function PocketFoodStepperRow({
           `bg-zinc-100` solid fill was dropped in favor of a clean outline on
           a transparent background), reduced to `h-7`/`min-w-[80px]` and
           tighter `px-2 py-0.5` so it reads as a small compact widget rather
-          than a full-size button. `rounded-md` still matches the geometry of
-          every other interactive control in the app. */}
-      <div className="flex h-7 min-w-20 items-center justify-between rounded-md border border-zinc-200 bg-transparent px-2 py-0.5">
+          than a full-size button. `rounded-full` — the "PNS Style" pass
+          deliberately keeps this one control a capsule while every other
+          selector in the app (segmented buttons, fields, RadioCard, the RPE
+          picker) uses `rounded-lg` instead, so the quantity stepper reads as
+          its own distinct control type. */}
+      <div className="flex h-7 min-w-20 items-center justify-between rounded-full border border-zinc-200 bg-transparent px-2 py-0.5">
         <button
           type="button"
           onClick={() => onChange(qty - 1)}
@@ -756,7 +759,7 @@ export function FuelingPlanner({
               01 · Selección y origen de ruta
             </span>
 
-            <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="mt-2 grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setMode("route")}
@@ -980,14 +983,19 @@ export function FuelingPlanner({
             sección A, skipped in Calculadora mode since real watts already
             *is* the intensity input there) and Fecha y Hora de Salida (Sub-
             sección B, every mode). One flat white "tarjeta madre," no nested
-            sub-cards — `gap-5` alone separates the sub-sections. */}
+            sub-cards — `gap-3` alone separates the sub-sections ("Jerarquía
+            de Espaciado Editorial": related controls sitting side by side
+            get the tighter `space-y-3` scale, not the looser `gap-5` this
+            used to carry). The `mt-2` right under the eyebrow (down from
+            `mt-4`) is that same pass's "título numerado → primer campo"
+            micro-spacing rule. */}
         <div className="rounded-xl bg-white p-4 sm:p-6 shadow-none">
           <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
             02 · Condiciones de la salida
           </span>
 
           {mode === "route" && (
-            <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <label htmlFor="intensity" className={eyebrow}>
                   Intensidad objetivo
@@ -1020,7 +1028,7 @@ export function FuelingPlanner({
           )}
 
           {mode === "quick" && (
-            <div className="mt-4 grid grid-cols-1 gap-5">
+            <div className="mt-2 grid grid-cols-1 gap-3">
               <DeparturePicker
                 dayMode={departureDayMode}
                 onDayModeChange={setDepartureDayMode}
@@ -1033,15 +1041,15 @@ export function FuelingPlanner({
           )}
 
           {mode === "gpx" && !parsedGpx && (
-            <p className="mt-4 text-xs text-neutral-500">
+            <p className="mt-2 text-xs text-neutral-500">
               Sube un archivo GPX en el Paso 01 para configurar la intensidad y la fecha de
               salida.
             </p>
           )}
 
           {mode === "gpx" && parsedGpx && (
-            <div className="mt-4 flex flex-col gap-2">
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+            <div className="mt-2 flex flex-col gap-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="flex flex-col gap-2">
                   <label htmlFor="intensity-gpx" className={eyebrow}>
                     Intensidad objetivo
@@ -1113,7 +1121,7 @@ export function FuelingPlanner({
             03 · Estrategia y comida en bolsillo
           </span>
 
-          <div className="mt-4 flex flex-col gap-2">
+          <div className="mt-2 flex flex-col gap-2">
             <div className="grid grid-cols-3 gap-2">
               {FUELING_MODE_OPTIONS.map((opt) => (
                 <button
