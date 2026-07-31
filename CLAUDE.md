@@ -2034,6 +2034,64 @@ as a clean bold headline, all 6 metrics render in a proper 2-column grid with Ti
 labels and non-monospace bold values, and the footnotes (including the relocated heart-rate
 line) render correctly below.
 
+#### "Jerarquía Visual Strava" — title/metadata before the map, and a real skeleton loader
+
+A follow-up pass reordered this same card again (superseding the map-first ordering just
+above) and replaced the loading state entirely:
+
+- **Order flipped back**: title → metadata → map → grid, not map → metadata → title →
+  grid. Inside the still-unchanged `overflow-hidden rounded-xl bg-white shadow-none`
+  shell, the activity name is now the first thing rendered (`<h3 className="mb-1
+  text-xl font-bold tracking-tight text-zinc-900">`, `px-5 pt-5` on its own wrapping
+  `<div>` alongside the metadata line directly beneath it, `mb-4`), then `RouteMapPreview`
+  (unchanged, still `className="mt-0 rounded-none"` so it bleeds edge-to-edge — the map's
+  *position* moved, its own full-bleed treatment didn't), then the metrics grid.
+- **The metadata line reverted to this app's original, non-Strava-mobile date format** —
+  "Martes 28 de Julio · Inicio a las 18:58h" (capitalized weekday/month, "· Inicio a las"
+  phrasing) — `formatActivityDateTime()` and its `capitalize()` helper (both deleted in the
+  prior pass) are back, verbatim. The `· {location}` suffix from the prior pass is kept
+  (not asked to be removed, and it's real data — see "Análisis Post-Ruta Estilo Strava
+  Mobile" above for where `activity.location` comes from).
+- **The metrics grid dropped from 6 cells back to 5**, matching this exact request's own
+  literal example: Distancia, Tiempo en Movimiento, Potencia Media, Gasto Energético
+  (renamed back from "Calorías"/"Cal" to "kcal," this app's usual unit label), Frecuencia
+  Cardíaca — an odd count in a 2-column grid, so the last row is one cell wide with the
+  second column empty, exactly as the request's own code sample shows. **Desnivel
+  Positivo and Velocidad Media, both added in the prior pass, are gone from this grid** —
+  not silently lost, though: elevation gain is still visible on the map's own floating
+  distance/D+ badge (`RouteMapPreview`'s existing badge, unchanged), and average speed was
+  always a trivial `distanceKm / durationHours` derived from two figures still shown here,
+  not an independent sourced value worth preserving in a footnote the way a real sensor
+  reading would be. **Frecuencia Cardíaca returns as a primary grid cell** (it had been
+  moved to a footnote in the prior pass) — rendered with the same graceful-degradation
+  pattern as Potencia Media (`text-zinc-400`/"N/A" when Strava has no heart-rate data for
+  this ride, real value in `text-zinc-900` otherwise), so its footnote line and the now-
+  unused `HeartPulse` icon import were both removed. Cell classes also dropped the
+  previous pass's `tracking-tight`/`sm:text-xl`/`text-center sm:text-left` in favor of the
+  request's own literal `text-lg font-bold text-zinc-900`/`text-left` at every width.
+- **Skeleton loader replaces the "Analizando tu última salida…" status pill and `--`
+  placeholders entirely.** The spinning-pill notice plus per-stat muted dashes (this app's
+  loading-state convention up to this point — see "Granular loading states" above) read as
+  a generic "please wait" notice rather than a preview of the content about to appear, so
+  this one card's loading branch now renders pulsing gray blocks shaped like the real
+  content instead: a title-width bar + a shorter metadata-width bar, a full `h-48
+  sm:h-56` map-shaped rectangle, then 5 label+value pairs in the same `grid-cols-2` shape
+  as the real grid (one `animate-pulse` on the outer wrapper drives every block, rather
+  than each element declaring its own). The skeleton shows 5 placeholder cells, not the
+  4 a minimal mockup might imply, specifically to keep matching the real grid's true item
+  count — this app's own established "a loading fallback must mirror the real eventual
+  shape" convention (see "Granular loading states" above), applied to a skeleton that was
+  otherwise implemented close to verbatim from the literal code given.
+
+Verified live via the same temporary-route/Playwright pattern, including a deliberately
+delayed (4s) mocked `/api/post-ride/analysis` response to actually capture the loading
+branch mid-flight (not just the resolved state) — confirmed the skeleton renders as pulsing
+gray blocks with no "Analizando…" text and no literal `--` anywhere, and the resolved card
+shows the title first, the capitalized "Martes 28 de Julio · Inicio a las 18:58h · Palma,
+Balearic Islands" metadata line, the map directly below it, and the 5-cell Title Case grid
+(Frecuencia Cardíaca alone in its own row) — at 390px mobile (both loading and resolved
+states) and 1280px desktop (resolved state).
+
 #### Net recovery debt ("¿Qué consumiste realmente durante la ruta?")
 
 A ride's raw burn/loss figures overstate what's actually left to replace whenever the

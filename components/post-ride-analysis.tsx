@@ -1,6 +1,6 @@
 "use client";
 
-import { Bike, HeartPulse, Lock, Sun, Utensils, Zap } from "lucide-react";
+import { Bike, Lock, Sun, Utensils, Zap } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
@@ -106,21 +106,25 @@ function formatHoursMinutes(hours: number): string {
   return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
-// "Martes 28 de julio a las 18:58h" — the Strava-mobile-style metadata line
-// (see "Análisis Post-Ruta Estilo Strava Mobile"), lowercase month/weekday
-// per `es-ES`'s own long-date convention (unlike the app's usual capitalized
-// stamp elsewhere) since this line is meant to read as quiet, secondary
-// metadata rather than a heading of its own.
+function capitalize(word: string): string {
+  return word.length > 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word;
+}
+
+// "Martes 28 de Julio · Inicio a las 18:58h" — built from separate
+// `Intl`/`toLocaleDateString` calls rather than one combined format string,
+// since `es-ES`'s own long-date output ("martes, 28 de julio") lowercases
+// every word and this app's convention capitalizes the weekday/month for a
+// cleaner, more legible stamp (but not "de", which stays lowercase).
 function formatActivityDateTime(iso: string): string {
   const date = new Date(iso);
-  const weekday = date.toLocaleDateString("es-ES", { weekday: "long" });
-  const month = date.toLocaleDateString("es-ES", { month: "long" });
+  const weekday = capitalize(date.toLocaleDateString("es-ES", { weekday: "long" }));
+  const month = capitalize(date.toLocaleDateString("es-ES", { month: "long" }));
   const time = date.toLocaleTimeString("es-ES", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
-  return `${weekday} ${date.getDate()} de ${month} a las ${time}h`;
+  return `${weekday} ${date.getDate()} de ${month} · Inicio a las ${time}h`;
 }
 
 // "Balance Neto de Recuperación" — a Gastado/Ingerido/Deuda neta row for one
@@ -357,42 +361,34 @@ export function PostRideAnalysis({
         <CardTitle>Análisis post-ruta</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        {/* Stat labels render immediately — only the numbers themselves
-            (which genuinely don't exist yet, there's no ride picked until
-            the fetch resolves) show a muted `--` placeholder, matching the
-            same grid/proportions the real result renders into below so this
-            never reads as a different, generic loading card. */}
+        {/* A proper skeleton loader — title/metadata, map, and a 2-column
+            metric grid all rendered as pulsing gray blocks, mirroring the
+            real card's exact structure/order below (a loading fallback
+            must mirror the real eventual shape — this app's own
+            established convention) — replacing the earlier "Analizando tu
+            última salida…" status pill plus muted `--` stat placeholders,
+            which read as a generic loading notice rather than a preview of
+            the content about to appear. Five metric placeholders (not the
+            four a minimal mockup might suggest) to match the real grid's
+            actual item count (Distancia/Tiempo en Movimiento/Potencia
+            Media/Gasto Energético/Frecuencia Cardíaca) exactly. */}
         {loading && !result && (
           <div className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
-            {/* Mirrors the real telemetry card's own Strava-mobile-style
-                shape below (a loading fallback must mirror the real
-                eventual shape — this app's own established convention):
-                map placeholder first, then a muted metadata/title/grid
-                skeleton, all inside one `overflow-hidden rounded-xl` shell. */}
-            <div className="overflow-hidden rounded-xl bg-white shadow-none">
-              <div className="h-48 w-full animate-pulse bg-neutral-200/60" />
+            <div className="animate-pulse space-y-5 rounded-xl bg-white p-5 shadow-none">
+              <div className="space-y-2">
+                <div className="h-6 w-3/5 rounded-md bg-zinc-200" />
+                <div className="h-3.5 w-2/5 rounded-md bg-zinc-100" />
+              </div>
 
-              <div className="flex flex-col px-5 pt-4 pb-5">
-                <span className="mb-4 inline-flex w-fit items-center gap-1.5 rounded-md border border-neutral-200 bg-neutral-100 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider text-neutral-500 uppercase">
-                  <span
-                    className="size-2.5 shrink-0 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-600"
-                    aria-hidden="true"
-                  />
-                  Analizando tu última salida…
-                </span>
+              <div className="h-48 w-full rounded-xl bg-zinc-200/80 sm:h-56" />
 
-                <div className="grid grid-cols-2 gap-x-6 gap-y-5 text-center sm:text-left">
-                  {["Distancia", "Desnivel Positivo", "Tiempo en Movimiento", "Potencia Media", "Velocidad Media", "Calorías"].map(
-                    (label) => (
-                      <div key={label}>
-                        <p className="mb-0.5 text-xs font-medium text-zinc-500">{label}</p>
-                        <p className="animate-pulse text-lg font-bold tracking-tight text-zinc-300 sm:text-xl">
-                          --
-                        </p>
-                      </div>
-                    )
-                  )}
-                </div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-5 pt-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="h-3 w-1/2 rounded bg-zinc-100" />
+                    <div className="h-5 w-3/4 rounded bg-zinc-200" />
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -424,21 +420,31 @@ export function PostRideAnalysis({
 
         {result && (
           <div className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
-            {/* "Análisis Post-Ruta Estilo Strava Mobile" — the map is now
-                strictly the first thing in the card (full-bleed, p-0, no
-                badge/switcher ever rendered over the canvas), followed by a
-                quiet Bike-icon metadata line (date/time · location), the
-                activity name as a bold title, and a clean 2-column Title
-                Case metrics grid mirroring Strava's own mobile summary —
-                replacing the earlier name/date-then-stat-grid-then-map
-                ordering and the ALL-CAPS stat labels used elsewhere in this
-                app. `RouteMapPreview` itself is unchanged/shared with
-                Pre-Ruta (same tiles, route-line color, floating zoom/badge
-                chrome). Deliberately no `font-mono` on the metric values
-                here (unlike every other numeric readout in this app) — a
-                one-off exception matching Strava's own plain-sans numeral
-                display, scoped to this one grid. */}
+            {/* "Jerarquía Visual Strava" — title + quiet Bike-icon metadata
+                line first, then the full-width map, then a clean 2-column
+                Title Case metrics grid — superseding the previous "map
+                first" ordering from the "Estilo Strava Mobile" pass above
+                (see that section's own note under "Post-Ride Analysis").
+                `RouteMapPreview` itself is unchanged/shared with Pre-Ruta
+                (same tiles, route-line color, floating zoom/badge chrome).
+                Deliberately no `font-mono` on the metric values (unlike
+                every other numeric readout in this app) — the same one-off
+                exception carried over from the prior pass, matching
+                Strava's own plain-sans numeral display. */}
             <div className="overflow-hidden rounded-xl bg-white shadow-none">
+              <div className="px-5 pt-5">
+                <h3 className="mb-1 text-xl font-bold tracking-tight text-zinc-900">
+                  {result.activity.name}
+                </h3>
+                <div className="mb-4 flex items-center gap-1.5 text-xs font-normal text-zinc-500">
+                  <Bike className="size-3.5 shrink-0 text-zinc-500" />
+                  <span>
+                    {formatActivityDateTime(result.activity.activityDate)}
+                    {result.activity.location ? ` · ${result.activity.location}` : ""}
+                  </span>
+                </div>
+              </div>
+
               <RouteMapPreview
                 points={result.activity.points}
                 distanceKm={result.activity.distanceKm}
@@ -447,34 +453,16 @@ export function PostRideAnalysis({
                 emptyMessage="Sin datos de trazado GPS para esta actividad."
               />
 
-              <div className="mt-4 mb-1 flex items-center gap-1.5 px-5 text-xs font-normal text-zinc-500">
-                <Bike className="size-3.5 shrink-0 text-zinc-500" />
-                <span>
-                  {formatActivityDateTime(result.activity.activityDate)}
-                  {result.activity.location ? ` · ${result.activity.location}` : ""}
-                </span>
-              </div>
-
-              <h3 className="mb-6 px-5 text-xl font-bold tracking-tight text-zinc-900">
-                {result.activity.name}
-              </h3>
-
-              <div className="grid grid-cols-2 gap-x-6 gap-y-5 px-5 pb-5 text-center sm:text-left">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-5 px-5 pt-5 text-left">
                 <div>
                   <p className="mb-0.5 text-xs font-medium text-zinc-500">Distancia</p>
-                  <p className="text-lg font-bold tracking-tight text-zinc-900 sm:text-xl">
+                  <p className="text-lg font-bold text-zinc-900">
                     {result.activity.distanceKm.toFixed(2)} km
                   </p>
                 </div>
                 <div>
-                  <p className="mb-0.5 text-xs font-medium text-zinc-500">Desnivel Positivo</p>
-                  <p className="text-lg font-bold tracking-tight text-zinc-900 sm:text-xl">
-                    {result.activity.elevationGainM} m
-                  </p>
-                </div>
-                <div>
                   <p className="mb-0.5 text-xs font-medium text-zinc-500">Tiempo en Movimiento</p>
-                  <p className="text-lg font-bold tracking-tight text-zinc-900 sm:text-xl">
+                  <p className="text-lg font-bold text-zinc-900">
                     {formatHoursMinutes(result.activity.durationHours)}
                   </p>
                 </div>
@@ -482,16 +470,14 @@ export function PostRideAnalysis({
                   <p className="mb-0.5 text-xs font-medium text-zinc-500">Potencia Media</p>
                   {result.telemetry.powerSource === "none" ? (
                     <>
-                      <p className="text-lg font-bold tracking-tight text-zinc-400 sm:text-xl">N/A</p>
+                      <p className="text-lg font-bold text-zinc-400">N/A</p>
                       <p className="text-[10px] text-zinc-400">
                         {lastRpeLabel ? `RPE: ${lastRpeLabel}` : "Sin sensor"}
                       </p>
                     </>
                   ) : (
                     <>
-                      <p className="text-lg font-bold tracking-tight text-zinc-900 sm:text-xl">
-                        {result.telemetry.powerWatts} W
-                      </p>
+                      <p className="text-lg font-bold text-zinc-900">{result.telemetry.powerWatts} W</p>
                       {result.telemetry.powerSource === "estimated" && (
                         <p className="text-[10px] text-zinc-400">Potencia estimada</p>
                       )}
@@ -499,39 +485,34 @@ export function PostRideAnalysis({
                   )}
                 </div>
                 <div>
-                  <p className="mb-0.5 text-xs font-medium text-zinc-500">Velocidad Media</p>
-                  <p className="text-lg font-bold tracking-tight text-zinc-900 sm:text-xl">
-                    {result.activity.durationHours > 0
-                      ? `${(result.activity.distanceKm / result.activity.durationHours).toFixed(1)} km/h`
-                      : "--"}
-                  </p>
-                </div>
-                <div>
-                  <p className="mb-0.5 text-xs font-medium text-zinc-500">Calorías</p>
-                  <p className="text-lg font-bold tracking-tight text-zinc-900 sm:text-xl">
-                    {result.telemetry.energyKcal} Cal
-                  </p>
+                  <p className="mb-0.5 text-xs font-medium text-zinc-500">Gasto Energético</p>
+                  <p className="text-lg font-bold text-zinc-900">{result.telemetry.energyKcal} kcal</p>
                   {result.telemetry.energySource === "estimated" && (
                     <p className="text-[10px] text-zinc-400">Estimado</p>
                   )}
                 </div>
+                <div>
+                  <p className="mb-0.5 text-xs font-medium text-zinc-500">Frecuencia Cardíaca</p>
+                  <p
+                    className={cn(
+                      "text-lg font-bold",
+                      result.telemetry.heartrateAvg != null ? "text-zinc-900" : "text-zinc-400"
+                    )}
+                  >
+                    {result.telemetry.heartrateAvg != null ? `${result.telemetry.heartrateAvg} ppm` : "N/A"}
+                  </p>
+                </div>
               </div>
 
-              {/* Data-provenance footnotes — not part of the Strava-mobile
-                  layout spec, kept (moved here, below the new metrics grid)
-                  so real heart-rate/temperature/glycogen-source data already
-                  surfaced elsewhere in this app is never silently dropped. */}
-              <div className="flex flex-col gap-1 border-t border-neutral-200 px-5 py-3 font-mono text-[10px] text-neutral-400">
+              {/* Data-provenance footnotes — not part of the requested
+                  layout, kept so real temperature/glycogen-source data
+                  already surfaced elsewhere in this app is never silently
+                  dropped by a redesign that didn't ask for its removal. */}
+              <div className="mt-5 flex flex-col gap-1 border-t border-neutral-200 px-5 py-3 font-mono text-[10px] text-neutral-400">
                 <p>
                   Cálculo de deuda metabólica generado a partir de la telemetría real de tu
                   ciclocomputador.
                 </p>
-                {result.telemetry.heartrateAvg != null && (
-                  <p className="flex items-center gap-1">
-                    <HeartPulse className="size-3 shrink-0" />
-                    Frecuencia cardíaca media: {result.telemetry.heartrateAvg} ppm
-                  </p>
-                )}
                 {result.activity.temperatureAvgC != null && (
                   <p className="flex items-center gap-1">
                     <Sun className="size-3 shrink-0" />
