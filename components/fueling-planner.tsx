@@ -1229,7 +1229,16 @@ export function FuelingPlanner({
                     Automático — solo geles y bidón en modo Óptimo, sin alimentos sólidos.
                   </p>
                 )}
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {/* `gap-0`/`md:gap-y-0` — each `PocketFoodStepperRow` (and the
+                    "Personalizado" row) already draws its own `border-b
+                    border-zinc-100 py-2.5` divider, so a grid `gap-3` on top
+                    of that was double-spacing every row: a real gutter *and*
+                    the row's own padding both adding vertical distance. Only
+                    `md:gap-x-4` survives, purely to keep the 2-column
+                    desktop layout's side-by-side items from touching
+                    horizontally — vertical rhythm between rows is entirely
+                    the rows' own border+padding now, at every breakpoint. */}
+                <div className="grid grid-cols-1 gap-0 md:grid-cols-2 md:gap-x-4 md:gap-y-0">
                   {(fuelingMode === "optimal" ? GEL_DOSE_TYPES : ALL_POCKET_FOOD_TYPES).map((type) => (
                     <PocketFoodStepperRow
                       key={type}

@@ -1401,6 +1401,14 @@ supporting detail. Restructured around a "glance vs. dig deeper" split instead:
   documented under "Hybrid nutrition" above — that bug was about *switching* padding pairs
   across `sm:`, not about `2.5` itself being asymmetric) — a smaller, less congested list
   now that the surrounding sub-blocks have more breathing room of their own.
+- **The wrapping grid's own `gap-3` was then found to be double-spacing every row on top
+  of that per-row padding** — each row already draws its own `border-b border-zinc-100
+  py-2.5` divider, so a real CSS `gap` on the grid container added a *second*, redundant
+  gutter between rows, on top of what the rows' own padding already provided. Fixed by
+  dropping the grid to `grid-cols-1 gap-0 md:grid-cols-2 md:gap-x-4 md:gap-y-0` — `gap-0`/
+  `md:gap-y-0` remove the vertical gutter entirely (rows are now delimited purely by their
+  own `border-b`, at every breakpoint), while `md:gap-x-4` survives just to keep the
+  2-column desktop layout's side-by-side items from touching horizontally.
 - **Collapsible technical breakdown** — the DIY recipe + bottle architecture (+ the
   hypertonic-concentration warning, when it fires), the dynamic ingestion timeline, and
   the reload strategy (when applicable) are each their own `<details>`, closed by default,
