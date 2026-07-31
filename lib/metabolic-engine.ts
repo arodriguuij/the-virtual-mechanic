@@ -1397,3 +1397,27 @@ export function formatGarminExportText({
 
   return lines.join("\n");
 }
+
+export type WkgCategory = {
+  label: string;
+  percentile: string;
+};
+
+/**
+ * FTP/weight ratio performance banding — the standard TrainerRoad/Coggan
+ * power-profile chart, not a RATIO-specific formula. Purely illustrative
+ * (same "heuristic, not clinical" convention as the rest of this file): a
+ * real power-profile chart also varies by duration (5s/1min/5min/20min) and
+ * sex, neither of which this app collects, so this single-number banding is
+ * a rough placement, not a precise percentile. Used only to label the
+ * Physiological Profile form's own read-only W/kg pill — never fed into any
+ * fueling/recovery calculation elsewhere in this file.
+ */
+export function getWkgCategory(wkg: number): WkgCategory {
+  if (wkg < 2.0) return { label: "Principiante", percentile: "Top 90%" };
+  if (wkg < 2.8) return { label: "Recreacional", percentile: "Top 70%" };
+  if (wkg < 3.5) return { label: "Intermedio", percentile: "Top 50%" };
+  if (wkg < 4.2) return { label: "Avanzado", percentile: "Top 25%" };
+  if (wkg < 5.0) return { label: "Competitivo / Elite", percentile: "Top 8%" };
+  return { label: "Pro / Excepcional", percentile: "Top 2%" };
+}

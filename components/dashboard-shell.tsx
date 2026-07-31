@@ -3,7 +3,7 @@
 import { BarChart3, History, LayoutDashboard, LogOut, Menu, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { RatioLogo } from "@/components/icons/RatioLogo";
 import { logout } from "@/lib/auth-actions";
@@ -213,6 +213,32 @@ export function DashboardShell({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const logoutFallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (logoutFallbackTimer.current) clearTimeout(logoutFallbackTimer.current);
+    };
+  }, []);
+
+  // `logout()` itself (the real Server Action) is untouched — it already
+  // signs out and calls `redirect("/login")` server-side. That redirect is
+  // normally carried out as a soft client-side RSC transition, but a known
+  // Next.js App Router failure mode can surface a full-page crash screen
+  // ("This page couldn't load. Reload to try again, or go back.") instead
+  // of completing it — e.g. a background request racing the exact moment
+  // the session cookie clears. This defensive fallback forces a genuine
+  // `window.location.href` hard navigation if the soft transition hasn't
+  // already carried the browser to `/login` within a couple of seconds — a
+  // normal, successful logout always unmounts this component well within
+  // that window, so the timer never fires in the common case; it only
+  // matters when the soft transition has actually failed.
+  function handleLogoutStart() {
+    setIsLoggingOut(true);
+    logoutFallbackTimer.current = setTimeout(() => {
+      window.location.href = "/login";
+    }, 2500);
+  }
 
   return (
     <div
@@ -249,7 +275,7 @@ export function DashboardShell({
           onClose={() => setMobileOpen(false)}
           identitySlot={identitySlot}
           isLoggingOut={isLoggingOut}
-          onLogoutStart={() => setIsLoggingOut(true)}
+          onLogoutStart={handleLogoutStart}
           isProfileComplete={isProfileComplete}
         />
       </aside>

@@ -840,6 +840,23 @@ shows a one-line "Comida de bolsillo cubre Xg de Yg HC — el resto va en el bid
 small `Utensils` icon, not an emoji) whenever any item is selected —
 that summary line isn't part of the pocket-food *catalog* UI, so it keeps its emoji.
 
+**Each row's own outer wrapper (not the −/+ stepper control above) also went through a
+padding-symmetry fix.** This is `PocketFoodStepperRow`'s own outer `<div>` — the one that
+lays the food name/carb figure on the left against the stepper on the right and draws the
+divider line beneath each row — separate from the stepper control's own border/radius
+history above. It used to pair `border-b border-neutral-200 px-1 py-2.5` on mobile with
+`md:border md:px-3 md:py-1.5` at `md:` (a full box per cell once the grid went 2-column) —
+a reported visual complaint that each row's text/stepper sat closer to its *bottom* divider
+than its top one turned out to trace back to this pairing switching breakpoints mid-list
+rather than to any single asymmetric value. Fixed with one consistent treatment at every
+width: `border-b border-zinc-100 py-3.5 last:border-b-0` — a plain list-row divider with
+strictly symmetric vertical padding (Tailwind's `py-*` always sets top/bottom equally) and
+no divider after the final item. The "Personalizado" custom-carbs row (a plain `<div>`
+inline in the pocket-food grid, not `PocketFoodStepperRow` itself, but immediately adjacent
+in the same list) carried the exact same asymmetric pairing and got the identical fix for
+consistency — both rows now read as one uniform list regardless of viewport width, rather
+than a mobile list flipping to a grid-of-boxes at `md:`.
+
 ### Fueling mode selector (Óptimo / Mi Inventario / Híbrido)
 
 Three ways of arriving at the same DIY-recipe pipeline above, differing only in *where
@@ -1302,14 +1319,15 @@ supporting detail. Restructured around a "glance vs. dig deeper" split instead:
   "Cobertura completa vía comida de bolsillo" instead of a nonsensical "0g Malto + 0g
   Fructosa" line whenever `bottlePlan.fuelBottles.count` is `0` (pocket food alone covers
   the ride — see "Hybrid nutrition" above).
-- **OBJETIVO / EN BOLSILLO / DÉFICIT EN BIDÓN progress bar** — replaces three separate
-  badge pills with a single two-segment rail (`bg-sage` for the covered fraction,
-  `bg-terracotta/20` for the remainder) plus the three raw figures above it. Stacks to one
-  column below `sm:` — an earlier three-column-with-`truncate` version cut the numbers
-  themselves off on a narrow phone (verified: "DÉFICIT EN BIDÓN 336g HC" truncated to
-  "DÉFICIT EN …"), which defeats the entire point of a scannable metric; letting each
-  figure take its own full-width row instead never truncates, at the cost of a slightly
-  taller block on mobile only.
+- **OBJETIVO / EN BOLSILLO / DÉFICIT EN BIDÓN progress bar** — originally replaced three
+  separate badge pills with a single two-segment rail (`bg-sage` for the covered fraction,
+  `bg-terracotta/20` for the remainder) plus the three raw figures above it, stacking to one
+  column below `sm:` (an earlier three-column-with-`truncate` version cut the numbers
+  themselves off on a narrow phone — verified: "DÉFICIT EN BIDÓN 336g HC" truncated to
+  "DÉFICIT EN …" — which defeats the entire point of a scannable metric). **A later
+  "Reestructuración UX/UI: Estrategia y Comida en Bolsillo" pass superseded this rail
+  entirely** — see the note under "'Comida en bolsillo' accordion" immediately below for
+  the current shape.
 - **"Comida en bolsillo" accordion** — the pocket-food catalog/stepper grid (see "Hybrid
   nutrition" above) sits behind a `<details>`, headed by a clear section title ("Comida en
   bolsillo," bold uppercase `font-mono`) plus a live "N items seleccionados · Mg HC" summary
@@ -1321,6 +1339,25 @@ supporting detail. Restructured around a "glance vs. dig deeper" split instead:
   it read as a generic, already-collapsed accordion rather than a live section header, so
   it was split into two visually distinct pieces (bold title left, muted count right) the
   way every other section header in this app already reads.
+
+  **The objetivo/cubierto/déficit breakdown moved *inside* this same `<details>`, directly
+  below its `<summary>` header row, and was simplified from a 3-column colored grid + a
+  progress bar into one discreet single-line porcelain banner.** Before this, it floated as
+  its own heavy `space-y-2 rounded-lg bg-[#F8F7F5] p-4` box *above* the entire accordion —
+  disconnected from "Comida en bolsillo"'s own header/counter one step below it, so the
+  mode selector, the breakdown, and the inventory header/list read as three loosely-adjacent
+  sections rather than one continuous flow. Now the sequence inside Paso 03 is: mode
+  selector → its explanatory legend → the accordion (`<summary>`: "Comida en bolsillo" +
+  "N items seleccionados · Mg HC" counter, unchanged) → immediately inside its content,
+  a plain `bg-[#F8F7F5] rounded-lg p-3 text-xs font-mono text-zinc-600` banner reading
+  "OBJETIVO Xg HC · CUBIERTO Yg HC · RESTANTE Zg HC" (renamed from "EN BOLSILLO"/"DÉFICIT EN
+  BIDÓN" to "CUBIERTO"/"RESTANTE" to match this pass's own wording) → the food-item grid.
+  The 3 separately-colored (neutral/emerald/terracotta) uppercase labels and the 2-segment
+  `bg-sage`/`bg-terracotta/20` progress rail are both gone outright, not just restyled —
+  a deliberate simplification to a single neutral-toned text line, matching the request's
+  own literal "banner discreto" spec rather than a lighter version of the old colored/
+  progress-bar treatment. The empty-state placeholder ("Calcula tu estrategia para ver el
+  desglose...") moved to the same location for the same reason, with matching styling.
 
   **Default open/closed state now depends on the selected Estrategia nutricional** (see
   "Fueling mode selector" below), rather than always starting closed: Mi Inventario and
@@ -2612,6 +2649,44 @@ that `await getAthleteProfile()`s on every request (the page exports `dynamic =
 the entire `<form>` — see "Unified client-side form validation" below for why this moved
 off a plain server-rendered form.
 
+### W/kg performance pill (01 · Métricas físicas y equipamiento)
+
+A read-only, purely-derived power-to-weight readout next to that card's own numbered
+eyebrow — FTP and Peso are already the two fields directly beneath it, and their ratio is
+a genuinely useful number athletes recognize (the standard TrainerRoad/Coggan power-profile
+banding) that this app had never surfaced anywhere.
+
+- **`getWkgCategory(wkg)`** (`lib/metabolic-engine.ts`) — a plain classification function,
+  same "heuristic, not clinical" convention as the rest of this file: 6 fixed bands
+  (Principiante/Recreacional/Intermedio/Avanzado/Competitivo-Elite/Pro-Excepcional) each
+  with an illustrative percentile label. Explicitly documented as a rough placement, not a
+  precise percentile — a real power-profile chart also varies by test duration (5s/1min/
+  5min/20min) and sex, neither of which this app collects. Used *only* to label this one
+  pill; never fed into any fueling/recovery calculation elsewhere in this file.
+- **`wkg`/`wkgCategory`** (`components/physiological-profile-form.tsx`) — computed directly
+  from the form's own `weight`/`ftp` controlled state (`Number(ftp) / Number(weight)`,
+  guarded to `0` whenever either isn't yet a valid positive number, via the same
+  `weightValid`/`ftpValid` booleans the form's own validation already computes) — a plain
+  derived value recalculated on every render, not `useMemo`'d, since the computation itself
+  (one division plus a 6-branch comparison) is trivial next to a component that already
+  re-renders on every keystroke anyway. **Never its own input and never persisted** — the
+  server route has no `wkg` column to save it to; it's trivially re-derivable any time both
+  real values are on hand, so persisting it would just be a second source of truth that
+  could drift from the two fields it's computed from.
+- **The pill itself** — `bg-[#F8F7F5] border border-zinc-200/60 rounded-md`, neutral
+  monochrome text (`text-zinc-900` for the number, `text-zinc-500` for the category label),
+  deliberately no accent color — a quiet technical readout, not a call-to-action competing
+  with the actual form fields. Sits in the same row as the "01 ·" eyebrow via `flex
+  flex-wrap items-center justify-between gap-2` — `flex-wrap` (not a rigid single row) lets
+  the pill drop to its own line below the longer eyebrow label on a narrow phone instead of
+  both squeezing onto one forced row and each wrapping awkwardly mid-word (verified live at
+  390px: the eyebrow and the pill each render as one clean line, the pill below the eyebrow,
+  rather than both wrapping into a jumbled 4-line block as an earlier `flex items-center
+  justify-between` — no wrap — version did). `whitespace-nowrap` on the pill itself keeps
+  "3.47 W/kg · Intermedio" as one unbroken line once it has its own full-width row to sit in.
+- **Deliberately no distribution chart on this screen** — reserved for a future
+  Estadísticas addition; this pass is the pill only.
+
 ### Unified client-side form validation
 
 Three inconsistent validation UIs used to coexist on this one form: FTP/Peso relied on the
@@ -2937,6 +3012,34 @@ Server Action's own request intercepted/stalled (same Playwright pattern used el
 this file) — confirmed the button text/disabled/cursor/spinner and the root's
 opacity/pointer-events all flip correctly before the (stalled) redirect would otherwise
 fire; route removed again before committing.
+
+**Hard-navigation fallback for a reported logout crash.** A user report described clicking
+"Cerrar sesión" occasionally surfacing Next.js's own generic client-router crash screen
+("This page couldn't load. Reload to try again, or go back.") instead of landing on
+`/login`, diagnosed against a `router.push('/login')`-after-`signOut()` pattern. That
+diagnosis doesn't match this codebase, though — there's no client-side `router.push`
+anywhere in the logout path; `logout()` (`lib/auth-actions.ts`) is already a `"use server"`
+Server Action calling `supabase.auth.signOut()` then `redirect("/login")`, the
+architecturally-correct pattern (confirmed by re-reading the actual source before touching
+anything, rather than assuming the report's own diagnosis was correct). The real
+susceptibility is more subtle: a Server Action's `redirect()` is normally carried out as a
+soft client-side RSC transition, and a documented class of Next.js App Router bugs can
+surface that exact crash screen if a background request (e.g. a prefetched sidebar
+`<Link>`) races the moment the session cookie actually clears. Since this couldn't be
+reproduced live in this environment (no real Supabase session to click a live "Cerrar
+sesión" against), the fix is a defensive fallback rather than a targeted one-line patch:
+`DashboardShell` now holds a `logoutFallbackTimer` ref, and `handleLogoutStart()` (replacing
+the previous inline `() => setIsLoggingOut(true)`) both flips `isLoggingOut` as before *and*
+schedules a `window.location.href = "/login"` hard navigation 2.5s later. A normal,
+successful logout always unmounts this component (via the real navigation completing) well
+within that window, so the timer never fires in the common case — it only matters if the
+soft transition has actually failed, forcing a clean hard reload to `/login` instead of
+leaving the crash screen up. The timer is cleared on unmount via a `useEffect` cleanup so it
+can never fire after the component's already gone for an unrelated reason. `logout()` and
+`proxy.ts`'s own middleware redirect (already a clean `NextResponse.redirect(url)`, already
+correct) were both left untouched — no client-side Supabase client was reintroduced, keeping
+this app's deliberate "sign-out is entirely server-side" architecture (see "Real auth" above)
+intact.
 
 **No red/destructive hover on "Cerrar sesión."** An earlier version's resting `text-neutral-500`
 hovered to `bg-red-50/80 text-red-600` — a common "destructive action" affordance elsewhere

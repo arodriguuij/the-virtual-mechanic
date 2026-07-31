@@ -11,6 +11,7 @@ import type { AthleteProfile } from "@/lib/dashboard-data";
 import {
   athleteTypeDescriptions,
   athleteTypeLabels,
+  getWkgCategory,
   sweatRateDescriptions,
   sweatRateLabels,
   type AthleteType,
@@ -115,6 +116,16 @@ export function PhysiologicalProfileForm({
   const ftpValid = Boolean(ftp) && Number(ftp) > 0;
   const isFormValid = Boolean(weightValid && ftpValid && athleteType && sweatRate && gutTrainingLevel);
 
+  // Purely reactive, read-only — recalculates from whatever Peso/FTP the
+  // athlete has typed so far, live, on every keystroke; never an editable
+  // field of its own and never persisted (the server route has no `wkg`
+  // column to save it to — it's just FTP ÷ Peso, trivially re-derivable
+  // any time both real values are on hand). `0` (not `NaN`/`Infinity`) below
+  // a genuinely valid weight, so the pill's own `wkg > 0` guard hides it
+  // cleanly rather than ever rendering a broken number mid-typing.
+  const wkg = weightValid && ftpValid ? Number(ftp) / Number(weight) : 0;
+  const wkgCategory = wkg > 0 ? getWkgCategory(wkg) : null;
+
   const hasChanges = useMemo(
     () =>
       weight !== (profile?.weight_kg?.toString() ?? "") ||
@@ -168,7 +179,25 @@ export function PhysiologicalProfileForm({
     >
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <span className={cardNumberHeading}>01 · Métricas físicas y equipamiento</span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className={cardNumberHeading}>01 · Métricas físicas y equipamiento</span>
+            {/* Read-only W/kg pill — FTP ÷ Peso, recalculated live from the
+                two controlled inputs directly below, never its own input
+                and never persisted (see the `wkg`/`wkgCategory` derivation
+                above). Neutral porcelain/monochrome styling, no accent
+                color, so it reads as a quiet technical readout rather than
+                a call-to-action competing with the actual form fields.
+                `flex-wrap` on the parent row lets this pill drop to its own
+                line below the (longer) eyebrow label on a narrow phone
+                instead of both squeezing onto one forced row and each
+                wrapping awkwardly. */}
+            {wkgCategory && (
+              <div className="flex shrink-0 items-center gap-2 rounded-md border border-zinc-200/60 bg-[#F8F7F5] px-3 py-1 whitespace-nowrap shadow-none">
+                <span className="font-mono text-xs font-bold text-zinc-900">{wkg.toFixed(2)} W/kg</span>
+                <span className="font-mono text-[11px] text-zinc-500">· {wkgCategory.label}</span>
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="weight_kg" className={eyebrow}>

@@ -365,13 +365,19 @@ function PocketFoodStepperRow({
   return (
     <div
       className={cn(
-        // Mobile: a clean, full-width list row with just a thin bottom
-        // divider — no wrapping border/box per item, so a stacked list of
-        // these doesn't read as "boxes inside boxes." The `md:` 2-column
-        // grid this renders inside (see its call site) is spacious enough
-        // that a full border per cell reads fine there instead, matching
-        // the breakpoint the grid itself already switches at.
-        "flex items-center justify-between gap-2 border-b border-neutral-200 px-1 py-2.5 md:border md:px-3 md:py-1.5",
+        // One consistent list-row treatment at every breakpoint — a thin
+        // `border-zinc-100` divider, `last:border-b-0` so the final item
+        // doesn't carry a trailing rule. Replaces an earlier "full border
+        // box at md:" variant (this row sat in a plain `border-b`-only list
+        // on mobile, but gained a `md:border` full box once the grid became
+        // 2 columns) — that asymmetry read as two different components at
+        // different widths; a uniform list row is simpler and matches every
+        // other list treatment in this app. `py-3.5` is strictly symmetric
+        // (Tailwind's `py-*` always sets top and bottom equally) — fixes a
+        // reported visual imbalance where the previous `py-2.5`/`md:py-1.5`
+        // pairing read as if the row's content sat closer to its bottom
+        // divider than its top one.
+        "flex items-center justify-between gap-2 border-b border-zinc-100 py-3.5 last:border-b-0",
         disabled && "opacity-50"
       )}
     >
@@ -1142,79 +1148,62 @@ export function FuelingPlanner({
             <p className="text-xs font-mono text-zinc-500">{FUELING_MODE_DESCRIPTIONS[fuelingMode]}</p>
           </div>
 
-          <div className="mt-4 space-y-4">
-            {result ? (
-              (() => {
-                const coveredPct =
-                  result.totalRideCarbsG > 0
-                    ? Math.min(100, (result.pocketFoodCarbsG / result.totalRideCarbsG) * 100)
-                    : 0;
-                const deficitG = Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG);
-                return (
-                  // The objetivo/cubierto/déficit breakdown is itself a
-                  // "desglose interno" (sub-block) of PASO 03's own white
-                  // card — a soft `bg-[#F8F7F5]` porcelain tint, zero
-                  // border, zero shadow, the same treatment the empty-state
-                  // placeholder below already uses, so both states of this
-                  // slot read consistently as one internal sub-block rather
-                  // than the result state floating bare on the white card
-                  // while only the placeholder got a background.
-                  <div className="space-y-2 rounded-lg bg-[#F8F7F5] p-4 shadow-none">
-                    <div className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-2">
-                      <span className="font-mono text-xs text-neutral-500">
-                        OBJETIVO {result.totalRideCarbsG}g HC
-                      </span>
-                      <span className="font-mono text-xs font-bold text-emerald-700">
-                        EN BOLSILLO {result.pocketFoodCarbsG}g HC
-                      </span>
-                      <span className="font-mono text-xs font-bold text-terracotta">
-                        DÉFICIT EN BIDÓN {deficitG}g HC
-                      </span>
-                    </div>
-                    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-badge">
-                      <div
-                        className="bg-sage transition-all duration-300"
-                        style={{ width: `${coveredPct}%` }}
-                      />
-                      <div className="bg-terracotta/20" style={{ width: `${100 - coveredPct}%` }} />
-                    </div>
-                  </div>
-                );
-              })()
-            ) : (
-              // A soft `bg-[#F8F7F5]` tint (the canvas tone itself, not a new
-              // gray), zero border, zero shadow, so this empty-state note
-              // still reads as *inside* the white card, not a box of its own.
-              <div className="rounded-lg bg-[#F8F7F5] p-4 font-mono text-xs text-zinc-600 shadow-none">
-                Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
-              </div>
-            )}
-
-            {/* `key={fuelingMode}` forces a full remount whenever the athlete
-                switches Estrategia nutricional — that's what makes `open`
-                actually re-apply as a fresh initial value each time, instead of
-                React's own prop-diffing silently skipping the DOM write because
-                the previous render already had the same `open` value. Óptimo
-                mode is the one case with nothing for the athlete to configure
-                here (it's server-computed), so it's the only one that starts
-                collapsed; Mi Inventario/Híbrido both start open, since those are
-                exactly the two modes where this list is the athlete's own input,
-                not just a preview. Once mounted, the athlete can freely collapse
-                or reopen it without this forcing it back — only an actual mode
-                switch does that. */}
-            <details key={fuelingMode} open={fuelingMode !== "optimal"} className="group">
-              <summary className="flex list-none cursor-pointer items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
-                <span className="font-mono text-xs font-bold tracking-wider text-neutral-900 uppercase">
-                  Comida en bolsillo
+          {/* "Cabecera de Inventario & Métricas" + "Aviso de Estado" now live
+              *inside* the same `<details>` as the food list, directly below
+              its `<summary>` header row — previously the objetivo/cubierto/
+              déficit breakdown floated as its own heavy box *above* this
+              whole accordion (a separate 3-column colored grid + progress
+              bar), disconnected from "Comida en bolsillo"'s own header/
+              counter one step below it. Consolidating both into one
+              continuous block — mode selector → inventory header+counter →
+              status banner → food list — makes the relationship between the
+              chosen Estrategia and the inventory immediately legible instead
+              of reading as two loosely-adjacent sections. `key={fuelingMode}`
+              forces a full remount whenever the athlete switches Estrategia
+              nutricional — that's what makes `open` actually re-apply as a
+              fresh initial value each time, instead of React's own
+              prop-diffing silently skipping the DOM write because the
+              previous render already had the same `open` value. Óptimo mode
+              is the one case with nothing for the athlete to configure here
+              (it's server-computed), so it's the only one that starts
+              collapsed; Mi Inventario/Híbrido both start open, since those
+              are exactly the two modes where this list is the athlete's own
+              input, not just a preview. Once mounted, the athlete can freely
+              collapse or reopen it without this forcing it back — only an
+              actual mode switch does that. */}
+          <details key={fuelingMode} open={fuelingMode !== "optimal"} className="group mt-2">
+            <summary className="flex list-none cursor-pointer items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+              <span className="font-mono text-xs font-bold tracking-wider text-neutral-900 uppercase">
+                Comida en bolsillo
+              </span>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="font-mono text-[11px] whitespace-nowrap text-neutral-500">
+                  {pocketFoodItemCount} items seleccionados · {pocketFoodCarbsPreview}g HC
                 </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <span className="font-mono text-[11px] whitespace-nowrap text-neutral-500">
-                    {pocketFoodItemCount} items seleccionados · {pocketFoodCarbsPreview}g HC
-                  </span>
-                  <ChevronDown className="size-4 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
-                </span>
-              </summary>
-              <div className="flex flex-col gap-1.5 pt-3">
+                <ChevronDown className="size-4 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
+              </span>
+            </summary>
+            <div className="flex flex-col gap-3 pt-3">
+              {/* Aviso de Estado / Desglose Integrado — a discreet, single-
+                  tone porcelain banner (no colored labels, no progress bar)
+                  replacing the old heavy floating box, directly under the
+                  inventory header it now describes. */}
+              {result ? (
+                (() => {
+                  const restanteG = Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG);
+                  return (
+                    <div className="mb-2 rounded-lg bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
+                      OBJETIVO {result.totalRideCarbsG}g HC · CUBIERTO {result.pocketFoodCarbsG}g HC ·
+                      RESTANTE {restanteG}g HC
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="mb-2 rounded-lg bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
+                  Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5">
                 {fuelingMode === "optimal" && (
                   <p className="text-xs text-neutral-500">
                     Automático — solo geles y bidón en modo Óptimo, sin alimentos sólidos.
@@ -1235,7 +1224,7 @@ export function FuelingPlanner({
                     />
                   ))}
                   {fuelingMode !== "optimal" && (
-                    <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-1 py-2.5 md:border md:px-3 md:py-1.5">
+                    <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-3.5 last:border-b-0">
                       <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
                         Personalizado
                       </label>
@@ -1257,8 +1246,8 @@ export function FuelingPlanner({
                   )}
                 </div>
               </div>
-            </details>
-          </div>
+            </div>
+          </details>
         </div>
 
         {/* Final CTA — sits after all 3 numbered steps, not inside any of
