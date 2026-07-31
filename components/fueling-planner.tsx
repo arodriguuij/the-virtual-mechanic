@@ -1,11 +1,9 @@
 "use client";
 
 import {
-  AlarmClock,
   CalendarDays,
   ChevronDown,
   Copy,
-  Download,
   Droplet,
   FlaskConical,
   Fuel,
@@ -14,7 +12,6 @@ import {
   Pencil,
   RefreshCw,
   Send,
-  TrendingDown,
   TriangleAlert,
   Upload,
   Utensils,
@@ -34,6 +31,7 @@ import { refreshStravaRoutes } from "@/lib/strava-actions";
 import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
 import { InfoTooltip } from "@/components/info-tooltip";
+import { PantryEditorModal } from "@/components/pantry-editor-modal";
 import { ProfileRequiredBanner } from "@/components/profile-required-banner";
 import {
   fieldClass,
@@ -45,7 +43,6 @@ import {
 } from "@/lib/ui-classes";
 import {
   calculateHouseholdMeasures,
-  formatGarminExportText,
   formatRecipeForSharing,
   getPocketFoodTotalCarbsG,
   getTableSaltGrams,
@@ -95,6 +92,12 @@ const MAX_CUSTOM_CARBS_G = 500;
 // successfully calculated strategy, so the athlete still has *something*
 // actionable instead of a blank/broken screen with no signal.
 const LAST_FUELING_STRATEGY_KEY = "last_fueling_strategy";
+
+// "Mi Despensa" — which of the pocket-food catalog items the athlete
+// actually wants offered in Card 04's stepper list, remembered across
+// visits. Zero-onboarding: every catalog item starts active so the planner
+// works fully from the very first session with no setup required.
+const ACTIVE_PANTRY_STORAGE_KEY = "active_pantry_items";
 
 /** Plain, no-emoji name for the pocket-food matrix — `pocketFoodLabels` keeps
  * its friendly emoji-prefixed copy for the clipboard/GPX exports, this derives
@@ -343,42 +346,119 @@ type PlanResult = {
   } | null;
 };
 
-// "B · Configuración de bidones" — a lightweight planning preference, not a
+// "Configuración de bidones" — a lightweight planning preference, not a
 // parameter that re-drives `getBottlePlan`'s own GI/solubility-capped math
 // server-side (that engine already computes the real, optimal bottle split
 // — see `lib/metabolic-engine.ts` — and re-architecting it to accept a
 // manual override was out of scope for what is fundamentally a UX-flow
-// pass). Instead, each option's summary below is built entirely from
-// figures `result` already carries, so it reads as a genuine preview of
-// what that choice implies rather than an invented number — and flags
-// clearly when the athlete's preference doesn't match what the recipe
-// actually needs, rather than silently contradicting it.
+// pass). It *does*, though, drive the live CUBIERTO/RESTANTE balance pill —
+// see `getBottleCarbsContributionG` below — entirely client-side, no
+// network round-trip, the same way a pocket-food stepper tap already does.
+// Defaults to "water_only" ("Solo Agua") rather than an unset value: the
+// safest, most conservative starting assumption (zero bottle carbs until
+// the athlete actively opts into a mix), and the value the "Reseteo
+// Automático" effect below returns to on every Paso 01/02 change.
 type BottleConfigOption = "water_only" | "one_mix" | "both_mix";
+const DEFAULT_BOTTLE_CONFIG: BottleConfigOption = "water_only";
 
+// Title Case, short — fits a fixed 3-column row even on a narrow phone
+// (unlike the earlier, longer "1 Agua + 1 Mix"/"Ambos con Mix" labels).
 const BOTTLE_CONFIG_OPTIONS: { value: BottleConfigOption; label: string }[] = [
-  { value: "water_only", label: "Solo agua" },
-  { value: "one_mix", label: "1 Agua + 1 Mix" },
-  { value: "both_mix", label: "Ambos con Mix" },
+  { value: "water_only", label: "Solo Agua" },
+  { value: "one_mix", label: "1 Mix" },
+  { value: "both_mix", label: "Ambos Mix" },
 ];
 
-function getBottleConfigSummary(config: BottleConfigOption, result: PlanResult): string {
-  const { fuelBottles, waterBottles } = result.bottlePlan;
+/** How many grams of the ride's carb target the selected bottle
+ * configuration itself contributes — the piece that makes the CUBIERTO/
+ * RESTANTE pill reactive to the bottle selector, not just the pocket-food
+ * steppers. "Solo Agua" contributes 0 (no mix at all); "1 Mix" contributes
+ * one fuel bottle's own dose (whatever the recipe computed per bottle);
+ * "Ambos Mix" contributes the full concentrated-bottle recipe total. A
+ * preview built from figures the last calculation already returned, same
+ * "lightweight planning preference" convention as the bottle selector
+ * itself — it doesn't re-derive `getBottlePlan`'s own math. */
+function getBottleCarbsContributionG(config: BottleConfigOption, result: PlanResult): number {
+  const { fuelBottles } = result.bottlePlan;
+  if (fuelBottles.count === 0) return 0;
   switch (config) {
     case "water_only":
-      return result.recipe.totalCarbsG > 0
-        ? `0 bidones con mezcla — los ${result.recipe.totalCarbsG}g HC que normalmente irían en el bidón deben cubrirse con comida de bolsillo (ver C más abajo).`
-        : "Sin carbohidratos pendientes en bidón — la comida de bolsillo ya cubre el objetivo completo.";
+      return 0;
     case "one_mix":
-      return fuelBottles.count > 1
-        ? `Tu receta necesita ${fuelBottles.count} bidones concentrados para no superar el 8% de concentración segura — con solo 1, reparte el resto en el bolsillo o usa la recarga en ruta.`
-        : `1 bidón con ${fuelBottles.maltodextrinGPerBottle}g Malto + ${fuelBottles.fructoseGPerBottle}g Fructosa, el resto (${waterBottles.count}) de agua pura.`;
+      return fuelBottles.maltodextrinGPerBottle + fuelBottles.fructoseGPerBottle;
     case "both_mix":
-      return fuelBottles.count > 0
-        ? `${fuelBottles.count} bidón(es) concentrados según tu receta — coincide con el desglose completo en "Receta de laboratorio casero" más abajo.`
-        : "Tu objetivo ya está cubierto sin necesidad de bidones concentrados.";
+      return result.recipe.totalCarbsG;
     default:
-      return "";
+      return 0;
   }
+}
+
+/** Tarjeta 05's "Checklist de preparación para llevar" — what to physically
+ * grab before rolling out, split into "En bici" (bottles, driven by the
+ * same `bottleConfig` preference the balance pill reacts to) and "En
+ * bolsillo" (whatever pocket-food quantities are currently selected). Pure
+ * functions so both the on-screen checklist and the shareable plain-text
+ * export (`buildChecklistText`) read from one source instead of two copies
+ * that could drift apart. */
+function getBikeChecklistLines(result: PlanResult, bottleConfig: BottleConfigOption): string[] {
+  const { fuelBottles, waterBottles } = result.bottlePlan;
+  const lines: string[] = [];
+  if (bottleConfig !== "water_only" && fuelBottles.count > 0) {
+    const mixBottleCount = bottleConfig === "one_mix" ? 1 : fuelBottles.count;
+    const saltG = getTableSaltGrams(fuelBottles.sodiumMgPerBottle);
+    lines.push(
+      `${mixBottleCount}x Bidón (${fuelBottles.maltodextrinGPerBottle}g Malto + ${fuelBottles.fructoseGPerBottle}g Fructosa + ${saltG}g Sal)`
+    );
+  }
+  if (waterBottles.count > 0) {
+    lines.push(`${waterBottles.count}x Bidón (Agua / Electrolitos)`);
+  }
+  return lines;
+}
+
+function getPocketChecklistLines(
+  pocketFood: Partial<Record<PocketFoodItemType, number>>,
+  customCarbsG: number
+): string[] {
+  const lines: string[] = [];
+  for (const type of ALL_POCKET_FOOD_TYPES) {
+    const qty = pocketFood[type] ?? 0;
+    if (qty > 0) lines.push(`${qty}x ${pocketFoodName(type)}`);
+  }
+  if (customCarbsG > 0) lines.push(`${customCarbsG}g HC Personalizado`);
+  return lines;
+}
+
+/** The "Pauta" line — hydration frequency plus the first solid-food and
+ * caffeine milestones, when either exists — mirrors the on-screen
+ * Cronograma without repeating its full entry list. */
+function getPautaLine(result: PlanResult): string {
+  const solidEntry = result.timingTimeline.entries.find((e) => e.type === "solid");
+  const caffeineEntry = result.timingTimeline.entries.find((e) => e.type === "caffeine");
+  const parts = [`1 trago c/${result.timingTimeline.hydrationIntervalMinutes} min`];
+  if (solidEntry) parts.push(`${stripEmoji(solidEntry.label)} min ${solidEntry.atMinutes}`);
+  if (caffeineEntry) parts.push(`Cafeína min ${caffeineEntry.atMinutes}`);
+  return parts.join(" · ");
+}
+
+function buildChecklistText(
+  result: PlanResult,
+  bottleConfig: BottleConfigOption,
+  pocketFood: Partial<Record<PocketFoodItemType, number>>,
+  customCarbsG: number
+): string {
+  const bikeLines = getBikeChecklistLines(result, bottleConfig);
+  const pocketLines = getPocketChecklistLines(pocketFood, customCarbsG);
+  const sections: string[] = ["RATIO · Lista de Avituallamiento", ""];
+  if (bikeLines.length > 0) {
+    sections.push("En bici:", ...bikeLines.map((l) => `- ${l}`), "");
+  }
+  if (pocketLines.length > 0) {
+    sections.push("En bolsillo:", ...pocketLines.map((l) => `- ${l}`), "");
+  }
+  sections.push(`Pauta: ${getPautaLine(result)}.`);
+  sections.push("Calculado en ratiovelo.com");
+  return sections.join("\n");
 }
 
 type DepartureDayMode = "today" | "tomorrow" | "custom";
@@ -602,6 +682,12 @@ export function FuelingPlanner({
   const [isTargetEvent, setIsTargetEvent] = useState(false);
   const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
   const [customCarbsG, setCustomCarbsG] = useState(0);
+  // "Mi Despensa" — starts as the full catalog (zero-onboarding: the
+  // planner works fully from the first session with no setup) and is
+  // overwritten from `localStorage` on mount if the athlete already
+  // customized it on a previous visit (see the effect below).
+  const [activePantryTypes, setActivePantryTypes] = useState<PocketFoodItemType[]>(ALL_POCKET_FOOD_TYPES);
+  const [pantryModalOpen, setPantryModalOpen] = useState(false);
   // "Estrategia nutricional" (Óptimo/Mi Inventario/Híbrido) was removed
   // entirely from this UI — "Reestructuración Integral de Resultados"
   // collapsed it and the bottle-config selector down to one always-visible,
@@ -611,16 +697,20 @@ export function FuelingPlanner({
   // simplification, not a removal of that capability from the data model,
   // so `fuelingMode` is now a fixed constant rather than editable state.
   const fuelingMode: FuelingMode = "inventory";
-  // Sub-bloque B's own preference, post-calculation only — no default,
-  // same "never silently pick one for the athlete" rule the route/
-  // intensity selects already follow.
-  const [bottleConfig, setBottleConfig] = useState<BottleConfigOption | "">("");
+  // Card 04's own bottle-role preference — defaults to "Solo Agua," the
+  // most conservative assumption, and is what the reset effect below
+  // returns it to on every Paso 01/02 change (see `DEFAULT_BOTTLE_CONFIG`).
+  const [bottleConfig, setBottleConfig] = useState<BottleConfigOption>(DEFAULT_BOTTLE_CONFIG);
   const [result, setResult] = useState<PlanResult | null>(null);
+  // Tracks whether the athlete has *ever* successfully calculated a
+  // strategy in this session — drives the CTA's label ("Calcular..." the
+  // first time, "Re-calcular..." every time after) independently of
+  // whether a result is currently showing.
+  const [hasCalculatedOnce, setHasCalculatedOnce] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [exportCopied, setExportCopied] = useState(false);
-  const [downloadingGpx, setDownloadingGpx] = useState(false);
+  const [checklistCopied, setChecklistCopied] = useState(false);
   const [isOfflineCache, setIsOfflineCache] = useState(false);
   const [parsedGpx, setParsedGpx] = useState<ParsedGpxRoute | null>(null);
   const [gpxDurationHours, setGpxDurationHours] = useState(2);
@@ -683,14 +773,9 @@ export function FuelingPlanner({
 
   // "Conversión Dinámica a Medidas Caseras" — recomputed from the last
   // calculated result whenever it changes; cheap pure arithmetic, no memo
-  // needed.
-  const recipeMeasures = result
-    ? calculateHouseholdMeasures({
-        saltG: getTableSaltGrams(result.recipe.sodiumMg),
-        maltodextrinG: result.recipe.maltodextrinG,
-        fructoseG: result.recipe.fructoseG,
-      })
-    : null;
+  // needed. Card 05's "Dosis ejecutiva" is scoped to the per-bottle figure
+  // now (not the full recipe total), so only `fuelBottleMeasures`/
+  // `ziplocMeasures` below are still read.
   const fuelBottleMeasures = result
     ? calculateHouseholdMeasures({
         saltG: getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle),
@@ -711,7 +796,21 @@ export function FuelingPlanner({
   // feeds the live "Objetivo/Cubierto/Restante" balance pill in Card 04.
   const effectivePocketFood: PocketFoodSelection = { ...pocketFood, customCarbsG };
   const pocketFoodCarbsPreview = getPocketFoodTotalCarbsG(effectivePocketFood);
-  const remainingCarbsG = result ? Math.max(0, result.totalRideCarbsG - pocketFoodCarbsPreview) : 0;
+  // CUBIERTO is pocket food *plus* whatever the selected bottle
+  // configuration itself contributes — this is the reactive fix: picking
+  // "Solo Agua" vs. "1 Mix" vs. "Ambos Mix" now updates CUBIERTO/RESTANTE
+  // instantly, the same as tapping a pocket-food stepper +/- already did,
+  // with zero network round-trip either way.
+  const bottleCarbsContributionG = result ? getBottleCarbsContributionG(bottleConfig, result) : 0;
+  const coveredCarbsG = pocketFoodCarbsPreview + bottleCarbsContributionG;
+  const remainingCarbsG = result ? Math.max(0, result.totalRideCarbsG - coveredCarbsG) : 0;
+
+  // Tarjeta 05's "Checklist de preparación para llevar" — same source data
+  // as the balance pill above, read fresh on every render so the on-screen
+  // list and the "Copiar Lista"/"Enviar a WhatsApp" export never drift
+  // apart from what's currently selected.
+  const bikeChecklistLines = result ? getBikeChecklistLines(result, bottleConfig) : [];
+  const pocketChecklistLines = getPocketChecklistLines(pocketFood, customCarbsG);
 
   // "Modo Cobertura Limitada" — if the athlete opens the app with no
   // connection at all (mid-climb, no signal), load the last strategy that
@@ -735,6 +834,29 @@ export function FuelingPlanner({
     return () => window.removeEventListener("offline", loadCachedStrategyIfOffline);
   }, []);
 
+  // "Mi Despensa" — loads whatever the athlete last saved, if anything.
+  // Runs once on mount, after the initial "every item active" render (so
+  // there's no SSR/client hydration mismatch), and is sanitized against the
+  // real catalog in case it's changed since the athlete last saved it.
+  useEffect(() => {
+    function loadPantryFromStorage() {
+      try {
+        const stored = localStorage.getItem(ACTIVE_PANTRY_STORAGE_KEY);
+        if (!stored) return;
+        const parsed = JSON.parse(stored);
+        if (!Array.isArray(parsed)) return;
+        const valid = parsed.filter((type): type is PocketFoodItemType =>
+          ALL_POCKET_FOOD_TYPES.includes(type)
+        );
+        if (valid.length > 0) setActivePantryTypes(valid);
+      } catch {
+        // Corrupt/unavailable storage — just keep the full default catalog.
+      }
+    }
+
+    loadPantryFromStorage();
+  }, []);
+
   // A freshly calculated strategy renders below the fold on most phones —
   // without this, "Calcular estrategia" appears to do nothing until the
   // athlete notices they need to scroll down themselves.
@@ -752,12 +874,16 @@ export function FuelingPlanner({
   // a stale strategy on screen that no longer matches what's currently
   // selected — the CTA's own `disabled` gating already re-enables itself
   // the moment its own conditions are met again, so this just needs to
-  // clear `result` for the result panel to disappear along with it.
-  // `isInitialInputRender` skips the very first run on mount specifically
-  // so this can never race the offline-cache-load effect above and wipe out
-  // a just-restored cached result before the athlete ever sees it — this
-  // effect must only fire in response to a genuine *change*, not simply
-  // existing with its own initial values.
+  // clear `result` for the result panel to disappear along with it. The
+  // same trigger also resets Card 04's own downstream state (bottle
+  // config back to "Solo Agua," every pocket-food quantity back to 0) —
+  // those figures were computed against the *old* target and would
+  // otherwise silently carry over into a strategy they were never
+  // actually chosen for. `isInitialInputRender` skips the very first run
+  // on mount specifically so this can never race the offline-cache-load
+  // effect above and wipe out a just-restored cached result before the
+  // athlete ever sees it — this effect must only fire in response to a
+  // genuine *change*, not simply existing with its own initial values.
   const isInitialInputRender = useRef(true);
   useEffect(() => {
     if (isInitialInputRender.current) {
@@ -765,6 +891,9 @@ export function FuelingPlanner({
       return;
     }
     setResult(null);
+    setBottleConfig(DEFAULT_BOTTLE_CONFIG);
+    setPocketFood({});
+    setCustomCarbsG(0);
   }, [
     mode,
     selectedRouteId,
@@ -778,6 +907,33 @@ export function FuelingPlanner({
 
   function setPocketFoodQty(type: PocketFoodItemType, qty: number) {
     setPocketFood((prev) => ({ ...prev, [type]: Math.max(0, Math.min(MAX_POCKET_FOOD_QTY, qty)) }));
+  }
+
+  // "Regla Crítica de Reseteo al Desmarcar" — unchecking an item that
+  // already had a quantity selected zeroes that quantity out immediately,
+  // in the same click: an inactive pantry item can't keep silently
+  // contributing carbs to CUBIERTO. Applied live to the real state (not a
+  // staged draft the modal discards on close), so the balance pill reacts
+  // instantly even while the modal is still open — "Guardar despensa"
+  // below only needs to persist the already-applied selection.
+  function togglePantryItem(type: PocketFoodItemType) {
+    const isCurrentlyActive = activePantryTypes.includes(type);
+    setActivePantryTypes((prev) =>
+      isCurrentlyActive ? prev.filter((t) => t !== type) : [...prev, type]
+    );
+    if (isCurrentlyActive) {
+      setPocketFoodQty(type, 0);
+    }
+  }
+
+  function handleSavePantry() {
+    try {
+      localStorage.setItem(ACTIVE_PANTRY_STORAGE_KEY, JSON.stringify(activePantryTypes));
+    } catch {
+      // Private browsing / quota exceeded — the selection still applies for
+      // this session, it just won't be remembered on the next visit.
+    }
+    setPantryModalOpen(false);
   }
 
   async function handleGpxFile(file: File) {
@@ -878,6 +1034,7 @@ export function FuelingPlanner({
         return;
       }
       setResult(data);
+      setHasCalculatedOnce(true);
       setIsOfflineCache(false);
       try {
         localStorage.setItem(LAST_FUELING_STRATEGY_KEY, JSON.stringify(data));
@@ -910,51 +1067,22 @@ export function FuelingPlanner({
     }
   }
 
-  async function handleExportGarmin() {
+  async function handleCopyChecklist() {
     if (!result) return;
-    const text = formatGarminExportText({
-      carbsGPerHour: result.carbsGPerHour,
-      sodiumMgPerHour: result.sodiumMgPerHour,
-      milestones: result.nutritionMilestones,
-      reloadStrategy: result.reloadStrategy,
-    });
+    const text = buildChecklistText(result, bottleConfig, pocketFood, customCarbsG);
     try {
       await navigator.clipboard.writeText(text);
-      setExportCopied(true);
-      setTimeout(() => setExportCopied(false), 2000);
+      setChecklistCopied(true);
+      setTimeout(() => setChecklistCopied(false), 2000);
     } catch {
-      setError("No se pudo copiar la ficha de nutrición al portapapeles.");
+      setError("No se pudo copiar la lista al portapapeles.");
     }
   }
 
-  async function handleDownloadGpx() {
-    if (!result || !selectedRoute?.summaryPolyline) return;
-    setDownloadingGpx(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/fueling/gpx", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          routeName: selectedRoute.name,
-          summaryPolyline: selectedRoute.summaryPolyline,
-        }),
-      });
-      if (!res.ok) throw new Error("gpx_failed");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${selectedRoute.name.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}.gpx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      setError("No se pudo generar el archivo GPX.");
-    } finally {
-      setDownloadingGpx(false);
-    }
+  function handleSendWhatsApp() {
+    if (!result) return;
+    const text = buildChecklistText(result, bottleConfig, pocketFood, customCarbsG);
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -1442,7 +1570,14 @@ export function FuelingPlanner({
               !isProfileComplete ||
               (mode === "route" && (!selectedRoute || !intensity)) ||
               (mode === "gpx" && (!parsedGpx || !intensity)) ||
-              (mode === "quick" && !quickValid)
+              (mode === "quick" && !quickValid) ||
+              // "Ciclo de Vida del Botón Principal" — once a result exists
+              // for the current inputs, the button disables itself
+              // immediately (nothing left to (re)calculate until something
+              // changes) — the "Reseteo Automático" effect above is what
+              // clears `result` and re-enables it the instant any Paso
+              // 01/02 input actually changes.
+              Boolean(result)
             }
             title={
               isProfileComplete && routeModeIncomplete
@@ -1459,7 +1594,11 @@ export function FuelingPlanner({
             {isProfileComplete ? (
               <>
                 <Zap className="size-4 shrink-0" />
-                {loading ? "Calculando…" : "Calcular estrategia nutricional"}
+                {loading
+                  ? "Calculando…"
+                  : hasCalculatedOnce
+                    ? "Re-calcular estrategia nutricional"
+                    : "Calcular estrategia nutricional"}
               </>
             ) : (
               <>
@@ -1602,41 +1741,39 @@ export function FuelingPlanner({
               )}
             </div>
 
-            {/* 🎴 Tarjeta 2 · 04 · Configuración de bidones y comida en
-                bolsillo — the bottle-role preference (a planning preference,
-                not a parameter that re-drives the recipe engine below, see
-                `getBottleConfigSummary`'s own doc comment) plus the
-                Estrategia nutricional selector and pocket-food inventory,
-                now rendered flat (no `<details>` accordion) since this
-                card's own header already frames the whole section — the
-                prior "Comida en bolsillo" accordion summary/counter was
-                redundant with a header one line above it once both live
-                inside their own dedicated card. */}
+            {/* 🎴 Tarjeta 2 · 04 · Simulador y configuración de
+                avituallamiento — the bottle-role preference plus the
+                pocket-food inventory, rendered flat (no `<details>`
+                accordion) since this card's own header already frames the
+                whole section. Both the bottle selector *and* every
+                pocket-food stepper feed the sticky balance pill above them
+                live — see `getBottleCarbsContributionG` for how the bottle
+                choice turns into a CUBIERTO figure. No explanatory text
+                box, no trailing "Gasto/Ingesta/Déficit" summary, no
+                "pulsa Calcular de nuevo" footer note — "Al Grano": this
+                card is the interactive simulator, nothing else. */}
             <div className="rounded-xl border-0 bg-white p-4 shadow-none">
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-                04 · Configuración de bidones y comida en bolsillo
+                04 · Simulador y configuración de avituallamiento
               </span>
 
               {/* Píldora Fija de Balance en Tiempo Real — sticky within this
                   card as the athlete scrolls through the bottle-config
-                  selector and the (now always-visible) pocket-food
-                  inventory below, so OBJETIVO/CUBIERTO/RESTANTE stays on
-                  screen instead of requiring a scroll back up. Recomputes
-                  instantly from `pocketFoodCarbsPreview`/`remainingCarbsG`
-                  (pure client-side arithmetic) on every stepper +/- tap —
-                  no network round-trip, no need to press "Calcular" again
-                  just to see the coverage change. `top-16 lg:top-4` clears
-                  the mobile sticky header (`sticky top-0 z-40`, ~64px tall,
-                  `lg:hidden`) so the pill never renders underneath it;
-                  desktop has no such header, so it sticks close to the
-                  viewport's own top instead. Bottle config itself is a
-                  planning preference that doesn't feed this arithmetic (see
-                  `getBottleConfigSummary`'s own doc comment) — only pocket
-                  food does, so the pill only ever reacts to that. */}
+                  selector and the pocket-food inventory below, so OBJETIVO/
+                  CUBIERTO/RESTANTE stays on screen instead of requiring a
+                  scroll back up. Recomputes instantly from
+                  `coveredCarbsG`/`remainingCarbsG` (pure client-side
+                  arithmetic, reacting to *both* the bottle selector and
+                  every pocket-food stepper) — no network round-trip, no
+                  need to press "Calcular" again just to see the coverage
+                  change. `top-16 lg:top-4` clears the mobile sticky header
+                  (`sticky top-0 z-40`, ~64px tall, `lg:hidden`) so the pill
+                  never renders underneath it; desktop has no such header,
+                  so it sticks close to the viewport's own top instead. */}
               <div className="sticky top-16 z-10 mb-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg bg-[#F8F7F5]/95 px-3 py-2 text-center font-mono text-[11px] font-semibold tracking-wide text-zinc-700 shadow-sm backdrop-blur-sm sm:text-xs lg:top-4">
                 <span>OBJETIVO: {result.totalRideCarbsG}g HC</span>
                 <span className="text-zinc-300">|</span>
-                <span className="text-status-good">CUBIERTO: {pocketFoodCarbsPreview}g HC</span>
+                <span className="text-status-good">CUBIERTO: {coveredCarbsG}g HC</span>
                 <span className="text-zinc-300">|</span>
                 <span className={remainingCarbsG > 0 ? "text-status-warning" : "text-status-good"}>
                   RESTANTE: {remainingCarbsG}g HC
@@ -1646,7 +1783,12 @@ export function FuelingPlanner({
               <span className="mb-2 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
                 Configuración de bidones
               </span>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {/* Fixed 3-column row at every width — short Title Case
+                  labels ("Solo Agua"/"1 Mix"/"Ambos Mix") keep this
+                  legible even on a narrow phone, so this never needs to
+                  drop to a single stacked column the way the old, longer
+                  labels did. */}
+              <div className="grid grid-cols-3 gap-2">
                 {BOTTLE_CONFIG_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
@@ -1663,25 +1805,31 @@ export function FuelingPlanner({
                   </button>
                 ))}
               </div>
-              <div className="mt-3 rounded-lg bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
-                {bottleConfig
-                  ? getBottleConfigSummary(bottleConfig, result)
-                  : "Elige una configuración para ver cómo se reparte tu objetivo entre bidones y bolsillo."}
-              </div>
 
-              {/* Inventario de Bolsillo Interactivo — always the full
-                  9-item list (5 solids/gummies + 3 gel doses + custom),
-                  always editable. The old "Estrategia nutricional"
-                  (Óptimo/Mi Inventario/Híbrido) selector that used to gate
-                  this — swapping in a server-computed, disabled subset for
-                  Óptimo mode — was removed entirely as a second, duplicated
-                  selector competing with the bottle-config one above it. */}
+              {/* Inventario de Bolsillo Interactivo — only the athlete's
+                  own "Mi Despensa" selection (every catalog item by
+                  default, narrowed via "Editar mi despensa"), always
+                  editable. */}
               <div className="mt-4">
-                <span className="mb-2 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-                  Comida en bolsillo
-                </span>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+                    Comida en bolsillo
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPantryModalOpen(true)}
+                    className={cn(secondaryButtonClass, "w-fit shrink-0 px-2.5 py-1.5 text-[10px]")}
+                  >
+                    Editar mi despensa
+                  </button>
+                </div>
+                {activePantryTypes.length === 0 && (
+                  <p className="mb-2 text-xs text-neutral-500">
+                    Sin alimentos activos — actívalos en &quot;Editar mi despensa&quot; para verlos aquí.
+                  </p>
+                )}
                 <div className="grid grid-cols-1 gap-0 md:grid-cols-2 md:gap-x-4 md:gap-y-0">
-                  {ALL_POCKET_FOOD_TYPES.map((type) => (
+                  {ALL_POCKET_FOOD_TYPES.filter((type) => activePantryTypes.includes(type)).map((type) => (
                     <PocketFoodStepperRow
                       key={type}
                       type={type}
@@ -1710,237 +1858,137 @@ export function FuelingPlanner({
                   </div>
                 </div>
               </div>
-              <p className="mt-3 text-[11px] text-neutral-500">
-                Pulsa &quot;Calcular estrategia nutricional&quot; (arriba) de nuevo para
-                actualizar la receta casera y el plan de bidones con esta selección.
-              </p>
-
-              {/* Sub-bloque de Balance Neto — moved here from Tarjeta 03: it
-                  genuinely didn't belong there, since a burn-vs-intake
-                  comparison makes no sense before the athlete has configured
-                  their bottles/pocket food at all. Belongs at the end of
-                  this card instead, once bottle role + fueling strategy +
-                  pocket-food selection are all already visible above it. */}
-              <div className="mt-4 grid grid-cols-1 gap-3 rounded-lg bg-[#F8F7F5] p-3 sm:grid-cols-3">
-                <div className="flex flex-col gap-1">
-                  <span className={eyebrow}>Gasto estimado de HC</span>
-                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
-                    {result.netCarbDeficit.estimatedBurnG} g
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className={eyebrow}>Ingesta planificada</span>
-                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
-                    {result.netCarbDeficit.plannedIntakeG} g
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className={eyebrow}>Déficit neto al finalizar</span>
-                  <span
-                    className={cn(
-                      "flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums",
-                      result.netCarbDeficit.netDeficitG > 0 ? "text-status-warning" : "text-status-good"
-                    )}
-                  >
-                    <TrendingDown className="size-3.5 shrink-0" />
-                    {result.netCarbDeficit.netDeficitG > 0
-                      ? `-${result.netCarbDeficit.netDeficitG}`
-                      : `+${Math.abs(result.netCarbDeficit.netDeficitG)}`}{" "}
-                    g
-                  </span>
-                </div>
-              </div>
             </div>
 
-            {/* 🎴 Tarjeta 3 · 05 · Pauta de ingesta y receta casera — the DIY
-                recipe, the dynamic ingestion timeline, the reload strategy
-                (when applicable — not named in the prompt's own literal
-                list, but real conditional content this app's "never
-                silently drop data" convention keeps rather than removes),
-                the carb-loading protocol (when applicable), and the export
-                block, all now nested inside one white card instead of each
-                being its own free-floating `bg-[#F8F7F5]` accordion on the
-                porcelain canvas. */}
+            <PantryEditorModal
+              open={pantryModalOpen}
+              onOpenChange={setPantryModalOpen}
+              catalog={ALL_POCKET_FOOD_TYPES}
+              activeTypes={activePantryTypes}
+              onToggle={togglePantryItem}
+              onSave={handleSavePantry}
+            />
+
+            {/* 🎴 Tarjeta 3 · 05 · Pauta de ingesta y receta ("Al Grano") —
+                the dynamic ingestion timeline as the hero (top priority
+                reading in ruta), a concise executive per-bottle dose, and a
+                checklist of what to actually grab before rolling out.
+                Descargar GPX / Exportar a Garmin and the GPS-alert
+                explainer were removed outright (see the master spec) — the
+                Checklist's own "Copiar Lista"/"Enviar a WhatsApp" buttons
+                are this card's export mechanism now. The reload-strategy
+                and carb-loading accordions (when applicable) stay, unlike
+                the removed GPX/Garmin export — they're real, conditional
+                *nutrition* content, not the navigation-file concern this
+                pass explicitly cut. */}
             <div className="flex flex-col gap-3 rounded-xl border-0 bg-white p-4 shadow-none">
               <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-                05 · Pauta de ingesta y receta casera
+                05 · Pauta de ingesta y receta
               </span>
 
-              <details className="group rounded-sm bg-[#F8F7F5]">
-                <summary className="flex list-none cursor-pointer flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
-                    <span className={eyebrow}>
-                      Receta de laboratorio casero · {result.durationHours} h
-                    </span>
+              {/* Cronograma Dinámico de Ingesta — hero section, always
+                  visible (not a collapsible accordion like every other
+                  block below it) — this is the one thing an athlete needs
+                  to read at a glance mid-ruta. */}
+              <div className="rounded-sm bg-[#F8F7F5] p-3">
+                <span className={eyebrow}>Cronograma dinámico de ingesta</span>
+                <p className="mt-2 flex items-center gap-1.5 text-sm text-neutral-700">
+                  <Droplet className="size-3.5 shrink-0 text-neutral-500" />
+                  Bebe un trago cada{" "}
+                  <span className="font-mono font-semibold text-neutral-900">
+                    {result.timingTimeline.hydrationIntervalMinutes} min
                   </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleCopyRecipe();
-                    }}
-                    className={cn(secondaryButtonClass, "w-fit shrink-0 px-2.5 py-1.5 text-[10px]")}
-                  >
+                </p>
+                {result.timingTimeline.entries.length > 0 && (
+                  <ol className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
+                    {result.timingTimeline.entries.map((entry, i) => (
+                      <li key={i} className="flex items-center gap-1.5">
+                        {entry.type === "solid" && (
+                          <Utensils className="size-3.5 shrink-0 text-neutral-500" />
+                        )}
+                        {entry.type === "gel" && <Zap className="size-3.5 shrink-0 text-neutral-500" />}
+                        {entry.type === "caffeine" && (
+                          <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
+                        )}
+                        <span className="font-mono text-xs text-neutral-500">
+                          {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
+                        </span>
+                        {stripEmoji(entry.label)}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+
+              {/* Dosis Ejecutiva para Mezcla Casera — the concise per-bottle
+                  number the athlete actually mixes at the kitchen counter,
+                  sized to their real bottle capacity, plus "Copiar Receta"
+                  and a collapsible scoop-equivalence breakdown for anyone
+                  without a scale. */}
+              <div className="rounded-sm bg-[#F8F7F5] p-3">
+                <span className={eyebrow}>
+                  Dosis ejecutiva para mezcla casera (por bidón {result.bottlePlan.bottleSizeMl}ml)
+                </span>
+                {result.bottlePlan.fuelBottles.count > 0 ? (
+                  <p className="mt-1.5 font-mono text-sm font-semibold text-neutral-900">
+                    {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g Malto +{" "}
+                    {result.bottlePlan.fuelBottles.fructoseGPerBottle}g Fructosa +{" "}
+                    {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g Sal / bidón (
+                    {result.bottlePlan.bottleSizeMl}ml)
+                  </p>
+                ) : (
+                  <p className="mt-1.5 text-sm text-neutral-600">
+                    Cobertura completa vía comida de bolsillo — no necesitas mezcla en bidón.
+                  </p>
+                )}
+                {result.bottlePlan.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
+                  <div className="mt-2 flex items-start gap-2 border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
+                    <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                    <span>
+                      Solución hipertónica ({result.bottlePlan.fuelBottles.concentrationPct}% &gt;{" "}
+                      {HYPERTONIC_THRESHOLD_PCT}%) — añade agua o traslada carga a comida de bolsillo.
+                    </span>
+                  </div>
+                )}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={handleCopyRecipe} className={cn(secondaryButtonClass, "w-fit")}>
                     {copied ? (
                       "✓ Receta copiada"
                     ) : (
                       <>
-                        <Copy className="size-3" />
+                        <Copy className="size-3.5" />
                         Copiar receta
                       </>
                     )}
                   </button>
-                </summary>
-                <div className="border-t border-neutral-200 p-3">
-                {result.pocketFoodCarbsG > 0 && (
-                  <p className="mt-1.5 flex items-start gap-1.5 text-xs text-neutral-500">
-                    <Utensils className="mt-0.5 size-3 shrink-0" />
-                    Comida de bolsillo cubre {result.pocketFoodCarbsG}g de {result.totalRideCarbsG}g HC —
-                    el resto ({result.recipe.totalCarbsG}g) va en el bidón.
-                  </p>
-                )}
-                {/* The old "Alternativa: N geles..." hybridGelSuggestion
-                    line only ever rendered in Híbrido mode — unreachable
-                    now that "Estrategia nutricional" was removed from this
-                    UI (`fuelingMode` is a fixed "inventory" constant), so
-                    it was deleted rather than left as dead JSX. The API
-                    response still carries `hybridGelSuggestion` (untouched
-                    server-side), simply unused by this component now. */}
-                <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
-                  <div className="flex items-center justify-between">
-                    <span>Maltodextrina</span>
-                    <span className="font-mono font-medium text-neutral-900 tabular-nums">
-                      {result.recipe.maltodextrinG} g{" "}
-                      <span className="text-xs font-normal text-neutral-500">
-                        (~{recipeMeasures!.maltodextrinScoops} cazos)*
-                      </span>
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Fructosa</span>
-                    <span className="font-mono font-medium text-neutral-900 tabular-nums">
-                      {result.recipe.fructoseG} g{" "}
-                      <span className="text-xs font-normal text-neutral-500">
-                        (~{recipeMeasures!.fructoseScoops} cazos)*
-                      </span>
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Sal común</span>
-                    <span className="font-mono font-medium text-neutral-900 tabular-nums">
-                      {getTableSaltGrams(result.recipe.sodiumMg)} g{" "}
-                      <span className="text-xs font-normal text-neutral-500">
-                        (~{recipeMeasures!.saltTeaspoons} cdta. café)*
-                      </span>
-                    </span>
-                  </div>
-                  <p className="text-xs text-neutral-500">
-                    Aporta {result.recipe.sodiumMg}mg de sodio puro — la sal común solo es ~39.3%
-                    sodio, así que se pesa en sal, no en sodio.
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span>Agua</span>
-                    <span className="font-mono font-medium text-neutral-900 tabular-nums">
-                      {result.recipe.waterMl} ml
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[10px] text-neutral-400">
-                    *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g de
-                    sal.
-                  </p>
-                </div>
-
-                <div className="mt-3 border-t border-neutral-200 pt-3">
-                  <span className={eyebrow}>
-                    Arquitectura de bidones ({result.bottlePlan.bottleSizeMl}ml · ≤8% concentración)
-                  </span>
-                  <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
-                    {result.bottlePlan.fuelBottles.count > 0 && (
-                      <div className="flex flex-wrap items-center justify-between gap-1">
-                        <span className="flex items-center gap-1.5">
-                          <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
-                          {result.bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel
-                          Concentrado × {result.bottlePlan.fuelBottles.count}
-                        </span>
-                        <span className="font-mono text-xs text-neutral-500">
-                          {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g malto (~
-                          {fuelBottleMeasures!.maltodextrinScoops} cazos) ·{" "}
-                          {result.bottlePlan.fuelBottles.fructoseGPerBottle}g fruct (~
-                          {fuelBottleMeasures!.fructoseScoops} cazos) ·{" "}
-                          {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g sal
-                          común (~{fuelBottleMeasures!.saltTeaspoons} cdta.) / bidón
-                        </span>
+                  {result.bottlePlan.fuelBottles.count > 0 && (
+                    <details className="group">
+                      <summary className="flex cursor-pointer list-none items-center gap-1 font-mono text-xs font-medium text-zinc-600 transition-colors duration-150 hover:text-zinc-900 [&::-webkit-details-marker]:hidden">
+                        <ChevronDown className="size-3.5 shrink-0 transition-transform duration-150 group-open:rotate-180" />
+                        Ver equivalencias en cazos
+                      </summary>
+                      <div className="mt-2 flex flex-col gap-1 border-t border-zinc-200 pt-2 text-xs text-neutral-600">
+                        <p>
+                          Maltodextrina: {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g (~
+                          {fuelBottleMeasures!.maltodextrinScoops} cazos)
+                        </p>
+                        <p>
+                          Fructosa: {result.bottlePlan.fuelBottles.fructoseGPerBottle}g (~
+                          {fuelBottleMeasures!.fructoseScoops} cazos)
+                        </p>
+                        <p>
+                          Sal común: {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g (~
+                          {fuelBottleMeasures!.saltTeaspoons} cdta.)
+                        </p>
+                        <p className="text-[10px] text-neutral-400">
+                          *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g de
+                          sal.
+                        </p>
                       </div>
-                    )}
-                    {result.bottlePlan.waterBottles.count > 0 && (
-                      <div className="flex flex-wrap items-center justify-between gap-1">
-                        <span className="flex items-center gap-1.5">
-                          <Droplet className="size-3.5 shrink-0 text-neutral-500" />
-                          {result.bottlePlan.waterBottles.count > 1 ? "Bidones" : "Bidón"} Agua /
-                          Electrolitos × {result.bottlePlan.waterBottles.count}
-                        </span>
-                        <span className="text-xs text-neutral-500">a demanda</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {result.bottlePlan.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
-                  <div className="mt-3 flex items-start gap-2 border border-status-warning/40 bg-status-warning/10 px-3 py-2.5 text-sm text-status-warning">
-                    <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-                    <div>
-                      <p className="font-semibold">
-                        Solución hipertónica (concentración &gt; {HYPERTONIC_THRESHOLD_PCT}%)
-                      </p>
-                      <p className="mt-0.5 text-xs">
-                        Esta mezcla ({result.bottlePlan.fuelBottles.concentrationPct}%) es
-                        demasiado densa para la capacidad de tus bidones y puede ralentizar el
-                        vaciado gástrico. Añade agua o traslada parte de los HC a comida de
-                        bolsillo.
-                      </p>
-                    </div>
-                  </div>
-                )}
-                </div>
-              </details>
-
-              <details className="group rounded-sm bg-[#F8F7F5]">
-                <summary className="flex list-none cursor-pointer items-center gap-1.5 p-3 [&::-webkit-details-marker]:hidden">
-                  <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
-                  <span className={eyebrow}>Cronograma dinámico de ingesta</span>
-                </summary>
-                <div className="border-t border-neutral-200 p-3">
-                  <p className="flex items-center gap-1.5 text-sm text-neutral-700">
-                    <Droplet className="size-3.5 shrink-0 text-neutral-500" />
-                    Bebe un trago cada{" "}
-                    <span className="font-mono font-semibold text-neutral-900">
-                      {result.timingTimeline.hydrationIntervalMinutes} min
-                    </span>
-                  </p>
-                  {result.timingTimeline.entries.length > 0 && (
-                    <ol className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
-                      {result.timingTimeline.entries.map((entry, i) => (
-                        <li key={i} className="flex items-center gap-1.5">
-                          {entry.type === "solid" && (
-                            <Utensils className="size-3.5 shrink-0 text-neutral-500" />
-                          )}
-                          {entry.type === "gel" && (
-                            <Zap className="size-3.5 shrink-0 text-neutral-500" />
-                          )}
-                          {entry.type === "caffeine" && (
-                            <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
-                          )}
-                          <span className="font-mono text-xs text-neutral-500">
-                            {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
-                          </span>
-                          {stripEmoji(entry.label)}
-                        </li>
-                      ))}
-                    </ol>
+                    </details>
                   )}
                 </div>
-              </details>
+              </div>
 
               {result.reloadStrategy && (
                 <details className="group rounded-sm border border-status-warning/40 bg-status-warning/10">
@@ -2012,38 +2060,51 @@ export function FuelingPlanner({
                 </details>
               )}
 
-              <div className="flex flex-col gap-2">
-                {mode === "route" && selectedRoute?.summaryPolyline ? (
-                  <button
-                    type="button"
-                    onClick={handleDownloadGpx}
-                    disabled={downloadingGpx}
-                    className={cn(secondaryButtonClass, "w-fit")}
-                  >
-                    <Download className="size-3.5" />
-                    {downloadingGpx ? "Generando…" : "Descargar GPX de la ruta"}
-                  </button>
+              {/* Checklist de Preparación para Llevar — the "what to
+                  physically grab" summary, driven by the same bottle
+                  config + pocket-food state as the balance pill above, so
+                  it's never out of sync with what CUBIERTO/RESTANTE is
+                  currently showing. */}
+              <div className="rounded-sm bg-[#F8F7F5] p-3">
+                <span className={eyebrow}>Checklist de preparación para llevar</span>
+                {bikeChecklistLines.length === 0 && pocketChecklistLines.length === 0 ? (
+                  <p className="mt-2 text-sm text-neutral-500">
+                    Sin bidones ni comida de bolsillo seleccionados todavía.
+                  </p>
                 ) : (
+                  <ul className="mt-2 flex flex-col gap-1 text-sm text-neutral-700">
+                    {bikeChecklistLines.map((line) => (
+                      <li key={line}>• {line}</li>
+                    ))}
+                    {pocketChecklistLines.map((line) => (
+                      <li key={line}>• {line}</li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={handleExportGarmin}
+                    onClick={handleCopyChecklist}
                     className={cn(secondaryButtonClass, "w-fit")}
                   >
-                    {exportCopied ? (
-                      "✓ Ficha copiada"
+                    {checklistCopied ? (
+                      "✓ Lista copiada"
                     ) : (
                       <>
-                        <Send className="size-3.5" />
-                        Exportar a Garmin / Wahoo / Strava
+                        <Copy className="size-3.5" />
+                        Copiar lista
                       </>
                     )}
                   </button>
-                )}
-                <p className="flex items-start gap-1.5 text-xs text-neutral-500">
-                  <AlarmClock className="mt-0.5 size-3 shrink-0" />
-                  Configura en tu GPS las Alertas Nativas de Comer/Beber con temporizador
-                  repetitivo de 15 o 20 min — el GPX de la ruta es solo para navegación.
-                </p>
+                  <button
+                    type="button"
+                    onClick={handleSendWhatsApp}
+                    className={cn(secondaryButtonClass, "w-fit")}
+                  >
+                    <Send className="size-3.5" />
+                    Enviar a WhatsApp
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { useMemo, useState, type FocusEvent } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { FtpEstimatorModal } from "@/components/ftp-estimator-modal";
 import { GutTrainingSelector } from "@/components/gut-training-selector";
 import { InfoTooltip } from "@/components/info-tooltip";
 import { RadioCard } from "@/components/radio-card";
@@ -250,13 +251,22 @@ export function PhysiologicalProfileForm({
               {weightInvalid && <span className={errorTextClass}>Campo obligatorio</span>}
             </div>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="ftp" className={cn(eyebrow, "flex items-center")}>
-                FTP (W)
-                <InfoTooltip
-                  label="Contexto sobre FTP"
-                  note="Potencia Máxima Sostenible en 1 hora (W). Si no lo conoces, puedes usar el 95% de tu mejor esfuerzo de 20 minutos."
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                <label htmlFor="ftp" className={cn(eyebrow, "flex items-center")}>
+                  FTP (W)
+                  <InfoTooltip
+                    label="Contexto sobre FTP"
+                    note="Potencia Máxima Sostenible en 1 hora (W). Si no lo conoces, puedes usar el 95% de tu mejor esfuerzo de 20 minutos."
+                  />
+                </label>
+                <FtpEstimatorModal
+                  weightKg={weightValid ? Number(weight) : null}
+                  onApply={(estimatedFtp) => {
+                    setFtp(String(estimatedFtp));
+                    markTouched("ftp");
+                  }}
                 />
-              </label>
+              </div>
               <input
                 id="ftp"
                 name="ftp"
