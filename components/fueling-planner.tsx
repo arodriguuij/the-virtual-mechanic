@@ -310,11 +310,16 @@ type PlanResult = {
       concentrationPct: number;
     };
     waterBottles: { count: number };
+    totalBottles: number;
   };
   reloadStrategy: {
+    startingFuelBottleCount: number;
+    startingWaterBottleCount: number;
     startingBottleCount: number;
     ziplocBagsCount: number;
     ziplocDose: { maltodextrinG: number; fructoseG: number; sodiumMg: number };
+    waterRefillCount: number;
+    waterRefillLiters: number;
     reloadAtKm: number | null;
     reloadAtHours: number;
     isImpractical: boolean;
@@ -415,26 +420,58 @@ function getBottleCarbsContributionG(config: BottleConfigOption, result: PlanRes
  * bolsillo" (whatever pocket-food quantities are currently selected). Pure
  * functions so both the on-screen checklist and the shareable plain-text
  * export (`buildChecklistText`) read from one source instead of two copies
- * that could drift apart. */
+ * that could drift apart.
+ *
+ * The bottle count listed here is capped at what actually fits in the
+ * athlete's real cages (`reloadStrategy.startingBottleCount` whenever the
+ * ride needs more bottles than the bike can carry at once — with no
+ * overflow, every bottle the recipe needs already fits, so
+ * `bottlePlan.totalBottles` itself is the cap). Before this cap existed,
+ * this list could show more physical bottles than a bike has cages for
+ * (e.g. "3x Bidón (Agua / Electrolitos)" on a 2-cage bike) — any water need
+ * beyond that cap is a fountain refill, not a bottle to carry from home,
+ * and is listed separately by `getWaterPlanLines` below instead. */
 function getBikeChecklistLines(result: PlanResult, bottleConfig: BottleConfigOption): string[] {
   const { fuelBottles, waterBottles } = result.bottlePlan;
+  const maxOnBike = result.reloadStrategy?.startingBottleCount ?? result.bottlePlan.totalBottles;
   const lines: string[] = [];
+
+  let mixBottleCount = 0;
   if (bottleConfig !== "water_only" && fuelBottles.count > 0) {
     // Matches `getBottleCarbsContributionG`'s own fixed 1-vs-2 bottle
     // count exactly — "Ambos Mix" always means 2 mix bottles, not
     // whatever `fuelBottles.count` the full (possibly pocket-food-reduced)
     // recipe happened to need, so the checklist never lists a different
-    // bottle count than what the balance pill above it just credited.
-    const mixBottleCount = bottleConfig === "one_mix" ? 1 : 2;
+    // bottle count than what the balance pill above it just credited —
+    // capped at `maxOnBike` so this can never exceed the real cage count.
+    mixBottleCount = Math.min(bottleConfig === "one_mix" ? 1 : 2, maxOnBike);
     const saltG = getTableSaltGrams(fuelBottles.sodiumMgPerBottle);
     lines.push(
       `${mixBottleCount}x Bidón (${fuelBottles.maltodextrinGPerBottle}g Malto + ${fuelBottles.fructoseGPerBottle}g Fructosa + ${saltG}g Sal)`
     );
   }
-  if (waterBottles.count > 0) {
-    lines.push(`${waterBottles.count}x Bidón (Agua / Electrolitos)`);
+
+  const waterBottlesOnBike = Math.min(waterBottles.count, Math.max(0, maxOnBike - mixBottleCount));
+  if (waterBottlesOnBike > 0) {
+    lines.push(`${waterBottlesOnBike}x Bidón (Agua / Electrolitos)`);
   }
   return lines;
+}
+
+/** Tarjeta 05's "Plan de agua en ruta" — plain water beyond what fits in
+ * the bike's own cages is never a Ziploc powder concern (concentrate isn't
+ * available at a fountain — see `getReloadStrategy`'s own
+ * `waterRefillCount`/`waterRefillLiters`), so it's listed here as a
+ * fountain-refill action rather than as a phantom bottle in the "En bici"
+ * checklist above or folded into the powder-reload accordion. */
+function getWaterPlanLines(result: PlanResult): string[] {
+  const reload = result.reloadStrategy;
+  if (!reload || reload.waterRefillCount <= 0) return [];
+  return [
+    `Paradas de recarga de agua en fuente: ${reload.waterRefillCount} recarga${
+      reload.waterRefillCount > 1 ? "s" : ""
+    } (~${reload.waterRefillLiters}L de agua en fuentes/puntos de agua)`,
+  ];
 }
 
 function getPocketChecklistLines(
@@ -470,12 +507,16 @@ function buildChecklistText(
 ): string {
   const bikeLines = getBikeChecklistLines(result, bottleConfig);
   const pocketLines = getPocketChecklistLines(pocketFood, customCarbsG);
+  const waterPlanLines = getWaterPlanLines(result);
   const sections: string[] = ["RATIO · Lista de Avituallamiento", ""];
   if (bikeLines.length > 0) {
     sections.push("En bici:", ...bikeLines.map((l) => `- ${l}`), "");
   }
   if (pocketLines.length > 0) {
     sections.push("En bolsillo:", ...pocketLines.map((l) => `- ${l}`), "");
+  }
+  if (waterPlanLines.length > 0) {
+    sections.push("Plan de agua en ruta:", ...waterPlanLines.map((l) => `- ${l}`), "");
   }
   sections.push(`Pauta: ${getPautaLine(result)}.`);
   sections.push("Calculado en ratiovelo.com");
@@ -531,7 +572,7 @@ function DeparturePicker({
   return (
     <div className="flex w-full min-w-0 max-w-full flex-col gap-2">
       <span className={formFieldLabelClass}>Fecha y hora de salida</span>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2 *:min-w-0">
         {DEPARTURE_DAY_MODE_OPTIONS.map((opt) => (
           <button
             key={opt.value}
@@ -832,6 +873,7 @@ export function FuelingPlanner({
   // apart from what's currently selected.
   const bikeChecklistLines = result ? getBikeChecklistLines(result, bottleConfig) : [];
   const pocketChecklistLines = getPocketChecklistLines(pocketFood, customCarbsG);
+  const waterPlanChecklistLines = result ? getWaterPlanLines(result) : [];
 
   // "Modo Cobertura Limitada" — if the athlete opens the app with no
   // connection at all (mid-climb, no signal), load the last strategy that
@@ -1167,7 +1209,7 @@ export function FuelingPlanner({
                 conditionals, the map render, `handleCalculate`'s request
                 body) is untouched; only this toggle and Paso 01's own
                 internals changed. */}
-            <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-2 gap-2 *:min-w-0">
               <button
                 type="button"
                 onClick={() => setMode(parsedGpx ? "gpx" : "route")}
@@ -1381,7 +1423,7 @@ export function FuelingPlanner({
                       value. Merged into one label with a 2-col inner grid
                       instead, each input carrying its own unit suffix so
                       there's no separate text label needed per field. */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-3 *:min-w-0">
                     <div className="relative flex items-center">
                       <input
                         id="duration-hours"
@@ -1697,8 +1739,13 @@ export function FuelingPlanner({
                 03 · Metabolismo y objetivos calculados
               </span>
 
-              {/* Cuadrícula 2x2 de objetivos por hora + total */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Cuadrícula 2x2 de objetivos por hora + total — `*:min-w-0`
+                  lets each cell shrink below its content's intrinsic width
+                  instead of forcing the grid track wider (the default
+                  `min-width: auto` grid items get otherwise), so a long
+                  number/tooltip trigger can never push this card past the
+                  viewport edge on a narrow phone. */}
+              <div className="grid grid-cols-2 gap-3 *:min-w-0">
                 <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
                   <span className={eyebrow}>Duración</span>
                   <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
@@ -1809,7 +1856,7 @@ export function FuelingPlanner({
                   legible even on a narrow phone, so this never needs to
                   drop to a single stacked column the way the old, longer
                   labels did. */}
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2 *:min-w-0">
                 {BOTTLE_CONFIG_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
@@ -2011,7 +2058,14 @@ export function FuelingPlanner({
                 </div>
               </div>
 
-              {result.reloadStrategy && (
+              {/* Only a genuine *fuel/powder* overflow warrants this
+                  warning-toned "Ziploc" accordion — an overflow that's
+                  purely plain water (the ride's total hydration need
+                  exceeding cage capacity even though the carb target is
+                  already fully covered) is never a reason to mix more
+                  powder, so it renders in the plain informational
+                  "Plan de agua en ruta" block below instead. */}
+              {result.reloadStrategy && result.reloadStrategy.ziplocBagsCount > 0 && (
                 <details className="group rounded-sm border border-status-warning/40 bg-status-warning/10">
                   <summary className="flex list-none cursor-pointer items-center justify-between gap-2 p-3 [&::-webkit-details-marker]:hidden">
                     <span className="flex min-w-0 flex-col gap-1">
@@ -2020,9 +2074,9 @@ export function FuelingPlanner({
                         Estrategia de recarga en ruta
                       </span>
                       <span className="text-sm font-semibold text-neutral-900">
-                        {result.reloadStrategy.startingBottleCount} bidón
-                        {result.reloadStrategy.startingBottleCount > 1 ? "es" : ""} en bici +{" "}
-                        {result.reloadStrategy.ziplocBagsCount} dosis de recarga en maillot
+                        {result.reloadStrategy.startingFuelBottleCount} bidón
+                        {result.reloadStrategy.startingFuelBottleCount > 1 ? "es" : ""} de mezcla en
+                        bici + {result.reloadStrategy.ziplocBagsCount} dosis de recarga en maillot
                       </span>
                     </span>
                     <ChevronDown className="size-4 shrink-0 text-status-warning transition-transform duration-150 group-open:rotate-180" />
@@ -2030,9 +2084,15 @@ export function FuelingPlanner({
                   <div className="border-t border-status-warning/30 p-3 pt-2">
                     <ol className="flex flex-col gap-1 text-sm text-neutral-700">
                       <li>
-                        1. Inicio de ruta: {result.reloadStrategy.startingBottleCount} bidón
-                        {result.reloadStrategy.startingBottleCount > 1 ? "es" : ""} preparado
-                        {result.reloadStrategy.startingBottleCount > 1 ? "s" : ""} en el cuadro.
+                        1. Inicio de ruta: {result.reloadStrategy.startingFuelBottleCount} bidón
+                        {result.reloadStrategy.startingFuelBottleCount > 1 ? "es" : ""} de mezcla
+                        preparado{result.reloadStrategy.startingFuelBottleCount > 1 ? "s" : ""} en el
+                        cuadro
+                        {result.reloadStrategy.startingWaterBottleCount > 0
+                          ? ` + ${result.reloadStrategy.startingWaterBottleCount} bidón${
+                              result.reloadStrategy.startingWaterBottleCount > 1 ? "es" : ""
+                            } de agua.`
+                          : "."}
                       </li>
                       <li>
                         2. En el maillot: lleva {result.reloadStrategy.ziplocBagsCount} bolsita
@@ -2066,6 +2126,7 @@ export function FuelingPlanner({
                 </details>
               )}
 
+
               {result.carbLoading && (
                 <details className="rounded-sm bg-[#F8F7F5] px-3 py-2.5">
                   <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-700 uppercase">
@@ -2085,22 +2146,59 @@ export function FuelingPlanner({
                   physically grab" summary, driven by the same bottle
                   config + pocket-food state as the balance pill above, so
                   it's never out of sync with what CUBIERTO/RESTANTE is
-                  currently showing. */}
+                  currently showing. Split into labeled sub-sections (En
+                  bici / En bolsillo / Plan de agua en ruta) rather than one
+                  flat list, so a fountain-refill note never reads as a
+                  physical bottle to carry from home — see
+                  `getBikeChecklistLines`/`getWaterPlanLines` above. */}
               <div className="rounded-sm bg-[#F8F7F5] p-3">
                 <span className={eyebrow}>Checklist de preparación para llevar</span>
-                {bikeChecklistLines.length === 0 && pocketChecklistLines.length === 0 ? (
+                {bikeChecklistLines.length === 0 &&
+                pocketChecklistLines.length === 0 &&
+                waterPlanChecklistLines.length === 0 ? (
                   <p className="mt-2 text-sm text-neutral-500">
                     Sin bidones ni comida de bolsillo seleccionados todavía.
                   </p>
                 ) : (
-                  <ul className="mt-2 flex flex-col gap-1 text-sm text-neutral-700">
-                    {bikeChecklistLines.map((line) => (
-                      <li key={line}>• {line}</li>
-                    ))}
-                    {pocketChecklistLines.map((line) => (
-                      <li key={line}>• {line}</li>
-                    ))}
-                  </ul>
+                  <div className="mt-2 flex flex-col gap-2.5 text-sm text-neutral-700">
+                    {bikeChecklistLines.length > 0 && (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs font-semibold text-neutral-600">
+                          En bici (portabidones):
+                        </span>
+                        <ul className="flex flex-col gap-1">
+                          {bikeChecklistLines.map((line) => (
+                            <li key={line}>• {line}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {pocketChecklistLines.length > 0 && (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs font-semibold text-neutral-600">
+                          En bolsillo / maillot:
+                        </span>
+                        <ul className="flex flex-col gap-1">
+                          {pocketChecklistLines.map((line) => (
+                            <li key={line}>• {line}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {waterPlanChecklistLines.length > 0 && (
+                      <div className="flex flex-col gap-1">
+                        <span className="flex items-center gap-1.5 text-xs font-semibold text-neutral-600">
+                          <Droplet className="size-3.5 shrink-0" />
+                          Plan de agua en ruta:
+                        </span>
+                        <ul className="flex flex-col gap-1">
+                          {waterPlanChecklistLines.map((line) => (
+                            <li key={line}>• {line}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                 )}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button

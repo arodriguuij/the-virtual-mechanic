@@ -79,6 +79,8 @@ export const viewport: Viewport = {
   themeColor: "#F8F7F5",
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 // Structured data (schema.org WebApplication) for Google's rich-result

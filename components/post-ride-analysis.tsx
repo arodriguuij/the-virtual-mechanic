@@ -156,7 +156,7 @@ function BalanceNetoRow({
   debt: string;
 }) {
   return (
-    <div className="grid grid-cols-3 gap-2 rounded-sm bg-surface px-3 py-2">
+    <div className="grid grid-cols-3 gap-2 rounded-sm bg-surface px-3 py-2 *:min-w-0">
       <div className="col-span-3 -mb-1 text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
         {label}
       </div>
@@ -405,7 +405,7 @@ export function PostRideAnalysis({
 
           <div className="h-48 w-full rounded-sm bg-zinc-200/80 sm:h-56" />
 
-          <div className="grid grid-cols-2 gap-x-4 gap-y-4 pt-2">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-4 pt-2 *:min-w-0">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="space-y-2">
                 <div className="h-3 w-1/2 rounded bg-zinc-100" />
@@ -476,7 +476,7 @@ export function PostRideAnalysis({
                 emptyMessage="Sin datos de trazado GPS para esta actividad."
               />
 
-              <div className="grid grid-cols-2 gap-x-4 gap-y-4 px-4 pt-4 text-left">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4 px-4 pt-4 text-left *:min-w-0">
                 <div>
                   <p className="mb-0.5 text-xs font-medium text-zinc-500">Distancia</p>
                   <p className="text-lg font-bold text-zinc-900">
@@ -562,7 +562,7 @@ export function PostRideAnalysis({
                 01 · Deuda metabólica y registro real
               </span>
 
-              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+              <div className="grid grid-cols-3 gap-2 sm:gap-4 *:min-w-0">
                 <div className="flex flex-col gap-1">
                   <span className={statLabel}>Glucógeno quemado</span>
                   <span className={statValue}>
@@ -607,7 +607,7 @@ export function PostRideAnalysis({
                     </button>
                   ))}
                 </div>
-                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3 *:min-w-0">
                   <div className="flex items-center justify-between gap-2 rounded-sm bg-white px-3 py-1.5">
                     <label htmlFor="carbs-consumed" className="text-sm text-neutral-900">
                       Carbohidratos
@@ -748,7 +748,7 @@ export function PostRideAnalysis({
                     Ventana bifásica — glucógeno se repone en dos fases fisiológicas
                     distintas, no en una sola comida
                   </span>
-                  <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 *:min-w-0">
                     <div className="rounded-sm bg-[#F8F7F5] p-3.5 shadow-none">
                       <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
                         <Zap className="size-3.5 shrink-0" />
@@ -782,7 +782,7 @@ export function PostRideAnalysis({
                       </span>
                     </div>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div className="mt-3 grid grid-cols-2 gap-3 *:min-w-0">
                     <div className="rounded-sm bg-[#F8F7F5] p-3.5 shadow-none">
                       <span className={statLabel}>Grasas límite</span>
                       <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">

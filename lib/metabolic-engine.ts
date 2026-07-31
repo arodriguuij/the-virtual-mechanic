@@ -1228,20 +1228,45 @@ export function getBottlePlan(
 const DEFAULT_MAX_BOTTLES_ON_BIKE = 2;
 
 export type ReloadStrategy = {
+  /** Fuel/mix bottles carried from the start — capped at the athlete's real
+   * cage count, prioritized over plain water since concentrate can't be
+   * replicated at a roadside fountain. */
+  startingFuelBottleCount: number;
+  /** Plain water bottles carried from the start, filling whatever cage
+   * slots the fuel bottles above didn't already use. */
+  startingWaterBottleCount: number;
+  /** `startingFuelBottleCount + startingWaterBottleCount` — always equal to
+   * the athlete's real cage count whenever a reload strategy exists at all.
+   * Kept for callers that only care about the total, not the split. */
   startingBottleCount: number;
+  /** Extra *fuel* bottles beyond what the cages can carry — the only thing
+   * that genuinely needs a pre-measured Ziploc powder sachet, since
+   * maltodextrin/fructose/sodium concentrate isn't available at a fountain.
+   * Deliberately independent of any extra plain-water need (see
+   * `waterRefillCount` below) — carrying more water than fits on the bike
+   * is a fountain stop, not a reason to mix more powder. */
   ziplocBagsCount: number;
   ziplocDose: {
     maltodextrinG: number;
     fructoseG: number;
     sodiumMg: number;
   };
+  /** Extra plain-water bottles beyond what the cages can carry — refillable
+   * at any fountain/water point along the route, no pre-measured sachet
+   * needed at all. */
+  waterRefillCount: number;
+  /** Approximate liters implied by `waterRefillCount`, for a plain-language
+   * "~X L de agua" readout. */
+  waterRefillLiters: number;
   reloadAtKm: number | null;
   reloadAtHours: number;
-  /** More Ziploc sachets than a jersey pocket can reasonably carry and mix
-   * on the fly one at a time — see `MAX_PRACTICAL_ZIPLOC_BAGS` below. The
-   * math itself is still correct (a small bottle really does need this many
-   * refills to carry this much dissolved carb), this just flags that the
-   * *plan*, not the arithmetic, needs rethinking. */
+  /** More Ziploc *powder* sachets than a jersey pocket can reasonably carry
+   * and mix on the fly one at a time — see `MAX_PRACTICAL_ZIPLOC_BAGS`
+   * below. Driven only by `ziplocBagsCount`, never by `waterRefillCount` —
+   * stopping at a fountain several times is a normal, practical plan on its
+   * own. The math itself is still correct (a small bottle really does need
+   * this many refills to carry this much dissolved carb), this just flags
+   * that the *plan*, not the arithmetic, needs rethinking. */
   isImpractical: boolean;
 };
 
@@ -1259,13 +1284,18 @@ const MAX_PRACTICAL_ZIPLOC_BAGS = 4;
  * "Estrategia de Recarga en Ruta" — whenever the bottle plan needs more
  * bottles than the athlete's real bottle-cage count (`totalBottles` above
  * `maxBottlesOnBike`, from `athlete_profiles.bottle_count` — 1 or 2), the
- * athlete needs a mid-ride stop to refill water and dissolve a pre-measured
- * powder sachet rather than literally carrying every bottle from the
- * start. The reload dose reuses the same per-bottle fuel-bottle figures
- * from `getBottlePlan` (already capped at the safe 8% concentration), so
- * the sachet mixes into a fresh bottle exactly like the ones prepared at
- * the start. The reload point is estimated as the moment the starting
- * bottles would run dry, assuming roughly even consumption across the ride.
+ * overflow splits into two physiologically distinct cases that used to be
+ * conflated into one undifferentiated "extra bottle" count: overflow *fuel*
+ * bottles genuinely need a mid-ride stop to dissolve a pre-measured Ziploc
+ * powder sachet (concentrate isn't available at a fountain), while overflow
+ * *plain water* bottles just need a fountain/water-point refill — no powder
+ * at all. Fuel bottles get priority for the limited cage slots (they carry
+ * something a fountain can't replace); any slots left over go to water.
+ * The reload dose reuses the same per-bottle fuel-bottle figures from
+ * `getBottlePlan` (already capped at the safe 8% concentration), so the
+ * sachet mixes into a fresh bottle exactly like the ones prepared at the
+ * start. The reload point is estimated as the moment the starting bottles
+ * would run dry, assuming roughly even consumption across the ride.
  */
 export function getReloadStrategy({
   bottlePlan,
@@ -1280,20 +1310,29 @@ export function getReloadStrategy({
 }): ReloadStrategy | null {
   if (bottlePlan.totalBottles <= maxBottlesOnBike) return null;
 
-  const extraBottles = bottlePlan.totalBottles - maxBottlesOnBike;
+  const startingFuelBottleCount = Math.min(bottlePlan.fuelBottles.count, maxBottlesOnBike);
+  const extraFuelBottles = bottlePlan.fuelBottles.count - startingFuelBottleCount;
+  const remainingCageSlots = maxBottlesOnBike - startingFuelBottleCount;
+  const startingWaterBottleCount = Math.min(bottlePlan.waterBottles.count, remainingCageSlots);
+  const extraWaterBottles = bottlePlan.waterBottles.count - startingWaterBottleCount;
+
   const reloadAtFraction = maxBottlesOnBike / bottlePlan.totalBottles;
 
   return {
-    startingBottleCount: maxBottlesOnBike,
-    ziplocBagsCount: extraBottles,
+    startingFuelBottleCount,
+    startingWaterBottleCount,
+    startingBottleCount: startingFuelBottleCount + startingWaterBottleCount,
+    ziplocBagsCount: extraFuelBottles,
     ziplocDose: {
-      maltodextrinG: bottlePlan.fuelBottles.maltodextrinGPerBottle,
-      fructoseG: bottlePlan.fuelBottles.fructoseGPerBottle,
-      sodiumMg: bottlePlan.fuelBottles.sodiumMgPerBottle,
+      maltodextrinG: extraFuelBottles > 0 ? bottlePlan.fuelBottles.maltodextrinGPerBottle : 0,
+      fructoseG: extraFuelBottles > 0 ? bottlePlan.fuelBottles.fructoseGPerBottle : 0,
+      sodiumMg: extraFuelBottles > 0 ? bottlePlan.fuelBottles.sodiumMgPerBottle : 0,
     },
+    waterRefillCount: extraWaterBottles,
+    waterRefillLiters: Math.round(((extraWaterBottles * bottlePlan.bottleSizeMl) / 1000) * 10) / 10,
     reloadAtKm: distanceKm != null ? Math.round(distanceKm * reloadAtFraction * 10) / 10 : null,
     reloadAtHours: Math.round(durationHours * reloadAtFraction * 100) / 100,
-    isImpractical: extraBottles > MAX_PRACTICAL_ZIPLOC_BAGS,
+    isImpractical: extraFuelBottles > MAX_PRACTICAL_ZIPLOC_BAGS,
   };
 }
 

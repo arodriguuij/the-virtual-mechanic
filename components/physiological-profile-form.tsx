@@ -231,7 +231,7 @@ export function PhysiologicalProfileForm({
               </div>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 *:min-w-0">
             {/* Both columns share one fixed-height header row (`h-5`) so
                 the inputs below stay perfectly aligned regardless of what
                 either header actually contains — Peso's header is a bare

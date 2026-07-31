@@ -174,6 +174,22 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* iOS Safari containment — `<body>` already carries Tailwind's
+     `overflow-x-hidden` (`app/layout.tsx`), but that alone doesn't stop a
+     stray wide/absolutely-positioned descendant from pushing `<html>`'s own
+     scrollable width out, which is what shows up on iOS as a rigid
+     horizontal pan revealing blank canvas to the right. `max-width: 100%`
+     (not `100vw`, which itself can overflow when a desktop scrollbar is
+     reserving width) plus `overflow-x: hidden` on both `html` and `body`,
+     with `position: relative` so `html`'s own overflow box is actually
+     established, closes that gap at the root regardless of which
+     descendant caused it. */
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+    position: relative;
+  }
   body {
     @apply bg-background text-foreground;
   }
