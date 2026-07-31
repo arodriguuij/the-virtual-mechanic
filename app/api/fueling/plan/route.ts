@@ -73,15 +73,19 @@ const VALID_POCKET_FOOD_TYPES = new Set<PocketFoodItemType>([
 const MAX_CUSTOM_CARBS_G = 500;
 
 /** Only known item types with a positive integer quantity survive, plus a
- * capped `customCarbsG` — anything else in the request body is silently
- * dropped rather than rejected, same "degrade gracefully" convention as
- * `getStravaRoutes()` returning `[]`. */
+ * capped `customCarbsG` and a boolean `includeCaffeine` — anything else in
+ * the request body is silently dropped rather than rejected, same
+ * "degrade gracefully" convention as `getStravaRoutes()` returning `[]`. */
 function sanitizePocketFoodSelection(input: unknown): PocketFoodSelection {
   if (!input || typeof input !== "object") return {};
   const result: PocketFoodSelection = {};
   for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
     if (key === "customCarbsG" && typeof value === "number" && value > 0) {
       result.customCarbsG = Math.min(MAX_CUSTOM_CARBS_G, Math.round(value));
+      continue;
+    }
+    if (key === "includeCaffeine" && typeof value === "boolean") {
+      result.includeCaffeine = value;
       continue;
     }
     if (VALID_POCKET_FOOD_TYPES.has(key as PocketFoodItemType) && typeof value === "number" && value > 0) {
@@ -336,6 +340,7 @@ export async function POST(request: NextRequest) {
     distanceKm: rideDistanceKm,
     fluidLossMlPerHour,
     peakFraction: peakFractionForTimeline,
+    bottleCapacityMl: athleteProfile.bottle_capacity_ml,
   });
   // The real deficit is measured against the ride's *true* metabolic demand
   // (uncapped, phenotype-adjusted) regardless of what the gut can absorb —
@@ -394,6 +399,11 @@ export async function POST(request: NextRequest) {
       uncappedGPerHour: gutTarget.uncappedGPerHour,
     },
     bottlePlan,
+    // The athlete's real cage count (1 or 2) — the client's "Ambos Mix"
+    // bottle-config preference needs this to credit the right number of
+    // bottles instead of assuming a hardcoded 2 (see
+    // `getBottleCarbsContributionG` in `components/fueling-planner.tsx`).
+    athleteBottleCount: athleteProfile.bottle_count,
     reloadStrategy,
     nutritionMilestones,
     timingTimeline,

@@ -489,13 +489,24 @@ export const pocketFoodCarbsG: Record<PocketFoodItemType, number> = {
 
 /** `customCarbsG` covers anything outside the fixed catalog — a rider's own
  * homemade snack, a brand not listed, etc. — entered as a free grams value
- * rather than forced through one of the preset items. */
+ * rather than forced through one of the preset items. `includeCaffeine` is
+ * a plain modifier on whatever gel(s) are selected, not a fourth gel-catalog
+ * entry — "no duplicar ítems de geles en el catálogo": a rider ticks it once
+ * to say at least one of their selected gels/food carries caffeine, and
+ * `generateTimingTimeline` below only schedules a caffeine milestone at all
+ * when this is `true`. */
 export type PocketFoodSelection = Partial<Record<PocketFoodItemType, number>> & {
   customCarbsG?: number;
+  includeCaffeine?: boolean;
 };
 
 export function getPocketFoodTotalCarbsG(selection: PocketFoodSelection): number {
-  const { customCarbsG, ...items } = selection;
+  // `includeCaffeine` is a boolean modifier, not a catalog item — pulled out
+  // here (alongside `customCarbsG`) purely so it can't leak into `items`
+  // below as a bogus `pocketFoodCarbsG["includeCaffeine"] * true` term,
+  // which would otherwise poison `catalogTotal` into `NaN`.
+  const { customCarbsG, includeCaffeine, ...items } = selection;
+  void includeCaffeine;
   const catalogTotal = (Object.entries(items) as [PocketFoodItemType, number][]).reduce(
     (sum, [type, qty]) => sum + pocketFoodCarbsG[type] * Math.max(0, qty ?? 0),
     0
@@ -577,7 +588,10 @@ export function getPocketFoodMilestones({
   durationHours: number;
   distanceKm: number | null;
 }): NutritionMilestone[] {
-  const { customCarbsG, ...selectedItems } = selection;
+  // Same `includeCaffeine` exclusion as `getPocketFoodTotalCarbsG` above —
+  // not a catalog item, must never fall into `selectedItems` below.
+  const { customCarbsG, includeCaffeine, ...selectedItems } = selection;
+  void includeCaffeine;
   const labels: string[] = [];
   for (const [type, qty] of Object.entries(selectedItems) as [PocketFoodItemType, number][]) {
     for (let i = 0; i < Math.max(0, qty ?? 0); i++) labels.push(`Comer ${pocketFoodLabels[type]}`);
@@ -598,27 +612,38 @@ export function getPocketFoodMilestones({
   });
 }
 
-/** Minimum/maximum sip reminder interval — even a very low sweat rate still
- * gets reminded at least every 20 minutes (a bottle left untouched for
- * longer is easy to forget entirely), and even a very high one is capped at
- * 10 minutes (more frequent than that stops being a distinct "reminder" and
- * just becomes constant sipping). */
-const HYDRATION_INTERVAL_MIN_MINUTES = 10;
-const HYDRATION_INTERVAL_MAX_MINUTES = 20;
+/** A "drink a small sip" reminder is easy to lose track of mid-ride — a
+ * rider thinks in whole bottles, not milliliters, so the pacing guidance is
+ * framed around finishing one full bottle rather than a vague sip count.
+ * `bottleMl` is the athlete's own real `athlete_profiles.bottle_capacity_ml`
+ * (500/600/750/950), not a fixed reference size — a rider running 950ml
+ * bottles genuinely needs longer between refills than one running 500ml
+ * bottles at the same sweat rate, so hardcoding a single reference size
+ * would silently mismatch the "1 bidón" the UI actually shows next to it.
+ * `DEFAULT_HYDRATION_BOTTLE_ML` is only a fallback for a caller with no real
+ * bottle size on hand. Floored at a sane minimum so a pathologically high
+ * fluid-loss rate can't collapse the interval to an unreadable "every
+ * 1 min." */
+const DEFAULT_HYDRATION_BOTTLE_ML = 500;
+const HYDRATION_INTERVAL_MIN_MINUTES = 5;
 
 /**
- * "Frecuencia Hídrica" — how often (in minutes) to remind the athlete to
- * drink, scaled inversely to their actual fluid-loss rate: a higher sweat
- * rate needs more frequent, smaller sips rather than the same interval with
- * bigger gulps (which risks gastric sloshing at high intensity).
+ * "Frecuencia Hídrica" — how often (in minutes) to finish one full bottle
+ * (`bottleMl`, the athlete's real bottle capacity), scaled inversely to the
+ * athlete's actual fluid-loss rate: `(bottleMl / mlPerHour) × 60`. A higher
+ * sweat rate means that same bottle needs to go faster, not that the
+ * athlete should switch to smaller, more frequent sips.
  */
-export function getHydrationIntervalMinutes(fluidLossMlPerHour: number): number {
-  const litersPerHour = fluidLossMlPerHour / 1000;
-  if (litersPerHour <= 0) return HYDRATION_INTERVAL_MAX_MINUTES;
-  return Math.max(
-    HYDRATION_INTERVAL_MIN_MINUTES,
-    Math.min(HYDRATION_INTERVAL_MAX_MINUTES, Math.round(180 / (litersPerHour * 10)))
-  );
+export function getHydrationIntervalMinutes(
+  fluidLossMlPerHour: number,
+  bottleMl: number = DEFAULT_HYDRATION_BOTTLE_ML
+): number {
+  // Never reachable in practice (every sweat-rate baseline is >= 500ml/h
+  // before any heat/humidity multiplier is even applied — see
+  // `SWEAT_RATE_BASE_ML_PER_HOUR`), but a defensive floor against a
+  // genuinely zero/negative rate rather than a `1 / 0` blow-up.
+  if (fluidLossMlPerHour <= 0) return 60;
+  return Math.max(HYDRATION_INTERVAL_MIN_MINUTES, Math.round((bottleMl / fluidLossMlPerHour) * 60));
 }
 
 // Solid food (slow to digest) only makes sense early, before intensity rises
@@ -630,13 +655,13 @@ const SOLID_FOOD_MAX_FRACTION = 0.3;
 const CAFFEINE_MIN_DURATION_HOURS = 1.5;
 const CAFFEINE_LEAD_MINUTES = 45;
 // Caffeine is only ever suggested late in the ride — early placement (the
-// bug this window fixes: a route whose elevation peak sits near the start,
+// bug this floor fixes: a route whose elevation peak sits near the start,
 // e.g. a climb straight out of the departure point, used to time caffeine as
 // early as km 5 / minute 12, which defeats the point of a late-ride alertness
 // boost) is never allowed. Absent a real late climb to time against, the
-// suggestion lands at the midpoint of this window.
+// suggestion lands 45 minutes before the ride's own finish instead (see
+// `CAFFEINE_LEAD_MINUTES`), still never earlier than this floor.
 const CAFFEINE_WINDOW_START_FRACTION = 0.65;
-const CAFFEINE_WINDOW_END_FRACTION = 0.75;
 // A route's real elevation peak only overrides the fixed window when it
 // falls in the second half of the ride — a genuine late climb is worth
 // timing caffeine against directly; an early one is not a reason to move
@@ -693,14 +718,19 @@ export function generateTimingTimeline({
   distanceKm,
   fluidLossMlPerHour,
   peakFraction = null,
+  bottleCapacityMl = DEFAULT_HYDRATION_BOTTLE_ML,
 }: {
   selection: PocketFoodSelection;
   durationHours: number;
   distanceKm: number | null;
   fluidLossMlPerHour: number;
   peakFraction?: number | null;
+  /** The athlete's real `athlete_profiles.bottle_capacity_ml` — what the
+   * hydration-pacing line actually paces against, see
+   * `getHydrationIntervalMinutes` above. */
+  bottleCapacityMl?: number;
 }): TimingTimeline {
-  const { customCarbsG, ...items } = selection;
+  const { customCarbsG, includeCaffeine, ...items } = selection;
   const solidTypes = new Set<PocketFoodItemType>(["banana", "energy_bar", "rice_cake", "dates", "gummies"]);
   const gelTypes = new Set<PocketFoodItemType>(["gel_small", "gel_standard", "gel_high"]);
 
@@ -727,15 +757,23 @@ export function generateTimingTimeline({
     entries.push(makeTimingEntry("gel", label, fraction, durationHours, distanceKm));
   });
 
-  if (durationHours >= CAFFEINE_MIN_DURATION_HOURS) {
+  // Caffeine is never scheduled on its own — it's a modifier on whatever
+  // gel/food the athlete actually ticked "Incluye cafeína" for (see
+  // `PocketFoodSelection.includeCaffeine`), not an automatic milestone tied
+  // to duration alone. No caffeine item selected → no milestone, regardless
+  // of how long the ride is.
+  if (includeCaffeine && durationHours >= CAFFEINE_MIN_DURATION_HOURS) {
     const hasLateClimb = peakFraction != null && peakFraction >= LATE_CLIMB_MIN_FRACTION;
     const leadFraction = CAFFEINE_LEAD_MINUTES / 60 / durationHours;
-    // Never earlier than the window's start, regardless of where the climb
-    // sits — a late climb can only push caffeine later than the default
-    // midpoint, never earlier than 65% of the ride.
+    // Mountain routes: 45 minutes before the real elevation peak. Flat
+    // routes/Entreno Manual (no late climb to target): 45 minutes before the
+    // ride's own finish instead — either way never earlier than the 65%
+    // floor, which protects a short ride (or an early climb) from placing
+    // caffeine too soon and defeating the point of a late-ride alertness
+    // boost.
     const fraction = hasLateClimb
       ? Math.max(CAFFEINE_WINDOW_START_FRACTION, peakFraction - leadFraction)
-      : (CAFFEINE_WINDOW_START_FRACTION + CAFFEINE_WINDOW_END_FRACTION) / 2;
+      : Math.max(CAFFEINE_WINDOW_START_FRACTION, 1 - leadFraction);
     entries.push(
       makeTimingEntry("caffeine", "Toma de cafeína (~100-200mg)", fraction, durationHours, distanceKm)
     );
@@ -744,7 +782,7 @@ export function generateTimingTimeline({
   entries.sort((a, b) => a.atMinutes - b.atMinutes);
 
   return {
-    hydrationIntervalMinutes: getHydrationIntervalMinutes(fluidLossMlPerHour),
+    hydrationIntervalMinutes: getHydrationIntervalMinutes(fluidLossMlPerHour, bottleCapacityMl),
     entries,
   };
 }
@@ -1390,7 +1428,7 @@ export function formatRecipeForSharing({
   carbsGPerHour: number;
   sodiumMgPerHour: number;
   recipe: HomeLabRecipe;
-  bottlePlan: Pick<BottlePlan, "fuelBottles" | "waterBottles">;
+  bottlePlan: Pick<BottlePlan, "bottleSizeMl" | "fuelBottles" | "waterBottles">;
 }): string {
   const lines = [
     "🚴 RECETA CASERA — RATIO",
@@ -1399,14 +1437,14 @@ export function formatRecipeForSharing({
   ];
   if (bottlePlan.fuelBottles.count > 0) {
     lines.push(
-      `🧪 ${bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel Concentrado × ${bottlePlan.fuelBottles.count}`,
+      `🧪 ${bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel Concentrado (${bottlePlan.bottleSizeMl}ml) × ${bottlePlan.fuelBottles.count}`,
       `   ${bottlePlan.fuelBottles.maltodextrinGPerBottle}g maltodextrina · ${bottlePlan.fuelBottles.fructoseGPerBottle}g fructosa · ${getTableSaltGrams(bottlePlan.fuelBottles.sodiumMgPerBottle)}g sal común (${bottlePlan.fuelBottles.sodiumMgPerBottle}mg sodio) / bidón`
     );
   }
   if (bottlePlan.waterBottles.count > 0) {
     lines.push(
       "",
-      `💧 ${bottlePlan.waterBottles.count > 1 ? "Bidones" : "Bidón"} Agua / Electrolitos × ${bottlePlan.waterBottles.count}`,
+      `💧 ${bottlePlan.waterBottles.count > 1 ? "Bidones" : "Bidón"} Agua / Electrolitos (${bottlePlan.bottleSizeMl}ml) × ${bottlePlan.waterBottles.count}`,
       "   A demanda para completar la hidratación"
     );
   }

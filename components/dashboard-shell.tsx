@@ -1,6 +1,15 @@
 "use client";
 
-import { BarChart3, History, LayoutDashboard, LogOut, Menu, UserRound, X } from "lucide-react";
+import {
+  BarChart3,
+  FlaskConical,
+  History,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  UserRound,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -22,6 +31,7 @@ const NAV_ITEMS = [
   { href: "/perfil", label: "Perfil fisiológico", icon: UserRound, permanentlyDisabled: false },
   { href: "/estadisticas", label: "Estadísticas", icon: BarChart3, permanentlyDisabled: true },
   { href: "/historial", label: "Historial", icon: History, permanentlyDisabled: true },
+  { href: "/metodologia", label: "Base científica", icon: FlaskConical, permanentlyDisabled: false },
 ];
 
 /**

@@ -75,11 +75,15 @@ const RouteMapPreview = dynamic(
   }
 );
 
+// Matches `components/post-ride-analysis.tsx`'s own local copy of this same
+// helper exactly ("1h 29m", not the padded "01 h 29 min" this used to
+// print) — a raw decimal like "1.48 h" doesn't read as a duration at a
+// glance, and the two screens should format time identically.
 function formatHoursMinutes(hours: number): string {
   const totalMinutes = Math.round(Math.max(0, hours) * 60);
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
-  return `${String(h).padStart(2, "0")} h ${String(m).padStart(2, "0")} min`;
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
 const POCKET_FOOD_TYPES: PocketFoodItemType[] = ["banana", "energy_bar", "rice_cake", "dates", "gummies"];
@@ -312,6 +316,9 @@ type PlanResult = {
     waterBottles: { count: number };
     totalBottles: number;
   };
+  /** The athlete's real `athlete_profiles.bottle_count` (1 or 2 cages) —
+   * see `getBottleCarbsContributionG` below. */
+  athleteBottleCount: number;
   reloadStrategy: {
     startingFuelBottleCount: number;
     startingWaterBottleCount: number;
@@ -397,7 +404,13 @@ const BOTTLE_CONFIG_OPTIONS: { value: BottleConfigOption; label: string }[] = [
  * preference, no re-derivation of `getBottlePlan`'s own math" convention
  * as the bottle selector itself, just no longer silently reusing a
  * pocket-food-adjusted total for a figure that must stay independent of
- * it. */
+ * it.
+ *
+ * "Ambos Mix" credits `athleteBottleCount` bottles, not a hardcoded `2` —
+ * an athlete with only 1 real cage configured on their profile
+ * (`athlete_profiles.bottle_count`) physically can't run 2 mix bottles at
+ * once, so crediting a second one they don't have would silently overstate
+ * CUBIERTO. */
 function getBottleCarbsContributionG(config: BottleConfigOption, result: PlanResult): number {
   const { fuelBottles } = result.bottlePlan;
   if (fuelBottles.count === 0) return 0;
@@ -408,7 +421,7 @@ function getBottleCarbsContributionG(config: BottleConfigOption, result: PlanRes
     case "one_mix":
       return singleBottleCarbsG;
     case "both_mix":
-      return singleBottleCarbsG * 2;
+      return singleBottleCarbsG * result.athleteBottleCount;
     default:
       return 0;
   }
@@ -432,28 +445,26 @@ function getBottleCarbsContributionG(config: BottleConfigOption, result: PlanRes
  * beyond that cap is a fountain refill, not a bottle to carry from home,
  * and is listed separately by `getWaterPlanLines` below instead. */
 function getBikeChecklistLines(result: PlanResult, bottleConfig: BottleConfigOption): string[] {
-  const { fuelBottles, waterBottles } = result.bottlePlan;
+  const { fuelBottles, waterBottles, bottleSizeMl } = result.bottlePlan;
   const maxOnBike = result.reloadStrategy?.startingBottleCount ?? result.bottlePlan.totalBottles;
   const lines: string[] = [];
 
   let mixBottleCount = 0;
   if (bottleConfig !== "water_only" && fuelBottles.count > 0) {
-    // Matches `getBottleCarbsContributionG`'s own fixed 1-vs-2 bottle
-    // count exactly — "Ambos Mix" always means 2 mix bottles, not
-    // whatever `fuelBottles.count` the full (possibly pocket-food-reduced)
-    // recipe happened to need, so the checklist never lists a different
-    // bottle count than what the balance pill above it just credited —
-    // capped at `maxOnBike` so this can never exceed the real cage count.
-    mixBottleCount = Math.min(bottleConfig === "one_mix" ? 1 : 2, maxOnBike);
+    // Matches `getBottleCarbsContributionG`'s own bottle count exactly —
+    // "Ambos Mix" means the athlete's real cage count
+    // (`result.athleteBottleCount`, 1 or 2), not a hardcoded 2 — capped at
+    // `maxOnBike` so this can never exceed what's actually mounted.
+    mixBottleCount = Math.min(bottleConfig === "one_mix" ? 1 : result.athleteBottleCount, maxOnBike);
     const saltG = getTableSaltGrams(fuelBottles.sodiumMgPerBottle);
     lines.push(
-      `${mixBottleCount}x Bidón (${fuelBottles.maltodextrinGPerBottle}g Malto + ${fuelBottles.fructoseGPerBottle}g Fructosa + ${saltG}g Sal)`
+      `${mixBottleCount}x Bidón de ${bottleSizeMl}ml (${fuelBottles.maltodextrinGPerBottle}g Malto + ${fuelBottles.fructoseGPerBottle}g Fructosa + ${saltG}g Sal)`
     );
   }
 
   const waterBottlesOnBike = Math.min(waterBottles.count, Math.max(0, maxOnBike - mixBottleCount));
   if (waterBottlesOnBike > 0) {
-    lines.push(`${waterBottlesOnBike}x Bidón (Agua / Electrolitos)`);
+    lines.push(`${waterBottlesOnBike}x Bidón de ${bottleSizeMl}ml (Agua / Electrolitos)`);
   }
   return lines;
 }
@@ -493,7 +504,9 @@ function getPocketChecklistLines(
 function getPautaLine(result: PlanResult): string {
   const solidEntry = result.timingTimeline.entries.find((e) => e.type === "solid");
   const caffeineEntry = result.timingTimeline.entries.find((e) => e.type === "caffeine");
-  const parts = [`1 trago c/${result.timingTimeline.hydrationIntervalMinutes} min`];
+  const parts = [
+    `1 bidón (~${result.bottlePlan.bottleSizeMl}ml) c/${result.timingTimeline.hydrationIntervalMinutes} min`,
+  ];
   if (solidEntry) parts.push(`${stripEmoji(solidEntry.label)} min ${solidEntry.atMinutes}`);
   if (caffeineEntry) parts.push(`Cafeína min ${caffeineEntry.atMinutes}`);
   return parts.join(" · ");
@@ -744,6 +757,13 @@ export function FuelingPlanner({
   const [isTargetEvent, setIsTargetEvent] = useState(false);
   const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
   const [customCarbsG, setCustomCarbsG] = useState(0);
+  // "Incluye cafeína" — a modifier on whatever gel(s) are already selected,
+  // not a 4th gel-catalog entry ("no duplicar ítems de geles"). Only shown
+  // once at least one gel type has a quantity > 0 (see `hasGelSelected`
+  // below), and the caffeine milestone in `timingTimeline` only appears at
+  // all when this is checked — see `generateTimingTimeline` in
+  // `lib/metabolic-engine.ts`.
+  const [includeCaffeine, setIncludeCaffeine] = useState(false);
   // "Mi Despensa" — starts as the full catalog (zero-onboarding: the
   // planner works fully from the first session with no setup) and is
   // overwritten from `localStorage` on mount if the athlete already
@@ -874,6 +894,14 @@ export function FuelingPlanner({
   const bikeChecklistLines = result ? getBikeChecklistLines(result, bottleConfig) : [];
   const pocketChecklistLines = getPocketChecklistLines(pocketFood, customCarbsG);
   const waterPlanChecklistLines = result ? getWaterPlanLines(result) : [];
+
+  // The "Incluye cafeína" checkbox only makes sense once at least one gel
+  // dose is actually selected — hidden otherwise, and its own checked state
+  // is deliberately never sent to the server unless a gel is still selected
+  // (see `handleCalculate`'s `pocketFoodPayload` below), so removing the
+  // last gel after checking it can't leave a stale `includeCaffeine: true`
+  // scheduling a caffeine milestone with no real caffeine source behind it.
+  const hasGelSelected = GEL_DOSE_TYPES.some((type) => (pocketFood[type] ?? 0) > 0);
 
   // "Modo Cobertura Limitada" — if the athlete opens the app with no
   // connection at all (mid-climb, no signal), load the last strategy that
@@ -1029,7 +1057,13 @@ export function FuelingPlanner({
     setError(null);
     try {
       const departureIso = new Date(departureLocal).toISOString();
-      const pocketFoodPayload = { ...pocketFood, customCarbsG };
+      const pocketFoodPayload = {
+        ...pocketFood,
+        customCarbsG,
+        // Only ever `true` while a real gel is actually selected — see
+        // `hasGelSelected` above.
+        includeCaffeine: hasGelSelected && includeCaffeine,
+      };
       const body =
         mode === "route" && selectedRoute
           ? {
@@ -1749,8 +1783,7 @@ export function FuelingPlanner({
                 <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
                   <span className={eyebrow}>Duración</span>
                   <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
-                    {result.durationHours}
-                    <span className="ml-1 text-xs font-normal text-neutral-500">h</span>
+                    {formatHoursMinutes(result.durationHours)}
                   </span>
                 </div>
                 <div className="relative flex flex-col gap-1 overflow-visible rounded-lg bg-[#F8F7F5] p-3">
@@ -1800,11 +1833,15 @@ export function FuelingPlanner({
                 />
               </div>
 
+              {/* Plain informational text, deliberately not a navigable
+                  link — a mid-form click to "/perfil" would abandon
+                  whatever the athlete has already configured in this
+                  planner. */}
               {result.gutTraining.isGutLimited && (
                 <p className="mt-3 border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
                   Tu intestino está limitado a {result.gutTraining.gutCapGPerHour} g/h (esta ruta
-                  pediría {result.gutTraining.uncappedGPerHour} g/h). Activa el protocolo de Gut
-                  Training para subir de nivel gradualmente.
+                  pediría {result.gutTraining.uncappedGPerHour} g/h). Puedes aumentar tu capacidad
+                  digestiva en la pestaña Perfil &gt; Capacidad Digestiva.
                 </p>
               )}
             </div>
@@ -1925,6 +1962,24 @@ export function FuelingPlanner({
                     </div>
                   </div>
                 </div>
+                {/* A modifier on whatever gel(s) are already selected, not a
+                    4th gel-catalog entry — only shown once a real gel dose
+                    is picked, and unmounting it (rather than just disabling
+                    it) when the last gel is removed means its own `checked`
+                    state can't silently keep driving the caffeine milestone
+                    with nothing behind it (also enforced server-side, see
+                    `pocketFoodPayload` above). */}
+                {hasGelSelected && (
+                  <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-neutral-700">
+                    <input
+                      type="checkbox"
+                      checked={includeCaffeine}
+                      onChange={(e) => setIncludeCaffeine(e.target.checked)}
+                      className="size-3.5 cursor-pointer accent-terracotta"
+                    />
+                    Incluye cafeína (~100mg)
+                  </label>
+                )}
               </div>
             </div>
 
@@ -1962,7 +2017,7 @@ export function FuelingPlanner({
                 <span className={eyebrow}>Cronograma dinámico de ingesta</span>
                 <p className="mt-2 flex items-center gap-1.5 text-sm text-neutral-700">
                   <Droplet className="size-3.5 shrink-0 text-neutral-500" />
-                  Bebe un trago cada{" "}
+                  Beber 1 bidón (~{result.bottlePlan.bottleSizeMl} ml) cada{" "}
                   <span className="font-mono font-semibold text-neutral-900">
                     {result.timingTimeline.hydrationIntervalMinutes} min
                   </span>
@@ -2064,8 +2119,19 @@ export function FuelingPlanner({
                   exceeding cage capacity even though the carb target is
                   already fully covered) is never a reason to mix more
                   powder, so it renders in the plain informational
-                  "Plan de agua en ruta" block below instead. */}
-              {result.reloadStrategy && result.reloadStrategy.ziplocBagsCount > 0 && (
+                  "Plan de agua en ruta" block below instead.
+
+                  Also hidden whenever the *live* OBJETIVO/CUBIERTO/RESTANTE
+                  pill above (Card 04) already shows the ride ~95%+ covered
+                  (`remainingCarbsG <= 10`) — `reloadStrategy` itself is
+                  frozen from the last "Calcular estrategia" click, so an
+                  athlete who's since added enough pocket food or switched
+                  to "Ambos Mix" would otherwise keep seeing a stale recharge
+                  warning for a gap they've already closed, without needing
+                  to recalculate just to dismiss it. */}
+              {result.reloadStrategy &&
+                result.reloadStrategy.ziplocBagsCount > 0 &&
+                remainingCarbsG > 10 && (
                 <details className="group rounded-sm border border-status-warning/40 bg-status-warning/10">
                   <summary className="flex list-none cursor-pointer items-center justify-between gap-2 p-3 [&::-webkit-details-marker]:hidden">
                     <span className="flex min-w-0 flex-col gap-1">
