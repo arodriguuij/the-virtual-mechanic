@@ -263,12 +263,13 @@ export function PhysiologicalProfileForm({
             </div>
             <div className="flex flex-col gap-1.5">
               <div className="flex h-5 items-center justify-between gap-1.5">
-                <label htmlFor="ftp" className={cn(eyebrow, "flex items-center whitespace-nowrap")}>
+                {/* The `(?)` tooltip that used to sit next to this label
+                    was removed as redundant — the "Estimar" trigger right
+                    beside it already offers the guided explanation and the
+                    actual estimation tool, so the two were saying the same
+                    thing twice. */}
+                <label htmlFor="ftp" className={cn(eyebrow, "whitespace-nowrap")}>
                   FTP (W)
-                  <InfoTooltip
-                    label="Contexto sobre FTP"
-                    note="Potencia Máxima Sostenible en 1 hora (W). Si no lo conoces, puedes usar el 95% de tu mejor esfuerzo de 20 minutos."
-                  />
                 </label>
                 <FtpEstimatorModal
                   weightKg={weightValid ? Number(weight) : null}
