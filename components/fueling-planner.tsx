@@ -372,12 +372,15 @@ function PocketFoodStepperRow({
         // on mobile, but gained a `md:border` full box once the grid became
         // 2 columns) — that asymmetry read as two different components at
         // different widths; a uniform list row is simpler and matches every
-        // other list treatment in this app. `py-3.5` is strictly symmetric
-        // (Tailwind's `py-*` always sets top and bottom equally) — fixes a
-        // reported visual imbalance where the previous `py-2.5`/`md:py-1.5`
-        // pairing read as if the row's content sat closer to its bottom
-        // divider than its top one.
-        "flex items-center justify-between gap-2 border-b border-zinc-100 py-3.5 last:border-b-0",
+        // other list treatment in this app. `py-2.5` is strictly symmetric
+        // (Tailwind's `py-*` always sets top and bottom equally) — the
+        // original imbalance bug traced back to *switching* padding values
+        // across breakpoints (`py-2.5` mobile / `md:py-1.5` desktop, paired
+        // with a border-b-only-vs-full-border switch too), not to `2.5`
+        // itself; a single flat `py-2.5` at every width (down from an
+        // intermediate `py-3.5`, per a later "reduce and equalize" request)
+        // is just as symmetric and reads as a tighter, less congested list.
+        "flex items-center justify-between gap-2 border-b border-zinc-100 py-2.5 last:border-b-0",
         disabled && "opacity-50"
       )}
     >
@@ -1126,30 +1129,39 @@ export function FuelingPlanner({
             living straight inside this already-white "tarjeta madre" now,
             same flat-hierarchy convention as PASO 02 above). */}
         <div className="rounded-sm bg-white p-4 sm:p-6 shadow-none">
-          <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+          {/* Sub-bloque A: Selector de Estrategia — its own explicit margins
+              (not a shared flex `gap-*`) so the title→buttons→description
+              rhythm matches the "Separación Estructurada" spec exactly:
+              title `mb-3`, buttons `mb-2.5`, description `mb-6` — that last,
+              more generous gap is what visually separates this whole
+              sub-block from Sub-bloque B (the inventory) below it, fixing a
+              reported "elementos amontonados" complaint where the mode
+              selector, its legend, and the inventory header used to read as
+              one undifferentiated cluster. */}
+          <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
             03 · Estrategia y comida en bolsillo
           </span>
 
-          <div className="mt-2 flex flex-col gap-2">
-            <div className="grid grid-cols-3 gap-2">
-              {FUELING_MODE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setFuelingMode(opt.value)}
-                  className={cn(
-                    segmentedButtonClass,
-                    fuelingMode === opt.value
-                      ? "border-transparent bg-terracotta text-white"
-                      : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
-                  )}
-                >
-                  <span className={segmentedButtonLabelClass}>{opt.label}</span>
-                </button>
-              ))}
-            </div>
-            <p className="text-xs font-mono text-zinc-500">{FUELING_MODE_DESCRIPTIONS[fuelingMode]}</p>
+          <div className="mb-2.5 grid grid-cols-3 gap-2">
+            {FUELING_MODE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setFuelingMode(opt.value)}
+                className={cn(
+                  segmentedButtonClass,
+                  fuelingMode === opt.value
+                    ? "border-transparent bg-terracotta text-white"
+                    : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
+                )}
+              >
+                <span className={segmentedButtonLabelClass}>{opt.label}</span>
+              </button>
+            ))}
           </div>
+          <p className="mb-6 text-xs font-mono text-zinc-500">
+            {FUELING_MODE_DESCRIPTIONS[fuelingMode]}
+          </p>
 
           {/* "Cabecera de Inventario & Métricas" + "Aviso de Estado" now live
               *inside* the same `<details>` as the food list, directly below
@@ -1174,7 +1186,7 @@ export function FuelingPlanner({
               input, not just a preview. Once mounted, the athlete can freely
               collapse or reopen it without this forcing it back — only an
               actual mode switch does that. */}
-          <details key={fuelingMode} open={fuelingMode !== "optimal"} className="group mt-2">
+          <details key={fuelingMode} open={fuelingMode !== "optimal"} className="group mt-6">
             <summary className="flex list-none cursor-pointer items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
               <span className="font-mono text-xs font-bold tracking-wider text-neutral-900 uppercase">
                 Comida en bolsillo
@@ -1186,23 +1198,28 @@ export function FuelingPlanner({
                 <ChevronDown className="size-4 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
               </span>
             </summary>
-            <div className="flex flex-col gap-3 pt-3">
+            <div className="pt-3">
               {/* Aviso de Estado / Desglose Integrado — a discreet, single-
                   tone porcelain banner (no colored labels, no progress bar)
                   replacing the old heavy floating box, directly under the
-                  inventory header it now describes. */}
+                  inventory header it now describes. `mb-4` (up from an
+                  earlier `mb-2`) is a deliberately plain margin here, not a
+                  flex `gap-*` on the parent (removed) — the "Separación
+                  Estructurada" pass asked for an explicit ≥16px gap before
+                  the first food row specifically, not whatever a shared
+                  flex gap happened to add on top of it. */}
               {result ? (
                 (() => {
                   const restanteG = Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG);
                   return (
-                    <div className="mb-2 rounded-sm bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
+                    <div className="mb-4 rounded-sm bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
                       OBJETIVO {result.totalRideCarbsG}g HC · CUBIERTO {result.pocketFoodCarbsG}g HC ·
                       RESTANTE {restanteG}g HC
                     </div>
                   );
                 })()
               ) : (
-                <div className="mb-2 rounded-sm bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
+                <div className="mb-4 rounded-sm bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
                   Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
                 </div>
               )}
@@ -1227,7 +1244,7 @@ export function FuelingPlanner({
                     />
                   ))}
                   {fuelingMode !== "optimal" && (
-                    <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-3.5 last:border-b-0">
+                    <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-2.5 last:border-b-0">
                       <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
                         Personalizado
                       </label>

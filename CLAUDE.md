@@ -1377,6 +1377,30 @@ supporting detail. Restructured around a "glance vs. dig deeper" split instead:
   switching to Óptimo collapses it, switching to Híbrido reopens it, a manual collapse
   sticks until the next mode change, and switching between two non-Óptimo modes (Híbrido →
   Mi Inventario) still forces it back open each time, exactly as intended.
+
+  **"Separación Estructurada" pass — split Paso 03 into two explicit sub-blocks with their
+  own margins, replacing the shared-`gap-*` approach above.** A reported "elementos
+  amontonados" complaint found the mode selector, its legend, and the inventory header
+  reading as one undifferentiated cluster rather than two related-but-distinct sections.
+  Fixed by giving each element its own explicit `mb-*` (not a flex `gap-*` on a shared
+  wrapper) so the exact rhythm is controllable per-relationship: **Sub-bloque A** (Selector
+  de Estrategia) is the "03 ·" eyebrow (`mb-3`), the Óptimo/Mi Inventario/Híbrido buttons
+  (`mb-2.5`), then the mode's explanatory legend (`mb-6` — deliberately the most generous
+  gap in the block, since it's what visually separates Sub-bloque A from Sub-bloque B
+  below it); **Sub-bloque B** (Inventario de Bolsillo) is the `<details>` itself
+  (`mt-6`, collapsing with the legend's own `mb-6` above it in this non-flex parent, but
+  kept explicit on both sides for clarity/future-proofing), its `<summary>` header row
+  (unchanged), then the status banner (bumped from `mb-2` to `mb-4` — an explicit ≥16px
+  gap before the first food row specifically, per this pass's own literal spec) before the
+  food-item grid. The banner's wrapping `<div>` dropped its `flex flex-col gap-3` — with
+  the banner now carrying its own `mb-4`, a shared flex gap on top of that would have
+  stacked to a bigger, unintended total gap rather than the precise ≥16px asked for.
+- **Pocket-food row padding tightened**: `PocketFoodStepperRow` and the "Personalizado"
+  custom-carbs row both stepped from `py-3.5` down to `py-2.5` (still one flat value at
+  every breakpoint, so this doesn't reopen the original breakpoint-switching padding bug
+  documented under "Hybrid nutrition" above — that bug was about *switching* padding pairs
+  across `sm:`, not about `2.5` itself being asymmetric) — a smaller, less congested list
+  now that the surrounding sub-blocks have more breathing room of their own.
 - **Collapsible technical breakdown** — the DIY recipe + bottle architecture (+ the
   hypertonic-concentration warning, when it fires), the dynamic ingestion timeline, and
   the reload strategy (when applicable) are each their own `<details>`, closed by default,
@@ -2649,7 +2673,7 @@ that `await getAthleteProfile()`s on every request (the page exports `dynamic =
 the entire `<form>` — see "Unified client-side form validation" below for why this moved
 off a plain server-rendered form.
 
-### W/kg performance pill (01 · Métricas físicas y equipamiento)
+### W/kg performance readout (01 · Métricas físicas y equipamiento)
 
 A read-only, purely-derived power-to-weight readout next to that card's own numbered
 eyebrow — FTP and Peso are already the two fields directly beneath it, and their ratio is
@@ -2673,19 +2697,23 @@ banding) that this app had never surfaced anywhere.
   server route has no `wkg` column to save it to; it's trivially re-derivable any time both
   real values are on hand, so persisting it would just be a second source of truth that
   could drift from the two fields it's computed from.
-- **The pill itself** — `bg-[#F8F7F5] border border-zinc-200/60 rounded-md`, neutral
-  monochrome text (`text-zinc-900` for the number, `text-zinc-500` for the category label),
-  deliberately no accent color — a quiet technical readout, not a call-to-action competing
-  with the actual form fields. Sits in the same row as the "01 ·" eyebrow via `flex
+- **The readout itself — plain inline text, no box.** The first version wrapped this in a
+  `bg-[#F8F7F5] border border-zinc-200/60 rounded-md` pill; a later "Sin Badge / Sin
+  Píldora Gris" request explicitly asked for the boxed treatment gone entirely, in favor of
+  clean editorial `font-mono` text sitting flush against the "01 ·" eyebrow — `flex
+  shrink-0 items-center gap-1.5 font-mono text-xs whitespace-nowrap text-zinc-800`, with
+  `{wkg.toFixed(2)} W/kg` bold (`text-zinc-900`), a muted `·` separator, and the category
+  label in `text-zinc-500`. Still deliberately no accent color — a quiet technical readout,
+  not a call-to-action competing with the actual form fields, just without the container
+  that used to carry that intent. Sits in the same row as the "01 ·" eyebrow via `flex
   flex-wrap items-center justify-between gap-2` — `flex-wrap` (not a rigid single row) lets
-  the pill drop to its own line below the longer eyebrow label on a narrow phone instead of
-  both squeezing onto one forced row and each wrapping awkwardly mid-word (verified live at
-  390px: the eyebrow and the pill each render as one clean line, the pill below the eyebrow,
-  rather than both wrapping into a jumbled 4-line block as an earlier `flex items-center
-  justify-between` — no wrap — version did). `whitespace-nowrap` on the pill itself keeps
-  "3.47 W/kg · Intermedio" as one unbroken line once it has its own full-width row to sit in.
+  it drop to its own line below the longer eyebrow label on a narrow phone instead of both
+  squeezing onto one forced row and each wrapping awkwardly mid-word (verified live at
+  390px: the eyebrow and the readout each render as one clean line, the readout below the
+  eyebrow). `whitespace-nowrap` keeps "3.47 W/kg · Intermedio" as one unbroken line once it
+  has its own full-width row to sit in.
 - **Deliberately no distribution chart on this screen** — reserved for a future
-  Estadísticas addition; this pass is the pill only.
+  Estadísticas addition; this pass is the readout only.
 
 ### Unified client-side form validation
 

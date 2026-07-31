@@ -181,20 +181,24 @@ export function PhysiologicalProfileForm({
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className={cardNumberHeading}>01 · Métricas físicas y equipamiento</span>
-            {/* Read-only W/kg pill — FTP ÷ Peso, recalculated live from the
-                two controlled inputs directly below, never its own input
-                and never persisted (see the `wkg`/`wkgCategory` derivation
-                above). Neutral porcelain/monochrome styling, no accent
-                color, so it reads as a quiet technical readout rather than
-                a call-to-action competing with the actual form fields.
-                `flex-wrap` on the parent row lets this pill drop to its own
-                line below the (longer) eyebrow label on a narrow phone
-                instead of both squeezing onto one forced row and each
-                wrapping awkwardly. */}
+            {/* Read-only W/kg readout — FTP ÷ Peso, recalculated live from
+                the two controlled inputs directly below, never its own
+                input and never persisted (see the `wkg`/`wkgCategory`
+                derivation above). Plain inline text, no box — an earlier
+                pass wrapped this in a bordered `bg-[#F8F7F5]` pill; a later
+                request explicitly asked for "cero fondos pesados," so it's
+                now just clean editorial `font-mono` text sitting flush
+                against the section eyebrow, the same "quiet technical
+                readout, not a call-to-action" intent as before, just
+                without the container. `flex-wrap` on the parent row still
+                lets this drop to its own line below the (longer) eyebrow
+                label on a narrow phone instead of both squeezing onto one
+                forced row. */}
             {wkgCategory && (
-              <div className="flex shrink-0 items-center gap-2 rounded-md border border-zinc-200/60 bg-[#F8F7F5] px-3 py-1 whitespace-nowrap shadow-none">
-                <span className="font-mono text-xs font-bold text-zinc-900">{wkg.toFixed(2)} W/kg</span>
-                <span className="font-mono text-[11px] text-zinc-500">· {wkgCategory.label}</span>
+              <div className="flex shrink-0 items-center gap-1.5 font-mono text-xs whitespace-nowrap text-zinc-800">
+                <span className="font-bold text-zinc-900">{wkg.toFixed(2)} W/kg</span>
+                <span className="text-zinc-400">·</span>
+                <span className="text-zinc-500">{wkgCategory.label}</span>
               </div>
             )}
           </div>
