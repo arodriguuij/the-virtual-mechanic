@@ -822,15 +822,27 @@ export function getHomeLabRecipe({
   forceHighCarbRatio?: boolean;
 }): HomeLabRecipe {
   const totalCarbsG = Math.max(0, carbsGPerHour * durationHours - pocketFoodCarbsG);
-  const maltodextrinG = totalCarbsG * getMaltodextrinFraction(carbsGPerHour, forceHighCarbRatio);
-  const fructoseG = totalCarbsG - maltodextrinG;
+  const totalCarbsGRounded = Math.round(totalCarbsG);
+  // Rounding `maltodextrinG`/`fructoseG` independently doesn't guarantee
+  // they sum back to `totalCarbsGRounded` (e.g. 0.5g total split ~0.33/0.17
+  // rounds to 0g + 0g, silently losing the whole gram) — deriving the
+  // fructose share by subtracting the rounded maltodextrin from the
+  // *already-rounded* total instead guarantees the two always sum exactly
+  // to the recipe's own `totalCarbsG`, matching what the athlete actually
+  // measures out. `getMaltodextrinFraction` always returns a fraction ≤ 1,
+  // so `maltodextrinGRounded` can never exceed `totalCarbsGRounded` (round
+  // is monotonic), meaning `fructoseGRounded` can never go negative.
+  const maltodextrinGRounded = Math.round(
+    totalCarbsG * getMaltodextrinFraction(carbsGPerHour, forceHighCarbRatio)
+  );
+  const fructoseGRounded = totalCarbsGRounded - maltodextrinGRounded;
 
   return {
-    maltodextrinG: Math.round(maltodextrinG),
-    fructoseG: Math.round(fructoseG),
+    maltodextrinG: maltodextrinGRounded,
+    fructoseG: fructoseGRounded,
     sodiumMg: Math.round(sodiumMgPerHour * durationHours),
     waterMl: Math.round(fluidLossMlPerHour * durationHours),
-    totalCarbsG: Math.round(totalCarbsG),
+    totalCarbsG: totalCarbsGRounded,
   };
 }
 
