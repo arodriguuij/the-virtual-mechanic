@@ -4232,6 +4232,80 @@ value, not "08:00"), the map rendering its neutral empty state, the CTA disabled
 new helper text visible, the button staying disabled after selecting only a route, and the
 button becoming enabled only once both a route *and* an intensity were chosen.
 
+**A further pass unified "Intensidad Objetivo" into one shared selector across all 3 modes.**
+Before this, Ruta mode and GPX mode already shared one 5-option list (`recovery`/`endurance`/
+`tempo`/`threshold`/`vo2max`, via `intensityLabels`), but Entreno Manual carried its own,
+differently-scoped "Intensidad objetivo / Tipo de entreno" selector — 4 options
+(`STRUCTURED_WORKOUT_OPTIONS`: Fondo/Tempo/Series-Intervalos/Competición), a different
+tooltip (about why structured sessions need this at all), and a non-disabled empty option
+("Ritmo constante (usar solo vatios)") rather than a disabled placeholder — three genuinely
+different selectors doing conceptually the same job. All 3 now render through one shared
+component, **`IntensityObjectiveSelect`** (`components/fueling-planner.tsx`, a plain
+function component, not a hook — takes `id`/`value`/`onChange` so its 3 call sites can each
+still bind to the one shared `intensity` state under a different `<select id>`):
+
+- **One label + tooltip, byte-identical everywhere.** "Intensidad objetivo" (`font-mono
+  text-xs font-semibold tracking-wider text-zinc-500 uppercase`, this pass's own literal
+  class spec — slightly heavier/larger than the file's usual `eyebrow` constant, a
+  deliberate one-off to match the request exactly) plus an `InfoTooltip` icon carrying a
+  detailed 6-zone physiological guide (`INTENSITY_ZONE_TOOLTIP_NOTE`) — Recuperación (Z1),
+  Fondo Aeróbico (Z2), Tempo/Sweetspot (Z3), Umbral (Z4), Intervalos/VO2 Max (Z5-Z7), and
+  Competición/Carrera, each with its %FTP band and a short physiological note. This replaces
+  Entreno Manual's old narrower tooltip (which only explained *why* naming a session type
+  helps, without the actual zone guide) — the *same* rich reference now shows in every mode,
+  not a different, thinner explainer depending on which tab happens to be open.
+- **`InfoTooltip` itself widened to support this.** Its `note` prop was `string`-only (every
+  existing call site — FTP, VLaMax, sweat rate, gut training — passes one plain sentence);
+  the 6-zone guide needs several `<p>`/`<strong>` lines, so `note` is now typed `ReactNode`
+  (a string is already a valid `ReactNode`, so no existing caller needed to change) and a
+  new optional `panelClassName` prop (merged via `cn()`) lets this one richer tooltip widen
+  itself past the default `w-64` (`w-72 sm:w-80`) without affecting any single-line caller
+  that doesn't pass it.
+- **One placeholder, one option list, everywhere.** The disabled "Seleccionar intensidad..."
+  placeholder (already used in Ruta/GPX mode from the prior pass) now also gates Entreno
+  Manual's selector — replacing its old, non-disabled "Ritmo constante (usar solo vatios)"
+  empty option. `INTENSITY_SELECT_OPTIONS` is the one shared 6-entry list (value + label)
+  every mode's `<select>` maps over now, instead of Ruta/GPX's old plain `INTENSITY_OPTIONS`
+  (5 `IntensityLevel` values rendered via the generic `intensityLabels` record) and Entreno
+  Manual's separate 4-entry `STRUCTURED_WORKOUT_OPTIONS` — both deleted outright, along with
+  the now-fully-unused `StructuredWorkoutType` type and `structuredWorkoutType` state.
+- **A real 6th `IntensityLevel` value, not a UI-only label collision.** The old
+  `STRUCTURED_WORKOUT_OPTIONS` mapped both "Series / Intervalos (Z4-Z5)" and "Competición"
+  to two *different* underlying `IntensityLevel`s (`vo2max` and `threshold`, respectively) —
+  but the new unified list needs "Intervalos / VO2 Max (Z5-Z7)" and "Competición / Carrera"
+  as two visually distinct rows that could easily have been mapped to the *same* value
+  instead (both describe near-maximal effort). That would have been a real bug in a native
+  `<select>`: two `<option>`s sharing one `value` means React can't tell which one the
+  athlete actually picked on re-render — it just displays whichever matching option comes
+  first in DOM order. So `IntensityLevel` (`lib/metabolic-engine.ts`) gained a genuine 6th
+  value, `"competition"` (`intensityLabels.competition = "Competición"`,
+  `INTENSITY_RELATIVE_FTP.competition = 1.2`, just above `vo2max`'s `1.15`) — a real,
+  distinct value with its own %FTP figure, even though in practice it computes an
+  *identical* carb-oxidation rate to `vo2max` today (`getCarbOxidationRateGPerHour`'s own
+  bands already cap out at the 100g/h gut-absorption ceiling for anything ≥1.1 relative
+  intensity, so both values land in the same top band) — this is a genuine, extensible
+  value now, not a cosmetic label sitting on top of a reused one. `VALID_INTENSITIES`
+  (`app/api/fueling/plan/route.ts`) gained `"competition"` alongside the original 5, so the
+  server accepts and validates it exactly like every other named zone.
+- **Entreno Manual's own gating is deliberately unchanged.** Unlike Ruta/GPX mode (where an
+  unselected intensity now blocks the CTA, see the pass above), Entreno Manual's `quickValid`
+  still only checks duration/watts — leaving "Intensidad Objetivo" on its placeholder there
+  is a genuinely valid, common choice (real average watts already drive the calculation on
+  their own; naming a zone is an optional correction for a structured session, not a
+  required input), so `handleCalculate`'s quick-mode body still sends `structuredIntensity:
+  intensity || undefined` — present only when the athlete actually picked one, falling back
+  to the existing watts-derived intensity path server-side otherwise. This is a deliberate,
+  explicitly-scoped decision, not an oversight: this request was about unifying what the
+  selector *looks like and offers*, not about changing which modes require it.
+
+Verified via `npx tsc --noEmit`/`npm run lint`/`npm run build` (all clean) and a live
+Playwright check (a temporary route rendering the real `FuelingPlanner` with a mocked
+Strava route) at 390px — confirmed both the Ruta-mode and Entreno-Manual selects render the
+exact same 7-item option list (placeholder + 6 zones, byte-for-byte identical
+`allTextContents()` output), the `(?)` tooltip renders fully unclipped above the surrounding
+card in both tabs (not cut off, `z-50` holding), and the tooltip content is identical
+between both tabs.
+
 ### Route dynamic rendering
 
 Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because

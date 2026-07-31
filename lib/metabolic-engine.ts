@@ -11,7 +11,19 @@
 
 export type SweatRate = "low" | "medium" | "high";
 
-export type IntensityLevel = "recovery" | "endurance" | "tempo" | "threshold" | "vo2max";
+// "competition" added alongside the original 5 bands so the Fueling
+// Planner's unified "Intensidad Objetivo" selector (Ruta/GPX and Entreno
+// Manual both now share the exact same 6-option list) has a real, distinct
+// value for "Competición / Carrera" rather than silently reusing `vo2max`'s
+// own value under a second label — a race's "variabilidad alta y máximo
+// vaciado metabólico" is functionally indistinguishable from `vo2max` once
+// `getCarbOxidationRateGPerHour`'s own bands are applied (both sit at/above
+// the 1.1 relative-intensity threshold that already caps out at the 100g/h
+// gut-absorption ceiling), so this doesn't change any computed figure in
+// practice — it exists so two dropdown options never collide on one
+// underlying value (which would make a native `<select>` unable to tell
+// them apart on re-render).
+export type IntensityLevel = "recovery" | "endurance" | "tempo" | "threshold" | "vo2max" | "competition";
 
 export const intensityLabels: Record<IntensityLevel, string> = {
   recovery: "Recuperación",
@@ -19,6 +31,7 @@ export const intensityLabels: Record<IntensityLevel, string> = {
   tempo: "Tempo",
   threshold: "Umbral",
   vo2max: "VO2 Max",
+  competition: "Competición",
 };
 
 /** Assumed %FTP for each named intensity — used by the pre-ride planner,
@@ -29,6 +42,7 @@ const INTENSITY_RELATIVE_FTP: Record<IntensityLevel, number> = {
   tempo: 0.85,
   threshold: 0.98,
   vo2max: 1.15,
+  competition: 1.2,
 };
 
 export function getRelativeIntensityFromLevel(level: IntensityLevel): number {

@@ -50,7 +50,6 @@ import {
   getPocketFoodTotalCarbsG,
   getTableSaltGrams,
   HYPERTONIC_THRESHOLD_PCT,
-  intensityLabels,
   pocketFoodCarbsG as POCKET_FOOD_CARBS_G,
   pocketFoodLabels,
   type FuelingMode,
@@ -185,29 +184,96 @@ function getRoundedCurrentHour(): string {
   return `${String(hour).padStart(2, "0")}:00`;
 }
 
-const INTENSITY_OPTIONS: IntensityLevel[] = [
-  "recovery",
-  "endurance",
-  "tempo",
-  "threshold",
-  "vo2max",
+// The one "Intensidad Objetivo" selector shared verbatim across all 3
+// planner modes — Ruta, Subir GPX, and Entreno Manual all now render the
+// exact same label, tooltip, placeholder, and option list via
+// `IntensityObjectiveSelect` below, rather than each mode carrying its own
+// slightly different copy (Entreno Manual used to have a separate "Tipo de
+// Entreno" selector with only 4 options and a different tooltip).
+const INTENSITY_SELECT_OPTIONS: { value: IntensityLevel; label: string }[] = [
+  { value: "recovery", label: "Recuperación (Z1)" },
+  { value: "endurance", label: "Fondo Aeróbico (Z2)" },
+  { value: "tempo", label: "Tempo / Sweetspot (Z3)" },
+  { value: "threshold", label: "Umbral (Z4)" },
+  { value: "vo2max", label: "Intervalos / VO2 Max (Z5-Z7)" },
+  { value: "competition", label: "Competición / Carrera" },
 ];
 
-// Entreno Manual's own "Tipo de Entreno" selector — a structured session's
-// *average* watts routinely understates its real metabolic cost (an
-// interval set spends real time well above that average), so naming the
-// session type lets the server derive glycogen burn from a proper named
-// intensity band (`getRelativeIntensityFromLevel`) instead of the
-// watts-derived one — see `POST /api/fueling/plan`'s quick-mode branch.
-// Optional: a steady-state ride with no name still calculates fine from
-// watts alone, same as before this selector existed.
-type StructuredWorkoutType = "z2" | "z3" | "z4z5" | "competition";
-const STRUCTURED_WORKOUT_OPTIONS: { value: StructuredWorkoutType; label: string; intensity: IntensityLevel }[] = [
-  { value: "z2", label: "Fondo (Z2)", intensity: "endurance" },
-  { value: "z3", label: "Tempo (Z3)", intensity: "tempo" },
-  { value: "z4z5", label: "Series / Intervalos (Z4-Z5)", intensity: "vo2max" },
-  { value: "competition", label: "Competición", intensity: "threshold" },
-];
+const INTENSITY_ZONE_TOOLTIP_NOTE = (
+  <div className="space-y-1.5 text-left">
+    <p>
+      <strong>Recuperación (Z1):</strong> &lt;55% FTP (Gasto glucogénico mínimo, oxidación de
+      grasas).
+    </p>
+    <p>
+      <strong>Fondo Aeróbico (Z2):</strong> 55-75% FTP (Ritmo base, consumo moderado de
+      glucógeno).
+    </p>
+    <p>
+      <strong>Tempo / Sweetspot (Z3):</strong> 76-90% FTP (Ritmo exigente sostenible, consumo
+      alto).
+    </p>
+    <p>
+      <strong>Umbral (Z4):</strong> 91-105% FTP (Series al límite, consumo glucogénico
+      elevado).
+    </p>
+    <p>
+      <strong>Intervalos / VO2 Max (Z5-Z7):</strong> &gt;106% FTP (Series explosivas de alta
+      intensidad).
+    </p>
+    <p>
+      <strong>Competición / Carrera:</strong> Variabilidad alta y máximo vaciado metabólico.
+    </p>
+  </div>
+);
+
+/** The shared label + `(?)` zone-guide tooltip + placeholder + 6-option
+ * `<select>`, identical at every one of its 3 call sites (Ruta mode, GPX
+ * mode, Entreno Manual) — extracted specifically so "unify the selector
+ * across tabs" can't silently drift back into 3 near-identical copies the
+ * next time any one of them needs a tweak. */
+function IntensityObjectiveSelect({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: IntensityLevel | "";
+  onChange: (value: IntensityLevel) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <label htmlFor={id} className="block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+          Intensidad objetivo
+        </label>
+        <InfoTooltip
+          label="Guía de zonas de intensidad"
+          note={INTENSITY_ZONE_TOOLTIP_NOTE}
+          panelClassName="w-72 text-left sm:w-80"
+        />
+      </div>
+      <div className="relative">
+        <select
+          id={id}
+          className={selectableInputClass}
+          value={value}
+          onChange={(e) => onChange(e.target.value as IntensityLevel)}
+        >
+          <option value="" disabled>
+            Seleccionar intensidad...
+          </option>
+          {INTENSITY_SELECT_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className={selectChevronClass} />
+      </div>
+    </div>
+  );
+}
 
 type PlanResult = {
   durationHours: number;
@@ -486,7 +552,6 @@ export function FuelingPlanner({
   const [quickHoursInput, setQuickHoursInput] = useState("");
   const [quickMinutesInput, setQuickMinutesInput] = useState("");
   const [quickAverageWattsInput, setQuickAverageWattsInput] = useState("");
-  const [structuredWorkoutType, setStructuredWorkoutType] = useState<StructuredWorkoutType | "">("");
   // "Hoy" stays the default day (a same-day departure is still the single
   // most common case, and picking a day is a low-stakes default unlike a
   // route or intensity choice that could silently drive a wrong
@@ -704,12 +769,11 @@ export function FuelingPlanner({
                 departureIso,
                 durationHours: quickDurationHours,
                 averageWatts: quickAverageWatts,
-                // Only sent when the athlete actually named a session type —
-                // a plain steady-state ride still derives intensity from
-                // real watts server-side, unchanged.
-                structuredIntensity: structuredWorkoutType
-                  ? STRUCTURED_WORKOUT_OPTIONS.find((opt) => opt.value === structuredWorkoutType)?.intensity
-                  : undefined,
+                // Only sent when the athlete actually picked a zone — a
+                // plain steady-state ride (intensity left on its
+                // placeholder) still derives intensity from real watts
+                // server-side, unchanged.
+                structuredIntensity: intensity || undefined,
                 isTargetEvent,
                 pocketFood: pocketFoodPayload,
                 fuelingMode,
@@ -1116,31 +1180,14 @@ export function FuelingPlanner({
                     />
                   </div>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="structured-workout" className={cn(eyebrow, "flex items-center")}>
-                    Intensidad objetivo / Tipo de entreno
-                    <InfoTooltip
-                      label="Contexto sobre entrenamientos estructurados"
-                      note="En series o intervalos los vatios medios globales no reflejan la intensidad real de los esfuerzos duros. Indicar el tipo de entreno corrige el cálculo de quemado de glucógeno para que se base en la intensidad real, no solo en el promedio."
-                    />
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="structured-workout"
-                      className={selectableInputClass}
-                      value={structuredWorkoutType}
-                      onChange={(e) => setStructuredWorkoutType(e.target.value as StructuredWorkoutType | "")}
-                    >
-                      <option value="">Ritmo constante (usar solo vatios)</option>
-                      {STRUCTURED_WORKOUT_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className={selectChevronClass} />
-                  </div>
-                </div>
+                {/* Same shared selector as Ruta/GPX mode — see
+                    `IntensityObjectiveSelect`. Unlike those two modes,
+                    leaving it on the placeholder is a genuinely valid,
+                    common choice here (not gated by the CTA below): real
+                    average watts already drive the calculation on their
+                    own, so naming a zone is an optional correction for a
+                    structured session, not a required input. */}
+                <IntensityObjectiveSelect id="intensity-quick" value={intensity} onChange={setIntensity} />
               </div>
             )}
           </div>
@@ -1180,29 +1227,7 @@ export function FuelingPlanner({
 
           {mode === "route" && (
             <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <label htmlFor="intensity" className={eyebrow}>
-                  Intensidad objetivo
-                </label>
-                <div className="relative">
-                  <select
-                    id="intensity"
-                    className={selectableInputClass}
-                    value={intensity}
-                    onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
-                  >
-                    <option value="" disabled>
-                      Seleccionar intensidad...
-                    </option>
-                    {INTENSITY_OPTIONS.map((level) => (
-                      <option key={level} value={level}>
-                        {intensityLabels[level]}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className={selectChevronClass} />
-                </div>
-              </div>
+              <IntensityObjectiveSelect id="intensity" value={intensity} onChange={setIntensity} />
               <DeparturePicker
                 dayMode={departureDayMode}
                 onDayModeChange={setDepartureDayMode}
@@ -1237,29 +1262,7 @@ export function FuelingPlanner({
           {mode === "gpx" && parsedGpx && (
             <div className="mt-2 flex flex-col gap-2">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="intensity-gpx" className={eyebrow}>
-                    Intensidad objetivo
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="intensity-gpx"
-                      className={selectableInputClass}
-                      value={intensity}
-                      onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
-                    >
-                      <option value="" disabled>
-                        Seleccionar intensidad...
-                      </option>
-                      {INTENSITY_OPTIONS.map((level) => (
-                        <option key={level} value={level}>
-                          {intensityLabels[level]}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className={selectChevronClass} />
-                  </div>
-                </div>
+                <IntensityObjectiveSelect id="intensity-gpx" value={intensity} onChange={setIntensity} />
                 <DeparturePicker
                   dayMode={departureDayMode}
                   onDayModeChange={setDepartureDayMode}

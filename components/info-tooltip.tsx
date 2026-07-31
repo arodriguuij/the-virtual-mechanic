@@ -1,4 +1,7 @@
 import { Info } from "lucide-react";
+import type { ReactNode } from "react";
+
+import { cn } from "@/lib/utils";
 
 /**
  * Small inline "(i)" affordance for a section header/label — hover or focus
@@ -11,12 +14,28 @@ import { Info } from "lucide-react";
  * whole thing is CSS-only, so it renders fine inside a Server Component form
  * like `/perfil`'s just as well as a Client Component.
  *
+ * `note` accepts a `ReactNode`, not just a plain string — most call sites
+ * still just pass one sentence, but the Fueling Planner's "Intensidad
+ * Objetivo" zone guide needs several `<p>`/`<strong>` lines, and widening
+ * the type (a string is already a valid `ReactNode`) is backward-compatible
+ * with every existing caller. `panelClassName` similarly lets a richer
+ * tooltip widen itself past the default `w-64` without affecting the
+ * single-line callers that don't pass it.
+ *
  * The bubble resets `font`/`case`/`tracking` explicitly rather than
  * inheriting from its call site — every current call site sits inside an
  * uppercase, tracked, `font-mono` section label, and the explainer itself
  * reads as prose, not another numeric/label readout.
  */
-export function InfoTooltip({ label, note }: { label: string; note: string }) {
+export function InfoTooltip({
+  label,
+  note,
+  panelClassName,
+}: {
+  label: string;
+  note: ReactNode;
+  panelClassName?: string;
+}) {
   return (
     <span className="group relative inline-flex items-center">
       <Info
@@ -26,7 +45,10 @@ export function InfoTooltip({ label, note }: { label: string; note: string }) {
       />
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-64 -translate-x-1/2 rounded-sm border border-neutral-200 bg-background px-2.5 py-2 font-sans text-xs font-normal tracking-normal text-neutral-700 normal-case opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+        className={cn(
+          "pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-64 -translate-x-1/2 rounded-sm border border-neutral-200 bg-background px-2.5 py-2 font-sans text-xs font-normal tracking-normal text-neutral-700 normal-case opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
+          panelClassName
+        )}
       >
         {note}
       </span>

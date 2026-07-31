@@ -54,6 +54,7 @@ const VALID_INTENSITIES = new Set<IntensityLevel>([
   "tempo",
   "threshold",
   "vo2max",
+  "competition",
 ]);
 
 const VALID_POCKET_FOOD_TYPES = new Set<PocketFoodItemType>([
