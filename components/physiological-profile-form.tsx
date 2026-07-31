@@ -232,10 +232,21 @@ export function PhysiologicalProfileForm({
             )}
           </div>
           <div className="grid grid-cols-2 gap-4">
+            {/* Both columns share one fixed-height header row (`h-5`) so
+                the inputs below stay perfectly aligned regardless of what
+                either header actually contains — Peso's header is a bare
+                one-line label, but FTP's carries a label + tooltip + the
+                "Estimar" trigger, which used to wrap onto a second line on
+                a narrow phone (`flex-wrap`) and silently push its own
+                input down relative to Peso's. `whitespace-nowrap` on every
+                piece inside the FTP header backs the fixed height up —
+                content can't wrap even if it tried to. */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="weight_kg" className={eyebrow}>
-                Peso (kg)
-              </label>
+              <div className="flex h-5 items-center">
+                <label htmlFor="weight_kg" className={cn(eyebrow, "whitespace-nowrap")}>
+                  Peso (kg)
+                </label>
+              </div>
               <input
                 id="weight_kg"
                 name="weight_kg"
@@ -251,8 +262,8 @@ export function PhysiologicalProfileForm({
               {weightInvalid && <span className={errorTextClass}>Campo obligatorio</span>}
             </div>
             <div className="flex flex-col gap-1.5">
-              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-                <label htmlFor="ftp" className={cn(eyebrow, "flex items-center")}>
+              <div className="flex h-5 items-center justify-between gap-1.5">
+                <label htmlFor="ftp" className={cn(eyebrow, "flex items-center whitespace-nowrap")}>
                   FTP (W)
                   <InfoTooltip
                     label="Contexto sobre FTP"

@@ -372,22 +372,38 @@ const BOTTLE_CONFIG_OPTIONS: { value: BottleConfigOption; label: string }[] = [
 /** How many grams of the ride's carb target the selected bottle
  * configuration itself contributes — the piece that makes the CUBIERTO/
  * RESTANTE pill reactive to the bottle selector, not just the pocket-food
- * steppers. "Solo Agua" contributes 0 (no mix at all); "1 Mix" contributes
- * one fuel bottle's own dose (whatever the recipe computed per bottle);
- * "Ambos Mix" contributes the full concentrated-bottle recipe total. A
- * preview built from figures the last calculation already returned, same
- * "lightweight planning preference" convention as the bottle selector
- * itself — it doesn't re-derive `getBottlePlan`'s own math. */
+ * steppers. Built from `singleBottleCarbsG` — the last calculation's own
+ * per-bottle dose (`maltodextrinGPerBottle + fructoseGPerBottle`) — times
+ * how many bottles the selection actually puts mix in: 0 for "Solo Agua,"
+ * 1 for "1 Mix," 2 for "Ambos Mix."
+ *
+ * **Deliberately *not* `result.recipe.totalCarbsG` for "Ambos Mix"** — an
+ * earlier version used that figure directly, which was a real bug: since
+ * `recipe.totalCarbsG` is itself already the ride's target *minus*
+ * whatever pocket food was selected at the last calculation
+ * (`totalRideCarbsG - pocketFoodCarbsG`, see `POST /api/fueling/plan`),
+ * adding it on top of the *live* `pocketFoodCarbsPreview` double-counted
+ * that same pocket-food coverage — the pill read CUBIERTO as ~100% of the
+ * objetivo the instant "Ambos Mix" was picked, before the athlete had
+ * touched a single pocket-food stepper. `singleBottleCarbsG × 2` is
+ * grounded in the bottle's own real per-bottle dose instead, with no
+ * dependency on whatever pocket-food figure happened to be selected when
+ * the strategy was last calculated — same "lightweight planning
+ * preference, no re-derivation of `getBottlePlan`'s own math" convention
+ * as the bottle selector itself, just no longer silently reusing a
+ * pocket-food-adjusted total for a figure that must stay independent of
+ * it. */
 function getBottleCarbsContributionG(config: BottleConfigOption, result: PlanResult): number {
   const { fuelBottles } = result.bottlePlan;
   if (fuelBottles.count === 0) return 0;
+  const singleBottleCarbsG = fuelBottles.maltodextrinGPerBottle + fuelBottles.fructoseGPerBottle;
   switch (config) {
     case "water_only":
       return 0;
     case "one_mix":
-      return fuelBottles.maltodextrinGPerBottle + fuelBottles.fructoseGPerBottle;
+      return singleBottleCarbsG;
     case "both_mix":
-      return result.recipe.totalCarbsG;
+      return singleBottleCarbsG * 2;
     default:
       return 0;
   }
@@ -404,7 +420,12 @@ function getBikeChecklistLines(result: PlanResult, bottleConfig: BottleConfigOpt
   const { fuelBottles, waterBottles } = result.bottlePlan;
   const lines: string[] = [];
   if (bottleConfig !== "water_only" && fuelBottles.count > 0) {
-    const mixBottleCount = bottleConfig === "one_mix" ? 1 : fuelBottles.count;
+    // Matches `getBottleCarbsContributionG`'s own fixed 1-vs-2 bottle
+    // count exactly — "Ambos Mix" always means 2 mix bottles, not
+    // whatever `fuelBottles.count` the full (possibly pocket-food-reduced)
+    // recipe happened to need, so the checklist never lists a different
+    // bottle count than what the balance pill above it just credited.
+    const mixBottleCount = bottleConfig === "one_mix" ? 1 : 2;
     const saltG = getTableSaltGrams(fuelBottles.sodiumMgPerBottle);
     lines.push(
       `${mixBottleCount}x Bidón (${fuelBottles.maltodextrinGPerBottle}g Malto + ${fuelBottles.fructoseGPerBottle}g Fructosa + ${saltG}g Sal)`

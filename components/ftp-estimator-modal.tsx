@@ -9,7 +9,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { RadioCard } from "@/components/radio-card";
 import { fieldClass, primaryButtonClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +22,9 @@ type WkgAnchor = "occasional" | "regular" | "demanding" | "competitive";
 // athlete with no power data or Strava history at all. Illustrative
 // coefficients, same "heuristic, not clinical" convention as the rest of
 // this app's metabolic engine — not a substitute for a real test once one
-// is available.
+// is available. Labels/descriptions condensed to one short line each
+// ("Rediseño Ultra-Compacto") so all 4 options plus Vía A and the apply
+// button fit on one mobile screen with no vertical scroll.
 const WKG_ANCHORS: {
   value: WkgAnchor;
   label: string;
@@ -32,40 +33,51 @@ const WKG_ANCHORS: {
 }[] = [
   {
     value: "occasional",
-    label: "Ocasional / Recreativo (~2.2 W/kg)",
+    label: "Ocasional (~2.2 W/kg)",
     coefficient: 2.2,
-    description: "Salgo 1-2 días por semana. En llano voy cómodo a 20-23 km/h.",
+    description: "1-2 días/semana · 20-23 km/h en llano",
   },
   {
     value: "regular",
-    label: "Habitual / Grupeta Popular (~2.8 W/kg)",
+    label: "Habitual (~2.8 W/kg)",
     coefficient: 2.8,
-    description:
-      "Salgo 2-3 días por semana. Rodo a 25-28 km/h en llano y subo puertos a ritmo sostenido.",
+    description: "2-3 días/semana · 25-28 km/h y ritmo sostenido",
   },
   {
     value: "demanding",
-    label: "Exigente / Ritmo Alto (~3.4 W/kg)",
+    label: "Exigente (~3.4 W/kg)",
     coefficient: 3.4,
-    description: "Entreno con frecuencia. En llano rodamos a +30 km/h y aprieto fuerte en las subidas.",
+    description: "Entreno frecuente · +30 km/h y aprieto en puertos",
   },
   {
     value: "competitive",
-    label: "Competitivo / Avanzado (~4.0 W/kg)",
+    label: "Competitivo (~4.0 W/kg)",
     coefficient: 4.0,
-    description:
-      "Entreno estructurado / Competición. Relevos a fuego en grupeta y ritmo muy alto en puertos.",
+    description: "Competición · Relevos a fuego y ritmo muy alto",
   },
 ];
 
 /**
- * "¿No sabes tu FTP? Estimar." — a modal offering two independent
- * estimation paths so an athlete with no power meter (or who simply
- * doesn't know their number offhand) can still fill in a real starting
- * FTP rather than leaving it blank or guessing. Vía A (a real 20-min
- * power figure) takes priority over Vía B (a self-reported riding
- * profile) whenever both are present, since real power data is a more
- * precise anchor than a category guess.
+ * "Estimar" — a compact modal offering two independent FTP-estimation
+ * paths so an athlete with no power meter (or who simply doesn't know
+ * their number offhand) can still fill in a real starting FTP rather than
+ * leaving it blank or guessing. Vía A (a real 20-min power figure) takes
+ * priority over Vía B (a self-reported riding profile) whenever both are
+ * present, since real power data is a more precise anchor than a category
+ * guess.
+ *
+ * Ultra-compact by design — one-line rows, condensed copy, no long
+ * paragraphs — so the whole thing (Vía A, all 4 Vía B options, and the
+ * apply button) fits on one mobile screen with zero vertical scroll,
+ * inside `DialogContent`'s own `max-h-[85vh] overflow-y-auto` as a
+ * backstop rather than the expected path. `sm:max-w-md` is the *only*
+ * width override passed to `DialogContent` — deliberately not a bare
+ * `max-w-md`/`w-full`, both of which would win over the shared Dialog
+ * primitive's own mobile-safe `max-w-[calc(100%-2rem)]` in `cn()`'s
+ * tailwind-merge (later utility wins on the same property) and reopen the
+ * exact "modal touches the screen edges" bug this pass fixes — the base
+ * component already guarantees a ~1rem side margin on every viewport
+ * without this component needing to redeclare it.
  */
 export function FtpEstimatorModal({
   weightKg,
@@ -108,34 +120,22 @@ export function FtpEstimatorModal({
         if (!next) reset();
       }}
     >
-      <DialogTrigger className="cursor-pointer font-mono text-[11px] font-semibold text-terracotta underline underline-offset-2 hover:text-terracotta-hover">
-        ¿No sabes tu FTP? Estimar.
+      <DialogTrigger className="cursor-pointer font-mono text-[11px] text-zinc-500 underline underline-offset-2 hover:text-zinc-900">
+        Estimar
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] w-full max-w-md overflow-y-auto sm:max-w-md">
+      <DialogContent className="max-h-[92vh] overflow-y-auto rounded-xl p-4 sm:max-w-md sm:p-5">
         <DialogHeader>
           <DialogTitle className="font-mono text-sm font-bold tracking-wide text-zinc-900 uppercase">
             Estimar mi FTP
           </DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-5 text-sm">
-          <section className="flex flex-col gap-2">
-            <span className="font-mono text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
-              Vía A · Si tienes datos de potencia o Strava
+        <div className="flex flex-col gap-3 text-sm">
+          <section className="flex flex-col gap-1.5">
+            <span className="font-mono text-[10px] font-semibold tracking-wider text-zinc-500 uppercase">
+              Vía A · Test 20 min / Strava
             </span>
-            <p className="text-xs text-neutral-600">
-              Si conoces tu FTP o lo has consultado en{" "}
-              <a
-                href="https://www.strava.com/athlete/analysis"
-                target="_blank"
-                rel="noreferrer"
-                className="underline underline-offset-2"
-              >
-                Strava Athlete Analysis
-              </a>
-              , introduce tus vatios en 20 minutos (o los vatios estimados de Strava en un
-              puerto).
-            </p>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-neutral-600">Vatios 20m:</span>
               <input
                 type="number"
                 inputMode="numeric"
@@ -147,51 +147,54 @@ export function FtpEstimatorModal({
                   setTwentyMinInput(e.target.value);
                   if (e.target.value) setAnchor(null);
                 }}
-                className={cn(fieldClass, "w-28")}
+                className={cn(fieldClass, "w-20 px-2 py-1.5 text-sm")}
               />
-              <span className="font-mono text-xs text-neutral-500">W (20 min)</span>
+              <span className="text-xs text-neutral-500">W</span>
+              {viaAEstimate && (
+                <span className="font-mono text-xs text-neutral-700">
+                  → 95%: <span className="font-bold text-zinc-900">{viaAEstimate} W</span>
+                </span>
+              )}
             </div>
-            {viaAEstimate && (
-              <p className="font-mono text-xs text-neutral-700">
-                FTP estimado (95%): <span className="font-bold text-zinc-900">{viaAEstimate} W</span>
-              </p>
-            )}
           </section>
 
-          <section className="flex flex-col gap-2 border-t border-zinc-100 pt-4">
-            <span className="font-mono text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
-              Vía B · Estimación rápida por anclajes reales de ruta (sin datos)
+          <section className="flex flex-col gap-1.5 border-t border-zinc-100 pt-3">
+            <span className="font-mono text-[10px] font-semibold tracking-wider text-zinc-500 uppercase">
+              Vía B · Anclajes reales de ruta
             </span>
-            <p className="text-xs text-neutral-600">
-              Selecciona la opción que mejor describe tus salidas habituales:
-            </p>
             {!weightKg && (
-              <p className="text-xs text-status-warning">
-                Introduce tu peso en el campo &quot;Peso (kg)&quot; para poder usar esta vía.
+              <p className="text-[11px] text-status-warning">
+                Introduce tu peso para poder usar esta vía.
               </p>
             )}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col">
               {WKG_ANCHORS.map((opt) => (
-                <RadioCard
+                <label
                   key={opt.value}
-                  name="ftp-anchor"
-                  value={opt.value}
-                  checked={anchor === opt.value}
-                  title={opt.label}
-                  onChange={() => {
-                    setAnchor(opt.value);
-                    setTwentyMinInput("");
-                  }}
+                  className="flex cursor-pointer items-start gap-2 rounded-sm px-1 py-1 transition-colors duration-150 hover:bg-[#F8F7F5]"
                 >
-                  {opt.description}
-                </RadioCard>
+                  <input
+                    type="radio"
+                    name="ftp-anchor"
+                    checked={anchor === opt.value}
+                    onChange={() => {
+                      setAnchor(opt.value);
+                      setTwentyMinInput("");
+                    }}
+                    className="mt-0.5 size-3.5 shrink-0 cursor-pointer accent-terracotta"
+                  />
+                  <span className="text-xs leading-snug text-neutral-700">
+                    <span className="font-semibold text-zinc-900">{opt.label}</span>{" "}
+                    <span className="text-neutral-500">· {opt.description}</span>
+                  </span>
+                </label>
               ))}
             </div>
           </section>
 
-          <div className="border-t border-zinc-100 pt-4">
+          <div className="border-t border-zinc-100 pt-3">
             <p className="font-mono text-sm text-neutral-700">
-              Tu FTP estimado es de:{" "}
+              Tu FTP estimado:{" "}
               <span className="font-bold text-zinc-900">{estimatedFtp ? `${estimatedFtp} W` : "—"}</span>
             </p>
             <button
@@ -200,7 +203,7 @@ export function FtpEstimatorModal({
               disabled={!estimatedFtp}
               className={cn(
                 primaryButtonClass,
-                "mt-3 w-full",
+                "mt-2 w-full",
                 !estimatedFtp && "cursor-not-allowed opacity-40"
               )}
             >
