@@ -177,7 +177,7 @@ export function PhysiologicalProfileForm({
       onSubmit={() => setIsSubmitting(true)}
       className="flex flex-col gap-6"
     >
-      <Card>
+      <Card className="overflow-visible">
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className={cardNumberHeading}>01 · Métricas físicas y equipamiento</span>
@@ -222,8 +222,12 @@ export function PhysiologicalProfileForm({
               {weightInvalid && <span className={errorTextClass}>Campo obligatorio</span>}
             </div>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="ftp" className={eyebrow}>
+              <label htmlFor="ftp" className={cn(eyebrow, "flex items-center")}>
                 FTP (W)
+                <InfoTooltip
+                  label="Contexto sobre FTP"
+                  note="Potencia Máxima Sostenible en 1 hora (W). Si no lo conoces, puedes usar el 95% de tu mejor esfuerzo de 20 minutos."
+                />
               </label>
               <input
                 id="ftp"
@@ -280,12 +284,18 @@ export function PhysiologicalProfileForm({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="overflow-visible">
         <CardContent className="flex flex-col gap-4">
           <span className={cardNumberHeading}>02 · Fenotipo metabólico y sudoración</span>
 
           <div className="flex flex-col gap-1.5">
-            <span className={eyebrow}>Fenotipo metabólico (VLaMax)</span>
+            <span className={cn(eyebrow, "flex items-center")}>
+              Fenotipo metabólico (VLaMax)
+              <InfoTooltip
+                label="Contexto sobre VLaMax"
+                note="Mide tu tasa de producción de lactato. Un VLaMax alto corresponde a un perfil explosivo/esprinter (mayor consumo de glucógeno); un VLaMax bajo corresponde a un perfil fondista/diésel."
+              />
+            </span>
             <div
               className={cn(
                 "grid grid-cols-1 gap-2 sm:grid-cols-3",
@@ -340,26 +350,30 @@ export function PhysiologicalProfileForm({
             {sweatRateInvalid && <span className={errorTextClass}>Campo obligatorio</span>}
           </div>
 
-          <label className="flex cursor-pointer items-start gap-2 text-sm text-neutral-700">
+          {/* Consolidated with "Tasa de sudoración" above — that selector's own
+              "Alta" description already covers the same visible-salt signal
+              ("Marcas blancas evidentes en maillot..."), so this no longer
+              repeats it as a second descriptive block. `is_salty_sweater`
+              stays a real, independent field (sweat *concentration* vs.
+              sweat *volume* are genuinely different axes — see
+              `getSodiumLossMgPerHour` in `lib/metabolic-engine.ts`), just
+              surfaced as one compact refinement line instead of a duplicate
+              sub-section. */}
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-600">
             <input
               type="checkbox"
               name="is_salty_sweater"
               checked={isSaltySweater}
               onChange={(e) => setIsSaltySweater(e.target.checked)}
-              className="mt-0.5 size-3.5 cursor-pointer accent-terracotta"
+              className="size-3.5 shrink-0 cursor-pointer accent-terracotta"
             />
-            <span>
-              Sudo mucha sal (cercos blancos en el maillot / escozor en los ojos)
-              <span className="block text-xs text-neutral-500">
-                Eleva el objetivo de sodio de la receta para prevenir calambres e hiponatremia
-                en rutas largas.
-              </span>
-            </span>
+            Además, mi sudor es especialmente salado (más allá del volumen) — sube el objetivo
+            de sodio.
           </label>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="overflow-visible">
         <CardContent className="flex flex-col gap-4">
           <span className={cn(cardNumberHeading, "flex items-center")}>
             03 · Adaptación digestiva

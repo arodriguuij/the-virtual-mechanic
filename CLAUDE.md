@@ -4019,6 +4019,144 @@ hex color, despite an initial spec suggesting one; this app's design-system conv
 (see "Code style" below) is to reuse `--terracotta` for every primary action rather than
 introduce a second near-identical accent color for the same role.
 
+### UX flow, interaction logic & mobile usability pass
+
+A bundled pass targeting login-copy redundancy, `/perfil` tooltip/z-index bugs, map
+re-centering, and the planner's route-source/Calculadora/CTA flow:
+
+- **Login copy, deduplicated.** `components/login-hero.tsx`'s `headerTagline` used to be a
+  short uppercase eyebrow ("Planificación & avituallamiento") sitting directly under the
+  h1 ("Nutrición de precisión para ciclistas") — two adjacent lines both claiming to
+  introduce the app, reading as redundant. `headerTagline` is now a full sentence
+  ("Estrategia de avituallamiento pre y post-ruta adaptada a tus vatios reales.") restyled
+  from the uppercase/tracked eyebrow treatment to a plain sentence-case subtitle
+  (`text-neutral-500`, no `uppercase`/`tracking-widest`/`text-terracotta`) — a full sentence
+  in tracked uppercase mono would have read as shouted, not introductory copy. The h1 itself
+  was already correct and needed no change.
+- **`/perfil` tooltips: FTP and VLaMax, plus a real z-index/overflow fix.** Two new
+  `InfoTooltip` call sites in `components/physiological-profile-form.tsx` — "FTP (W)"
+  ("Potencia Máxima Sostenible en 1 hora (W). Si no lo conoces, puedes usar el 95% de tu
+  mejor esfuerzo de 20 minutos.") and "Fenotipo metabólico (VLaMax)" ("Mide tu tasa de
+  producción de lactato. Un VLaMax alto corresponde a un perfil explosivo/esprinter (mayor
+  consumo de glucógeno); un VLaMax bajo corresponde a un perfil fondista/diésel.") — joining
+  the pre-existing "Tasa de sudoración"/"Adaptación digestiva" tooltips, so every
+  self-reported field on this page now has a plain-language explainer. The underlying bug
+  these needed fixing alongside: `components/ui/card.tsx`'s base `Card` primitive carries
+  `overflow-hidden` (needed elsewhere for image-corner clipping), which was silently
+  clipping any tooltip popover that opened near a card's own top/bottom edge — a tooltip on
+  a field near the boundary between two of `/perfil`'s three stacked cards would get cut off
+  by whichever card's edge it crossed. Fixed with a scoped `className="overflow-visible"`
+  override on all 3 `<Card>`s in `physiological-profile-form.tsx` specifically (not a change
+  to the shared primitive itself, which other call sites still rely on for corner-clipping),
+  plus bumping `InfoTooltip`'s own popover from `z-10` to `z-50` so it also clears any
+  sibling card sitting on top of it in stacking order.
+- **Redundant sodium block, consolidated.** The "Sudo mucha sal" checkbox used to carry its
+  own two-line block ("Sudo mucha sal (cercos blancos en el maillot / escozor en los
+  ojos)" + a second explanatory line) sitting directly below the "Tasa de sudoración"
+  selector — but that selector's own "Alta" `RadioCard` description already reads "Sudoración
+  abundante o muy salada. Marcas blancas evidentes en maillot y cintas del casco," the exact
+  same visible-salt signal repeated almost verbatim. `is_salty_sweater` stays a real,
+  independent DB field (sweat *concentration* is a genuinely different axis from sweat
+  *volume* — see `getSodiumLossMgPerHour` in `lib/metabolic-engine.ts`), but its UI shrank
+  from a two-line descriptive sub-block to one compact single-line checkbox row ("Además, mi
+  sudor es especialmente salado (más allá del volumen) — sube el objetivo de sodio.") with no
+  repeated "cercos blancos" phrasing — a refinement of the existing selector rather than a
+  second descriptive block competing with it.
+- **Map re-centering.** `components/route-map-preview.tsx`'s `MapZoomControls` gained a
+  third button (a `Locate` icon from `lucide-react`) below the existing `+`/`−` pair, calling
+  `map.fitBounds(points, { padding: [16, 16] })` — the exact same call `FitBoundsToRoute`
+  already makes once on mount, just re-runnable on demand. A phone's own scroll/pan gesture
+  easily drags the route out of frame, especially while the surrounding page is being
+  scrolled past the map itself; this snaps straight back without needing to reload or
+  reselect the route. Applies to every `RouteMapPreview` call site automatically (the
+  Fueling Planner's own map and Post-Ride Analysis's telemetry-card map), since it's the one
+  shared component behind both.
+- **Route selection simplified from 3 tabs to 2.** The Paso 01 mode toggle used to be
+  "Ruta Strava" / "Calculadora" / "Subir GPX" as three independent, equal-weight top-level
+  modes — collapsed to "Ruta / GPX" / "Calculadora," since a Strava route and an uploaded
+  GPX track are really the same underlying concept (a route with real geometry) differing
+  only in *where* the geometry comes from, not two unrelated planning strategies deserving
+  separate top-level tabs. Internally `mode` still has 3 values (`"route" | "quick" | "gpx"`)
+  — every downstream consumer (Paso 02's conditionals, `handleCalculate`'s request-body
+  branching, the map-render conditionals) is untouched; only Paso 01's own internals and the
+  segmented toggle changed:
+  - **"Ruta / GPX" tab** — when no GPX has been uploaded (`parsedGpx === null`), shows the
+    Strava route `<select>` (or the "sin rutas" fallback) exactly as before, plus a new
+    compact secondary action directly beneath it: "+ Subir GPX" (an `Upload` icon plus text,
+    not a full third tab). Clicking it toggles a `gpxUploadOpen` boolean, revealing the same
+    drag-and-drop dropzone that used to be its own standalone mode, now nested inside this
+    one instead.
+  - **Uploading a file resets the Strava selection.** `handleGpxFile`'s success branch now
+    also calls `setMode("gpx")`, `setSelectedRouteId("")`, and `setGpxUploadOpen(false)` — the
+    instant a GPX parses successfully, it becomes *the* active route source, and the Strava
+    selector is cleared rather than left selected alongside it (there's only ever one active
+    route at a time, never two simultaneously "current"). While `mode === "gpx"` and
+    `parsedGpx` is set, the Strava `<select>` doesn't render at all — replaced by a compact
+    porcelain row showing the uploaded file's name/distance/elevation plus a "Quitar GPX"
+    button (resets `parsedGpx` to `null`, flips back to `mode: "route"`, and restores
+    `selectedRouteId` to the first Strava route again, a sane default to land back on).
+  - The segmented toggle's "Ruta / GPX" button is active whenever `mode` is `"route"` *or*
+    `"gpx"`, and its `onClick` picks whichever sub-source is actually current
+    (`setMode(parsedGpx ? "gpx" : "route")`) — so switching away to Calculadora and back
+    returns to the GPX view if one was active, not always back to the Strava selector.
+- **Calculadora: no pre-filled defaults, plus a structured-workout intensity selector.**
+  `quickDurationHours`/`quickAverageWatts` used to default to `2`/`180` — plausible-looking
+  numbers an athlete could easily calculate against without ever having entered their own
+  real values. Replaced with 3 raw string inputs (`quickHoursInput`/`quickMinutesInput`/
+  `quickAverageWattsInput`, all defaulting to `""`), with the single "Duración (h)" decimal
+  field split into "Duración — Horas" and "Duración — Minutos" (an integer hours field plus
+  a 0-59 minutes field, closer to how a rider actually thinks about ride length) — derived
+  into one `quickDurationHours` decimal figure (`hours + minutes/60`) purely for the request
+  body, same unit the backend always expected. A new "Intensidad objetivo / Tipo de entreno"
+  `<select>` (`STRUCTURED_WORKOUT_OPTIONS`: Fondo (Z2) → `endurance`, Tempo (Z3) → `tempo`,
+  Series/Intervalos (Z4-Z5) → `vo2max`, Competición → `threshold`, plus a default "Ritmo
+  constante (usar solo vatios)" option) exists because a structured session's *average*
+  watts routinely understates its real metabolic cost — an interval set spends meaningful
+  time well above that average during the hard efforts, which is what actually drives
+  glycogen burn, not the smoothed-out mean. When a session type is named,
+  `handleCalculate` sends it as `structuredIntensity` in the request body; `POST
+  /api/fueling/plan`'s quick-mode branch (`app/api/fueling/plan/route.ts`) now derives
+  `relativeIntensity` from `getRelativeIntensityFromLevel(structuredIntensity)` when a valid
+  one is present, falling back to the original `getRelativeIntensity(averageWatts, ftp)` path
+  for an unnamed, steady-state ride — a genuinely optional enhancement, not a required field.
+- **CTA gating, checkbox order, and a structured results card.** Three related fixes to the
+  final CTA block:
+  - **"Ruta objetivo / Competición" now sits strictly above "Calcular estrategia
+    nutricional,"** not beside it in the same flex row — it's an input that changes what the
+    button's click actually computes, so it reads more naturally as "one more thing to
+    configure before pressing calculate" than as a peer action next to the button itself.
+  - **The button's `disabled` gating gained a Calculadora branch**: `(mode === "quick" &&
+    !quickValid)`, where `quickValid = quickDurationHours > 0 && quickAverageWatts > 0` —
+    previously Calculadora mode had no gating at all (the button was always clickable there,
+    even with the old prefilled 2h/180W defaults never having been genuinely
+    entered/confirmed by the athlete). A small helper line ("Introduce una duración y unos
+    vatios objetivo válidos para poder calcular.") renders under the disabled button in this
+    specific case, mirroring the existing `ProfileRequiredBanner` pattern for the
+    profile-incomplete case.
+  - **The "OBJETIVO/CUBIERTO/RESTANTE" breakdown inside "Comida en bolsillo"** (both its
+    calculated and not-yet-calculated placeholder states) moved from the porcelain
+    `rounded-sm bg-[#F8F7F5] p-3` sub-block treatment to an explicit `rounded-xl border
+    border-zinc-200 bg-white p-4 shadow-none` structured card, per an explicit request for
+    this one breakdown to render "dentro de un bloque/tarjeta blanca estructurada." This is
+    a deliberate, scoped exception to two of this app's own established conventions —
+    the app-wide `rounded-sm` radius scale (see "PNS premium redesign" → "Radio de Bordes
+    Pequeño Global" below) and the "porcelain sub-block nested inside an already-white card"
+    pattern this same accordion uses everywhere else — applied narrowly to just this one
+    block rather than expanded into a broader system change. The literal spec named
+    `shadow-none` but not "no border" — a hairline `border-zinc-200` was added on top of the
+    literal ask specifically because a bg-white block with zero shadow *and* zero border,
+    nested inside Paso 03's own already-bg-white card, would otherwise be visually
+    indistinguishable from its parent, defeating the "estructurada" half of the request.
+
+Verified via `npx tsc --noEmit`/`npm run lint`/`npm run build` (all clean) and a live
+Playwright check (a temporary route rendering the real `LoginHeroLayout`,
+`PhysiologicalProfileForm`, and `FuelingPlanner` with mocked props) at 390px mobile and
+1280px desktop — confirmed the deduplicated login copy, the FTP tooltip rendering
+unclipped above its card boundary, the 2-tab "Ruta / GPX"/"Calculadora" toggle with the
+"+ Subir GPX" secondary action and the map's new re-center button, the Calculadora's blank
+duration/watts fields with the disabled CTA and its helper line, and the checkbox now
+sitting above the (enabled, since a route was selected) CTA button in Ruta mode.
+
 ### Route dynamic rendering
 
 Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because

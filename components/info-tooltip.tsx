@@ -26,7 +26,7 @@ export function InfoTooltip({ label, note }: { label: string; note: string }) {
       />
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-sm border border-neutral-200 bg-background px-2.5 py-2 font-sans text-xs font-normal tracking-normal text-neutral-700 normal-case opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-64 -translate-x-1/2 rounded-sm border border-neutral-200 bg-background px-2.5 py-2 font-sans text-xs font-normal tracking-normal text-neutral-700 normal-case opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
       >
         {note}
       </span>

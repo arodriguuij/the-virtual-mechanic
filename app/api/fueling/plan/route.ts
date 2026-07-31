@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
     rideDistanceKm = distanceKm;
     rideElevationGainM = elevationGainM;
   } else {
-    const { durationHours: hours, averageWatts } = body;
+    const { durationHours: hours, averageWatts, structuredIntensity } = body;
     if (
       typeof hours !== "number" ||
       hours <= 0 ||
@@ -180,7 +180,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "invalid_quick" }, { status: 400 });
     }
     durationHours = hours;
-    relativeIntensity = getRelativeIntensity(averageWatts, athleteProfile.ftp);
+    // A structured session (intervals, a race) can have an average-watts
+    // figure that's genuinely misleading for glycogen-burn purposes — the
+    // athlete spent real time well above that average during the hard
+    // efforts, which is what actually drives carb oxidation. When the rider
+    // names the session type, that self-reported intensity band wins over
+    // the one derived from raw average watts; an unnamed, steady-state ride
+    // still falls back to the watts-derived figure exactly as before.
+    relativeIntensity = VALID_INTENSITIES.has(structuredIntensity)
+      ? getRelativeIntensityFromLevel(structuredIntensity)
+      : getRelativeIntensity(averageWatts, athleteProfile.ftp);
   }
 
   // "Modo Óptimo" replaces whatever the athlete may have manually selected

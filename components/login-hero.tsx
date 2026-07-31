@@ -4,7 +4,7 @@ import { memo, type ReactNode } from "react";
 
 import { RatioLogo } from "@/components/icons/RatioLogo";
 
-const headerTagline = "Planificación & avituallamiento";
+const headerTagline = "Estrategia de avituallamiento pre y post-ruta adaptada a tus vatios reales.";
 
 const telemetryStats = [
   { label: "Potencia NP", value: "228 W" },
@@ -156,7 +156,7 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
                   Nutrición de precisión para ciclistas
                 </h1>
 
-                <p className="block font-mono text-[10px] tracking-widest text-terracotta uppercase sm:text-xs">
+                <p className="block font-mono text-xs leading-snug text-neutral-500 normal-case sm:text-sm">
                   {headerTagline}
                 </p>
               </div>

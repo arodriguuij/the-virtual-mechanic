@@ -33,6 +33,7 @@ import { decodePolyline } from "@/lib/polyline";
 import { refreshStravaRoutes } from "@/lib/strava-actions";
 import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
+import { InfoTooltip } from "@/components/info-tooltip";
 import { ProfileRequiredBanner } from "@/components/profile-required-banner";
 import {
   fieldClass,
@@ -177,6 +178,22 @@ const INTENSITY_OPTIONS: IntensityLevel[] = [
   "tempo",
   "threshold",
   "vo2max",
+];
+
+// Calculadora's own "Tipo de Entreno" selector — a structured session's
+// *average* watts routinely understates its real metabolic cost (an
+// interval set spends real time well above that average), so naming the
+// session type lets the server derive glycogen burn from a proper named
+// intensity band (`getRelativeIntensityFromLevel`) instead of the
+// watts-derived one — see `POST /api/fueling/plan`'s quick-mode branch.
+// Optional: a steady-state ride with no name still calculates fine from
+// watts alone, same as before this selector existed.
+type StructuredWorkoutType = "z2" | "z3" | "z4z5" | "competition";
+const STRUCTURED_WORKOUT_OPTIONS: { value: StructuredWorkoutType; label: string; intensity: IntensityLevel }[] = [
+  { value: "z2", label: "Fondo (Z2)", intensity: "endurance" },
+  { value: "z3", label: "Tempo (Z3)", intensity: "tempo" },
+  { value: "z4z5", label: "Series / Intervalos (Z4-Z5)", intensity: "vo2max" },
+  { value: "competition", label: "Competición", intensity: "threshold" },
 ];
 
 type PlanResult = {
@@ -439,9 +456,15 @@ export function FuelingPlanner({
 }) {
   const [mode, setMode] = useState<"route" | "quick" | "gpx">(routes.length > 0 ? "route" : "quick");
   const [selectedRouteId, setSelectedRouteId] = useState(routes[0]?.id ?? "");
+  const [gpxUploadOpen, setGpxUploadOpen] = useState(false);
   const [intensity, setIntensity] = useState<IntensityLevel>("endurance");
-  const [quickDurationHours, setQuickDurationHours] = useState(2);
-  const [quickAverageWatts, setQuickAverageWatts] = useState(180);
+  // No pre-filled defaults — the athlete must explicitly enter a real
+  // duration/watts pair rather than silently calculating against whatever
+  // placeholder happened to be in the field.
+  const [quickHoursInput, setQuickHoursInput] = useState("");
+  const [quickMinutesInput, setQuickMinutesInput] = useState("");
+  const [quickAverageWattsInput, setQuickAverageWattsInput] = useState("");
+  const [structuredWorkoutType, setStructuredWorkoutType] = useState<StructuredWorkoutType | "">("");
   const [departureDayMode, setDepartureDayMode] = useState<DepartureDayMode>("tomorrow");
   const [departureCustomDate, setDepartureCustomDate] = useState(todayIsoDate);
   const [departureHour, setDepartureHour] = useState("08:00");
@@ -480,6 +503,16 @@ export function FuelingPlanner({
       setRefreshingRoutes(false);
     }
   }
+
+  // Derived from the 3 raw text inputs above — `0` (not `NaN`) for a blank
+  // field, so `quickValid` below cleanly reads "not entered yet" rather than
+  // a broken calculation. Horas + Minutos combine into one decimal-hours
+  // figure, same unit `handleCalculate`'s request body always expected.
+  const quickHoursNum = Number(quickHoursInput) || 0;
+  const quickMinutesNum = Number(quickMinutesInput) || 0;
+  const quickDurationHours = quickHoursNum + quickMinutesNum / 60;
+  const quickAverageWatts = Number(quickAverageWattsInput) || 0;
+  const quickValid = quickDurationHours > 0 && quickAverageWatts > 0;
 
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === selectedRouteId) ?? null,
@@ -577,6 +610,12 @@ export function FuelingPlanner({
       setParsedGpx(parsed);
       const speed = avgSpeedKmh && avgSpeedKmh > 0 ? avgSpeedKmh : FALLBACK_AVG_SPEED_KMH;
       setGpxDurationHours(Math.round((parsed.distanceKm / speed) * 100) / 100);
+      // A successful upload makes the GPX the active route source — the
+      // Strava selector resets/clears rather than sitting alongside it, so
+      // there's only ever one route "in play" at a time.
+      setMode("gpx");
+      setSelectedRouteId("");
+      setGpxUploadOpen(false);
     } catch {
       setParsedGpx(null);
       setGpxError("No se pudo leer el archivo — comprueba que sea un .gpx válido.");
@@ -630,6 +669,12 @@ export function FuelingPlanner({
                 departureIso,
                 durationHours: quickDurationHours,
                 averageWatts: quickAverageWatts,
+                // Only sent when the athlete actually named a session type —
+                // a plain steady-state ride still derives intensity from
+                // real watts server-side, unchanged.
+                structuredIntensity: structuredWorkoutType
+                  ? STRUCTURED_WORKOUT_OPTIONS.find((opt) => opt.value === structuredWorkoutType)?.intensity
+                  : undefined,
                 isTargetEvent,
                 pocketFood: pocketFoodPayload,
                 fuelingMode,
@@ -771,18 +816,28 @@ export function FuelingPlanner({
               01 · Selección y origen de ruta
             </span>
 
-            <div className="mt-2 grid grid-cols-3 gap-2">
+            {/* Simplified from 3 tabs to 2 — "Ruta / GPX" absorbs the old
+                standalone "Subir GPX" tab as a nested secondary action
+                inside the Strava-route tab instead of a third top-level
+                mode, since both are really the same underlying concept ("a
+                route with real geometry") differing only in *where* that
+                geometry comes from. `mode` itself still has 3 internal
+                values (route/quick/gpx) — everything downstream (Paso 02's
+                conditionals, the map render, `handleCalculate`'s request
+                body) is untouched; only this toggle and Paso 01's own
+                internals changed. */}
+            <div className="mt-2 grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setMode("route")}
+                onClick={() => setMode(parsedGpx ? "gpx" : "route")}
                 className={cn(
                   segmentedButtonClass,
-                  mode === "route"
+                  mode === "route" || mode === "gpx"
                     ? "border-transparent bg-terracotta text-white"
                     : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                 )}
               >
-                <span className={segmentedButtonLabelClass}>Ruta Strava</span>
+                <span className={segmentedButtonLabelClass}>Ruta / GPX</span>
               </button>
               <button
                 type="button"
@@ -796,179 +851,253 @@ export function FuelingPlanner({
               >
                 <span className={segmentedButtonLabelClass}>Calculadora</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setMode("gpx")}
-                className={cn(
-                  segmentedButtonClass,
-                  mode === "gpx"
-                    ? "border-transparent bg-terracotta text-white"
-                    : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
-                )}
-              >
-                <span className={segmentedButtonLabelClass}>Subir GPX</span>
-              </button>
             </div>
 
-            {mode === "route" &&
-              (routes.length > 0 ? (
-                <div className="mt-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase">
-                      Ruta
-                    </label>
+            {(mode === "route" || mode === "gpx") && (
+              <div className="mt-4">
+                {mode === "gpx" && parsedGpx ? (
+                  // A GPX has been uploaded and is the active route source —
+                  // the Strava selector is hidden entirely (not just cleared)
+                  // while it's active, so there's only ever one visible
+                  // "current route" at a time.
+                  <div className="flex items-center justify-between gap-3 rounded-sm bg-[#F8F7F5] px-4 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-zinc-900">{parsedGpx.name}</p>
+                      <p className="font-mono text-xs text-zinc-500">
+                        {parsedGpx.distanceKm}km · {parsedGpx.elevationGainM}m D+
+                      </p>
+                    </div>
                     <button
                       type="button"
-                      onClick={handleRefreshRoutes}
-                      disabled={refreshingRoutes}
-                      title="Recargar rutas desde Strava"
-                      className="flex cursor-pointer items-center gap-1 text-[10px] font-mono tracking-widest text-zinc-500 uppercase transition-colors duration-150 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => {
+                        setParsedGpx(null);
+                        setGpxError(null);
+                        setMode("route");
+                        setSelectedRouteId(routes[0]?.id ?? "");
+                      }}
+                      className="shrink-0 cursor-pointer text-[11px] font-semibold tracking-widest text-zinc-500 uppercase transition-colors duration-150 hover:text-zinc-900"
                     >
-                      <RefreshCw className={cn("size-3", refreshingRoutes && "animate-spin")} />
-                      {refreshingRoutes ? "Sincronizando…" : "Recargar"}
+                      Quitar GPX
                     </button>
                   </div>
-                  {/* The select's own background/native arrow render
-                      unconditionally — a refresh never swaps this control for
-                      a generic loading block. While `refreshingRoutes` is
-                      true, it's simply disabled with one muted placeholder
-                      option plus a micro-spinner overlaid to its own left of
-                      the chevron, so the control's shape never jumps. A
-                      porcelain `bg-[#F8F7F5]` fill (not this app's usual
-                      white `selectableFieldClass`) marks this one select as a
-                      sub-block nested *inside* the now-white card — zero
-                      border either way, matching this app's 100%-frameless
-                      convention. */}
-                  <div className="relative mt-1.5">
-                    <select
-                      id="route"
-                      className={cn(
-                        "w-full cursor-pointer appearance-none rounded-sm border-0 bg-[#F8F7F5] px-4 py-2 pr-9 text-sm font-sans text-zinc-900 transition-colors duration-150 hover:bg-[#F1EEE7] focus:outline-none focus:ring-1 focus:ring-terracotta",
-                        refreshingRoutes && "text-zinc-400"
-                      )}
-                      value={refreshingRoutes ? "__syncing" : selectedRouteId}
-                      onChange={(e) => setSelectedRouteId(e.target.value)}
-                      disabled={refreshingRoutes}
-                    >
-                      {refreshingRoutes ? (
-                        <option value="__syncing" className="font-mono text-xs text-neutral-400">
-                          Sincronizando rutas de Strava...
-                        </option>
-                      ) : (
-                        routes.map((route) => (
-                          <option key={route.id} value={route.id}>
-                            {route.name} · {route.distanceKm}km · {route.elevationGainM}m D+
-                          </option>
-                        ))
-                      )}
-                    </select>
-                    {refreshingRoutes ? (
-                      <span
-                        className="pointer-events-none absolute top-1/2 right-9 size-3.5 -translate-y-1/2 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-700"
-                        aria-hidden="true"
-                      />
+                ) : (
+                  <>
+                    {routes.length > 0 ? (
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase">
+                            Ruta
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleRefreshRoutes}
+                            disabled={refreshingRoutes}
+                            title="Recargar rutas desde Strava"
+                            className="flex cursor-pointer items-center gap-1 text-[10px] font-mono tracking-widest text-zinc-500 uppercase transition-colors duration-150 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <RefreshCw className={cn("size-3", refreshingRoutes && "animate-spin")} />
+                            {refreshingRoutes ? "Sincronizando…" : "Recargar"}
+                          </button>
+                        </div>
+                        {/* The select's own background/native arrow render
+                            unconditionally — a refresh never swaps this control for
+                            a generic loading block. While `refreshingRoutes` is
+                            true, it's simply disabled with one muted placeholder
+                            option plus a micro-spinner overlaid to its own left of
+                            the chevron, so the control's shape never jumps. A
+                            porcelain `bg-[#F8F7F5]` fill (not this app's usual
+                            white `selectableFieldClass`) marks this one select as a
+                            sub-block nested *inside* the now-white card — zero
+                            border either way, matching this app's 100%-frameless
+                            convention. */}
+                        <div className="relative mt-1.5">
+                          <select
+                            id="route"
+                            className={cn(
+                              "w-full cursor-pointer appearance-none rounded-sm border-0 bg-[#F8F7F5] px-4 py-2 pr-9 text-sm font-sans text-zinc-900 transition-colors duration-150 hover:bg-[#F1EEE7] focus:outline-none focus:ring-1 focus:ring-terracotta",
+                              refreshingRoutes && "text-zinc-400"
+                            )}
+                            value={refreshingRoutes ? "__syncing" : selectedRouteId}
+                            onChange={(e) => setSelectedRouteId(e.target.value)}
+                            disabled={refreshingRoutes}
+                          >
+                            {refreshingRoutes ? (
+                              <option value="__syncing" className="font-mono text-xs text-neutral-400">
+                                Sincronizando rutas de Strava...
+                              </option>
+                            ) : (
+                              routes.map((route) => (
+                                <option key={route.id} value={route.id}>
+                                  {route.name} · {route.distanceKm}km · {route.elevationGainM}m D+
+                                </option>
+                              ))
+                            )}
+                          </select>
+                          {refreshingRoutes ? (
+                            <span
+                              className="pointer-events-none absolute top-1/2 right-9 size-3.5 -translate-y-1/2 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-700"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <ChevronDown className={selectChevronClass} />
+                          )}
+                        </div>
+                      </div>
                     ) : (
-                      <ChevronDown className={selectChevronClass} />
+                      <div className="flex flex-col items-start gap-2 border border-dashed border-neutral-300 px-4 py-3">
+                        <p className="text-sm text-neutral-500">
+                          Sin rutas en Strava — usa la calculadora rápida o sube un GPX.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleRefreshRoutes}
+                          disabled={refreshingRoutes}
+                          className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <RefreshCw className={cn("size-3.5", refreshingRoutes && "animate-spin")} />
+                          {refreshingRoutes ? "Sincronizando…" : "Buscar rutas de nuevo"}
+                        </button>
+                      </div>
                     )}
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-4 flex flex-col items-start gap-2 border border-dashed border-neutral-300 px-4 py-3">
-                  <p className="text-sm text-neutral-500">
-                    Sin rutas en Strava — usa la calculadora rápida o sube un GPX.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleRefreshRoutes}
-                    disabled={refreshingRoutes}
-                    className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <RefreshCw className={cn("size-3.5", refreshingRoutes && "animate-spin")} />
-                    {refreshingRoutes ? "Sincronizando…" : "Buscar rutas de nuevo"}
-                  </button>
-                </div>
-              ))}
 
-            {mode === "quick" && (
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="duration" className={eyebrow}>
-                    Duración (h)
-                  </label>
-                  <input
-                    id="duration"
-                    type="number"
-                    inputMode="decimal"
-                    min={0.5}
-                    step={0.5}
-                    className={inputClass}
-                    value={quickDurationHours}
-                    onChange={(e) => setQuickDurationHours(Number(e.target.value))}
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="watts" className={eyebrow}>
-                    Vatios objetivo
-                  </label>
-                  <input
-                    id="watts"
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    className={inputClass}
-                    value={quickAverageWatts}
-                    onChange={(e) => setQuickAverageWatts(Number(e.target.value))}
-                  />
-                </div>
+                    {/* Compact secondary action — GPX upload is nested here
+                        rather than a third top-level tab, since uploading a
+                        file is just an alternate way of arriving at the same
+                        "route with real geometry" this whole card is about. */}
+                    <button
+                      type="button"
+                      onClick={() => setGpxUploadOpen((v) => !v)}
+                      className="mt-2 flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-zinc-500 uppercase transition-colors duration-150 hover:text-zinc-900"
+                    >
+                      <Upload className="size-3.5" />
+                      {gpxUploadOpen ? "Cancelar" : "+ Subir GPX"}
+                    </button>
+
+                    {gpxUploadOpen && (
+                      <div className="mt-2">
+                        <div
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            setIsDraggingGpx(true);
+                          }}
+                          onDragLeave={() => setIsDraggingGpx(false)}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            setIsDraggingGpx(false);
+                            const file = e.dataTransfer.files?.[0];
+                            if (file) handleGpxFile(file);
+                          }}
+                          className={cn(
+                            "flex flex-col items-center justify-center gap-2 border-2 border-dashed px-4 py-8 text-center transition-colors duration-150",
+                            isDraggingGpx ? "border-neutral-900 bg-neutral-50" : "border-neutral-300"
+                          )}
+                        >
+                          <Upload className="size-5 text-neutral-400" />
+                          <p className="text-sm text-neutral-600">
+                            Arrastra tu archivo .gpx aquí, o{" "}
+                            <label
+                              htmlFor="gpx-upload"
+                              className="cursor-pointer font-semibold text-neutral-900 underline underline-offset-2"
+                            >
+                              selecciona un archivo
+                            </label>
+                          </p>
+                          <input
+                            id="gpx-upload"
+                            type="file"
+                            accept=".gpx"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleGpxFile(file);
+                            }}
+                          />
+                        </div>
+                        {gpxError && <p className="mt-2 text-sm text-status-warning">{gpxError}</p>}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
-            {mode === "gpx" && (
-              <div className="mt-4">
-                <div
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setIsDraggingGpx(true);
-                  }}
-                  onDragLeave={() => setIsDraggingGpx(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setIsDraggingGpx(false);
-                    const file = e.dataTransfer.files?.[0];
-                    if (file) handleGpxFile(file);
-                  }}
-                  className={cn(
-                    "flex flex-col items-center justify-center gap-2 border-2 border-dashed px-4 py-8 text-center transition-colors duration-150",
-                    isDraggingGpx ? "border-neutral-900 bg-neutral-50" : "border-neutral-300"
-                  )}
-                >
-                  <Upload className="size-5 text-neutral-400" />
-                  <p className="text-sm text-neutral-600">
-                    Arrastra tu archivo .gpx aquí, o{" "}
-                    <label
-                      htmlFor="gpx-upload"
-                      className="cursor-pointer font-semibold text-neutral-900 underline underline-offset-2"
-                    >
-                      selecciona un archivo
+            {mode === "quick" && (
+              <div className="mt-4 flex flex-col gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="flex flex-col gap-2">
+                    <label htmlFor="duration-hours" className={eyebrow}>
+                      Duración — Horas
                     </label>
-                  </p>
-                  <input
-                    id="gpx-upload"
-                    type="file"
-                    accept=".gpx"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleGpxFile(file);
-                    }}
-                  />
-                  {parsedGpx && (
-                    <p className="mt-1 font-mono text-xs text-neutral-500">
-                      {parsedGpx.name} · {parsedGpx.distanceKm}km · {parsedGpx.elevationGainM}m D+
-                    </p>
-                  )}
+                    <input
+                      id="duration-hours"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={1}
+                      placeholder="0"
+                      className={inputClass}
+                      value={quickHoursInput}
+                      onChange={(e) => setQuickHoursInput(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label htmlFor="duration-minutes" className={eyebrow}>
+                      Duración — Minutos
+                    </label>
+                    <input
+                      id="duration-minutes"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={59}
+                      step={5}
+                      placeholder="0"
+                      className={inputClass}
+                      value={quickMinutesInput}
+                      onChange={(e) => setQuickMinutesInput(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label htmlFor="watts" className={eyebrow}>
+                      Vatios objetivo
+                    </label>
+                    <input
+                      id="watts"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      placeholder="Sin definir"
+                      className={inputClass}
+                      value={quickAverageWattsInput}
+                      onChange={(e) => setQuickAverageWattsInput(e.target.value)}
+                    />
+                  </div>
                 </div>
-                {gpxError && <p className="mt-2 text-sm text-status-warning">{gpxError}</p>}
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="structured-workout" className={cn(eyebrow, "flex items-center")}>
+                    Intensidad objetivo / Tipo de entreno
+                    <InfoTooltip
+                      label="Contexto sobre entrenamientos estructurados"
+                      note="En series o intervalos los vatios medios globales no reflejan la intensidad real de los esfuerzos duros. Indicar el tipo de entreno corrige el cálculo de quemado de glucógeno para que se base en la intensidad real, no solo en el promedio."
+                    />
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="structured-workout"
+                      className={selectableInputClass}
+                      value={structuredWorkoutType}
+                      onChange={(e) => setStructuredWorkoutType(e.target.value as StructuredWorkoutType | "")}
+                    >
+                      <option value="">Ritmo constante (usar solo vatios)</option>
+                      {STRUCTURED_WORKOUT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className={selectChevronClass} />
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1208,18 +1337,29 @@ export function FuelingPlanner({
                   Estructurada" pass asked for an explicit ≥16px gap before
                   the first food row specifically, not whatever a shared
                   flex gap happened to add on top of it. */}
+              {/* Structured white card (bg-white rounded-xl p-4 shadow-none)
+                  per an explicit later request — a deliberate, scoped
+                  exception to both this app's usual `rounded-sm` radius
+                  scale and its "porcelain sub-block nested inside a white
+                  card" convention (this block sits inside Paso 03's own
+                  already-white card). A hairline border is added on top of
+                  the literal spec (which named `shadow-none`, not "no
+                  border") — without one, a white block with zero shadow
+                  floating inside an equally-white parent would be visually
+                  indistinguishable from it, defeating the "estructurada"
+                  half of the request. */}
               {result ? (
                 (() => {
                   const restanteG = Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG);
                   return (
-                    <div className="mb-4 rounded-sm bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
+                    <div className="mb-4 rounded-xl border border-zinc-200 bg-white p-4 text-xs font-mono text-zinc-600 shadow-none">
                       OBJETIVO {result.totalRideCarbsG}g HC · CUBIERTO {result.pocketFoodCarbsG}g HC ·
                       RESTANTE {restanteG}g HC
                     </div>
                   );
                 })()
               ) : (
-                <div className="mb-4 rounded-sm bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
+                <div className="mb-4 rounded-xl border border-zinc-200 bg-white p-4 text-xs font-mono text-zinc-600 shadow-none">
                   Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
                 </div>
               )}
@@ -1281,48 +1421,22 @@ export function FuelingPlanner({
 
         {/* Final CTA — sits after all 3 numbered steps, not inside any of
             them, matching `/perfil`'s own "single full-width action button
-            after the numbered cards" convention. */}
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-4">
-            <button
-              type="button"
-              onClick={handleCalculate}
-              disabled={
-                loading ||
-                !isProfileComplete ||
-                (mode === "route" && !selectedRoute) ||
-                (mode === "gpx" && !parsedGpx)
-              }
-              className={cn(
-                "w-full py-3.5 text-sm",
-                isProfileComplete
-                  ? primaryButtonClass
-                  : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-sm bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
-              )}
-            >
-              {isProfileComplete ? (
-                <>
-                  <Zap className="size-4 shrink-0" />
-                  {loading ? "Calculando…" : "Calcular estrategia nutricional"}
-                </>
-              ) : (
-                <>
-                  <Lock className="size-4 shrink-0" />
-                  Calcular estrategia (requiere perfil completo)
-                </>
-              )}
-            </button>
-            <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-600">
-              <input
-                type="checkbox"
-                checked={isTargetEvent}
-                onChange={(e) => setIsTargetEvent(e.target.checked)}
-                className="size-3.5 cursor-pointer accent-terracotta"
-              />
-              Ruta objetivo / Competición
-            </label>
-          </div>
-          {!isProfileComplete && <ProfileRequiredBanner />}
+            after the numbered cards" convention. The "Ruta objetivo /
+            Competición" checkbox sits strictly *above* the button now
+            (previously beside it in the same row) — it's an input that
+            changes what the button's own click computes, so it reads more
+            naturally as "one more thing to configure before you press
+            calculate" than as a peer alongside the action itself. */}
+        <div className="flex flex-col gap-3">
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-600">
+            <input
+              type="checkbox"
+              checked={isTargetEvent}
+              onChange={(e) => setIsTargetEvent(e.target.checked)}
+              className="size-3.5 cursor-pointer accent-terracotta"
+            />
+            Ruta objetivo / Competición
+          </label>
           {isTargetEvent && (
             <p className="text-[11px] text-neutral-500">
               Ajusta la pauta al máximo límite de absorción intestinal (hasta 120g/h) y
@@ -1330,6 +1444,41 @@ export function FuelingPlanner({
               intensidad.
             </p>
           )}
+          <button
+            type="button"
+            onClick={handleCalculate}
+            disabled={
+              loading ||
+              !isProfileComplete ||
+              (mode === "route" && !selectedRoute) ||
+              (mode === "gpx" && !parsedGpx) ||
+              (mode === "quick" && !quickValid)
+            }
+            className={cn(
+              "w-full py-3.5 text-sm",
+              isProfileComplete
+                ? primaryButtonClass
+                : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-sm bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
+            )}
+          >
+            {isProfileComplete ? (
+              <>
+                <Zap className="size-4 shrink-0" />
+                {loading ? "Calculando…" : "Calcular estrategia nutricional"}
+              </>
+            ) : (
+              <>
+                <Lock className="size-4 shrink-0" />
+                Calcular estrategia (requiere perfil completo)
+              </>
+            )}
+          </button>
+          {isProfileComplete && mode === "quick" && !quickValid && (
+            <p className="text-[11px] text-neutral-500">
+              Introduce una duración y unos vatios objetivo válidos para poder calcular.
+            </p>
+          )}
+          {!isProfileComplete && <ProfileRequiredBanner />}
         </div>
 
         {error && <p className="text-sm text-status-warning">{error}</p>}

@@ -2,6 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 
+import { Locate } from "lucide-react";
 import { useEffect } from "react";
 import { MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
 
@@ -68,7 +69,7 @@ function FitBoundsToRoute({ points }: { points: [number, number][] }) {
  * `top-2 left-2`) gives a slightly more generous margin from the map's own
  * now-frameless edge.
  */
-function MapZoomControls() {
+function MapZoomControls({ points }: { points: [number, number][] }) {
   const map = useMap();
 
   return (
@@ -88,6 +89,19 @@ function MapZoomControls() {
         className="flex size-7 cursor-pointer items-center justify-center rounded-sm bg-white/80 text-xs leading-none font-bold text-zinc-900 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
       >
         −
+      </button>
+      {/* Re-center: a phone's own pan/scroll gesture easily drags the route
+          out of frame (especially while the page itself is being scrolled
+          past the map) — this snaps straight back to `fitBounds`, the exact
+          same call `FitBoundsToRoute` already makes on mount, just re-run on
+          demand rather than only once per `points` change. */}
+      <button
+        type="button"
+        onClick={() => map.fitBounds(points, { padding: [16, 16] })}
+        aria-label="Re-centrar mapa en la ruta"
+        className="flex size-7 cursor-pointer items-center justify-center rounded-sm bg-white/80 text-zinc-900 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
+      >
+        <Locate className="size-3.5" />
       </button>
     </div>
   );
@@ -191,7 +205,7 @@ export function RouteMapPreview({
           }}
         />
         <FitBoundsToRoute points={points} />
-        <MapZoomControls />
+        <MapZoomControls points={points} />
       </MapContainer>
       {badgeParts.length > 0 && (
         <div className="absolute bottom-3 left-3 z-1000 rounded-lg bg-white/80 px-3 py-1.5 font-mono text-xs text-zinc-900 shadow-sm backdrop-blur-md">
