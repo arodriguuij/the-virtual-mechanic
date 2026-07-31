@@ -4484,6 +4484,103 @@ value with white text and `font-family: "Geist Mono"` at `z-index: 50`, and the 
 tooltip on `/perfil` still renders fully unclipped above its card boundary (confirming the
 prior `overflow-visible` fix holds with the new panel styling).
 
+### "Modo Competición / Ruta Objetivo" integrated into Card 02
+
+The "Ruta objetivo / Competición" checkbox used to float on the porcelain canvas in its
+own `<div>`, between Card 02 (Condiciones de la salida) and the CTA button — a genuine
+floating element, not encapsulated in any white card. It's now the last thing rendered
+inside Card 02 itself, after all 3 mode-specific conditionals (route/quick/gpx), separated
+by a thin `border-t border-zinc-100 pt-3` divider so it reads as this card's own trailing
+sub-section (a departure condition, same category as Intensidad Objetivo/Fecha y hora)
+rather than a fourth sibling alongside them. The CTA button and its own helper texts/
+`ProfileRequiredBanner` stay exactly where they were, directly below Card 02 — only the
+checkbox moved, since the button itself is an action, not a departure condition.
+
+### Agrupación Estructurada de Resultados — 3 white "tarjeta madre" cards
+
+The Pre-Ruta result panel used to mix one combined white card (the prior "Flujo Invertido"
+pass's Sub-bloques A/B/C) with several genuinely floating elements below it on the bare
+porcelain canvas — the dark "Dosis casera por bidón" Hero card, `WeatherImpactCard`, a bare
+3-column stat row (Duración/Carbohidratos/Sodio), the gut-training warning banner, the
+Balance Neto grid, and every recipe/timeline/reload/carb-loading `<details>` accordion —
+none of those had their own white-card boundary. Restructured into 3 independent white
+cards (`rounded-xl border-0 bg-white p-4 shadow-none`, this prompt's own literal spec),
+`gap-4` apart on the canvas, absorbing every one of those previously-floating pieces so the
+results container's direct children are now exactly these 3 cards and nothing else
+(verified live — see below):
+
+- **`rounded-xl` is a deliberate, scoped exception** to this app's app-wide `rounded-sm`
+  "Radio de Bordes Pequeño Global" convention (see "PNS premium redesign" above) — this
+  prompt's own code sample explicitly specifies `rounded-xl p-4 border-0 shadow-none` for
+  these 3 result cards specifically. Every other card/button/select/selector in the app
+  (Paso 01/02's own cards, every button, every `<select>`) is untouched and stays
+  `rounded-sm` — this isn't a reversal of that global pass, just a one-off exception for
+  this one prompt's own explicit spec on these 3 cards. Nested sub-blocks inside them use
+  `rounded-lg` (the 2x2 grid cells, the Balance Neto block, the bottle-config/coverage
+  banners), matching the prompt's own `rounded-lg` spec for nested sub-blocks — one step
+  down from the outer card's `rounded-xl`, same "outer vs. nested" radius relationship this
+  app already uses elsewhere (e.g. Perfil's cards vs. their own porcelain sub-blocks).
+- **Tarjeta 1 · `03 · Metabolismo y objetivos calculados`** — the 2x2 grid the prompt asked
+  for (Duración / Carbohidratos g/h+Total / Hidratación ml/h+Total / Sodio mg/h+Total,
+  each its own `bg-[#F8F7F5] rounded-lg` cell) replaces two previously-separate figures
+  (the old bare hourly-rate stat row and the old Sub-bloque A's separate ride-total grid) —
+  Hidratación's total converts `totalFluidMl` to liters (`(totalFluidMl / 1000).toFixed(1)`)
+  to match the prompt's own "X.X L" example. Below the grid: the Balance Neto sub-block
+  (`bg-[#F8F7F5] rounded-lg p-3 mt-3`, the prompt's own literal spec) with the same
+  Gasto Estimado/Ingesta Planificada/Déficit Neto figures as before, unchanged. **Three
+  pieces not named in the prompt's own literal Card-1 outline were folded in anyway,
+  rather than dropped** — the dark Hero card ("Dosis casera por bidón," nested here as a
+  `bg-[#343334]` sub-block instead of its own floating card, preserving the deliberately-
+  tuned bright-orange-on-dark callout documented across several "PNS premium redesign"
+  passes), `WeatherImpactCard` (real Open-Meteo data — dropping it would violate this
+  app's "never silently drop real data" convention), and the gut-training warning banner
+  (also real, conditional data). All three are semantically about "the calculated
+  metabolic targets," so Card 1 is their natural home even though the prompt's own outline
+  only explicitly named the grid and the Balance Neto sub-block — flagged here
+  transparently as a scope judgment call, not a silent addition.
+- **Tarjeta 2 · `04 · Configuración de bidones y comida en bolsillo`** — the bottle-config
+  selector (unchanged, still a planning preference built on real `result` figures via
+  `getBottleConfigSummary`, not a parameter that re-drives the recipe engine — see that
+  function's own doc comment) plus the Estrategia nutricional selector (Óptimo/Mi
+  Inventario/Híbrido) and the pocket-food inventory, all flattened into one card with no
+  `<details>` accordion — the old "Comida en bolsillo" accordion's own summary/counter row
+  was pure duplication once this card's own header already frames the whole section, so it
+  was removed rather than nested redundantly one level deeper. The coverage banner
+  (`bg-[#F8F7F5] rounded-lg p-3`) was reworded from the prior pass's "OBJETIVO/CUBIERTO CON
+  SELECCIÓN/DÉFICIT RESTANTE" ALLCAPS format to this prompt's own literal "Objetivo: Xg HC
+  · Cubierto: Yg HC · Restante: Zg HC" wording — still driven by the same reactive
+  `pocketFoodCarbsPreview` client-side derivation (recomputes instantly on every stepper
+  tap, no network round-trip), just restyled. `pocketFoodItemCount` (the old accordion
+  summary's own item-count figure) was deleted outright as genuinely dead code once its one
+  call site — the removed accordion summary — was gone.
+- **Tarjeta 3 · `05 · Pauta de ingesta y receta casera`** — the Receta de Laboratorio
+  Casero accordion (+ Copiar Receta), the Cronograma Dinámico de Ingesta accordion, and the
+  Estrategia de Carga Día −1 accordion (conditional), exactly as the prompt's own list
+  specifies, plus the export block (Descargar GPX / Exportar a Garmin button + the alarm-
+  clock guidance note) — all unchanged internally, just re-nested inside one white card
+  instead of each floating as its own independent `bg-[#F8F7F5]` accordion on the canvas.
+  **The reload-strategy accordion ("Estrategia de recarga en ruta") wasn't named in the
+  prompt's own literal list either, but is real, conditional content** (only rendered when
+  `result.reloadStrategy` isn't `null`) — folded in here too, between Cronograma and Carga
+  Día −1 (its existing relative position), for the same "don't silently drop real data"
+  reasoning as Card 1's extra pieces above.
+- **Left genuinely outside all 3 cards**: the `isOfflineCache` badge, which still renders
+  above Card 1 when applicable — a transient system-level notice about data freshness
+  (same category as a toast), not calculated ride-nutrition content, so it doesn't belong
+  inside any of the 3 result cards. The old floating eyebrow line ("Estrategia de bolsillo
+  & receta casera") that used to sit above the old combined card was deleted outright —
+  redundant now that each of the 3 new cards carries its own numbered header.
+
+Verified via `npx tsc --noEmit`/`npm run lint`/`npm run build` (all clean) and a live
+Playwright check (a temporary route rendering the real `FuelingPlanner` with a mocked
+Strava route and a mocked `/api/fueling/plan` response including a populated
+`reloadStrategy`/`carbLoading` to exercise every conditional block) at 390px — confirmed
+the checkbox sits inside Card 02's own DOM subtree, none of the old "A ·"/"B ·"/"C ·"
+sub-block headers or the old floating eyebrow remain anywhere in the page, and — critically
+— evaluating the results container's direct DOM children confirms all 3 (and only 3) are
+present, each carrying the exact `rounded-xl border-0 bg-white p-4 shadow-none` class
+signature, with no other direct child (no loose text, no stray div) sitting alongside them.
+
 ### Route dynamic rendering
 
 Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because

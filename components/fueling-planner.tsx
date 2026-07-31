@@ -125,8 +125,6 @@ const eyebrow = "text-[10px] font-mono uppercase tracking-widest text-zinc-500";
 // data-block eyebrows elsewhere in this file (Ruta, Carbohidratos objetivo,
 // etc. — a different, unrelated concern this pass didn't touch).
 const formFieldLabelClass = "text-xs font-mono font-semibold tracking-wider text-zinc-500 uppercase";
-const statLabel = "text-[10px] sm:text-xs font-mono tracking-wider text-neutral-500 uppercase truncate";
-const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
 // Shared with every other field/button across the app (`lib/ui-classes.ts`) —
 // aliased to these file-local names since they're already used at every
 // input/select/date call site below.
@@ -707,16 +705,13 @@ export function FuelingPlanner({
       })
     : null;
 
-  // Accordion header preview for "Comida de bolsillo" — in Óptimo mode the
-  // selection is server-computed (only known once `result` comes back), so
-  // that takes priority over the athlete's own local (disabled) steppers.
+  // In Óptimo mode the selection is server-computed (only known once
+  // `result` comes back), so that takes priority over the athlete's own
+  // local (disabled) steppers — feeds the live "Objetivo/Cubierto/Restante"
+  // coverage banner in Card 2 (04 · Configuración de bidones y comida en
+  // bolsillo).
   const effectivePocketFood: PocketFoodSelection =
     fuelingMode === "optimal" ? (result?.pocketFood ?? {}) : { ...pocketFood, customCarbsG };
-  const pocketFoodItemCount =
-    Object.entries(effectivePocketFood).reduce(
-      (sum, [key, qty]) => (key === "customCarbsG" ? sum : sum + (qty ?? 0)),
-      0
-    ) + (effectivePocketFood.customCarbsG && effectivePocketFood.customCarbsG > 0 ? 1 : 0);
   const pocketFoodCarbsPreview = getPocketFoodTotalCarbsG(effectivePocketFood);
 
   // "Modo Cobertura Limitada" — if the athlete opens the app with no
@@ -1371,6 +1366,31 @@ export function FuelingPlanner({
               </p>
             </div>
           )}
+
+          {/* Modo Competición / Ruta Objetivo — integrated strictly inside
+              Card 02 (it used to float on the porcelain canvas between this
+              card and the CTA button), at the bottom, separated by a thin
+              divider so it reads as this card's own trailing sub-section
+              rather than a fourth sibling condition alongside route/quick/
+              gpx above it. */}
+          <div className="mt-3 border-t border-zinc-100 pt-3">
+            <label className="flex cursor-pointer items-center gap-2 font-mono text-xs text-zinc-600">
+              <input
+                type="checkbox"
+                checked={isTargetEvent}
+                onChange={(e) => setIsTargetEvent(e.target.checked)}
+                className="size-3.5 cursor-pointer accent-terracotta"
+              />
+              Ruta objetivo / Competición
+            </label>
+            {isTargetEvent && (
+              <p className="mt-1.5 text-[11px] text-neutral-500">
+                Ajusta la pauta al máximo límite de absorción intestinal (hasta 120g/h) y
+                aplica un ratio Fructosa:Maltodextrina de 1:0.8 optimizado para alta
+                intensidad.
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Paso 03 (Estrategia nutricional + Comida en bolsillo) used to
@@ -1381,31 +1401,12 @@ export function FuelingPlanner({
             being asked to plan how to cover them, rather than configuring
             a food strategy against a target they haven't seen yet. */}
 
-        {/* Final CTA — sits after both numbered steps, not inside either of
-            them, matching `/perfil`'s own "single full-width action button
-            after the numbered cards" convention. The "Ruta objetivo /
-            Competición" checkbox sits strictly *above* the button now
-            (previously beside it in the same row) — it's an input that
-            changes what the button's own click computes, so it reads more
-            naturally as "one more thing to configure before you press
-            calculate" than as a peer alongside the action itself. */}
+        {/* Final CTA — sits directly below Card 02, not inside it — the
+            "Ruta objetivo / Competición" checkbox above is a card 02
+            sub-section (a departure condition), but the button itself is
+            an action, matching `/perfil`'s own "single full-width action
+            button after the numbered cards" convention. */}
         <div className="flex flex-col gap-3">
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-600">
-            <input
-              type="checkbox"
-              checked={isTargetEvent}
-              onChange={(e) => setIsTargetEvent(e.target.checked)}
-              className="size-3.5 cursor-pointer accent-terracotta"
-            />
-            Ruta objetivo / Competición
-          </label>
-          {isTargetEvent && (
-            <p className="text-[11px] text-neutral-500">
-              Ajusta la pauta al máximo límite de absorción intestinal (hasta 120g/h) y
-              aplica un ratio Fructosa:Maltodextrina de 1:0.8 optimizado para alta
-              intensidad.
-            </p>
-          )}
           <button
             type="button"
             onClick={handleCalculate}
@@ -1463,91 +1464,198 @@ export function FuelingPlanner({
                 Estrategia guardada en caché (Modo Offline)
               </div>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className={eyebrow}>Estrategia de bolsillo &amp; receta casera</span>
+
+            {/* "Agrupación Estructurada de Resultados" — every calculated
+                output now lives inside one of 3 independent white "tarjeta
+                madre" cards (bg-white rounded-xl p-4 border-0 shadow-none)
+                on the porcelain canvas, replacing the prior mix of one
+                combined card (old Sub-bloques A/B/C) plus several genuinely
+                floating elements below it (the dark Hero card, the weather
+                card, the bare stat row, the gut-training warning, the
+                Balance Neto grid, and every recipe/timeline/reload/carb-
+                loading accordion) — none of those had their own white-card
+                boundary before this pass. `rounded-xl` is a deliberate,
+                scoped exception to this app's app-wide `rounded-sm` "Radio
+                de Bordes Pequeño Global" convention (see the design-system
+                history below "PNS premium redesign") — this prompt's own
+                literal spec asks for `rounded-xl` on these 3 specific result
+                cards; every other card/button/select in the app is
+                unaffected. Weather, the Hero card's per-bottle dose callout,
+                and the gut-training warning weren't named in the prompt's
+                own 3-card outline, but dropping real, already-computed data
+                or a deliberately-tuned design element (see "PNS premium
+                redesign" above for the Hero card's own history) would
+                contradict this app's "never silently drop real data"
+                convention — all three are folded into Tarjeta 1 instead,
+                the card whose "objetivos calculados" concern they're most
+                directly part of. */}
+
+            {/* 🎴 Tarjeta 1 · 03 · Metabolismo y objetivos calculados */}
+            <div className="rounded-xl border-0 bg-white p-4 shadow-none">
+              <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+                03 · Metabolismo y objetivos calculados
+              </span>
+
+              <div className="flex flex-col gap-3 rounded-xl bg-[#343334] p-4 text-white shadow-none">
+                <div>
+                  <span className="font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
+                    Dosis casera por bidón
+                  </span>
+                  <p className="mt-1.5 font-mono text-lg font-bold text-[#FD5A08] sm:text-xl">
+                    {result.bottlePlan.fuelBottles.count > 0
+                      ? `${result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g Malto + ${result.bottlePlan.fuelBottles.fructoseGPerBottle}g Fructosa + ${getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g Sal`
+                      : "Cobertura completa vía comida de bolsillo"}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1.5 border-t border-white/10 pt-3 text-xs text-neutral-300">
+                  <span className="flex items-center gap-1.5">
+                    <Droplet className="size-3.5 shrink-0 text-neutral-400" />
+                    1 trago cada {result.timingTimeline.hydrationIntervalMinutes} min ({result.carbsGPerHour} g/h HC · {result.sodiumMgPerHour} mg/h Sodio)
+                  </span>
+                </div>
+              </div>
+
+              {/* Cuadrícula 2x2 de objetivos por hora + total */}
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
+                  <span className={eyebrow}>Duración</span>
+                  <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
+                    {result.durationHours}
+                    <span className="ml-1 text-xs font-normal text-neutral-500">h</span>
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
+                  <span className="flex items-center gap-1">
+                    <span className={eyebrow}>Carbohidratos</span>
+                    <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
+                  </span>
+                  <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
+                    {result.carbsGPerHour}
+                    <span className="ml-1 text-xs font-normal text-neutral-500">g/h</span>
+                  </span>
+                  <span className="font-mono text-[11px] text-neutral-500">
+                    Total: {result.totalRideCarbsG} g
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
+                  <span className={eyebrow}>Hidratación</span>
+                  <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
+                    {result.fluidLossMlPerHour}
+                    <span className="ml-1 text-xs font-normal text-neutral-500">ml/h</span>
+                  </span>
+                  <span className="font-mono text-[11px] text-neutral-500">
+                    Total: {(totalFluidMl / 1000).toFixed(1)} L
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
+                  <span className={eyebrow}>Sodio</span>
+                  <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
+                    {result.sodiumMgPerHour}
+                    <span className="ml-1 text-xs font-normal text-neutral-500">mg/h</span>
+                  </span>
+                  <span className="font-mono text-[11px] text-neutral-500">
+                    Total: {totalSodiumMg} mg
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <WeatherImpactCard
+                  temperatureC={result.weather.temperatureC}
+                  temperatureMaxC={result.weather.temperatureMaxC}
+                  humidityPct={result.weather.humidityPct}
+                  windSpeedKmh={result.weather.windSpeedKmh}
+                  source={result.weather.source}
+                  multiPointSample={result.weather.multiPointSample}
+                  lapseRateAdjustmentC={result.weather.lapseRateAdjustmentC}
+                  fluidLossMlPerHour={result.fluidLossMlPerHour}
+                  sodiumMgPerHour={result.sodiumMgPerHour}
+                />
+              </div>
+
+              {result.gutTraining.isGutLimited && (
+                <p className="mt-3 border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
+                  Tu intestino está limitado a {result.gutTraining.gutCapGPerHour} g/h (esta ruta
+                  pediría {result.gutTraining.uncappedGPerHour} g/h). Activa el protocolo de Gut
+                  Training para subir de nivel gradualmente.
+                </p>
+              )}
+
+              {/* Sub-bloque de Balance Neto anidado */}
+              <div className="mt-3 grid grid-cols-1 gap-3 rounded-lg bg-[#F8F7F5] p-3 sm:grid-cols-3">
+                <div className="flex flex-col gap-1">
+                  <span className={eyebrow}>Gasto estimado de HC</span>
+                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                    {result.netCarbDeficit.estimatedBurnG} g
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={eyebrow}>Ingesta planificada</span>
+                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                    {result.netCarbDeficit.plannedIntakeG} g
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={eyebrow}>Déficit neto al finalizar</span>
+                  <span
+                    className={cn(
+                      "flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums",
+                      result.netCarbDeficit.netDeficitG > 0 ? "text-status-warning" : "text-status-good"
+                    )}
+                  >
+                    <TrendingDown className="size-3.5 shrink-0" />
+                    {result.netCarbDeficit.netDeficitG > 0
+                      ? `-${result.netCarbDeficit.netDeficitG}`
+                      : `+${Math.abs(result.netCarbDeficit.netDeficitG)}`}{" "}
+                    g
+                  </span>
+                </div>
+              </div>
             </div>
 
-            {/* "Flujo Invertido" — the athlete now sees the real calculated
-                targets first (Sub-bloque A), then plans how to cover them
-                (B: bottle-role preference, C: pocket food) — the exact
-                opposite order Paso 03 used to force before a calculation
-                even existed to plan against. One structured white card,
-                3 sub-blocks, matching the old Paso 03 card's own shape. */}
-            <div className="flex flex-col gap-6 rounded-sm bg-white p-4 shadow-none sm:p-6">
-              {/* A · Desglose de necesidades metabólicas */}
-              <div>
-                <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-                  A · Necesidades metabólicas totales
-                </span>
-                <div className="grid grid-cols-3 gap-3 rounded-sm bg-[#F8F7F5] p-4">
-                  <div className="flex flex-col gap-1">
-                    <span className={eyebrow}>Carbohidratos objetivo</span>
-                    <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
-                      {result.totalRideCarbsG}
-                      <span className="ml-1 text-xs font-normal text-neutral-500">g HC</span>
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className={eyebrow}>Líquido objetivo</span>
-                    <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
-                      {totalFluidMl}
-                      <span className="ml-1 text-xs font-normal text-neutral-500">ml</span>
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className={eyebrow}>Sodio objetivo</span>
-                    <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
-                      {totalSodiumMg}
-                      <span className="ml-1 text-xs font-normal text-neutral-500">mg</span>
-                    </span>
-                  </div>
-                </div>
+            {/* 🎴 Tarjeta 2 · 04 · Configuración de bidones y comida en
+                bolsillo — the bottle-role preference (a planning preference,
+                not a parameter that re-drives the recipe engine below, see
+                `getBottleConfigSummary`'s own doc comment) plus the
+                Estrategia nutricional selector and pocket-food inventory,
+                now rendered flat (no `<details>` accordion) since this
+                card's own header already frames the whole section — the
+                prior "Comida en bolsillo" accordion summary/counter was
+                redundant with a header one line above it once both live
+                inside their own dedicated card. */}
+            <div className="rounded-xl border-0 bg-white p-4 shadow-none">
+              <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+                04 · Configuración de bidones y comida en bolsillo
+              </span>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {BOTTLE_CONFIG_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setBottleConfig(opt.value)}
+                    className={cn(
+                      segmentedButtonClass,
+                      bottleConfig === opt.value
+                        ? "border-transparent bg-terracotta text-white"
+                        : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
+                    )}
+                  >
+                    <span className={segmentedButtonLabelClass}>{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-3 rounded-lg bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
+                {bottleConfig
+                  ? getBottleConfigSummary(bottleConfig, result)
+                  : "Elige una configuración para ver cómo se reparte tu objetivo entre bidones y bolsillo."}
               </div>
 
-              {/* B · Selector de configuración de bidones — a planning
-                  preference, not a parameter that re-drives the recipe
-                  engine below (see `getBottleConfigSummary`'s own doc
-                  comment) — no default, same "explicit choice only"
-                  convention the route/intensity selects already follow. */}
-              <div>
-                <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-                  B · Configuración de bidones
+              <div className="mt-4">
+                <span className="mb-2 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+                  Estrategia nutricional
                 </span>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {BOTTLE_CONFIG_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setBottleConfig(opt.value)}
-                      className={cn(
-                        segmentedButtonClass,
-                        bottleConfig === opt.value
-                          ? "border-transparent bg-terracotta text-white"
-                          : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
-                      )}
-                    >
-                      <span className={segmentedButtonLabelClass}>{opt.label}</span>
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-3 rounded-sm bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
-                  {bottleConfig
-                    ? getBottleConfigSummary(bottleConfig, result)
-                    : "Elige una configuración para ver cómo se reparte tu objetivo entre bidones y bolsillo."}
-                </div>
-              </div>
-
-              {/* C · Ajustador interactivo de bolsillo — Estrategia
-                  nutricional (Óptimo/Mi Inventario/Híbrido) + el inventario
-                  de alimentos, reubicados aquí verbatim desde el antiguo
-                  Paso 03 pre-cálculo; misma lógica de apertura/cierre del
-                  `<details>`, sin cambios. */}
-              <div>
-                <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-                  C · Ajustador de comida en bolsillo
-                </span>
-
-                <div className="mb-2.5 grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {FUELING_MODE_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
@@ -1564,476 +1672,364 @@ export function FuelingPlanner({
                     </button>
                   ))}
                 </div>
-                <p className="mb-6 text-xs font-mono text-zinc-500">
+                <p className="mt-2 text-xs font-mono text-zinc-500">
                   {FUELING_MODE_DESCRIPTIONS[fuelingMode]}
                 </p>
+              </div>
 
-                <details key={fuelingMode} open={fuelingMode !== "optimal"} className="group">
-                  <summary className="flex list-none cursor-pointer items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
-                    <span className="font-mono text-xs font-bold tracking-wider text-neutral-900 uppercase">
-                      Comida en bolsillo
-                    </span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <span className="font-mono text-[11px] whitespace-nowrap text-neutral-500">
-                        {pocketFoodItemCount} items seleccionados · {pocketFoodCarbsPreview}g HC
-                      </span>
-                      <ChevronDown className="size-4 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
-                    </span>
-                  </summary>
-                  <div className="pt-3">
-                    {/* Contador Dinámico en Tiempo Real — objetivo/cubierto/
-                        restante, recomputado en cada tap +/- de un stepper
-                        (`pocketFoodCarbsPreview` es pura aritmética cliente,
-                        ver su propia definición más arriba). */}
-                    {(() => {
-                      const restanteG = Math.max(0, result.totalRideCarbsG - pocketFoodCarbsPreview);
-                      return (
-                        <div className="mb-4 rounded-xl border border-zinc-200 bg-white p-4 text-xs font-mono text-zinc-600 shadow-none">
-                          OBJETIVO {result.totalRideCarbsG}g HC · CUBIERTO CON SELECCIÓN{" "}
-                          {pocketFoodCarbsPreview}g HC · DÉFICIT RESTANTE {restanteG}g HC
-                        </div>
-                      );
-                    })()}
-                    <div className="flex flex-col gap-1.5">
-                      {fuelingMode === "optimal" && (
-                        <p className="text-xs text-neutral-500">
-                          Automático — solo geles y bidón en modo Óptimo, sin alimentos sólidos.
-                        </p>
-                      )}
-                      <div className="grid grid-cols-1 gap-0 md:grid-cols-2 md:gap-x-4 md:gap-y-0">
-                        {(fuelingMode === "optimal" ? GEL_DOSE_TYPES : ALL_POCKET_FOOD_TYPES).map((type) => (
-                          <PocketFoodStepperRow
-                            key={type}
-                            type={type}
-                            qty={
-                              fuelingMode === "optimal"
-                                ? (result?.pocketFood[type] ?? 0)
-                                : (pocketFood[type] ?? 0)
-                            }
-                            onChange={(qty) => setPocketFoodQty(type, qty)}
-                            disabled={fuelingMode === "optimal"}
-                          />
-                        ))}
-                        {fuelingMode !== "optimal" && (
-                          <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-2.5 last:border-b-0">
-                            <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
-                              Personalizado
-                            </label>
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                id="custom-carbs"
-                                type="number"
-                                inputMode="numeric"
-                                min={0}
-                                max={MAX_CUSTOM_CARBS_G}
-                                value={customCarbsG || ""}
-                                onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
-                                placeholder="0"
-                                className="w-16 rounded-sm border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
-                              />
-                              <span className="font-mono text-xs text-neutral-500">g HC</span>
-                            </div>
-                          </div>
-                        )}
+              {/* Indicador de Cobertura en Tiempo Real — recomputado en cada
+                  tap +/- de un stepper (`pocketFoodCarbsPreview` es pura
+                  aritmética cliente, ver su propia definición más arriba). */}
+              <div className="mt-4 mb-3 rounded-lg bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
+                Objetivo: {result.totalRideCarbsG}g HC · Cubierto: {pocketFoodCarbsPreview}g HC ·
+                Restante: {Math.max(0, result.totalRideCarbsG - pocketFoodCarbsPreview)}g HC
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                {fuelingMode === "optimal" && (
+                  <p className="text-xs text-neutral-500">
+                    Automático — solo geles y bidón en modo Óptimo, sin alimentos sólidos.
+                  </p>
+                )}
+                <div className="grid grid-cols-1 gap-0 md:grid-cols-2 md:gap-x-4 md:gap-y-0">
+                  {(fuelingMode === "optimal" ? GEL_DOSE_TYPES : ALL_POCKET_FOOD_TYPES).map((type) => (
+                    <PocketFoodStepperRow
+                      key={type}
+                      type={type}
+                      qty={
+                        fuelingMode === "optimal"
+                          ? (result?.pocketFood[type] ?? 0)
+                          : (pocketFood[type] ?? 0)
+                      }
+                      onChange={(qty) => setPocketFoodQty(type, qty)}
+                      disabled={fuelingMode === "optimal"}
+                    />
+                  ))}
+                  {fuelingMode !== "optimal" && (
+                    <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-2.5 last:border-b-0">
+                      <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
+                        Personalizado
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          id="custom-carbs"
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          max={MAX_CUSTOM_CARBS_G}
+                          value={customCarbsG || ""}
+                          onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
+                          placeholder="0"
+                          className="w-16 rounded-sm border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                        />
+                        <span className="font-mono text-xs text-neutral-500">g HC</span>
                       </div>
                     </div>
-                    {fuelingMode !== "optimal" && (
-                      <p className="mt-3 text-[11px] text-neutral-500">
-                        Pulsa &quot;Calcular estrategia nutricional&quot; (arriba) de nuevo para
-                        actualizar la receta casera y el plan de bidones con esta selección.
+                  )}
+                </div>
+              </div>
+              {fuelingMode !== "optimal" && (
+                <p className="mt-3 text-[11px] text-neutral-500">
+                  Pulsa &quot;Calcular estrategia nutricional&quot; (arriba) de nuevo para
+                  actualizar la receta casera y el plan de bidones con esta selección.
+                </p>
+              )}
+            </div>
+
+            {/* 🎴 Tarjeta 3 · 05 · Pauta de ingesta y receta casera — the DIY
+                recipe, the dynamic ingestion timeline, the reload strategy
+                (when applicable — not named in the prompt's own literal
+                list, but real conditional content this app's "never
+                silently drop data" convention keeps rather than removes),
+                the carb-loading protocol (when applicable), and the export
+                block, all now nested inside one white card instead of each
+                being its own free-floating `bg-[#F8F7F5]` accordion on the
+                porcelain canvas. */}
+            <div className="flex flex-col gap-3 rounded-xl border-0 bg-white p-4 shadow-none">
+              <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+                05 · Pauta de ingesta y receta casera
+              </span>
+
+              <details className="group rounded-sm bg-[#F8F7F5]">
+                <summary className="flex list-none cursor-pointer flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
+                    <span className={eyebrow}>
+                      Receta de laboratorio casero · {result.durationHours} h
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCopyRecipe();
+                    }}
+                    className={cn(secondaryButtonClass, "w-fit shrink-0 px-2.5 py-1.5 text-[10px]")}
+                  >
+                    {copied ? (
+                      "✓ Receta copiada"
+                    ) : (
+                      <>
+                        <Copy className="size-3" />
+                        Copiar receta
+                      </>
+                    )}
+                  </button>
+                </summary>
+                <div className="border-t border-neutral-200 p-3">
+                {result.pocketFoodCarbsG > 0 && (
+                  <p className="mt-1.5 flex items-start gap-1.5 text-xs text-neutral-500">
+                    <Utensils className="mt-0.5 size-3 shrink-0" />
+                    Comida de bolsillo cubre {result.pocketFoodCarbsG}g de {result.totalRideCarbsG}g HC —
+                    el resto ({result.recipe.totalCarbsG}g) va en el bidón.
+                  </p>
+                )}
+                {result.fuelingMode === "hybrid" && (result.hybridGelSuggestion ?? 0) > 0 && (
+                  <p className="mt-1.5 flex items-start gap-1.5 text-xs text-neutral-500">
+                    <FlaskConical className="mt-0.5 size-3 shrink-0" />
+                    Alternativa: {result.hybridGelSuggestion} gel{result.hybridGelSuggestion === 1 ? "" : "es"}{" "}
+                    estándar (30g c/u) cubrirían la brecha en vez del bidón — o deja que el bidón la
+                    absorba, como ya hace la receta de abajo.
+                  </p>
+                )}
+                <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
+                  <div className="flex items-center justify-between">
+                    <span>Maltodextrina</span>
+                    <span className="font-mono font-medium text-neutral-900 tabular-nums">
+                      {result.recipe.maltodextrinG} g{" "}
+                      <span className="text-xs font-normal text-neutral-500">
+                        (~{recipeMeasures!.maltodextrinScoops} cazos)*
+                      </span>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Fructosa</span>
+                    <span className="font-mono font-medium text-neutral-900 tabular-nums">
+                      {result.recipe.fructoseG} g{" "}
+                      <span className="text-xs font-normal text-neutral-500">
+                        (~{recipeMeasures!.fructoseScoops} cazos)*
+                      </span>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Sal común</span>
+                    <span className="font-mono font-medium text-neutral-900 tabular-nums">
+                      {getTableSaltGrams(result.recipe.sodiumMg)} g{" "}
+                      <span className="text-xs font-normal text-neutral-500">
+                        (~{recipeMeasures!.saltTeaspoons} cdta. café)*
+                      </span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-500">
+                    Aporta {result.recipe.sodiumMg}mg de sodio puro — la sal común solo es ~39.3%
+                    sodio, así que se pesa en sal, no en sodio.
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span>Agua</span>
+                    <span className="font-mono font-medium text-neutral-900 tabular-nums">
+                      {result.recipe.waterMl} ml
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-neutral-400">
+                    *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g de
+                    sal.
+                  </p>
+                </div>
+
+                <div className="mt-3 border-t border-neutral-200 pt-3">
+                  <span className={eyebrow}>
+                    Arquitectura de bidones ({result.bottlePlan.bottleSizeMl}ml · ≤8% concentración)
+                  </span>
+                  <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
+                    {result.bottlePlan.fuelBottles.count > 0 && (
+                      <div className="flex flex-wrap items-center justify-between gap-1">
+                        <span className="flex items-center gap-1.5">
+                          <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
+                          {result.bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel
+                          Concentrado × {result.bottlePlan.fuelBottles.count}
+                        </span>
+                        <span className="font-mono text-xs text-neutral-500">
+                          {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g malto (~
+                          {fuelBottleMeasures!.maltodextrinScoops} cazos) ·{" "}
+                          {result.bottlePlan.fuelBottles.fructoseGPerBottle}g fruct (~
+                          {fuelBottleMeasures!.fructoseScoops} cazos) ·{" "}
+                          {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g sal
+                          común (~{fuelBottleMeasures!.saltTeaspoons} cdta.) / bidón
+                        </span>
+                      </div>
+                    )}
+                    {result.bottlePlan.waterBottles.count > 0 && (
+                      <div className="flex flex-wrap items-center justify-between gap-1">
+                        <span className="flex items-center gap-1.5">
+                          <Droplet className="size-3.5 shrink-0 text-neutral-500" />
+                          {result.bottlePlan.waterBottles.count > 1 ? "Bidones" : "Bidón"} Agua /
+                          Electrolitos × {result.bottlePlan.waterBottles.count}
+                        </span>
+                        <span className="text-xs text-neutral-500">a demanda</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {result.bottlePlan.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
+                  <div className="mt-3 flex items-start gap-2 border border-status-warning/40 bg-status-warning/10 px-3 py-2.5 text-sm text-status-warning">
+                    <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+                    <div>
+                      <p className="font-semibold">
+                        Solución hipertónica (concentración &gt; {HYPERTONIC_THRESHOLD_PCT}%)
+                      </p>
+                      <p className="mt-0.5 text-xs">
+                        Esta mezcla ({result.bottlePlan.fuelBottles.concentrationPct}%) es
+                        demasiado densa para la capacidad de tus bidones y puede ralentizar el
+                        vaciado gástrico. Añade agua o traslada parte de los HC a comida de
+                        bolsillo.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                </div>
+              </details>
+
+              <details className="group rounded-sm bg-[#F8F7F5]">
+                <summary className="flex list-none cursor-pointer items-center gap-1.5 p-3 [&::-webkit-details-marker]:hidden">
+                  <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
+                  <span className={eyebrow}>Cronograma dinámico de ingesta</span>
+                </summary>
+                <div className="border-t border-neutral-200 p-3">
+                  <p className="flex items-center gap-1.5 text-sm text-neutral-700">
+                    <Droplet className="size-3.5 shrink-0 text-neutral-500" />
+                    Bebe un trago cada{" "}
+                    <span className="font-mono font-semibold text-neutral-900">
+                      {result.timingTimeline.hydrationIntervalMinutes} min
+                    </span>
+                  </p>
+                  {result.timingTimeline.entries.length > 0 && (
+                    <ol className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
+                      {result.timingTimeline.entries.map((entry, i) => (
+                        <li key={i} className="flex items-center gap-1.5">
+                          {entry.type === "solid" && (
+                            <Utensils className="size-3.5 shrink-0 text-neutral-500" />
+                          )}
+                          {entry.type === "gel" && (
+                            <Zap className="size-3.5 shrink-0 text-neutral-500" />
+                          )}
+                          {entry.type === "caffeine" && (
+                            <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
+                          )}
+                          <span className="font-mono text-xs text-neutral-500">
+                            {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
+                          </span>
+                          {stripEmoji(entry.label)}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+              </details>
+
+              {result.reloadStrategy && (
+                <details className="group rounded-sm border border-status-warning/40 bg-status-warning/10">
+                  <summary className="flex list-none cursor-pointer items-center justify-between gap-2 p-3 [&::-webkit-details-marker]:hidden">
+                    <span className="flex min-w-0 flex-col gap-1">
+                      <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-status-warning uppercase">
+                        <Fuel className="size-3.5 shrink-0" />
+                        Estrategia de recarga en ruta
+                      </span>
+                      <span className="text-sm font-semibold text-neutral-900">
+                        {result.reloadStrategy.startingBottleCount} bidón
+                        {result.reloadStrategy.startingBottleCount > 1 ? "es" : ""} en bici +{" "}
+                        {result.reloadStrategy.ziplocBagsCount} dosis de recarga en maillot
+                      </span>
+                    </span>
+                    <ChevronDown className="size-4 shrink-0 text-status-warning transition-transform duration-150 group-open:rotate-180" />
+                  </summary>
+                  <div className="border-t border-status-warning/30 p-3 pt-2">
+                    <ol className="flex flex-col gap-1 text-sm text-neutral-700">
+                      <li>
+                        1. Inicio de ruta: {result.reloadStrategy.startingBottleCount} bidón
+                        {result.reloadStrategy.startingBottleCount > 1 ? "es" : ""} preparado
+                        {result.reloadStrategy.startingBottleCount > 1 ? "s" : ""} en el cuadro.
+                      </li>
+                      <li>
+                        2. En el maillot: lleva {result.reloadStrategy.ziplocBagsCount} bolsita
+                        {result.reloadStrategy.ziplocBagsCount > 1 ? "s" : ""} Ziploc con{" "}
+                        {result.reloadStrategy.ziplocDose.maltodextrinG}g malto (~
+                        {ziplocMeasures!.maltodextrinScoops} cazos) +{" "}
+                        {result.reloadStrategy.ziplocDose.fructoseG}g fructosa (~
+                        {ziplocMeasures!.fructoseScoops} cazos) +{" "}
+                        {getTableSaltGrams(result.reloadStrategy.ziplocDose.sodiumMg)}g sal común (~
+                        {ziplocMeasures!.saltTeaspoons} cdta.) (dosis pre-medida por bidón).
+                      </li>
+                      <li className="flex items-center gap-1.5 font-medium text-neutral-900">
+                        <MapPin className="size-3.5 shrink-0" />
+                        Parada de recarga recomendada:{" "}
+                        {result.reloadStrategy.reloadAtKm != null
+                          ? `Km ${result.reloadStrategy.reloadAtKm}`
+                          : `Hora ${result.reloadStrategy.reloadAtHours}`}
+                      </li>
+                    </ol>
+                    {result.reloadStrategy.isImpractical && (
+                      <p className="mt-2 flex items-start gap-1.5 border-t border-status-warning/30 pt-2 text-xs text-status-warning">
+                        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                        {result.reloadStrategy.ziplocBagsCount} recargas en ruta no es un plan
+                        realista — con tus bidones de {result.bottlePlan.bottleSizeMl}ml, esta
+                        estrategia necesita más carbohidratos disueltos de los que puedes llevar
+                        cómodamente. Prueba con bidones de mayor capacidad o traslada más carga a
+                        comida sólida/geles (modo Híbrido u Óptimo).
                       </p>
                     )}
                   </div>
                 </details>
-              </div>
-            </div>
-
-            <div className="mb-2 flex flex-col gap-3 rounded-sm bg-[#343334] p-5 text-white shadow-none">
-              <div>
-                <span className="font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
-                  Dosis casera por bidón
-                </span>
-                <p className="mt-1.5 font-mono text-xl font-bold text-[#FD5A08]">
-                  {result.bottlePlan.fuelBottles.count > 0
-                    ? `${result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g Malto + ${result.bottlePlan.fuelBottles.fructoseGPerBottle}g Fructosa + ${getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g Sal`
-                    : "Cobertura completa vía comida de bolsillo"}
-                </p>
-              </div>
-              <div className="flex flex-col gap-1.5 border-t border-white/10 pt-3 text-xs text-neutral-300">
-                <span className="flex items-center gap-1.5">
-                  <Droplet className="size-3.5 shrink-0 text-neutral-400" />
-                  1 trago cada {result.timingTimeline.hydrationIntervalMinutes} min ({result.carbsGPerHour} g/h HC · {result.sodiumMgPerHour} mg/h Sodio)
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <TrendingDown className="size-3.5 shrink-0 text-neutral-400" />
-                  Déficit neto:{" "}
-                  {result.netCarbDeficit.netDeficitG > 0
-                    ? `-${result.netCarbDeficit.netDeficitG}`
-                    : `+${Math.abs(result.netCarbDeficit.netDeficitG)}`}{" "}
-                  g HC
-                </span>
-              </div>
-            </div>
-
-            <WeatherImpactCard
-              temperatureC={result.weather.temperatureC}
-              temperatureMaxC={result.weather.temperatureMaxC}
-              humidityPct={result.weather.humidityPct}
-              windSpeedKmh={result.weather.windSpeedKmh}
-              source={result.weather.source}
-              multiPointSample={result.weather.multiPointSample}
-              lapseRateAdjustmentC={result.weather.lapseRateAdjustmentC}
-              fluidLossMlPerHour={result.fluidLossMlPerHour}
-              sodiumMgPerHour={result.sodiumMgPerHour}
-            />
-
-            <div className="my-4 grid w-full grid-cols-3 gap-1 text-center sm:gap-4 sm:text-left">
-              <div className="flex min-w-0 flex-col items-center gap-1 sm:items-start">
-                <span className={statLabel}>Duración</span>
-                <span className={statValue}>
-                  {result.durationHours}
-                  <span className="ml-1 text-sm font-normal text-neutral-500">h</span>
-                </span>
-              </div>
-              <div className="flex min-w-0 flex-col items-center gap-1 sm:items-start">
-                <span className="flex min-w-0 items-center justify-center sm:justify-start">
-                  <span className={statLabel}>
-                    <span className="sm:hidden">Carbos</span>
-                    <span className="hidden sm:inline">Carbohidratos</span>
-                  </span>
-                  <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
-                </span>
-                <span className={statValue}>
-                  {result.carbsGPerHour}
-                  <span className="ml-1 text-sm font-normal text-neutral-500">g/h</span>
-                </span>
-              </div>
-              <div className="flex min-w-0 flex-col items-center gap-1 sm:items-start">
-                <span className={statLabel}>Sodio</span>
-                <span className={statValue}>
-                  {result.sodiumMgPerHour}
-                  <span className="ml-1 text-sm font-normal text-neutral-500">mg/h</span>
-                </span>
-              </div>
-            </div>
-
-            {result.gutTraining.isGutLimited && (
-              <p className="border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
-                Tu intestino está limitado a {result.gutTraining.gutCapGPerHour} g/h (esta ruta
-                pediría {result.gutTraining.uncappedGPerHour} g/h). Activa el protocolo de Gut
-                Training para subir de nivel gradualmente.
-              </p>
-            )}
-
-            <div className="grid grid-cols-1 gap-3 rounded-sm bg-[#F8F7F5] px-3 py-3 sm:grid-cols-3 sm:gap-4">
-              <div className="flex flex-col gap-1">
-                <span className={eyebrow}>Gasto estimado de HC</span>
-                <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
-                  {result.netCarbDeficit.estimatedBurnG} g
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className={eyebrow}>Ingesta planificada</span>
-                <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
-                  {result.netCarbDeficit.plannedIntakeG} g
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className={eyebrow}>Déficit neto al finalizar</span>
-                <span
-                  className={cn(
-                    "flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums",
-                    result.netCarbDeficit.netDeficitG > 0 ? "text-status-warning" : "text-status-good"
-                  )}
-                >
-                  <TrendingDown className="size-3.5 shrink-0" />
-                  {result.netCarbDeficit.netDeficitG > 0
-                    ? `-${result.netCarbDeficit.netDeficitG}`
-                    : `+${Math.abs(result.netCarbDeficit.netDeficitG)}`}{" "}
-                  g
-                </span>
-              </div>
-            </div>
-
-            <details className="group rounded-sm bg-[#F8F7F5]">
-              <summary className="flex list-none cursor-pointer flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
-                  <span className={eyebrow}>
-                    Receta de laboratorio casero · {result.durationHours} h
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCopyRecipe();
-                  }}
-                  className={cn(secondaryButtonClass, "w-fit shrink-0 px-2.5 py-1.5 text-[10px]")}
-                >
-                  {copied ? (
-                    "✓ Receta copiada"
-                  ) : (
-                    <>
-                      <Copy className="size-3" />
-                      Copiar receta
-                    </>
-                  )}
-                </button>
-              </summary>
-              <div className="border-t border-neutral-200 p-3">
-              {result.pocketFoodCarbsG > 0 && (
-                <p className="mt-1.5 flex items-start gap-1.5 text-xs text-neutral-500">
-                  <Utensils className="mt-0.5 size-3 shrink-0" />
-                  Comida de bolsillo cubre {result.pocketFoodCarbsG}g de {result.totalRideCarbsG}g HC —
-                  el resto ({result.recipe.totalCarbsG}g) va en el bidón.
-                </p>
               )}
-              {result.fuelingMode === "hybrid" && (result.hybridGelSuggestion ?? 0) > 0 && (
-                <p className="mt-1.5 flex items-start gap-1.5 text-xs text-neutral-500">
-                  <FlaskConical className="mt-0.5 size-3 shrink-0" />
-                  Alternativa: {result.hybridGelSuggestion} gel{result.hybridGelSuggestion === 1 ? "" : "es"}{" "}
-                  estándar (30g c/u) cubrirían la brecha en vez del bidón — o deja que el bidón la
-                  absorba, como ya hace la receta de abajo.
-                </p>
-              )}
-              <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
-                <div className="flex items-center justify-between">
-                  <span>Maltodextrina</span>
-                  <span className="font-mono font-medium text-neutral-900 tabular-nums">
-                    {result.recipe.maltodextrinG} g{" "}
-                    <span className="text-xs font-normal text-neutral-500">
-                      (~{recipeMeasures!.maltodextrinScoops} cazos)*
-                    </span>
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Fructosa</span>
-                  <span className="font-mono font-medium text-neutral-900 tabular-nums">
-                    {result.recipe.fructoseG} g{" "}
-                    <span className="text-xs font-normal text-neutral-500">
-                      (~{recipeMeasures!.fructoseScoops} cazos)*
-                    </span>
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Sal común</span>
-                  <span className="font-mono font-medium text-neutral-900 tabular-nums">
-                    {getTableSaltGrams(result.recipe.sodiumMg)} g{" "}
-                    <span className="text-xs font-normal text-neutral-500">
-                      (~{recipeMeasures!.saltTeaspoons} cdta. café)*
-                    </span>
-                  </span>
-                </div>
-                <p className="text-xs text-neutral-500">
-                  Aporta {result.recipe.sodiumMg}mg de sodio puro — la sal común solo es ~39.3%
-                  sodio, así que se pesa en sal, no en sodio.
-                </p>
-                <div className="flex items-center justify-between">
-                  <span>Agua</span>
-                  <span className="font-mono font-medium text-neutral-900 tabular-nums">
-                    {result.recipe.waterMl} ml
-                  </span>
-                </div>
-                <p className="mt-1 text-[10px] text-neutral-400">
-                  *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g de
-                  sal.
-                </p>
-              </div>
 
-              <div className="mt-3 border-t border-neutral-200 pt-3">
-                <span className={eyebrow}>
-                  Arquitectura de bidones ({result.bottlePlan.bottleSizeMl}ml · ≤8% concentración)
-                </span>
-                <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
-                  {result.bottlePlan.fuelBottles.count > 0 && (
-                    <div className="flex flex-wrap items-center justify-between gap-1">
-                      <span className="flex items-center gap-1.5">
-                        <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
-                        {result.bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel
-                        Concentrado × {result.bottlePlan.fuelBottles.count}
-                      </span>
-                      <span className="font-mono text-xs text-neutral-500">
-                        {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g malto (~
-                        {fuelBottleMeasures!.maltodextrinScoops} cazos) ·{" "}
-                        {result.bottlePlan.fuelBottles.fructoseGPerBottle}g fruct (~
-                        {fuelBottleMeasures!.fructoseScoops} cazos) ·{" "}
-                        {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g sal
-                        común (~{fuelBottleMeasures!.saltTeaspoons} cdta.) / bidón
-                      </span>
-                    </div>
-                  )}
-                  {result.bottlePlan.waterBottles.count > 0 && (
-                    <div className="flex flex-wrap items-center justify-between gap-1">
-                      <span className="flex items-center gap-1.5">
-                        <Droplet className="size-3.5 shrink-0 text-neutral-500" />
-                        {result.bottlePlan.waterBottles.count > 1 ? "Bidones" : "Bidón"} Agua /
-                        Electrolitos × {result.bottlePlan.waterBottles.count}
-                      </span>
-                      <span className="text-xs text-neutral-500">a demanda</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {result.bottlePlan.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
-                <div className="mt-3 flex items-start gap-2 border border-status-warning/40 bg-status-warning/10 px-3 py-2.5 text-sm text-status-warning">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-                  <div>
-                    <p className="font-semibold">
-                      Solución hipertónica (concentración &gt; {HYPERTONIC_THRESHOLD_PCT}%)
-                    </p>
-                    <p className="mt-0.5 text-xs">
-                      Esta mezcla ({result.bottlePlan.fuelBottles.concentrationPct}%) es
-                      demasiado densa para la capacidad de tus bidones y puede ralentizar el
-                      vaciado gástrico. Añade agua o traslada parte de los HC a comida de
-                      bolsillo.
-                    </p>
-                  </div>
-                </div>
-              )}
-              </div>
-            </details>
-
-            <details className="group rounded-sm bg-[#F8F7F5]">
-              <summary className="flex list-none cursor-pointer items-center gap-1.5 p-3 [&::-webkit-details-marker]:hidden">
-                <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
-                <span className={eyebrow}>Cronograma dinámico de ingesta</span>
-              </summary>
-              <div className="border-t border-neutral-200 p-3">
-                <p className="flex items-center gap-1.5 text-sm text-neutral-700">
-                  <Droplet className="size-3.5 shrink-0 text-neutral-500" />
-                  Bebe un trago cada{" "}
-                  <span className="font-mono font-semibold text-neutral-900">
-                    {result.timingTimeline.hydrationIntervalMinutes} min
-                  </span>
-                </p>
-                {result.timingTimeline.entries.length > 0 && (
-                  <ol className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
-                    {result.timingTimeline.entries.map((entry, i) => (
-                      <li key={i} className="flex items-center gap-1.5">
-                        {entry.type === "solid" && (
-                          <Utensils className="size-3.5 shrink-0 text-neutral-500" />
-                        )}
-                        {entry.type === "gel" && (
-                          <Zap className="size-3.5 shrink-0 text-neutral-500" />
-                        )}
-                        {entry.type === "caffeine" && (
-                          <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
-                        )}
-                        <span className="font-mono text-xs text-neutral-500">
-                          {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
-                        </span>
-                        {stripEmoji(entry.label)}
-                      </li>
+              {result.carbLoading && (
+                <details className="rounded-sm bg-[#F8F7F5] px-3 py-2.5">
+                  <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-700 uppercase">
+                    <CalendarDays className="size-3.5 shrink-0" />
+                    Estrategia de carga día −1 · {result.carbLoading.minCarbsG}-
+                    {result.carbLoading.maxCarbsG}g HC
+                  </summary>
+                  <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-600">
+                    {result.carbLoading.guidelines.map((guideline) => (
+                      <p key={guideline}>• {guideline}</p>
                     ))}
-                  </ol>
-                )}
-              </div>
-            </details>
-
-            {result.reloadStrategy && (
-              <details className="group rounded-sm border border-status-warning/40 bg-status-warning/10">
-                <summary className="flex list-none cursor-pointer items-center justify-between gap-2 p-3 [&::-webkit-details-marker]:hidden">
-                  <span className="flex min-w-0 flex-col gap-1">
-                    <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-status-warning uppercase">
-                      <Fuel className="size-3.5 shrink-0" />
-                      Estrategia de recarga en ruta
-                    </span>
-                    <span className="text-sm font-semibold text-neutral-900">
-                      {result.reloadStrategy.startingBottleCount} bidón
-                      {result.reloadStrategy.startingBottleCount > 1 ? "es" : ""} en bici +{" "}
-                      {result.reloadStrategy.ziplocBagsCount} dosis de recarga en maillot
-                    </span>
-                  </span>
-                  <ChevronDown className="size-4 shrink-0 text-status-warning transition-transform duration-150 group-open:rotate-180" />
-                </summary>
-                <div className="border-t border-status-warning/30 p-3 pt-2">
-                  <ol className="flex flex-col gap-1 text-sm text-neutral-700">
-                    <li>
-                      1. Inicio de ruta: {result.reloadStrategy.startingBottleCount} bidón
-                      {result.reloadStrategy.startingBottleCount > 1 ? "es" : ""} preparado
-                      {result.reloadStrategy.startingBottleCount > 1 ? "s" : ""} en el cuadro.
-                    </li>
-                    <li>
-                      2. En el maillot: lleva {result.reloadStrategy.ziplocBagsCount} bolsita
-                      {result.reloadStrategy.ziplocBagsCount > 1 ? "s" : ""} Ziploc con{" "}
-                      {result.reloadStrategy.ziplocDose.maltodextrinG}g malto (~
-                      {ziplocMeasures!.maltodextrinScoops} cazos) +{" "}
-                      {result.reloadStrategy.ziplocDose.fructoseG}g fructosa (~
-                      {ziplocMeasures!.fructoseScoops} cazos) +{" "}
-                      {getTableSaltGrams(result.reloadStrategy.ziplocDose.sodiumMg)}g sal común (~
-                      {ziplocMeasures!.saltTeaspoons} cdta.) (dosis pre-medida por bidón).
-                    </li>
-                    <li className="flex items-center gap-1.5 font-medium text-neutral-900">
-                      <MapPin className="size-3.5 shrink-0" />
-                      Parada de recarga recomendada:{" "}
-                      {result.reloadStrategy.reloadAtKm != null
-                        ? `Km ${result.reloadStrategy.reloadAtKm}`
-                        : `Hora ${result.reloadStrategy.reloadAtHours}`}
-                    </li>
-                  </ol>
-                  {result.reloadStrategy.isImpractical && (
-                    <p className="mt-2 flex items-start gap-1.5 border-t border-status-warning/30 pt-2 text-xs text-status-warning">
-                      <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
-                      {result.reloadStrategy.ziplocBagsCount} recargas en ruta no es un plan
-                      realista — con tus bidones de {result.bottlePlan.bottleSizeMl}ml, esta
-                      estrategia necesita más carbohidratos disueltos de los que puedes llevar
-                      cómodamente. Prueba con bidones de mayor capacidad o traslada más carga a
-                      comida sólida/geles (modo Híbrido u Óptimo).
-                    </p>
-                  )}
-                </div>
-              </details>
-            )}
-
-            {result.carbLoading && (
-              <details className="rounded-sm bg-[#F8F7F5] px-3 py-2.5">
-                <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-700 uppercase">
-                  <CalendarDays className="size-3.5 shrink-0" />
-                  Estrategia de carga día −1 · {result.carbLoading.minCarbsG}-
-                  {result.carbLoading.maxCarbsG}g HC
-                </summary>
-                <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-600">
-                  {result.carbLoading.guidelines.map((guideline) => (
-                    <p key={guideline}>• {guideline}</p>
-                  ))}
-                </div>
-              </details>
-            )}
-
-            <div className="flex flex-col gap-2">
-              {mode === "route" && selectedRoute?.summaryPolyline ? (
-                <button
-                  type="button"
-                  onClick={handleDownloadGpx}
-                  disabled={downloadingGpx}
-                  className={cn(secondaryButtonClass, "w-fit")}
-                >
-                  <Download className="size-3.5" />
-                  {downloadingGpx ? "Generando…" : "Descargar GPX de la ruta"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleExportGarmin}
-                  className={cn(secondaryButtonClass, "w-fit")}
-                >
-                  {exportCopied ? (
-                    "✓ Ficha copiada"
-                  ) : (
-                    <>
-                      <Send className="size-3.5" />
-                      Exportar a Garmin / Wahoo / Strava
-                    </>
-                  )}
-                </button>
+                  </div>
+                </details>
               )}
-              <p className="flex items-start gap-1.5 text-xs text-neutral-500">
-                <AlarmClock className="mt-0.5 size-3 shrink-0" />
-                Configura en tu GPS las Alertas Nativas de Comer/Beber con temporizador
-                repetitivo de 15 o 20 min — el GPX de la ruta es solo para navegación.
-              </p>
+
+              <div className="flex flex-col gap-2">
+                {mode === "route" && selectedRoute?.summaryPolyline ? (
+                  <button
+                    type="button"
+                    onClick={handleDownloadGpx}
+                    disabled={downloadingGpx}
+                    className={cn(secondaryButtonClass, "w-fit")}
+                  >
+                    <Download className="size-3.5" />
+                    {downloadingGpx ? "Generando…" : "Descargar GPX de la ruta"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleExportGarmin}
+                    className={cn(secondaryButtonClass, "w-fit")}
+                  >
+                    {exportCopied ? (
+                      "✓ Ficha copiada"
+                    ) : (
+                      <>
+                        <Send className="size-3.5" />
+                        Exportar a Garmin / Wahoo / Strava
+                      </>
+                    )}
+                  </button>
+                )}
+                <p className="flex items-start gap-1.5 text-xs text-neutral-500">
+                  <AlarmClock className="mt-0.5 size-3 shrink-0" />
+                  Configura en tu GPS las Alertas Nativas de Comer/Beber con temporizador
+                  repetitivo de 15 o 20 min — el GPX de la ruta es solo para navegación.
+                </p>
+              </div>
             </div>
           </div>
         )}
