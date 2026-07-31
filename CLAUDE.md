@@ -3819,6 +3819,37 @@ to the twelfth pass's own more moderate tightening):
   *between* the independent numbered cards (Post-Ride Analysis's 3 cards, Perfil's 3 cards)
   remain exactly as generous as before.
 
+**A fourteenth pass partially reversed the thirteenth's own macro padding — the *only*
+relationship that came back generous is `<main>`'s own top gap, everything else stays
+tight.** A follow-up "Jerarquía de Espaciado Editorial y Estructura Frameless" request
+re-specified the same proximity scale, but this time explicitly asked for the sticky
+header → page title relationship to read as a comfortable, clearly differentiated "aire
+visual," while every *internal* header relationship (greeting→tabs, tabs→title,
+title→first-card, eyebrow→first-input, related-controls spacing) stays exactly as tight
+as the thirteenth pass already left it — a literal reversal of just that one rule, not a
+full revert of the whole ultracompact pass:
+
+- **`<main>`'s own top padding** (`components/dashboard-shell.tsx`, shared by every
+  interior route) — `pt-3 sm:pt-4` (the thirteenth pass's own ultracompact value) reversed
+  back to `pt-6 sm:pt-8`, a deliberately generous gap between the sticky header/sidebar and
+  "Hola, Alejandro" (or `/perfil`'s/`/estadisticas`'s/`/historial`'s own `<h1>`).
+- **Every other spacing rule from the thirteenth pass was already correct and needed no
+  change** — re-checked against the current code rather than blindly re-applied: greeting
+  → tabs (`gap-3`), tabs → card title (`pt-2` on both `TabsContent` wrappers), card title →
+  first numbered step (`CardTitle`'s own mobile `mb-3`), the eyebrow → first-input `mt-2`
+  rhythm inside every numbered card, and the `gap-3` already governing related side-by-side
+  controls (Paso 02's Intensidad/Fecha grids) — all confirmed still in place.
+- **Frameless/zero-border, `rounded-sm`, and "Sincronizar" in the sidebar** — all
+  re-verified already correct (no Dashboard borders beyond the established deliberate
+  exceptions, every button/card/selector still `rounded-sm`, `SyncForm` still only in
+  `viewer-identity.tsx`/`PostRideAnalysis`'s empty state) — nothing to change, matching this
+  section's own "verify against current code, don't re-apply blindly" convention.
+- Verified via `npm run build` (clean) and a live Playwright check (the same temporary
+  `DashboardShell` preview pattern) at 390px and 1280px — confirmed a clearly visible,
+  comfortable gap now separates the sticky header from "Hola, Alejandro," while the
+  greeting→tabs→title→card sequence directly beneath it still reads as tightly bound, not
+  reopened back to the pre-thirteenth-pass spacing.
+
 ### Spanish-only UI text
 
 A pass removed the remaining "Spanglish" — English words left over in otherwise-Spanish

@@ -327,7 +327,7 @@ export function DashboardShell({
             sit closer to the viewport edge on a phone, matching this app's
             existing `sm:`/`md:` step-up convention rather than a flat value
             at every breakpoint. */}
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-3 pb-12 sm:px-6 sm:pt-4 sm:pb-16 md:px-8">
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-6 pb-12 sm:px-6 sm:pt-8 sm:pb-16 md:px-8">
           {children}
         </main>
       </div>
