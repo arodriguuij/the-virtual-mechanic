@@ -2092,6 +2092,134 @@ Balearic Islands" metadata line, the map directly below it, and the 5-cell Title
 (Frecuencia Cardíaca alone in its own row) — at 390px mobile (both loading and resolved
 states) and 1280px desktop (resolved state).
 
+#### Auto-sync on tab load ("Estrategia de Caché e Invocación Strava")
+
+Opening the Dashboard used to only ever reflect whatever `activities` rows already existed
+from a previous manual "Sincronizar" click (see "Strava OAuth" above) or the first-login
+bootstrap — a ride finished since the athlete's last visit wouldn't show up in the Post-Ruta
+tab's own ride list at all until they remembered to click that button. **`ensureLatestActivitySynced()`**
+(`lib/dashboard-data.ts`, `cache()`-deduped like every other Server-Component data helper in
+this file) makes opening the tab itself the trigger instead — `PostRideAnalysisSection`
+(`app/(app)/page.tsx`) now calls it before `getRecentActivities(8)`, so a newly-completed
+ride is already in the database by the time the ride list renders.
+
+This is a thin wrapper, not new sync logic: it resolves `userId`/a valid Strava access
+token the same way `getStravaRoutes()` already does, then calls the *exact same*
+`syncLatestActivity()` (`lib/strava-sync.ts`) that `POST /api/strava/sync`'s button handler
+and the first-login bootstrap both already use. That function already implements the
+requested caching contract end to end:
+
+- **Cheap check first** — `fetchLatestRideActivity()` finds the athlete's latest *cycling*
+  activity (deliberately `per_page=30`, sport-type filtered — not a literal `per_page=1` as
+  a first read of this feature's own brief might suggest; a bare `per_page=1` would
+  reintroduce the exact bug that lookback window was widened to fix: a run/swim/gym session
+  logged between rides pushing the athlete's last real ride out of a 1-activity window, see
+  "Strava OAuth" above), then a plain `activities.select("id").eq("id", activityId)` existence
+  check against Supabase.
+- **Instant/no-op when nothing's new** — if that id already exists as a row, the function
+  returns immediately; no weather sampling, no metabolic-engine run, no write. This *is* the
+  "cached, don't spend API quota or recompute" fast path the brief asks for — it was already
+  built, just never wired into the tab-open moment specifically.
+- **Full sync only for a genuinely new ride** — samples route weather (or the indoor
+  placeholder), computes `carbs_burned_g`/`fluid_loss_ml`/`sodium_loss_mg` via
+  `lib/metabolic-engine.ts` (when FTP is set), and upserts the new row — identical to a
+  manual "Sincronizar" click.
+
+Best-effort and silent on failure, same convention as the first-login bootstrap's own sync
+calls in `app/api/auth/strava/callback/route.ts` — a Strava hiccup here is caught and
+logged, never thrown, so it can't break the whole Post-Ruta panel; the ride list just falls
+back to whatever was already synced from an earlier visit. Not wired into
+`FuelingPlannerSection` — that tab's own routes/average-speed data has its own 24h
+`unstable_cache` policy (see "Strava saved-routes cache" above) and isn't about "did a new
+ride just finish," a concern specific to Post-Ruta.
+
+#### "Reestructuración UX por Tarjetas Numeradas" — 3 independent white cards, Perfil-style
+
+The result panel used to be one long flowing column inside a single outer `<Card>` — a
+"muro de texto" the brief specifically asked to break apart into 3 numbered white cards
+sitting on the Dashboard's own porcelain canvas, matching `/perfil`'s own numbered-card
+convention. This landed as a genuinely structural change, not a class-name tweak, because
+`/perfil` and the Pre-Ruta Fueling Planner actually implement "numbered cards" two
+different ways, and only one of them produces real porcelain gaps between cards:
+
+- **`/perfil`** renders 3 fully independent `<Card>` primitives directly on the page's own
+  `bg-background` canvas (see `app/(app)/perfil/page.tsx`) — the porcelain page color is
+  genuinely visible *between* each card, since there's no shared outer shell tying them
+  together.
+- **The Fueling Planner** (`components/fueling-planner.tsx`) instead wraps its whole "01 ·
+  / 02 · / 03 ·" step sequence in *one* outer `<Card>` (`CardTitle` "Planificador de
+  nutrición"), with the 3 numbered steps as plain `<div>`s inside that Card's own
+  `CardContent` — visually separated from each other by whitespace (`gap-6`) alone, not by
+  a color change, since the shared outer shell and every inner step are all `bg-white`.
+
+This pass followed `/perfil`'s pattern specifically, since the brief's own literal spec
+(`bg-white border-0 shadow-none rounded-xl p-5 mb-6` per card, "sobre el fondo porcelana
+bg-[#F8F7F5]") describes independent cards with real color contrast between them, not
+nested divs sharing one white shell. Concretely:
+
+- **The old `<Card><CardHeader><CardTitle>Análisis post-ruta</CardTitle></CardHeader>
+  <CardContent>...</CardContent></Card>` wrapper is gone.** `PostRideAnalysis` no longer
+  imports `Card`/`CardHeader`/`CardContent`/`CardTitle`/`flatMobileCardClass` at all. In its
+  place: a plain `<h2 className={sectionHeadingClass}>Análisis post-ruta</h2>` sitting
+  directly on the canvas (`sectionHeadingClass` reproduces `CardTitle`'s own former default
+  styling verbatim — `font-heading text-sm font-bold tracking-wide text-neutral-900
+  uppercase` — so the heading's visual weight is unchanged, just no longer inside a card),
+  followed by independent top-level siblings: the loading skeleton, the error line, the
+  `needsRpe` picker, and — once a result exists — 3 numbered cards. Every one of these
+  (including the zero-activities empty state and the `needsRpe`/loading skeleton) now uses
+  the literal `rounded-xl border-0 bg-white shadow-none` treatment directly, no shared
+  `flatMobileCardClass` mobile-flattening — matching `/perfil`'s own Cards, which don't
+  flatten on mobile either.
+- **Tarjeta 01 · Actividad y métricas principales** — unchanged in content from the
+  "Jerarquía Visual Strava" pass above (title → metadata → full-bleed map → 5-cell grid →
+  footnotes); only its wrapper gained an explicit `border-0` to literally match the brief's
+  "Cero Bordes" rule (it never had one, but the class is now explicit rather than implied).
+  Deliberately has **no** numbered eyebrow of its own — it's the hero/summary card, and the
+  "01 ·"/"02 ·" sequence below it starts fresh rather than continuing from a "00" this card
+  doesn't have.
+- **Tarjeta 02 · Gasto metabólico y consumo en ruta** (eyebrow "01 · DEUDA METABÓLICA Y
+  REGISTRO REAL," using the exact same `font-mono text-xs font-bold tracking-widest
+  text-neutral-500 uppercase` class as `/perfil`'s own `cardNumberHeading`, not a
+  near-identical one-off string) — folds the Glucógeno quemado/Líquido perdido/Sodio
+  perdido stat row and the "¿Qué consumiste realmente...?" consumption sub-block into one
+  card. The old "Deuda de glucógeno · {name}" + source-label header line above the stat row
+  was dropped as pure duplication once this card gained its own eyebrow — the same source
+  label already appears in Tarjeta 01's own footnote ("Glucógeno: {sourceLabels[...]}"), so
+  nothing was silently lost. The consumption sub-block's own porcelain wrapper
+  (`bg-[#F8F7F5] rounded-lg p-4`) is unchanged in tone, but its 3 preset pills and 3 input
+  rows switched from their own `bg-[#F8F7F5]`/`bg-zinc-100` fills to plain `bg-white` — a
+  porcelain-on-porcelain nesting would have had zero visual differentiation once this
+  sub-block's *parent* (Tarjeta 02 itself) also became porcelain-adjacent; white reads
+  clearly against the porcelain wrapper instead. **"Guardar consumo real" changed from a
+  small `w-fit` pill (`primaryButtonClass`, uppercase font-mono) to a full-width button**
+  matching the brief's own literal spec — `w-full rounded-md py-2.5 text-sm font-medium`,
+  `bg-terracotta` (this app's own design token, not the brief's literal `#6E6658` hex —
+  identical value, but this codebase's own "reuse the token, never hardcode the hex"
+  convention wins) — a deliberate one-off departure from `primaryButtonClass`'s shared
+  uppercase/font-mono/tracking-wider treatment used by every *other* primary button in the
+  app, scoped to this one button per the brief's explicit styling.
+- **Tarjeta 03 · Balance neto y pauta de recuperación** (eyebrow "02 · BALANCE NETO Y
+  RECUPERACIÓN BIFÁSICA") — folds the Balance Neto rows and the biphasic recovery target
+  (Fase 1/Fase 2/Grasas límite/Rehidratación) into one card. The Balance Neto wrapper's own
+  redundant inner "Balance neto de recuperación" eyebrow was removed (the card-level one
+  above it already says this), and its padding tightened from `p-4` to the brief's literal
+  `p-3`. The biphasic block's own former `eyebrow`-styled "Objetivo de recuperación
+  post-ruta" heading was removed too (again, now covered by the card-level eyebrow) — its
+  "Ventana bifásica..." explanatory line stays, just as a plain, unheaded line at the top
+  of that sub-section.
+- **Now genuinely dead**: the file-local `eyebrow` const and the `Separator` import/usage
+  (the divider between the old burn-stat row and the consumption block) — both deleted
+  outright rather than left unused, since neither has a remaining call site once the 3
+  cards absorbed everything that used to sit between them.
+
+Verified live via the same temporary-route/Playwright pattern (mocked API response, plus a
+second pass with `activities={[]}` for the empty state) at 390px mobile and 1280px desktop
+— confirmed all 3 cards render as visually independent white boxes with the porcelain
+canvas clearly visible in the gaps between them (not just around the outer edge the way the
+single-shared-Card approach would have shown it), the full-width terracotta "Guardar
+consumo real" button, and the empty/zero-activities state rendering as its own single white
+card rather than the old Card-wrapped version.
+
 #### Net recovery debt ("¿Qué consumiste realmente durante la ruta?")
 
 A ride's raw burn/loss figures overstate what's actually left to replace whenever the

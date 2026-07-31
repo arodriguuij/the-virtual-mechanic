@@ -7,6 +7,7 @@ import { FuelingPlanner } from "@/components/fueling-planner";
 import { PostRideAnalysis } from "@/components/post-ride-analysis";
 import { ProfileSavedToast } from "@/components/profile-saved-toast";
 import {
+  ensureLatestActivitySynced,
   getAthleteAverageSpeedKmh,
   getRecentActivities,
   getStravaRoutes,
@@ -157,8 +158,14 @@ function FuelingPlannerSkeleton() {
 
 // No "perfil incompleto" branch here either — same invariant as
 // `FuelingPlannerSection` above, enforced once by `proxy.ts`'s Edge
-// Middleware rather than re-checked on every render.
+// Middleware rather than re-checked on every render. `ensureLatestActivitySynced()`
+// runs first (see its own doc comment in `lib/dashboard-data.ts`) so a ride
+// finished since the athlete's last visit is already in `activities` by the
+// time `getRecentActivities()` reads the list below — instant/no-op when
+// nothing's new, since that function's own Strava-vs-DB check short-circuits
+// before any real work.
 async function PostRideAnalysisSection() {
+  await ensureLatestActivitySynced();
   const activities = await getRecentActivities(8);
   return (
     <PostRideAnalysis

@@ -9,6 +9,7 @@ import { isProfileDataComplete } from "@/lib/profile-completeness";
 import { fetchAthlete, fetchAthleteStats } from "@/lib/strava";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { fetchAthleteRoutes, type StravaRoute } from "@/lib/strava-routes";
+import { syncLatestActivity } from "@/lib/strava-sync";
 
 export type AthleteProfile = {
   id: string;
@@ -247,6 +248,47 @@ export const getRecentActivities = cache(
     return data ?? [];
   }
 );
+
+/**
+ * Ensures the athlete's latest Strava ride is already synced into
+ * `activities` before the Post-Ruta panel reads its ride list — without
+ * this, a ride finished since the last visit only shows up once the athlete
+ * remembers to click "Sincronizar" in the sidebar; this makes opening the
+ * Post-Ruta tab itself the trigger. Wraps `syncLatestActivity()` — the exact
+ * same pipeline `POST /api/strava/sync` and the first-login bootstrap
+ * already use (`app/api/auth/strava/callback/route.ts`) — one Strava call
+ * to find the latest cycling activity via `fetchLatestRideActivity()`
+ * (`per_page=30`, sport-type filtered — deliberately not a literal
+ * `per_page=1`, which would reintroduce the exact bug that lookback window
+ * was widened to fix: a run/swim/gym session logged between rides pushing
+ * the last real ride out of a 1-activity window), then a cheap `activities`
+ * existence check. That existence check *is* the "already cached, do
+ * nothing" fast path — an activity id that's already a row short-circuits
+ * before any weather sampling or metabolic-engine work ever runs; only a
+ * genuinely new ride pays for the full sync.
+ *
+ * Best-effort and silent on failure — same convention as the first-login
+ * bootstrap's own sync call: a Strava hiccup here must never break the
+ * whole Post-Ruta panel, it just means the ride list falls back to
+ * whatever was already synced from a previous visit.
+ */
+export const ensureLatestActivitySynced = cache(async (): Promise<void> => {
+  const supabase = await getAuthenticatedSupabaseClient();
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  const userId = authData.user?.id;
+  if (!userId) return;
+
+  const accessToken = await getValidStravaAccessToken(supabase, userId);
+  if (!accessToken) return;
+
+  try {
+    await syncLatestActivity(supabase, userId, accessToken);
+  } catch (error) {
+    console.error("ensureLatestActivitySynced failed:", error);
+  }
+});
 
 export type IntakeBreakdownEntry = {
   activityId: string;

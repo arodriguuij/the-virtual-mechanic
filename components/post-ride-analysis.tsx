@@ -4,8 +4,6 @@ import { Bike, Lock, Sun, Utensils, Zap } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileRequiredBanner } from "@/components/profile-required-banner";
 import { SyncForm } from "@/components/sync-button";
@@ -16,7 +14,14 @@ import {
   type IntensityLevel,
 } from "@/lib/metabolic-engine";
 import { cn } from "@/lib/utils";
-import { flatMobileCardClass, primaryButtonClass } from "@/lib/ui-classes";
+
+// Matches `CardTitle`'s own former default styling exactly (`font-heading
+// text-sm font-bold tracking-wide text-neutral-900 uppercase`) — this
+// component no longer wraps its content in a `Card` at all (see
+// "Reestructuración UX por Tarjetas Numeradas" below), so this plain
+// heading preserves the same visual weight the old `<CardTitle>Análisis
+// post-ruta</CardTitle>` had, just sitting outside any card now.
+const sectionHeadingClass = "font-heading text-sm leading-snug font-bold tracking-wide text-neutral-900 uppercase";
 
 // Leaflet reads `window`/`document` at module scope — same `ssr: false`
 // requirement as `components/fueling-planner.tsx`'s own dynamic import of
@@ -26,7 +31,6 @@ const RouteMapPreview = dynamic(
   { ssr: false, loading: () => <Skeleton className="h-48 w-full rounded-none" /> }
 );
 
-const eyebrow = "text-[10px] font-mono uppercase tracking-widest text-zinc-500";
 const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
 
@@ -340,98 +344,101 @@ export function PostRideAnalysis({
 
   if (activities.length === 0) {
     return (
-      <Card className={flatMobileCardClass}>
-        <CardHeader>
-          <CardTitle>Análisis post-ruta</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col items-start gap-3">
-          <p className="max-w-sm text-sm text-neutral-500">
-            En cuanto sincronices tu última salida desde Strava, aparecerá aquí lista para
-            calcular su deuda de glucógeno y objetivo de recuperación.
-          </p>
-          <SyncForm />
-        </CardContent>
-      </Card>
+      <div className="flex flex-col gap-3 rounded-xl border-0 bg-white p-5 shadow-none">
+        <h2 className={sectionHeadingClass}>Análisis post-ruta</h2>
+        <p className="max-w-sm text-sm text-neutral-500">
+          En cuanto sincronices tu última salida desde Strava, aparecerá aquí lista para
+          calcular su deuda de glucógeno y objetivo de recuperación.
+        </p>
+        <SyncForm />
+      </div>
     );
   }
 
   return (
-    <Card className={flatMobileCardClass}>
-      <CardHeader>
-        <CardTitle>Análisis post-ruta</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        {/* A proper skeleton loader — title/metadata, map, and a 2-column
-            metric grid all rendered as pulsing gray blocks, mirroring the
-            real card's exact structure/order below (a loading fallback
-            must mirror the real eventual shape — this app's own
-            established convention) — replacing the earlier "Analizando tu
-            última salida…" status pill plus muted `--` stat placeholders,
-            which read as a generic loading notice rather than a preview of
-            the content about to appear. Five metric placeholders (not the
-            four a minimal mockup might suggest) to match the real grid's
-            actual item count (Distancia/Tiempo en Movimiento/Potencia
-            Media/Gasto Energético/Frecuencia Cardíaca) exactly. */}
-        {loading && !result && (
-          <div className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
-            <div className="animate-pulse space-y-5 rounded-xl bg-white p-5 shadow-none">
-              <div className="space-y-2">
-                <div className="h-6 w-3/5 rounded-md bg-zinc-200" />
-                <div className="h-3.5 w-2/5 rounded-md bg-zinc-100" />
-              </div>
+    <div className="flex flex-col gap-6">
+      {/* "Reestructuración UX por Tarjetas Numeradas" — every card below is
+          now an independent white box (`border-0 bg-white shadow-none
+          rounded-xl p-5`) sitting directly on the Dashboard's own porcelain
+          canvas, mirroring `/perfil`'s own 3-independent-`<Card>` pattern
+          exactly (not `FuelingPlanner`'s single-outer-Card-with-inner-divs
+          shape) — this is what actually makes the porcelain background
+          visible *between* cards, not just around the whole widget. The old
+          `<Card><CardHeader><CardTitle>Análisis post-ruta</CardTitle>`
+          shell is gone; this plain heading takes its place, sitting outside
+          any card the same way `/perfil`'s own page `<h1>` does. */}
+      <h2 className={sectionHeadingClass}>Análisis post-ruta</h2>
 
-              <div className="h-48 w-full rounded-xl bg-zinc-200/80 sm:h-56" />
-
-              <div className="grid grid-cols-2 gap-x-6 gap-y-5 pt-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="h-3 w-1/2 rounded bg-zinc-100" />
-                    <div className="h-5 w-3/4 rounded bg-zinc-200" />
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* A proper skeleton loader — title/metadata, map, and a 2-column
+          metric grid all rendered as pulsing gray blocks, mirroring
+          Tarjeta 01's real structure/order below (a loading fallback must
+          mirror the real eventual shape — this app's own established
+          convention) — replacing the earlier "Analizando tu última
+          salida…" status pill plus muted `--` stat placeholders, which read
+          as a generic loading notice rather than a preview of the content
+          about to appear. Five metric placeholders (not the four a minimal
+          mockup might suggest) to match the real grid's actual item count
+          (Distancia/Tiempo en Movimiento/Potencia Media/Gasto Energético/
+          Frecuencia Cardíaca) exactly. */}
+      {loading && !result && (
+        <div className="animate-pulse space-y-5 rounded-xl border-0 bg-white p-5 shadow-none">
+          <div className="space-y-2">
+            <div className="h-6 w-3/5 rounded-md bg-zinc-200" />
+            <div className="h-3.5 w-2/5 rounded-md bg-zinc-100" />
           </div>
-        )}
 
-        {error && <p className="text-sm text-status-warning">{error}</p>}
+          <div className="h-48 w-full rounded-xl bg-zinc-200/80 sm:h-56" />
 
-        {needsRpe && (
-          <div className="flex flex-col gap-2 rounded-xl bg-white px-4 py-3 shadow-none">
-            <p className="text-sm text-neutral-700">
-              Esta ruta no tiene datos de potenciómetro ni pulsómetro — ¿cómo sentiste el
-              esfuerzo?
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {RPE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => handleAnalyze(opt.value, opt.label)}
-                  className="cursor-pointer rounded-sm border border-zinc-300/70 bg-white px-3 py-1.5 text-[11px] font-semibold tracking-widest text-zinc-700 uppercase shadow-none transition-colors duration-150 hover:border-terracotta hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-5 pt-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <div className="h-3 w-1/2 rounded bg-zinc-100" />
+                <div className="h-5 w-3/4 rounded bg-zinc-200" />
+              </div>
+            ))}
           </div>
-        )}
+        </div>
+      )}
 
-        {result && (
-          <div className="flex flex-col gap-4 border-t border-neutral-200 pt-4">
-            {/* "Jerarquía Visual Strava" — title + quiet Bike-icon metadata
-                line first, then the full-width map, then a clean 2-column
-                Title Case metrics grid — superseding the previous "map
-                first" ordering from the "Estilo Strava Mobile" pass above
-                (see that section's own note under "Post-Ride Analysis").
-                `RouteMapPreview` itself is unchanged/shared with Pre-Ruta
-                (same tiles, route-line color, floating zoom/badge chrome).
-                Deliberately no `font-mono` on the metric values (unlike
-                every other numeric readout in this app) — the same one-off
-                exception carried over from the prior pass, matching
-                Strava's own plain-sans numeral display. */}
-            <div className="overflow-hidden rounded-xl bg-white shadow-none">
+      {error && <p className="text-sm text-status-warning">{error}</p>}
+
+      {needsRpe && (
+        <div className="flex flex-col gap-2 rounded-xl border-0 bg-white p-5 shadow-none">
+          <p className="text-sm text-neutral-700">
+            Esta ruta no tiene datos de potenciómetro ni pulsómetro — ¿cómo sentiste el
+            esfuerzo?
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {RPE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                disabled={loading}
+                onClick={() => handleAnalyze(opt.value, opt.label)}
+                className="cursor-pointer rounded-sm border border-zinc-300/70 bg-white px-3 py-1.5 text-[11px] font-semibold tracking-widest text-zinc-700 uppercase shadow-none transition-colors duration-150 hover:border-terracotta hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {result && (
+          <div className="flex flex-col gap-6">
+            {/* "Tarjeta 01 · Actividad y métricas principales" — title +
+                quiet Bike-icon metadata line first, then the full-width
+                map, then a clean 2-column Title Case metrics grid. This is
+                the hero/summary card, deliberately with no numbered eyebrow
+                of its own — the "01 ·"/"02 ·" sequence starts fresh on the
+                two analytical cards below it (see "Reestructuración UX por
+                Tarjetas Numeradas"). `RouteMapPreview` itself is unchanged/
+                shared with Pre-Ruta (same tiles, route-line color, floating
+                zoom/badge chrome). Deliberately no `font-mono` on the
+                metric values (unlike every other numeric readout in this
+                app) — a one-off exception matching Strava's own plain-sans
+                numeral display. */}
+            <div className="overflow-hidden rounded-xl border-0 bg-white shadow-none">
               <div className="px-5 pt-5">
                 <h3 className="mb-1 text-xl font-bold tracking-tight text-zinc-900">
                   {result.activity.name}
@@ -526,250 +533,270 @@ export function PostRideAnalysis({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className={eyebrow}>Deuda de glucógeno · &ldquo;{result.activity.name}&rdquo;</span>
-              <span className="text-xs text-neutral-500">{sourceLabels[result.source]}</span>
-            </div>
+            {/* "Tarjeta 02 · Gasto metabólico y consumo en ruta" — the
+                estimated-burn stat row plus the real-consumption sub-block,
+                both now inside their own numbered white card rather than
+                flowing loose under Tarjeta 01. The old "Deuda de glucógeno
+                · {name}" + source-label header line was dropped as pure
+                duplication once this card gained its own eyebrow — the same
+                source label already appears in Tarjeta 01's own footnote
+                ("Glucógeno: {sourceLabels[...]}"). */}
+            <div className="rounded-xl border-0 bg-white p-5 shadow-none">
+              <span className="mb-3 block font-mono text-xs font-bold tracking-widest text-neutral-500 uppercase">
+                01 · Deuda metabólica y registro real
+              </span>
 
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              <div className="flex flex-col gap-1">
-                <span className={statLabel}>Glucógeno quemado</span>
-                <span className={statValue}>
-                  {result.carbsBurnedG}
-                  <span className="ml-1 text-sm font-normal text-neutral-500">g</span>
-                </span>
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <div className="flex flex-col gap-1">
+                  <span className={statLabel}>Glucógeno quemado</span>
+                  <span className={statValue}>
+                    {result.carbsBurnedG}
+                    <span className="ml-1 text-sm font-normal text-neutral-500">g</span>
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={statLabel}>Líquido perdido</span>
+                  <span className={statValue}>
+                    {(result.fluidLossMl / 1000).toFixed(1)}
+                    <span className="ml-1 text-sm font-normal text-neutral-500">L</span>
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={statLabel}>Sodio perdido</span>
+                  <span className={statValue}>
+                    {result.sodiumLossMg}
+                    <span className="ml-1 text-sm font-normal text-neutral-500">mg</span>
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-col gap-1">
-                <span className={statLabel}>Líquido perdido</span>
-                <span className={statValue}>
-                  {(result.fluidLossMl / 1000).toFixed(1)}
-                  <span className="ml-1 text-sm font-normal text-neutral-500">L</span>
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className={statLabel}>Sodio perdido</span>
-                <span className={statValue}>
-                  {result.sodiumLossMg}
-                  <span className="ml-1 text-sm font-normal text-neutral-500">mg</span>
-                </span>
-              </div>
-            </div>
 
-            <Separator className="bg-neutral-200" />
-
-            <div>
-              <span className={eyebrow}>¿Qué consumiste realmente durante la ruta?</span>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {CONSUMPTION_PRESETS.map((preset) => (
+              {/* Sub-bloque de ingesta real — porcelain-tinted so it reads
+                  as nested inside this white card; the 3 input rows inside
+                  it switch to a plain white fill (from their previous
+                  porcelain one) so they stay visually distinct against this
+                  now-porcelain sub-block instead of disappearing into it. */}
+              <div className="mt-4 rounded-lg bg-[#F8F7F5] p-4">
+                <span className="block font-mono text-xs text-zinc-500 uppercase">
+                  ¿Qué consumiste realmente durante la ruta?
+                </span>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {CONSUMPTION_PRESETS.map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => applyConsumptionPreset(preset)}
+                      className="cursor-pointer rounded-md bg-white px-2.5 py-1 font-mono text-[11px] font-semibold text-neutral-600 transition-colors duration-150 hover:bg-terracotta/10 hover:text-terracotta"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-1.5">
+                    <label htmlFor="carbs-consumed" className="text-sm text-neutral-900">
+                      Carbohidratos
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        id="carbs-consumed"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        value={carbsConsumedG || ""}
+                        onChange={(e) => {
+                          setCarbsConsumedG(Math.max(0, Number(e.target.value) || 0));
+                          setConsumptionSaved(false);
+                        }}
+                        placeholder="0"
+                        className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                      />
+                      <span className="font-mono text-xs text-neutral-500">g</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-1.5">
+                    <label htmlFor="fluid-consumed" className="text-sm text-neutral-900">
+                      Agua
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        id="fluid-consumed"
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step={0.1}
+                        value={fluidConsumedL || ""}
+                        onChange={(e) => {
+                          setFluidConsumedL(Math.max(0, Number(e.target.value) || 0));
+                          setConsumptionSaved(false);
+                        }}
+                        placeholder="0"
+                        className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                      />
+                      <span className="font-mono text-xs text-neutral-500">L</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-1.5">
+                    <label htmlFor="sodium-consumed" className="text-sm text-neutral-900">
+                      Sodio
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        id="sodium-consumed"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        value={sodiumConsumedMg || ""}
+                        onChange={(e) => {
+                          setSodiumConsumedMg(Math.max(0, Number(e.target.value) || 0));
+                          setConsumptionSaved(false);
+                        }}
+                        placeholder="0"
+                        className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                      />
+                      <span className="font-mono text-xs text-neutral-500">mg</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-col gap-2">
                   <button
-                    key={preset.label}
                     type="button"
-                    onClick={() => applyConsumptionPreset(preset)}
-                    className="cursor-pointer rounded-md bg-zinc-100 px-2.5 py-1 font-mono text-[11px] font-semibold text-neutral-600 transition-colors duration-150 hover:bg-terracotta/10 hover:text-terracotta"
+                    onClick={handleSaveConsumption}
+                    disabled={savingConsumption || !isProfileComplete}
+                    className={cn(
+                      "w-full rounded-md py-2.5 text-sm font-medium transition-colors duration-150",
+                      isProfileComplete
+                        ? "cursor-pointer bg-terracotta text-white hover:bg-terracotta-hover disabled:cursor-not-allowed disabled:opacity-70"
+                        : "inline-flex cursor-not-allowed items-center justify-center gap-2 bg-neutral-200 text-neutral-400"
+                    )}
                   >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="flex items-center justify-between gap-2 rounded-lg bg-[#F8F7F5] px-3 py-1.5">
-                  <label htmlFor="carbs-consumed" className="text-sm text-neutral-900">
-                    Carbohidratos
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      id="carbs-consumed"
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      value={carbsConsumedG || ""}
-                      onChange={(e) => {
-                        setCarbsConsumedG(Math.max(0, Number(e.target.value) || 0));
-                        setConsumptionSaved(false);
-                      }}
-                      placeholder="0"
-                      className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
-                    />
-                    <span className="font-mono text-xs text-neutral-500">g</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 rounded-lg bg-[#F8F7F5] px-3 py-1.5">
-                  <label htmlFor="fluid-consumed" className="text-sm text-neutral-900">
-                    Agua
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      id="fluid-consumed"
-                      type="number"
-                      inputMode="decimal"
-                      min={0}
-                      step={0.1}
-                      value={fluidConsumedL || ""}
-                      onChange={(e) => {
-                        setFluidConsumedL(Math.max(0, Number(e.target.value) || 0));
-                        setConsumptionSaved(false);
-                      }}
-                      placeholder="0"
-                      className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
-                    />
-                    <span className="font-mono text-xs text-neutral-500">L</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 rounded-lg bg-[#F8F7F5] px-3 py-1.5">
-                  <label htmlFor="sodium-consumed" className="text-sm text-neutral-900">
-                    Sodio
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      id="sodium-consumed"
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      value={sodiumConsumedMg || ""}
-                      onChange={(e) => {
-                        setSodiumConsumedMg(Math.max(0, Number(e.target.value) || 0));
-                        setConsumptionSaved(false);
-                      }}
-                      placeholder="0"
-                      className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
-                    />
-                    <span className="font-mono text-xs text-neutral-500">mg</span>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-2 flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleSaveConsumption}
-                  disabled={savingConsumption || !isProfileComplete}
-                  className={cn(
-                    "w-fit px-4 py-1.5 text-[11px]",
-                    isProfileComplete
-                      ? cn(primaryButtonClass, "shadow-none")
-                      : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg bg-neutral-200 font-mono font-semibold tracking-wider text-neutral-400 uppercase"
-                  )}
-                >
-                  {isProfileComplete ? (
-                    savingConsumption ? (
-                      "Guardando…"
+                    {isProfileComplete ? (
+                      savingConsumption ? (
+                        "Guardando…"
+                      ) : (
+                        "Guardar consumo real"
+                      )
                     ) : (
-                      "Guardar consumo real"
-                    )
-                  ) : (
-                    <>
-                      <Lock className="size-3.5 shrink-0" />
-                      Guardar consumo (perfil incompleto)
-                    </>
+                      <>
+                        <Lock className="size-3.5 shrink-0" />
+                        Guardar consumo (perfil incompleto)
+                      </>
+                    )}
+                  </button>
+                  {consumptionSaved && (
+                    <span className="text-xs text-status-good">✓ Guardado</span>
                   )}
-                </button>
-                {consumptionSaved && (
-                  <span className="text-xs text-status-good">✓ Guardado</span>
-                )}
-                {consumptionError && (
-                  <span className="text-xs text-status-warning">{consumptionError}</span>
-                )}
+                  {consumptionError && (
+                    <span className="text-xs text-status-warning">{consumptionError}</span>
+                  )}
+                </div>
+                {!isProfileComplete && <ProfileRequiredBanner />}
               </div>
-              {!isProfileComplete && <ProfileRequiredBanner />}
             </div>
 
-            {recoveryDebt && (
-              <div className="rounded-lg bg-[#F8F7F5] p-4 shadow-none">
-                <span className={eyebrow}>Balance neto de recuperación</span>
-                <div className="mt-2 flex flex-col gap-2">
-                  <BalanceNetoRow
-                    label="Carbohidratos"
-                    spent={`${result.carbsBurnedG}g`}
-                    consumed={`${carbsConsumedG}g`}
-                    debt={`${recoveryDebt.carbsDebtG}g`}
-                  />
-                  <BalanceNetoRow
-                    label="Líquido"
-                    spent={`${recoveryDebt.fluidTargetMl}ml`}
-                    consumed={`${Math.round(fluidConsumedL * 1000)}ml`}
-                    debt={`${recoveryDebt.fluidDebtMl}ml`}
-                  />
-                  <BalanceNetoRow
-                    label="Sodio"
-                    spent={`${result.sodiumLossMg}mg`}
-                    consumed={`${sodiumConsumedMg}mg`}
-                    debt={`${recoveryDebt.sodiumDebtMg}mg`}
-                  />
-                </div>
-              </div>
-            )}
+            {/* "Tarjeta 03 · Balance neto y pauta de recuperación" — the
+                Balance Neto rows and the biphasic recovery target, both
+                folded into one numbered white card. */}
+            <div className="rounded-xl border-0 bg-white p-5 shadow-none">
+              <span className="mb-3 block font-mono text-xs font-bold tracking-widest text-neutral-500 uppercase">
+                02 · Balance neto y recuperación bifásica
+              </span>
 
-            {recoveryTarget && biphasicRecoveryTarget && (
-              <div>
-                <span className={eyebrow}>Objetivo de recuperación post-ruta</span>
-                <span className="mt-1 block text-xs text-neutral-500">
-                  Ventana bifásica — glucógeno se repone en dos fases fisiológicas distintas,
-                  no en una sola comida
-                </span>
-                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="rounded-lg bg-[#F8F7F5] p-4 shadow-none">
-                    <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
-                      <Zap className="size-3.5 shrink-0" />
-                      Fase 1 · {biphasicRecoveryTarget.phase1.windowLabel}
-                    </span>
-                    <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
-                      {biphasicRecoveryTarget.phase1.carbsG}
-                      <span className="text-sm font-normal text-neutral-500">g HC</span>
-                    </div>
-                    <span className="text-xs text-neutral-500 italic">
-                      Líquido/rápido (batido, fruta) — vía GLUT-4, no depende de insulina
-                    </span>
+              {recoveryDebt && (
+                <div className="rounded-lg bg-[#F8F7F5] p-3 shadow-none">
+                  <div className="flex flex-col gap-2">
+                    <BalanceNetoRow
+                      label="Carbohidratos"
+                      spent={`${result.carbsBurnedG}g`}
+                      consumed={`${carbsConsumedG}g`}
+                      debt={`${recoveryDebt.carbsDebtG}g`}
+                    />
+                    <BalanceNetoRow
+                      label="Líquido"
+                      spent={`${recoveryDebt.fluidTargetMl}ml`}
+                      consumed={`${Math.round(fluidConsumedL * 1000)}ml`}
+                      debt={`${recoveryDebt.fluidDebtMl}ml`}
+                    />
+                    <BalanceNetoRow
+                      label="Sodio"
+                      spent={`${result.sodiumLossMg}mg`}
+                      consumed={`${sodiumConsumedMg}mg`}
+                      debt={`${recoveryDebt.sodiumDebtMg}mg`}
+                    />
                   </div>
-                  <div className="rounded-lg bg-[#F8F7F5] p-4 shadow-none">
-                    <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
-                      <Utensils className="size-3.5 shrink-0" />
-                      Fase 2 · {biphasicRecoveryTarget.phase2.windowLabel}
-                    </span>
-                    <div className="mt-1 flex items-baseline gap-3">
-                      <span className="flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
-                        {biphasicRecoveryTarget.phase2.carbsG}
+                </div>
+              )}
+
+              {recoveryTarget && biphasicRecoveryTarget && (
+                <div className="mt-4">
+                  <span className="block text-xs text-neutral-500">
+                    Ventana bifásica — glucógeno se repone en dos fases fisiológicas
+                    distintas, no en una sola comida
+                  </span>
+                  <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg bg-[#F8F7F5] p-4 shadow-none">
+                      <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
+                        <Zap className="size-3.5 shrink-0" />
+                        Fase 1 · {biphasicRecoveryTarget.phase1.windowLabel}
+                      </span>
+                      <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                        {biphasicRecoveryTarget.phase1.carbsG}
                         <span className="text-sm font-normal text-neutral-500">g HC</span>
+                      </div>
+                      <span className="text-xs text-neutral-500 italic">
+                        Líquido/rápido (batido, fruta) — vía GLUT-4, no depende de insulina
                       </span>
-                      <span className="flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
-                        {biphasicRecoveryTarget.phase2.proteinG}
-                        <span className="text-sm font-normal text-neutral-500">g prot</span>
+                    </div>
+                    <div className="rounded-lg bg-[#F8F7F5] p-4 shadow-none">
+                      <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
+                        <Utensils className="size-3.5 shrink-0" />
+                        Fase 2 · {biphasicRecoveryTarget.phase2.windowLabel}
+                      </span>
+                      <div className="mt-1 flex items-baseline gap-3">
+                        <span className="flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                          {biphasicRecoveryTarget.phase2.carbsG}
+                          <span className="text-sm font-normal text-neutral-500">g HC</span>
+                        </span>
+                        <span className="flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                          {biphasicRecoveryTarget.phase2.proteinG}
+                          <span className="text-sm font-normal text-neutral-500">g prot</span>
+                        </span>
+                      </div>
+                      <span className="text-xs text-neutral-500 italic">
+                        Comida sólida principal — reparación muscular
                       </span>
                     </div>
-                    <span className="text-xs text-neutral-500 italic">
-                      Comida sólida principal — reparación muscular
-                    </span>
                   </div>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div className="rounded-lg bg-[#F8F7F5] p-4 shadow-none">
-                    <span className={statLabel}>Grasas límite</span>
-                    <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
-                      &lt;{recoveryTarget.fatLimitG}
-                      <span className="text-sm font-normal text-neutral-500">g</span>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="rounded-lg bg-[#F8F7F5] p-4 shadow-none">
+                      <span className={statLabel}>Grasas límite</span>
+                      <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                        &lt;{recoveryTarget.fatLimitG}
+                        <span className="text-sm font-normal text-neutral-500">g</span>
+                      </div>
+                      <span className="text-xs text-neutral-500 italic">
+                        Vaciado gástrico rápido
+                      </span>
                     </div>
-                    <span className="text-xs text-neutral-500 italic">
-                      Vaciado gástrico rápido
-                    </span>
-                  </div>
-                  <div className="rounded-lg bg-[#F8F7F5] p-4 shadow-none">
-                    <span className={statLabel}>Rehidratación</span>
-                    <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
-                      {(recoveryTarget.fluidMl / 1000).toFixed(1)}
-                      <span className="text-sm font-normal text-neutral-500">L</span>
+                    <div className="rounded-lg bg-[#F8F7F5] p-4 shadow-none">
+                      <span className={statLabel}>Rehidratación</span>
+                      <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
+                        {(recoveryTarget.fluidMl / 1000).toFixed(1)}
+                        <span className="text-sm font-normal text-neutral-500">L</span>
+                      </div>
+                      <span className="font-mono text-xs text-neutral-500">
+                        {recoveryTarget.sodiumMg} mg sodio
+                      </span>
                     </div>
-                    <span className="font-mono text-xs text-neutral-500">
-                      {recoveryTarget.sodiumMg} mg sodio
-                    </span>
                   </div>
+                  <p className="mt-2 text-xs text-neutral-500">
+                    Objetivo nutricional recomendado para las primeras 2 a 4 horas
+                    post-entreno, calculado sobre la deuda neta real.
+                  </p>
                 </div>
-                <p className="mt-2 text-xs text-neutral-500">
-                  Objetivo nutricional recomendado para las primeras 2 a 4 horas post-entreno,
-                  calculado sobre la deuda neta real.
-                </p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
 }
