@@ -11,6 +11,7 @@ import type { AthleteProfile } from "@/lib/dashboard-data";
 import {
   athleteTypeDescriptions,
   athleteTypeLabels,
+  getWkgBarPercentage,
   getWkgCategory,
   sweatRateDescriptions,
   sweatRateLabels,
@@ -125,6 +126,7 @@ export function PhysiologicalProfileForm({
   // cleanly rather than ever rendering a broken number mid-typing.
   const wkg = weightValid && ftpValid ? Number(ftp) / Number(weight) : 0;
   const wkgCategory = wkg > 0 ? getWkgCategory(wkg) : null;
+  const wkgBarPercentage = wkg > 0 ? getWkgBarPercentage(wkg) : 0;
 
   const hasChanges = useMemo(
     () =>
@@ -179,26 +181,52 @@ export function PhysiologicalProfileForm({
     >
       <Card className="overflow-visible">
         <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className={cardNumberHeading}>01 · Métricas físicas y equipamiento</span>
-            {/* Read-only W/kg readout — FTP ÷ Peso, recalculated live from
-                the two controlled inputs directly below, never its own
-                input and never persisted (see the `wkg`/`wkgCategory`
-                derivation above). Plain inline text, no box — an earlier
-                pass wrapped this in a bordered `bg-[#F8F7F5]` pill; a later
-                request explicitly asked for "cero fondos pesados," so it's
-                now just clean editorial `font-mono` text sitting flush
-                against the section eyebrow, the same "quiet technical
-                readout, not a call-to-action" intent as before, just
-                without the container. `flex-wrap` on the parent row still
-                lets this drop to its own line below the (longer) eyebrow
-                label on a narrow phone instead of both squeezing onto one
-                forced row. */}
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className={cardNumberHeading}>01 · Métricas físicas y equipamiento</span>
+              {/* Read-only W/kg readout — FTP ÷ Peso, recalculated live from
+                  the two controlled inputs directly below, never its own
+                  input and never persisted (see the `wkg`/`wkgCategory`
+                  derivation above). Plain inline text, no box — an earlier
+                  pass wrapped this in a bordered `bg-[#F8F7F5]` pill; a later
+                  request explicitly asked for "cero fondos pesados," so it's
+                  now just clean editorial `font-mono` text sitting flush
+                  against the section eyebrow, the same "quiet technical
+                  readout, not a call-to-action" intent as before, just
+                  without the container. `flex-wrap` on the parent row still
+                  lets this drop to its own line below the (longer) eyebrow
+                  label on a narrow phone instead of both squeezing onto one
+                  forced row. */}
+              {wkgCategory && (
+                <div className="flex shrink-0 items-center gap-1.5 font-mono text-xs whitespace-nowrap text-zinc-800">
+                  <span className="font-bold text-zinc-900">{wkg.toFixed(2)} W/kg</span>
+                  <span className="text-zinc-400">·</span>
+                  <span className="text-zinc-500">{wkgCategory.label}</span>
+                </div>
+              )}
+            </div>
+            {/* Micro-graduated scale bar — a thin, five-band gradient
+                (Principiante → Pro/Excepcional across the same 1.5-5.5 W/kg
+                spectrum `getWkgCategory` bands into labels) with a small
+                dark notch marking the athlete's own live position
+                (`getWkgBarPercentage`). Deliberately not one of this app's
+                `rounded-sm` selector/card/button shapes — a progress-bar
+                track, styled `rounded-full` like every other track/pill in
+                the app, reactive on every keystroke since it's derived from
+                the exact same `wkg` value as the text readout above it. */}
             {wkgCategory && (
-              <div className="flex shrink-0 items-center gap-1.5 font-mono text-xs whitespace-nowrap text-zinc-800">
-                <span className="font-bold text-zinc-900">{wkg.toFixed(2)} W/kg</span>
-                <span className="text-zinc-400">·</span>
-                <span className="text-zinc-500">{wkgCategory.label}</span>
+              <div className="relative w-full pt-1">
+                <div className="flex h-1.5 w-full divide-x divide-white overflow-hidden rounded-full bg-zinc-100">
+                  <div className="w-1/5 bg-zinc-200/60" title="Principiante (<2.0)" />
+                  <div className="w-1/5 bg-zinc-200/80" title="Recreacional (2.0-2.8)" />
+                  <div className="w-1/5 bg-zinc-300/80" title="Intermedio (2.8-3.5)" />
+                  <div className="w-1/5 bg-zinc-400/80" title="Avanzado (3.5-4.2)" />
+                  <div className="w-1/5 bg-zinc-500/80" title="Elite / Pro (>4.2)" />
+                </div>
+                <div
+                  className="absolute top-0.5 -ml-1 h-2.5 w-2 rounded-sm bg-zinc-900 shadow-sm transition-all duration-300"
+                  style={{ left: `${wkgBarPercentage}%` }}
+                />
               </div>
             )}
           </div>

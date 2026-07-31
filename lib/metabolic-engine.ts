@@ -1435,3 +1435,21 @@ export function getWkgCategory(wkg: number): WkgCategory {
   if (wkg < 5.0) return { label: "Competitivo / Elite", percentile: "Top 8%" };
   return { label: "Pro / Excepcional", percentile: "Top 2%" };
 }
+
+const WKG_BAR_MIN = 1.5;
+const WKG_BAR_MAX = 5.5;
+
+/**
+ * Position (0-100) along the same 1.5-5.5 W/kg spectrum `getWkgCategory`
+ * bands into labels — feeds the Physiological Profile form's own
+ * micro-graduated scale bar. Clamped at both ends so a genuinely
+ * out-of-range value (a very light athlete with a very low FTP, or a
+ * world-tour outlier) still renders a sane in-bounds marker rather than
+ * overflowing the bar. Purely illustrative positioning, same "heuristic,
+ * not clinical" convention as `getWkgCategory` itself — never fed into any
+ * fueling/recovery calculation.
+ */
+export function getWkgBarPercentage(wkg: number): number {
+  const raw = ((wkg - WKG_BAR_MIN) / (WKG_BAR_MAX - WKG_BAR_MIN)) * 100;
+  return Math.min(Math.max(raw, 0), 100);
+}

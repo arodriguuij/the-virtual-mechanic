@@ -4714,6 +4714,52 @@ Manual, "Gasto estimado de HC" appears exactly once in the DOM and sits inside C
 Card 03), no "Hidratación objetivo:"/"Sodio objetivo:" duplicate text remains anywhere, and
 the Carbohidratos tooltip renders fully visible and unclipped on hover.
 
+### W/kg micro-graduated scale bar (01 · Métricas físicas y equipamiento)
+
+The plain-text W/kg readout (see "W/kg performance readout" above — "3.57 W/kg · Avanzado,"
+no box, added in an earlier pass) gained a thin visual scale bar directly beneath it, so the
+athlete's own position within the Coggan-style power-profile spectrum reads at a glance
+instead of only as text.
+
+- **`getWkgBarPercentage(wkg)`** (`lib/metabolic-engine.ts`, pure, exported) — clamps the
+  athlete's live `wkg` value into a 0-100 position across a fixed 1.5-5.5 W/kg range
+  (`((wkg - 1.5) / (5.5 - 1.5)) * 100`, clamped both ends so a genuine outlier — a very
+  light athlete with a low FTP, or a world-tour-caliber reading — still renders a sane
+  in-bounds marker instead of overflowing the bar). Deliberately doesn't duplicate
+  `getWkgCategory`'s own label thresholds — both functions read the same 1.5-5.5-ish
+  spectrum, but only the position math was missing, so this is the one new function added;
+  the label itself (`wkgCategory.label`) is still `getWkgCategory`'s output, unchanged.
+- **The bar itself** (`components/physiological-profile-form.tsx`) — a
+  `flex h-1.5 w-full divide-x divide-white overflow-hidden rounded-full bg-zinc-100`
+  five-segment track (`Principiante`/`Recreacional`/`Intermedio`/`Avanzado`/`Elite-Pro`,
+  ascending `zinc-200/60` → `zinc-500/80` opacity — a gradient read through shade alone,
+  no color), with a small `absolute` dark `rounded-sm` notch (`bg-zinc-900`, `-ml-1` so its
+  own width centers on the computed position) positioned via inline `style={{ left:
+  `${wkgBarPercentage}%` }}` — `transition-all duration-300` so it animates smoothly as
+  Peso/FTP change, rather than snapping. Sits inside the same `wkgCategory && (...)` guard
+  as the text readout (both derive from the same `wkg > 0` check), so it's simply absent
+  until both Peso and FTP are valid — never a bar sitting at a meaningless 0% position for
+  an athlete who hasn't finished typing yet.
+- **Deliberately not `rounded-sm`** like every button/card/field/select/tab/stepper in the
+  app's global radius scale (see "Radio de Bordes Pequeño Global" under "PNS premium
+  redesign" below) — a progress-bar track was already one of that pass's own named
+  exceptions (alongside the radio-indicator dot, spinner rings, and floating glass chips),
+  so `rounded-full` here is consistent with that carve-out, not a regression of it.
+- **Purely reactive, zero persistence** — recalculated on every render directly from the
+  same controlled `weight`/`ftp` state the text readout already uses; no new field, no new
+  network round-trip, matching this component's existing "never its own input, never
+  persisted" convention for the W/kg figure itself.
+
+Verified via `npx tsc --noEmit`/`npm run lint`/`npm run build` (all clean) and a live
+Playwright check (a temporary route rendering the real `PhysiologicalProfileForm` with a
+mocked profile) — confirmed the initial 250W/70kg reading renders "3.57 W/kg · Avanzado"
+with the notch at the correct proportional position; raising FTP to 400 (5.71 W/kg, past
+the scale's own upper bound) clamps the notch to exactly `left: 100%`; setting FTP to 140
+(exactly 2.0 W/kg, the Recreacional threshold) renders the notch at `left: 12.5%` and the
+label "Recreacional"; and clearing the weight field removes the bar (and the text readout)
+entirely rather than rendering a broken position. Also confirmed correct rendering with no
+overflow at a 390px mobile viewport.
+
 ### Route dynamic rendering
 
 Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because
