@@ -4157,6 +4157,18 @@ unclipped above its card boundary, the 2-tab "Ruta / GPX"/"Calculadora" toggle w
 duration/watts fields with the disabled CTA and its helper line, and the checkbox now
 sitting above the (enabled, since a route was selected) CTA button in Ruta mode.
 
+**A follow-up pass renamed the second tab.** "Calculadora" was flagged as an ambiguous
+label — it describes the mechanism (a calculator) rather than what the athlete is actually
+telling the planner (that there's no saved route/GPX for this session, just a manually
+described workout) — so the segmented button's visible label changed to **"Entreno
+Manual."** The internal `mode` value stays `"quick"` (unchanged identifier, same
+convention as every other copy-only rename in this codebase — see "Spanish-only UI text"
+below), so nothing downstream of the button (the request-body branching, Paso 02's
+conditionals) needed to change. Every doc reference to "Calculadora" written *before* this
+rename (throughout this file's history of the Fueling Planner) is left as-is — those
+describe what the UI was called at the time, not what it's called now; only this section's
+own verification note and the label itself were updated.
+
 ### Route dynamic rendering
 
 Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because

@@ -126,9 +126,9 @@ const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums
 // input/select/date call site below.
 const inputClass = fieldClass;
 const selectableInputClass = selectableFieldClass;
-// Shared sizing/typography/shape for every 3-column segmented control in
-// this file (Salida's Hoy/Mañana/Elegir fecha, the Ruta/Calculadora/GPX mode
-// toggle, Estrategia nutricional's Óptimo/Mi Inventario/Híbrido) — rectangular
+// Shared sizing/typography/shape for every segmented control in this file
+// (the Ruta/GPX vs. Entreno Manual mode toggle, Salida's Hoy/Mañana/Elegir
+// fecha, Estrategia nutricional's Óptimo/Mi Inventario/Híbrido) — rectangular
 // buttons (PNS editorial style), not a pill/track, so each call site only
 // adds its own active/inactive color ternary via `cn()`, not the shape/
 // sizing rules — a narrow-viewport fix to one can't silently drift from the
@@ -180,7 +180,7 @@ const INTENSITY_OPTIONS: IntensityLevel[] = [
   "vo2max",
 ];
 
-// Calculadora's own "Tipo de Entreno" selector — a structured session's
+// Entreno Manual's own "Tipo de Entreno" selector — a structured session's
 // *average* watts routinely understates its real metabolic cost (an
 // interval set spends real time well above that average), so naming the
 // session type lets the server derive glycogen burn from a proper named
@@ -849,7 +849,7 @@ export function FuelingPlanner({
                     : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                 )}
               >
-                <span className={segmentedButtonLabelClass}>Calculadora</span>
+                <span className={segmentedButtonLabelClass}>Entreno Manual</span>
               </button>
             </div>
 
@@ -1121,7 +1121,7 @@ export function FuelingPlanner({
         </div>
 
         {/* PASO 02 · Condiciones de la salida — Intensidad Objetivo (Sub-
-            sección A, skipped in Calculadora mode since real watts already
+            sección A, skipped in Entreno Manual mode since real watts already
             *is* the intensity input there) and Fecha y Hora de Salida (Sub-
             sección B, every mode). One flat white "tarjeta madre," no nested
             sub-cards — `gap-3` alone separates the sub-sections ("Jerarquía
