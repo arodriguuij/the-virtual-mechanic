@@ -1545,7 +1545,7 @@ export function FuelingPlanner({
                     <span className="ml-1 text-xs font-normal text-neutral-500">h</span>
                   </span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
+                <div className="relative flex flex-col gap-1 overflow-visible rounded-lg bg-[#F8F7F5] p-3">
                   <span className="flex items-center gap-1">
                     <span className={eyebrow}>Carbohidratos</span>
                     <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
@@ -1589,8 +1589,6 @@ export function FuelingPlanner({
                   source={result.weather.source}
                   multiPointSample={result.weather.multiPointSample}
                   lapseRateAdjustmentC={result.weather.lapseRateAdjustmentC}
-                  fluidLossMlPerHour={result.fluidLossMlPerHour}
-                  sodiumMgPerHour={result.sodiumMgPerHour}
                 />
               </div>
 
@@ -1601,37 +1599,6 @@ export function FuelingPlanner({
                   Training para subir de nivel gradualmente.
                 </p>
               )}
-
-              {/* Sub-bloque de Balance Neto anidado */}
-              <div className="mt-3 grid grid-cols-1 gap-3 rounded-lg bg-[#F8F7F5] p-3 sm:grid-cols-3">
-                <div className="flex flex-col gap-1">
-                  <span className={eyebrow}>Gasto estimado de HC</span>
-                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
-                    {result.netCarbDeficit.estimatedBurnG} g
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className={eyebrow}>Ingesta planificada</span>
-                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
-                    {result.netCarbDeficit.plannedIntakeG} g
-                  </span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className={eyebrow}>Déficit neto al finalizar</span>
-                  <span
-                    className={cn(
-                      "flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums",
-                      result.netCarbDeficit.netDeficitG > 0 ? "text-status-warning" : "text-status-good"
-                    )}
-                  >
-                    <TrendingDown className="size-3.5 shrink-0" />
-                    {result.netCarbDeficit.netDeficitG > 0
-                      ? `-${result.netCarbDeficit.netDeficitG}`
-                      : `+${Math.abs(result.netCarbDeficit.netDeficitG)}`}{" "}
-                    g
-                  </span>
-                </div>
-              </div>
             </div>
 
             {/* 🎴 Tarjeta 2 · 04 · Configuración de bidones y comida en
@@ -1755,6 +1722,42 @@ export function FuelingPlanner({
                   actualizar la receta casera y el plan de bidones con esta selección.
                 </p>
               )}
+
+              {/* Sub-bloque de Balance Neto — moved here from Tarjeta 03: it
+                  genuinely didn't belong there, since a burn-vs-intake
+                  comparison makes no sense before the athlete has configured
+                  their bottles/pocket food at all. Belongs at the end of
+                  this card instead, once bottle role + fueling strategy +
+                  pocket-food selection are all already visible above it. */}
+              <div className="mt-4 grid grid-cols-1 gap-3 rounded-lg bg-[#F8F7F5] p-3 sm:grid-cols-3">
+                <div className="flex flex-col gap-1">
+                  <span className={eyebrow}>Gasto estimado de HC</span>
+                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                    {result.netCarbDeficit.estimatedBurnG} g
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={eyebrow}>Ingesta planificada</span>
+                  <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
+                    {result.netCarbDeficit.plannedIntakeG} g
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className={eyebrow}>Déficit neto al finalizar</span>
+                  <span
+                    className={cn(
+                      "flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums",
+                      result.netCarbDeficit.netDeficitG > 0 ? "text-status-warning" : "text-status-good"
+                    )}
+                  >
+                    <TrendingDown className="size-3.5 shrink-0" />
+                    {result.netCarbDeficit.netDeficitG > 0
+                      ? `-${result.netCarbDeficit.netDeficitG}`
+                      : `+${Math.abs(result.netCarbDeficit.netDeficitG)}`}{" "}
+                    g
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* 🎴 Tarjeta 3 · 05 · Pauta de ingesta y receta casera — the DIY

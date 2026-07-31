@@ -4667,6 +4667,53 @@ scenarios (changing intensity, changing duration, switching tabs, changing the s
 route, toggling the Ruta objetivo checkbox) — the result panel disappears immediately after
 each edit and reappears correctly after clicking "Calcular estrategia nutricional" again.
 
+### Tarjeta 03 cleanup — Balance Neto moved out, weather duplication removed
+
+Tarjeta 1 (`03 · Metabolismo y objetivos calculados`) used to also carry the Balance Neto
+sub-block (Gasto Estimado de HC / Ingesta Planificada / Déficit Neto al Finalizar) — a
+burn-vs-intake comparison that genuinely doesn't make sense yet at this point in the flow,
+since the athlete hasn't configured their bottle role or pocket-food selection (Card 04)
+at all. Removed from Card 03 and relocated to the *end* of Card 04 (`04 · Configuración de
+bidones y comida en bolsillo`), after the food-stepper list and its "Pulsa Calcular..."
+hint — the natural place for a "here's where you land" summary once bottle config,
+fueling strategy, and pocket-food selection are all already visible above it. Nothing
+about the block's own content/figures changed, only its card.
+
+- **Duplicated Hidratación/Sodio figures removed from `WeatherImpactCard`** — the
+  component used to end with its own "Hidratación objetivo: X ml/h · Sodio objetivo: Y
+  mg/h" caption line, restating exactly what Card 03's own 2x2 grid cells (Hidratación/
+  Sodio, both already showing the same per-hour rate) already show once. `fluidLossMlPerHour`/
+  `sodiumMgPerHour` were dropped from the component's own props entirely, not just hidden —
+  there was no other reason for it to receive them.
+- **"Impacto Térmico" copy now reflects what was actually sampled, not a vague catch-all.**
+  `result.weather.multiPointSample` is `true` precisely when a real geographic 3-point
+  sample (start/summit/finish) succeeded — only possible in route/GPX mode with a genuine
+  elevation profile. The summary text now reads "Previsión real Open-Meteo · inicio /
+  punto más alto / llegada" in that case, or "Previsión real Open-Meteo · inicio / mitad de
+  ruta / llegada" for Entreno Manual (no coordinates at all) or a flat/no-peak route, both of
+  which fall back to the same single-location forecast averaged across the ride's own
+  departure-to-arrival time window — "mitad de ruta" describes that time-averaged reading in
+  plain language, it doesn't imply a second physical location is actually sampled. The
+  `planning_default`/`seasonal_average` branches (a generic estimate or historical average,
+  neither a real live forecast) are untouched — this app's "never claim real data when it's
+  actually a fallback" convention means neither of those get the new "Previsión real
+  Open-Meteo" wording at all, regardless of `multiPointSample`.
+- **Carbohidratos tooltip — verified already correctly unclipped**, `z-50` confirmed live
+  (no change was actually needed: `FuelingContextTooltips` already carries `z-50` from the
+  earlier "Unificación Global de Iconos de Tooltip" pass, and Card 03's own container has no
+  `overflow-hidden` ancestor to clip it). Its grid cell gained an explicit `relative
+  overflow-visible` anyway, matching the prompt's own literal example, as a defensive,
+  self-documenting guarantee rather than relying on the *absence* of a clipping ancestor
+  elsewhere in the tree.
+
+Verified via `npx tsc --noEmit`/`npm run lint`/`npm run build` (all clean) and a live
+Playwright check (two scenarios — a route-mode calculation with `multiPointSample: true`,
+and an Entreno Manual calculation with `multiPointSample: false`) — confirmed the weather
+summary reads "punto más alto" for the mountain-route case and "mitad de ruta" for Entreno
+Manual, "Gasto estimado de HC" appears exactly once in the DOM and sits inside Card 04 (not
+Card 03), no "Hidratación objetivo:"/"Sodio objetivo:" duplicate text remains anywhere, and
+the Carbohidratos tooltip renders fully visible and unclipped on hover.
+
 ### Route dynamic rendering
 
 Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because
