@@ -118,6 +118,13 @@ function pocketFoodName(type: PocketFoodItemType): string {
 }
 
 const eyebrow = "text-[10px] font-mono uppercase tracking-widest text-zinc-500";
+// Shared typography for Paso 02's grouped input labels (Intensidad Objetivo,
+// Fecha y hora de salida, Duración/Vatios) — homologated to one exact class
+// string so these read as one consistent family instead of `eyebrow`'s
+// smaller/looser-tracked style, which stays reserved for stat readouts and
+// data-block eyebrows elsewhere in this file (Ruta, Carbohidratos objetivo,
+// etc. — a different, unrelated concern this pass didn't touch).
+const formFieldLabelClass = "text-xs font-mono font-semibold tracking-wider text-zinc-500 uppercase";
 const statLabel = "text-[10px] sm:text-xs font-mono tracking-wider text-neutral-500 uppercase truncate";
 const statValue = "font-mono text-xl font-semibold text-neutral-900 tabular-nums sm:text-2xl";
 // Shared with every other field/button across the app (`lib/ui-classes.ts`) —
@@ -244,7 +251,7 @@ function IntensityObjectiveSelect({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-1.5">
-        <label htmlFor={id} className="block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+        <label htmlFor={id} className={cn(formFieldLabelClass, "block")}>
           Intensidad objetivo
         </label>
         <InfoTooltip
@@ -438,7 +445,7 @@ function DeparturePicker({
 }) {
   return (
     <div className="flex w-full min-w-0 max-w-full flex-col gap-2">
-      <span className={eyebrow}>Fecha y hora de salida</span>
+      <span className={formFieldLabelClass}>Fecha y hora de salida</span>
       <div className="grid grid-cols-3 gap-2">
         {DEPARTURE_DAY_MODE_OPTIONS.map((opt) => (
           <button
@@ -1180,42 +1187,56 @@ export function FuelingPlanner({
 
             {mode === "quick" && (
               <div className="mt-4 flex flex-col gap-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-2">
-                    <label htmlFor="duration-hours" className={eyebrow}>
-                      Duración — Horas
-                    </label>
-                    <input
-                      id="duration-hours"
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      step={1}
-                      placeholder="0"
-                      className={inputClass}
-                      value={quickHoursInput}
-                      onChange={(e) => setQuickHoursInput(e.target.value)}
-                    />
+                    <label className={formFieldLabelClass}>Duración estimada</label>
+                    {/* Horas/Minutos used to be two full-width stacked inputs
+                        (each its own grid cell in a 3-col row) — on mobile
+                        that meant two full-width boxes taking double the
+                        vertical space for one logical value. Merged into one
+                        label with a 2-col inner grid instead, each input
+                        carrying its own unit suffix so there's no separate
+                        text label needed per field. */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="relative flex items-center">
+                        <input
+                          id="duration-hours"
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          step={1}
+                          placeholder="0"
+                          aria-label="Horas"
+                          className={cn(inputClass, "pr-8")}
+                          value={quickHoursInput}
+                          onChange={(e) => setQuickHoursInput(e.target.value)}
+                        />
+                        <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                          h
+                        </span>
+                      </div>
+                      <div className="relative flex items-center">
+                        <input
+                          id="duration-minutes"
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          max={59}
+                          step={5}
+                          placeholder="0"
+                          aria-label="Minutos"
+                          className={cn(inputClass, "pr-10")}
+                          value={quickMinutesInput}
+                          onChange={(e) => setQuickMinutesInput(e.target.value)}
+                        />
+                        <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                          min
+                        </span>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <label htmlFor="duration-minutes" className={eyebrow}>
-                      Duración — Minutos
-                    </label>
-                    <input
-                      id="duration-minutes"
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      max={59}
-                      step={5}
-                      placeholder="0"
-                      className={inputClass}
-                      value={quickMinutesInput}
-                      onChange={(e) => setQuickMinutesInput(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label htmlFor="watts" className={eyebrow}>
+                    <label htmlFor="watts" className={formFieldLabelClass}>
                       Vatios objetivo
                     </label>
                     <input
@@ -1322,7 +1343,7 @@ export function FuelingPlanner({
                   onHourChange={setDepartureHour}
                 />
                 <div className="flex flex-col gap-2">
-                  <label htmlFor="gpx-duration" className={eyebrow}>
+                  <label htmlFor="gpx-duration" className={formFieldLabelClass}>
                     <Pencil className="mr-1 inline size-3" />
                     Tiempo estimado (editar)
                   </label>

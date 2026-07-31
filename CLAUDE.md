@@ -4391,6 +4391,99 @@ mocked route only ever fired once, for the initial calculation), and cycling thr
 "Configuración de bidones" options renders 3 genuinely different, correctly-computed summary
 strings.
 
+### Label typography homologation & compact duration input
+
+Two small Paso 02 fixes, bundled together:
+
+- **`formFieldLabelClass`** (`components/fueling-planner.tsx`, `"text-xs font-mono
+  font-semibold tracking-wider text-zinc-500 uppercase"`) is now the one shared class every
+  Paso 02 input label uses — Intensidad Objetivo (`IntensityObjectiveSelect`, already this
+  exact style before this pass, now sourced from the shared constant instead of its own
+  inline string so it can't independently drift), Fecha y Hora de Salida
+  (`DeparturePicker`'s own eyebrow span), Duración Estimada, Vatios Objetivo, and GPX mode's
+  "Tiempo estimado (editar)" label — all 5 previously used `eyebrow` (`text-[10px] font-mono
+  uppercase tracking-widest text-zinc-500`, a smaller size with no `font-semibold` and looser
+  tracking) except Intensidad Objetivo, which already had its own slightly different inline
+  string — so every label in this one step read at a subtly different size/weight than its
+  neighbor. `eyebrow` itself is untouched and still used everywhere else in this file (stat
+  readouts like Ruta/Carbohidratos objetivo/Distancia — a different concern, data labels
+  rather than form-field labels, not part of this request's scope). Vatios Objetivo and the
+  GPX "Tiempo estimado" label weren't named explicitly in the request, but both sit in the
+  exact same row as a label that was renamed — leaving them on the old `eyebrow` style would
+  have reintroduced the same inconsistency one field over, so both were included.
+- **Duración — Horas / Duración — Minutos merged into one "Duración Estimada" row.** These
+  used to be two independent, full-width `<input>`s, each its own cell in a
+  `grid-cols-1 sm:grid-cols-3` row alongside Vatios Objetivo — on mobile (the default,
+  single-column layout) that meant two full-width stacked boxes for what's really one
+  logical duration value. Now one label ("Duración estimada") sits above a
+  `grid grid-cols-2 gap-3` pair of compact inputs, each with its own absolutely-positioned
+  unit suffix (`h`/`min`, `pointer-events-none` so it never intercepts a click meant for the
+  input) instead of a separate text label per field — `aria-label="Horas"`/`aria-label="Minutos"`
+  on each input preserves accessible naming now that there's no visible per-input `<label>`.
+  The outer grid dropped from `sm:grid-cols-3` to `sm:grid-cols-2` (Duración block + Vatios
+  Objetivo) to match. `quickHoursInput`/`quickMinutesInput` state and their
+  derivation into one `quickDurationHours` figure for the request body are both unchanged —
+  this is a pure layout/markup change, no new state or calculation logic.
+
+Verified via `npx tsc --noEmit`/`npm run lint`/`npm run build` (all clean) and a live
+Playwright check (a temporary route rendering the real `FuelingPlanner`) at 390px —
+confirmed all 4 labels (Duración Estimada, Vatios Objetivo, Intensidad Objetivo, Fecha y
+Hora de Salida) resolve to byte-identical computed styles (`font-size: 12px`, `font-weight:
+600`, `letter-spacing: 0.6px`, `text-transform: uppercase`, `font-family: "Geist Mono"`),
+the hours/minutes inputs render side by side at the same `y` coordinate (not stacked), and
+the old "Duración — Horas" text is gone from the DOM in favor of "Duración estimada."
+
+### Unificación Global de Iconos de Tooltip — `HelpCircle` everywhere, dark panel
+
+Every tooltip trigger in the app previously used lucide-react's `Info` icon — this pass
+switched to `HelpCircle` (renders as `lucide-circle-question-mark` in this lucide-react
+version, functionally the same "(?)" glyph) and restyled the popover panel from this app's
+usual light/porcelain palette to a dark `zinc-900` panel with white `font-mono` text — a
+deliberate one-off exception to the rest of the app's card system, since a help affordance
+reads more clearly as a distinct, universal UI convention than another content card in the
+same palette as the page around it.
+
+Only two components in the whole codebase render a tooltip trigger icon —
+**`components/info-tooltip.tsx`**'s `InfoTooltip` (every call site: `/perfil`'s FTP, VLaMax,
+Tasa de sudoración, and Adaptación digestiva tooltips, plus the Fueling Planner's Intensidad
+Objetivo zone guide) and **`components/fueling-context-tooltip.tsx`**'s
+`FuelingContextTooltips` (the carb-ratio context note next to the Carbohidratos stat) — so
+fixing both centrally covers every tooltip in the app with no other call site needing a
+change. Both were previously two independent, near-identical CSS-only `group-hover`/
+`group-focus-within` implementations (no shadcn/Radix `Tooltip` primitive exists in
+`components/ui` — confirmed via `ls components/ui/` before touching anything — and this
+session's established convention, from an earlier prompt using the same `TooltipProvider`/
+`TooltipTrigger` shadcn-style code sample, is to adapt the existing pure-CSS component rather
+than introduce a new dependency for a visual restyle); `FuelingContextTooltips` still isn't
+merged into `InfoTooltip` itself, since it computes its own note from `getCarbRatioContextNote`
+rather than accepting one as a prop — kept in sync by hand instead.
+
+- **Icon**: `Info` → `HelpCircle`, wrapped in a real `<button type="button">` (the prompt's
+  own literal spec) rather than a bare focusable SVG — `tabIndex`/`aria-label` moved from the
+  icon onto the button, `group-focus-within` still fires the same way since the button is a
+  descendant of the wrapping `group` span either way.
+- **Trigger classes**: `text-zinc-400 hover:text-zinc-600 transition-colors outline-none
+  focus:outline-none` (was `text-neutral-400 hover:text-neutral-700 focus:text-neutral-700`)
+  at a fixed `size-3.5` (was `size-3.5` on `InfoTooltip` already; `FuelingContextTooltips`'
+  own icon grew from `size-3` to `size-3.5` to match the new unified size exactly).
+- **Panel**: `bg-zinc-900 text-white border-0 shadow-lg p-3 font-mono text-xs max-w-xs`
+  (was `bg-background text-neutral-700 border border-neutral-200 shadow-md px-2.5 py-2
+  font-sans w-64`/`w-56`) — `max-w-xs` replaces a fixed `w-64`/`w-56` so `InfoTooltip`'s own
+  `panelClassName` override (the Intensidad Objetivo zone guide's `w-72 sm:w-80`) still
+  applies correctly without fighting a conflicting fixed width; `z-50` was already correct
+  on `InfoTooltip` (fixed in an earlier pass alongside the `/perfil` card
+  `overflow-visible` fix) and was raised to match on `FuelingContextTooltips`, which had
+  been sitting at a lower `z-10`.
+
+Verified via `npx tsc --noEmit`/`npm run lint`/`npm run build` (all clean) and a live
+Playwright check (temporary routes rendering the real `FuelingPlanner` and
+`PhysiologicalProfileForm`) at 390px — confirmed every tooltip trigger across both
+components renders the `lucide-circle-question-mark` SVG at exactly `14×14px`
+(`size-3.5`), hovering resolves the panel's computed background to a dark near-black
+value with white text and `font-family: "Geist Mono"` at `z-index: 50`, and the FTP
+tooltip on `/perfil` still renders fully unclipped above its card boundary (confirming the
+prior `overflow-visible` fix holds with the new panel styling).
+
 ### Route dynamic rendering
 
 Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because
