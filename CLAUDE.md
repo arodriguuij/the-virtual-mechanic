@@ -4581,6 +4581,92 @@ sub-block headers or the old floating eyebrow remain anywhere in the page, and �
 present, each carrying the exact `rounded-xl border-0 bg-white p-4 shadow-none` class
 signature, with no other direct child (no loose text, no stray div) sitting alongside them.
 
+### Entreno Manual: "Vatios Objetivo" removed, derived from Intensidad Objetivo × FTP
+
+Entreno Manual used to ask for both a raw average-watts figure *and*, optionally, a named
+intensity zone (`structuredIntensity`) as a correction on top of it — genuinely redundant
+once the shared `IntensityObjectiveSelect` (see "Prompt de Unificación..." above) already
+asks every mode for the same zone. The watts input is gone entirely now: `quickAverageWattsInput`
+state, the `#watts` field, and the `averageWatts`/`structuredIntensity` request-body fields
+were all removed. Relative intensity for Entreno Manual is now derived exactly the way
+`estimateRideDurationHours` already derives a route-mode ride's target watts —
+`getRelativeIntensityFromLevel(intensityLevel)`, the chosen zone's %FTP (e.g. Fondo Z2 =
+65% FTP) — multiplied against the athlete's real profile FTP elsewhere in the engine, not a
+new formula. `POST /api/fueling/plan`'s quick-mode branch now sends a plain `intensity`
+field (matching route/GPX mode's own field name, rather than the old `structuredIntensity`)
+and requires it to be one of `VALID_INTENSITIES` — previously optional (a steady-state ride
+could fall back to the watts-derived figure), it's mandatory now, since there's no other
+source of intensity left. `getRelativeIntensity` (the raw-watts-based function) is
+untouched and still exported/used elsewhere (Post-Ride Analysis, the Strava sync route) —
+only this one caller stopped using it.
+
+- **`quickValid`** (`components/fueling-planner.tsx`) changed from `quickDurationHours > 0
+  && quickAverageWatts > 0` to `quickDurationHours > 0 && intensity !== ""` — duration and a
+  real zone selection are now the only two gates for Entreno Manual's CTA, matching
+  route/GPX mode's own `routeModeIncomplete` gating exactly (both a route/GPX *and* an
+  intensity are required there too).
+- **Paso 01's Entreno Manual layout** — the "Duración Estimada" (Horas/Minutos, unchanged
+  from the earlier "Homologación de Estilos de Etiqueta" pass) and "Vatios Objetivo" fields
+  used to share a `sm:grid-cols-2` row; with Vatios gone, Duración now stands alone as a
+  single full-width block, directly above the shared `IntensityObjectiveSelect` — the same
+  vertical sequence Ruta/GPX mode's own Paso 02 already uses (Intensidad Objetivo above
+  Fecha y Hora).
+- **Helper text updated** — the disabled-CTA hint under Entreno Manual changed from
+  "Introduce una duración y unos vatios objetivo válidos..." to "Introduce una duración
+  válida y selecciona una intensidad objetivo para poder calcular," matching what's
+  actually required now.
+
+### Reseteo automático del estado de cálculo
+
+A calculated result is only ever valid for the exact inputs it was computed from — editing
+any of them after calculating used to leave the old, now-stale result on screen with no
+indication it no longer matched the current selection. A single `useEffect` in
+`FuelingPlanner` now watches every input that can invalidate a result — `mode`,
+`selectedRouteId`, `parsedGpx`, `quickDurationHours`, `gpxDurationHours`, `intensity`,
+`departureLocal` (covers both the departure date *and* hour — `buildDepartureLocal`'s own
+memoized output already combines `departureDayMode`/`departureCustomDate`/`departureHour`
+into one string, so watching it alone covers all three underlying pieces without a longer,
+redundant dependency list), and `isTargetEvent` — and calls `setResult(null)` the instant
+any of them changes, which is all "hiding" the result panel needs: it's a plain `{result &&
+(...)}` conditional, so clearing `result` unmounts the whole panel immediately and the CTA's
+own pre-existing `disabled` gating re-enables itself the moment its own conditions are met
+again (unchanged — this effect only clears `result`, it never touches `loading`/`error`/the
+disabled logic itself).
+
+- **`isInitialInputRender`** (a `useRef(true)`, flipped to `false` on the effect's first
+  run) guards against a real race this effect could otherwise cause on mount: the
+  pre-existing "Modo Cobertura Limitada" effect right above it also runs on mount and may
+  call `setResult(cachedOfflineStrategy)` if the athlete opened the app offline — without
+  this guard, the reset effect's own first invocation (every `useEffect` runs at least once
+  on mount, even with a populated dependency array) would immediately wipe that just-loaded
+  cached result back to `null` before the athlete ever saw it. The guard makes this effect a
+  no-op on mount and only ever fire in response to a genuine subsequent *change*.
+- **Deliberately not reset**: `bottleConfig`/`fuelingMode`/`pocketFood`/`customCarbsG` (Card
+  2's own post-calculation adjustments) — editing these doesn't invalidate the currently
+  *shown* result the way changing a route or duration does; the existing "Pulsa 'Calcular
+  estrategia nutricional' (arriba) de nuevo..." hint already communicates that a pocket-food
+  edit needs a fresh calculation to actually change the recipe, without forcing the athlete
+  to lose the whole result panel just to adjust their food selection. This matches the
+  prompt's own explicit trigger list, which names route/GPX/duration/intensity/departure-
+  time/target-event specifically and not the post-calculation Card 2 adjusters.
+- **"Desaparece suavemente" interpreted as an immediate, clean hide** — matching this app's
+  existing plain-conditional-render convention everywhere else (no animation library exists
+  in this codebase, and no other conditional panel in the app animates its own exit) — rather
+  than introducing a new keep-mounted-during-fade-out architecture for this one panel. The
+  functionally-verifiable requirement ("resultados... ocultarse... hasta volver a pulsar el
+  botón") is satisfied either way; flagged transparently as a scope interpretation rather
+  than silently deciding it without a note.
+
+Verified via `npx tsc --noEmit`/`npm run lint`/`npm run build` (all clean) and a live
+Playwright check (a temporary route rendering the real `FuelingPlanner` with 2 mocked
+Strava routes and a mocked `/api/fueling/plan` response, with the actual outgoing request
+body captured via `page.route`) — confirmed Entreno Manual renders no `#watts` field and no
+"Vatios objetivo" text anywhere, the captured quick-mode request body carries `intensity:
+"tempo"` with no `averageWatts`/`structuredIntensity` field at all, and — across 4 separate
+scenarios (changing intensity, changing duration, switching tabs, changing the selected
+route, toggling the Ruta objetivo checkbox) — the result panel disappears immediately after
+each edit and reappears correctly after clicking "Calcular estrategia nutricional" again.
+
 ### Route dynamic rendering
 
 Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because

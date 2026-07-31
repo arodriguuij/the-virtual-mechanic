@@ -26,7 +26,6 @@ import {
   getPocketFoodMilestones,
   getPocketFoodTotalCarbsG,
   getReloadStrategy,
-  getRelativeIntensity,
   getRelativeIntensityFromLevel,
   getSodiumLossMgPerHour,
   type FuelingMode,
@@ -171,26 +170,23 @@ export async function POST(request: NextRequest) {
     rideDistanceKm = distanceKm;
     rideElevationGainM = elevationGainM;
   } else {
-    const { durationHours: hours, averageWatts, structuredIntensity } = body;
-    if (
-      typeof hours !== "number" ||
-      hours <= 0 ||
-      typeof averageWatts !== "number" ||
-      averageWatts <= 0
-    ) {
+    // "Vatios Objetivo" was removed from Entreno Manual entirely — a real
+    // average-watts figure doesn't exist for a ride that hasn't happened
+    // yet, and asking the athlete to guess one was redundant once the same
+    // Intensidad Objetivo selector every other mode already uses covers the
+    // same input. Relative intensity is now derived purely from the chosen
+    // zone's %FTP (`getRelativeIntensityFromLevel`, the exact same formula
+    // `estimateRideDurationHours` already uses to size a route-mode ride),
+    // multiplied against the athlete's real profile FTP — an intensity
+    // selection is mandatory here now, unlike the old optional
+    // `structuredIntensity` override on top of a watts-derived fallback.
+    const { durationHours: hours, intensity } = body;
+    const intensityLevel: IntensityLevel | null = VALID_INTENSITIES.has(intensity) ? intensity : null;
+    if (typeof hours !== "number" || hours <= 0 || !intensityLevel) {
       return NextResponse.json({ error: "invalid_quick" }, { status: 400 });
     }
     durationHours = hours;
-    // A structured session (intervals, a race) can have an average-watts
-    // figure that's genuinely misleading for glycogen-burn purposes — the
-    // athlete spent real time well above that average during the hard
-    // efforts, which is what actually drives carb oxidation. When the rider
-    // names the session type, that self-reported intensity band wins over
-    // the one derived from raw average watts; an unnamed, steady-state ride
-    // still falls back to the watts-derived figure exactly as before.
-    relativeIntensity = VALID_INTENSITIES.has(structuredIntensity)
-      ? getRelativeIntensityFromLevel(structuredIntensity)
-      : getRelativeIntensity(averageWatts, athleteProfile.ftp);
+    relativeIntensity = getRelativeIntensityFromLevel(intensityLevel);
   }
 
   // "Modo Óptimo" replaces whatever the athlete may have manually selected

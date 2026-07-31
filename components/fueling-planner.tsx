@@ -590,11 +590,11 @@ export function FuelingPlanner({
   // one extra required click.
   const [intensity, setIntensity] = useState<IntensityLevel | "">("");
   // No pre-filled defaults — the athlete must explicitly enter a real
-  // duration/watts pair rather than silently calculating against whatever
-  // placeholder happened to be in the field.
+  // duration rather than silently calculating against whatever placeholder
+  // happened to be in the field. "Vatios Objetivo" no longer has its own
+  // input at all here — see `quickValid`'s own comment below.
   const [quickHoursInput, setQuickHoursInput] = useState("");
   const [quickMinutesInput, setQuickMinutesInput] = useState("");
-  const [quickAverageWattsInput, setQuickAverageWattsInput] = useState("");
   // "Hoy" stays the default day (a same-day departure is still the single
   // most common case, and picking a day is a low-stakes default unlike a
   // route or intensity choice that could silently drive a wrong
@@ -645,15 +645,18 @@ export function FuelingPlanner({
     }
   }
 
-  // Derived from the 3 raw text inputs above — `0` (not `NaN`) for a blank
+  // Derived from the 2 raw text inputs above — `0` (not `NaN`) for a blank
   // field, so `quickValid` below cleanly reads "not entered yet" rather than
   // a broken calculation. Horas + Minutos combine into one decimal-hours
   // figure, same unit `handleCalculate`'s request body always expected.
+  // "Vatios Objetivo" was removed entirely (see the API route's own quick-
+  // mode branch) — the engine now derives relative intensity purely from
+  // the shared Intensidad Objetivo selector's %FTP figure, so a real
+  // intensity selection is mandatory here too, not just duration.
   const quickHoursNum = Number(quickHoursInput) || 0;
   const quickMinutesNum = Number(quickMinutesInput) || 0;
   const quickDurationHours = quickHoursNum + quickMinutesNum / 60;
-  const quickAverageWatts = Number(quickAverageWattsInput) || 0;
-  const quickValid = quickDurationHours > 0 && quickAverageWatts > 0;
+  const quickValid = quickDurationHours > 0 && intensity !== "";
 
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === selectedRouteId) ?? null,
@@ -745,6 +748,38 @@ export function FuelingPlanner({
     }
   }, [result]);
 
+  // "Reseteo Automático del Estado de Cálculo" — a previously-calculated
+  // result is only ever valid for the exact inputs it was computed from;
+  // editing any of them (switching tabs, picking a different route/GPX,
+  // changing duration/intensity/departure date-time, toggling "Ruta
+  // objetivo / Competición") immediately hides it again rather than leaving
+  // a stale strategy on screen that no longer matches what's currently
+  // selected — the CTA's own `disabled` gating already re-enables itself
+  // the moment its own conditions are met again, so this just needs to
+  // clear `result` for the result panel to disappear along with it.
+  // `isInitialInputRender` skips the very first run on mount specifically
+  // so this can never race the offline-cache-load effect above and wipe out
+  // a just-restored cached result before the athlete ever sees it — this
+  // effect must only fire in response to a genuine *change*, not simply
+  // existing with its own initial values.
+  const isInitialInputRender = useRef(true);
+  useEffect(() => {
+    if (isInitialInputRender.current) {
+      isInitialInputRender.current = false;
+      return;
+    }
+    setResult(null);
+  }, [
+    mode,
+    selectedRouteId,
+    parsedGpx,
+    quickDurationHours,
+    gpxDurationHours,
+    intensity,
+    departureLocal,
+    isTargetEvent,
+  ]);
+
   function setPocketFoodQty(type: PocketFoodItemType, qty: number) {
     setPocketFood((prev) => ({ ...prev, [type]: Math.max(0, Math.min(MAX_POCKET_FOOD_QTY, qty)) }));
   }
@@ -820,12 +855,11 @@ export function FuelingPlanner({
                 mode: "quick",
                 departureIso,
                 durationHours: quickDurationHours,
-                averageWatts: quickAverageWatts,
-                // Only sent when the athlete actually picked a zone — a
-                // plain steady-state ride (intensity left on its
-                // placeholder) still derives intensity from real watts
-                // server-side, unchanged.
-                structuredIntensity: intensity || undefined,
+                // No more "Vatios Objetivo" input — the server derives
+                // relative intensity purely from this zone's %FTP against
+                // the athlete's real profile FTP, same shared selector as
+                // route/GPX mode.
+                intensity,
                 isTargetEvent,
                 pocketFood: pocketFoodPayload,
                 fuelingMode,
@@ -1182,77 +1216,63 @@ export function FuelingPlanner({
 
             {mode === "quick" && (
               <div className="mt-4 flex flex-col gap-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-2">
-                    <label className={formFieldLabelClass}>Duración estimada</label>
-                    {/* Horas/Minutos used to be two full-width stacked inputs
-                        (each its own grid cell in a 3-col row) — on mobile
-                        that meant two full-width boxes taking double the
-                        vertical space for one logical value. Merged into one
-                        label with a 2-col inner grid instead, each input
-                        carrying its own unit suffix so there's no separate
-                        text label needed per field. */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="relative flex items-center">
-                        <input
-                          id="duration-hours"
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          step={1}
-                          placeholder="0"
-                          aria-label="Horas"
-                          className={cn(inputClass, "pr-8")}
-                          value={quickHoursInput}
-                          onChange={(e) => setQuickHoursInput(e.target.value)}
-                        />
-                        <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
-                          h
-                        </span>
-                      </div>
-                      <div className="relative flex items-center">
-                        <input
-                          id="duration-minutes"
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          max={59}
-                          step={5}
-                          placeholder="0"
-                          aria-label="Minutos"
-                          className={cn(inputClass, "pr-10")}
-                          value={quickMinutesInput}
-                          onChange={(e) => setQuickMinutesInput(e.target.value)}
-                        />
-                        <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
-                          min
-                        </span>
-                      </div>
+                <div className="flex flex-col gap-2">
+                  <label className={formFieldLabelClass}>Duración estimada</label>
+                  {/* Horas/Minutos used to be two full-width stacked inputs
+                      (each its own grid cell in a 3-col row alongside Vatios
+                      Objetivo) — on mobile that meant two full-width boxes
+                      taking double the vertical space for one logical
+                      value. Merged into one label with a 2-col inner grid
+                      instead, each input carrying its own unit suffix so
+                      there's no separate text label needed per field. */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="relative flex items-center">
+                      <input
+                        id="duration-hours"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        step={1}
+                        placeholder="0"
+                        aria-label="Horas"
+                        className={cn(inputClass, "pr-8")}
+                        value={quickHoursInput}
+                        onChange={(e) => setQuickHoursInput(e.target.value)}
+                      />
+                      <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                        h
+                      </span>
+                    </div>
+                    <div className="relative flex items-center">
+                      <input
+                        id="duration-minutes"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={59}
+                        step={5}
+                        placeholder="0"
+                        aria-label="Minutos"
+                        className={cn(inputClass, "pr-10")}
+                        value={quickMinutesInput}
+                        onChange={(e) => setQuickMinutesInput(e.target.value)}
+                      />
+                      <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                        min
+                      </span>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <label htmlFor="watts" className={formFieldLabelClass}>
-                      Vatios objetivo
-                    </label>
-                    <input
-                      id="watts"
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      placeholder="Sin definir"
-                      className={inputClass}
-                      value={quickAverageWattsInput}
-                      onChange={(e) => setQuickAverageWattsInput(e.target.value)}
-                    />
-                  </div>
                 </div>
-                {/* Same shared selector as Ruta/GPX mode — see
-                    `IntensityObjectiveSelect`. Unlike those two modes,
-                    leaving it on the placeholder is a genuinely valid,
-                    common choice here (not gated by the CTA below): real
-                    average watts already drive the calculation on their
-                    own, so naming a zone is an optional correction for a
-                    structured session, not a required input. */}
+                {/* "Vatios Objetivo" was removed entirely — its own input
+                    used to sit here, next to Duración, as an independent
+                    watts-based intensity source. The shared Intensidad
+                    Objetivo selector now covers that role for every mode
+                    (unlike before, where leaving this on its placeholder
+                    was a valid choice in Entreno Manual specifically) —
+                    the engine derives relative intensity purely from this
+                    zone's %FTP against the athlete's real profile FTP, so
+                    a real selection is mandatory here too (see
+                    `quickValid`). */}
                 <IntensityObjectiveSelect id="intensity-quick" value={intensity} onChange={setIntensity} />
               </div>
             )}
@@ -1443,7 +1463,8 @@ export function FuelingPlanner({
           </button>
           {isProfileComplete && mode === "quick" && !quickValid && (
             <p className="text-[11px] text-neutral-500">
-              Introduce una duración y unos vatios objetivo válidos para poder calcular.
+              Introduce una duración válida y selecciona una intensidad objetivo para poder
+              calcular.
             </p>
           )}
           {isProfileComplete && routeModeIncomplete && (
