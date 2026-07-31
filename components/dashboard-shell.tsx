@@ -74,7 +74,7 @@ function SidebarContent({
           type="button"
           onClick={onClose}
           aria-label="Cerrar menú"
-          className="cursor-pointer rounded-lg p-2 text-neutral-400 transition-all duration-150 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none lg:hidden"
+          className="cursor-pointer rounded-sm p-2 text-neutral-400 transition-all duration-150 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none lg:hidden"
         >
           <X className="size-5" />
         </button>
@@ -104,7 +104,7 @@ function SidebarContent({
                     ? "Sección en desarrollo — Próximamente"
                     : "Completa tu perfil fisiológico para desbloquear esta sección"
                 }
-                className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-xs font-medium tracking-wider text-neutral-600 uppercase opacity-50 select-none"
+                className="flex cursor-not-allowed items-center gap-3 rounded-sm px-3 py-2.5 font-mono text-xs font-medium tracking-wider text-neutral-600 uppercase opacity-50 select-none"
               >
                 {/* Every entry renders its own icon now, locked or not — the
                     wrapping div's own `opacity-50` already dims the icon
@@ -133,7 +133,7 @@ function SidebarContent({
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-xs tracking-wider uppercase transition-colors duration-150",
+                "flex cursor-pointer items-center gap-3 rounded-sm px-3 py-2.5 font-mono text-xs tracking-wider uppercase transition-colors duration-150",
                 active
                   ? "bg-surface font-semibold text-terracotta"
                   : "font-medium text-neutral-600 hover:bg-neutral-100/60 hover:text-neutral-900"
@@ -174,7 +174,7 @@ function SidebarContent({
               type="submit"
               disabled={isLoggingOut}
               className={cn(
-                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-xs uppercase tracking-wider transition-colors duration-150",
+                "flex w-full items-center gap-3 rounded-sm px-3 py-2.5 font-mono text-xs uppercase tracking-wider transition-colors duration-150",
                 isLoggingOut
                   ? "cursor-wait text-neutral-500 opacity-70"
                   : "cursor-pointer text-neutral-500 hover:bg-terracotta/10 hover:text-neutral-900"
@@ -327,7 +327,7 @@ export function DashboardShell({
             sit closer to the viewport edge on a phone, matching this app's
             existing `sm:`/`md:` step-up convention rather than a flat value
             at every breakpoint. */}
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-10 pb-12 sm:px-6 sm:pt-14 sm:pb-16 md:px-8">
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-3 pb-12 sm:px-6 sm:pt-4 sm:pb-16 md:px-8">
           {children}
         </main>
       </div>

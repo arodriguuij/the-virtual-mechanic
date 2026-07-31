@@ -79,13 +79,13 @@ async function FuelingPlannerSection() {
 // there's no risk of it ever being shown for the wrong eventual outcome.
 function DashboardSectionSkeleton() {
   return (
-    <div className="w-full animate-pulse space-y-4 rounded-xl bg-surface/60 p-5">
+    <div className="w-full animate-pulse space-y-4 rounded-sm bg-surface/60 p-5">
       <div className="flex items-center space-x-3">
         <Skeleton className="h-5 w-5 rounded-full bg-terracotta/20" />
         <Skeleton className="h-4 w-40 bg-terracotta/20" />
       </div>
-      <Skeleton className="h-10 w-full rounded-lg bg-terracotta/10" />
-      <Skeleton className="h-20 w-full rounded-lg bg-terracotta/10" />
+      <Skeleton className="h-10 w-full rounded-sm bg-terracotta/10" />
+      <Skeleton className="h-20 w-full rounded-sm bg-terracotta/10" />
     </div>
   );
 }
@@ -108,9 +108,9 @@ function FuelingPlannerSkeleton() {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="grid grid-cols-3 gap-2">
-          <div className="h-9 animate-pulse rounded-lg bg-neutral-100" />
-          <div className="h-9 animate-pulse rounded-lg bg-neutral-100" />
-          <div className="h-9 animate-pulse rounded-lg bg-neutral-100" />
+          <div className="h-9 animate-pulse rounded-sm bg-neutral-100" />
+          <div className="h-9 animate-pulse rounded-sm bg-neutral-100" />
+          <div className="h-9 animate-pulse rounded-sm bg-neutral-100" />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -139,9 +139,9 @@ function FuelingPlannerSkeleton() {
             <span className={eyebrow}>Fecha y hora de salida</span>
             <div className="flex flex-col gap-2">
               <div className="grid grid-cols-3 gap-2">
-                <div className="h-9 animate-pulse rounded-lg bg-neutral-100" />
-                <div className="h-9 animate-pulse rounded-lg bg-neutral-100" />
-                <div className="h-9 animate-pulse rounded-lg bg-neutral-100" />
+                <div className="h-9 animate-pulse rounded-sm bg-neutral-100" />
+                <div className="h-9 animate-pulse rounded-sm bg-neutral-100" />
+                <div className="h-9 animate-pulse rounded-sm bg-neutral-100" />
               </div>
               <div className={cn(selectableFieldClass, "animate-pulse bg-neutral-100")} />
             </div>
@@ -198,18 +198,17 @@ export default async function Home({
   const profileSaved = params.profile_saved === "1";
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       {profileSaved && <ProfileSavedToast />}
-      {/* "Jerarquía de Espaciado Editorial" — a generous, flat `gap-6`
-          between the greeting and the tabs (no `sm:` reduction on mobile
-          this time; a prior pass had tightened this to `gap-4 sm:gap-6`
-          specifically to fit more content above the fold on a phone, but a
-          later, explicit request re-asked for a "margen generoso" here
-          specifically, so this macro relationship wins over that earlier
-          mobile-fit concern). No divider line below the greeting — this gap
-          alone is the only separator between it and the tabs, letting the
-          space flow rather than drawing a hard rule under "Hola,
-          Alejandro." */}
+      {/* "Jerarquía de Espaciado Editorial y Estructura Frameless" — an
+          ultracompact scale (roughly half of every prior gap) so the
+          Dashboard reads as a dense, native-feeling app rather than a
+          spacious editorial page. Greeting → tabs is now a flat `gap-3`
+          (12px) — down from the previous generous `gap-6` a still-earlier
+          explicit "margen generoso" request had asked for; this later,
+          more specific instruction supersedes that one. No divider line
+          below the greeting either way — the gap alone is still the only
+          separator between it and the tabs. */}
       <header className="w-full">
         <Suspense fallback={<GreetingSkeleton />}>
           <GreetingSection />
@@ -232,13 +231,12 @@ export default async function Home({
           </TabsTrigger>
         </TabsList>
 
-        {/* Tabs → title gap reduced to a flat `pt-4` (down from `pt-4
-            sm:pt-6`) — the "Jerarquía de Espaciado Editorial" pass's own
-            macro scale calls for this relationship tighter than the
-            generous one above, since the tab bar and the card title below
-            it read as one continuous unit, not two separate blocks. */}
+        {/* Tabs → title gap reduced further to `pt-2` (8px, down from
+            `pt-4`) — same ultracompact pass, so the tab bar and the card
+            title below it read as tightly bound rather than two separate
+            blocks. */}
         <TabsContent value="pre-ride">
-          <div className="flex flex-col gap-10 pt-4">
+          <div className="flex flex-col gap-10 pt-2">
             <Suspense fallback={<FuelingPlannerSkeleton />}>
               <FuelingPlannerSection />
             </Suspense>
@@ -246,7 +244,7 @@ export default async function Home({
         </TabsContent>
 
         <TabsContent value="post-ride">
-          <div className="flex flex-col gap-10 pt-4">
+          <div className="flex flex-col gap-10 pt-2">
             <Suspense fallback={<DashboardSectionSkeleton />}>
               <PostRideAnalysisSection />
             </Suspense>

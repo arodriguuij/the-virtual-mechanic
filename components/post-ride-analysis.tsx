@@ -149,7 +149,7 @@ function BalanceNetoRow({
   debt: string;
 }) {
   return (
-    <div className="grid grid-cols-3 gap-2 rounded-lg bg-surface px-3 py-2">
+    <div className="grid grid-cols-3 gap-2 rounded-sm bg-surface px-3 py-2">
       <div className="col-span-3 -mb-1 text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
         {label}
       </div>
@@ -344,7 +344,7 @@ export function PostRideAnalysis({
 
   if (activities.length === 0) {
     return (
-      <div className="flex flex-col gap-3 rounded-xl border-0 bg-white p-5 shadow-none">
+      <div className="flex flex-col gap-3 rounded-sm border-0 bg-white p-5 shadow-none">
         <h2 className={sectionHeadingClass}>Análisis post-ruta</h2>
         <p className="max-w-sm text-sm text-neutral-500">
           En cuanto sincronices tu última salida desde Strava, aparecerá aquí lista para
@@ -356,17 +356,24 @@ export function PostRideAnalysis({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       {/* "Reestructuración UX por Tarjetas Numeradas" — every card below is
           now an independent white box (`border-0 bg-white shadow-none
-          rounded-xl p-5`) sitting directly on the Dashboard's own porcelain
+          rounded-sm p-5`) sitting directly on the Dashboard's own porcelain
           canvas, mirroring `/perfil`'s own 3-independent-`<Card>` pattern
           exactly (not `FuelingPlanner`'s single-outer-Card-with-inner-divs
           shape) — this is what actually makes the porcelain background
           visible *between* cards, not just around the whole widget. The old
           `<Card><CardHeader><CardTitle>Análisis post-ruta</CardTitle>`
           shell is gone; this plain heading takes its place, sitting outside
-          any card the same way `/perfil`'s own page `<h1>` does. */}
+          any card the same way `/perfil`'s own page `<h1>` does. This outer
+          `gap-3` (down from `gap-6`, part of the "Jerarquía de Espaciado
+          Editorial" ultracompact pass) only governs the title → first-card
+          relationship — the 3 numbered cards below keep their own separate,
+          unchanged `gap-6` wrapper (see the `result &&` block below), so
+          shrinking this one doesn't reopen the "cards not visually
+          separating" concern that pass had specifically investigated and
+          confirmed was never a real bug. */}
       <h2 className={sectionHeadingClass}>Análisis post-ruta</h2>
 
       {/* A proper skeleton loader — title/metadata, map, and a 2-column
@@ -381,13 +388,13 @@ export function PostRideAnalysis({
           (Distancia/Tiempo en Movimiento/Potencia Media/Gasto Energético/
           Frecuencia Cardíaca) exactly. */}
       {loading && !result && (
-        <div className="animate-pulse space-y-5 rounded-xl border-0 bg-white p-5 shadow-none">
+        <div className="animate-pulse space-y-3 rounded-sm border-0 bg-white p-5 shadow-none">
           <div className="space-y-2">
-            <div className="h-6 w-3/5 rounded-md bg-zinc-200" />
-            <div className="h-3.5 w-2/5 rounded-md bg-zinc-100" />
+            <div className="h-6 w-3/5 rounded-sm bg-zinc-200" />
+            <div className="h-3.5 w-2/5 rounded-sm bg-zinc-100" />
           </div>
 
-          <div className="h-48 w-full rounded-xl bg-zinc-200/80 sm:h-56" />
+          <div className="h-48 w-full rounded-sm bg-zinc-200/80 sm:h-56" />
 
           <div className="grid grid-cols-2 gap-x-6 gap-y-5 pt-2">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -403,7 +410,7 @@ export function PostRideAnalysis({
       {error && <p className="text-sm text-status-warning">{error}</p>}
 
       {needsRpe && (
-        <div className="flex flex-col gap-2 rounded-xl border-0 bg-white p-5 shadow-none">
+        <div className="flex flex-col gap-2 rounded-sm border-0 bg-white p-5 shadow-none">
           <p className="text-sm text-neutral-700">
             Esta ruta no tiene datos de potenciómetro ni pulsómetro — ¿cómo sentiste el
             esfuerzo?
@@ -415,7 +422,7 @@ export function PostRideAnalysis({
                 type="button"
                 disabled={loading}
                 onClick={() => handleAnalyze(opt.value, opt.label)}
-                className="cursor-pointer rounded-lg border border-zinc-300/70 bg-white px-3 py-1.5 text-[11px] font-semibold tracking-widest text-zinc-700 uppercase shadow-none transition-colors duration-150 hover:border-terracotta hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-50"
+                className="cursor-pointer rounded-sm border border-zinc-300/70 bg-white px-3 py-1.5 text-[11px] font-semibold tracking-widest text-zinc-700 uppercase shadow-none transition-colors duration-150 hover:border-terracotta hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {opt.label}
               </button>
@@ -438,7 +445,7 @@ export function PostRideAnalysis({
                 metric values (unlike every other numeric readout in this
                 app) — a one-off exception matching Strava's own plain-sans
                 numeral display. */}
-            <div className="overflow-hidden rounded-xl border-0 bg-white shadow-none">
+            <div className="overflow-hidden rounded-sm border-0 bg-white shadow-none">
               <div className="px-5 pt-5">
                 <h3 className="mb-1 text-xl font-bold tracking-tight text-zinc-900">
                   {result.activity.name}
@@ -541,7 +548,7 @@ export function PostRideAnalysis({
                 duplication once this card gained its own eyebrow — the same
                 source label already appears in Tarjeta 01's own footnote
                 ("Glucógeno: {sourceLabels[...]}"). */}
-            <div className="rounded-xl border-0 bg-white p-5 shadow-none">
+            <div className="rounded-sm border-0 bg-white p-5 shadow-none">
               <span className="mb-2 block font-mono text-xs font-bold tracking-widest text-neutral-500 uppercase">
                 01 · Deuda metabólica y registro real
               </span>
@@ -575,7 +582,7 @@ export function PostRideAnalysis({
                   it switch to a plain white fill (from their previous
                   porcelain one) so they stay visually distinct against this
                   now-porcelain sub-block instead of disappearing into it. */}
-              <div className="mt-4 rounded-lg bg-[#F8F7F5] p-4">
+              <div className="mt-4 rounded-sm bg-[#F8F7F5] p-4">
                 <span className="block font-mono text-xs text-zinc-500 uppercase">
                   ¿Qué consumiste realmente durante la ruta?
                 </span>
@@ -585,14 +592,14 @@ export function PostRideAnalysis({
                       key={preset.label}
                       type="button"
                       onClick={() => applyConsumptionPreset(preset)}
-                      className="cursor-pointer rounded-md bg-white px-2.5 py-1 font-mono text-[11px] font-semibold text-neutral-600 transition-colors duration-150 hover:bg-terracotta/10 hover:text-terracotta"
+                      className="cursor-pointer rounded-sm bg-white px-2.5 py-1 font-mono text-[11px] font-semibold text-neutral-600 transition-colors duration-150 hover:bg-terracotta/10 hover:text-terracotta"
                     >
                       {preset.label}
                     </button>
                   ))}
                 </div>
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-1.5">
+                  <div className="flex items-center justify-between gap-2 rounded-sm bg-white px-3 py-1.5">
                     <label htmlFor="carbs-consumed" className="text-sm text-neutral-900">
                       Carbohidratos
                     </label>
@@ -608,12 +615,12 @@ export function PostRideAnalysis({
                           setConsumptionSaved(false);
                         }}
                         placeholder="0"
-                        className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                        className="w-16 rounded-sm border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                       />
                       <span className="font-mono text-xs text-neutral-500">g</span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-1.5">
+                  <div className="flex items-center justify-between gap-2 rounded-sm bg-white px-3 py-1.5">
                     <label htmlFor="fluid-consumed" className="text-sm text-neutral-900">
                       Agua
                     </label>
@@ -630,12 +637,12 @@ export function PostRideAnalysis({
                           setConsumptionSaved(false);
                         }}
                         placeholder="0"
-                        className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                        className="w-16 rounded-sm border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                       />
                       <span className="font-mono text-xs text-neutral-500">L</span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-1.5">
+                  <div className="flex items-center justify-between gap-2 rounded-sm bg-white px-3 py-1.5">
                     <label htmlFor="sodium-consumed" className="text-sm text-neutral-900">
                       Sodio
                     </label>
@@ -651,7 +658,7 @@ export function PostRideAnalysis({
                           setConsumptionSaved(false);
                         }}
                         placeholder="0"
-                        className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                        className="w-16 rounded-sm border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                       />
                       <span className="font-mono text-xs text-neutral-500">mg</span>
                     </div>
@@ -663,7 +670,7 @@ export function PostRideAnalysis({
                     onClick={handleSaveConsumption}
                     disabled={savingConsumption || !isProfileComplete}
                     className={cn(
-                      "w-full rounded-md py-2.5 text-sm font-medium transition-colors duration-150",
+                      "w-full rounded-sm py-2.5 text-sm font-medium transition-colors duration-150",
                       isProfileComplete
                         ? "cursor-pointer bg-terracotta text-white hover:bg-terracotta-hover disabled:cursor-not-allowed disabled:opacity-70"
                         : "inline-flex cursor-not-allowed items-center justify-center gap-2 bg-neutral-200 text-neutral-400"
@@ -696,13 +703,13 @@ export function PostRideAnalysis({
             {/* "Tarjeta 03 · Balance neto y pauta de recuperación" — the
                 Balance Neto rows and the biphasic recovery target, both
                 folded into one numbered white card. */}
-            <div className="rounded-xl border-0 bg-white p-5 shadow-none">
+            <div className="rounded-sm border-0 bg-white p-5 shadow-none">
               <span className="mb-2 block font-mono text-xs font-bold tracking-widest text-neutral-500 uppercase">
                 02 · Balance neto y recuperación bifásica
               </span>
 
               {recoveryDebt && (
-                <div className="rounded-lg bg-[#F8F7F5] p-3 shadow-none">
+                <div className="rounded-sm bg-[#F8F7F5] p-3 shadow-none">
                   <div className="flex flex-col gap-2">
                     <BalanceNetoRow
                       label="Carbohidratos"
@@ -733,7 +740,7 @@ export function PostRideAnalysis({
                     distintas, no en una sola comida
                   </span>
                   <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="rounded-lg bg-[#F8F7F5] p-4 shadow-none">
+                    <div className="rounded-sm bg-[#F8F7F5] p-4 shadow-none">
                       <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
                         <Zap className="size-3.5 shrink-0" />
                         Fase 1 · {biphasicRecoveryTarget.phase1.windowLabel}
@@ -746,7 +753,7 @@ export function PostRideAnalysis({
                         Líquido/rápido (batido, fruta) — vía GLUT-4, no depende de insulina
                       </span>
                     </div>
-                    <div className="rounded-lg bg-[#F8F7F5] p-4 shadow-none">
+                    <div className="rounded-sm bg-[#F8F7F5] p-4 shadow-none">
                       <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-neutral-600 uppercase">
                         <Utensils className="size-3.5 shrink-0" />
                         Fase 2 · {biphasicRecoveryTarget.phase2.windowLabel}
@@ -767,7 +774,7 @@ export function PostRideAnalysis({
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-3">
-                    <div className="rounded-lg bg-[#F8F7F5] p-4 shadow-none">
+                    <div className="rounded-sm bg-[#F8F7F5] p-4 shadow-none">
                       <span className={statLabel}>Grasas límite</span>
                       <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
                         &lt;{recoveryTarget.fatLimitG}
@@ -777,7 +784,7 @@ export function PostRideAnalysis({
                         Vaciado gástrico rápido
                       </span>
                     </div>
-                    <div className="rounded-lg bg-[#F8F7F5] p-4 shadow-none">
+                    <div className="rounded-sm bg-[#F8F7F5] p-4 shadow-none">
                       <span className={statLabel}>Rehidratación</span>
                       <div className="mt-1 flex items-baseline gap-1 font-mono text-xl font-semibold text-neutral-900">
                         {(recoveryTarget.fluidMl / 1000).toFixed(1)}

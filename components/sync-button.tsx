@@ -20,7 +20,7 @@ import { Toast, type ToastData } from "@/components/toast";
  * lighter `hover:bg-white` rather than filling solid.
  */
 const syncButtonClass =
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1 rounded-md bg-zinc-100 px-2 py-1 text-xs text-zinc-500 transition-colors duration-150 hover:bg-white hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1 rounded-sm bg-zinc-100 px-2 py-1 text-xs text-zinc-500 transition-colors duration-150 hover:bg-white hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
  * `useFormStatus` only tracks pending state when the enclosing `<form>`'s

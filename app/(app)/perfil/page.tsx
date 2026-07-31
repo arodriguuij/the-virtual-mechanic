@@ -72,7 +72,7 @@ function PhysiologicalProfileSkeleton() {
               {[0, 1, 2].map((i) => (
                 <div
                   key={i}
-                  className="h-18.5 animate-pulse rounded-lg bg-neutral-100"
+                  className="h-18.5 animate-pulse rounded-sm bg-neutral-100"
                 />
               ))}
             </div>
@@ -83,7 +83,7 @@ function PhysiologicalProfileSkeleton() {
               {[0, 1, 2].map((i) => (
                 <div
                   key={i}
-                  className="h-18.5 animate-pulse rounded-lg bg-neutral-100"
+                  className="h-18.5 animate-pulse rounded-sm bg-neutral-100"
                 />
               ))}
             </div>
@@ -101,7 +101,7 @@ function PhysiologicalProfileSkeleton() {
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-16 animate-pulse rounded-lg bg-neutral-100" />
+              <div key={i} className="h-16 animate-pulse rounded-sm bg-neutral-100" />
             ))}
           </div>
         </CardContent>
@@ -141,11 +141,16 @@ export default async function PerfilPage({
     typeof profileErrorCode === "string" ? profileErrorMessages[profileErrorCode] ?? null : null;
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* No divider line below the subtitle — the wrapper's own `gap-6`
-          is the only separator before "01 · Métricas físicas..." now,
-          matching the same "let whitespace do the work" treatment applied
-          to the Dashboard's own header. */}
+    <div className="flex flex-col gap-3">
+      {/* No divider line below the subtitle — the wrapper's own gap
+          (tightened to `gap-3`, down from `gap-6`, by the "Jerarquía de
+          Espaciado Editorial" ultracompact pass) is the only separator
+          before "01 · Métricas físicas..." now, matching the same "let
+          whitespace do the work" treatment applied to the Dashboard's own
+          header. `PhysiologicalProfileForm`'s own `gap-6` between its 3
+          numbered Cards is a separate, unchanged wrapper, so this tighter
+          title→first-card gap doesn't affect the cards' own separation
+          from each other. */}
       <header>
         <h1 className="text-xl font-bold font-mono text-neutral-900 uppercase tracking-tight sm:text-2xl">
           Perfil fisiológico

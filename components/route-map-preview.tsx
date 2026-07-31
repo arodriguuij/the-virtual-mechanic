@@ -77,7 +77,7 @@ function MapZoomControls() {
         type="button"
         onClick={() => map.zoomIn()}
         aria-label="Acercar mapa"
-        className="flex size-7 cursor-pointer items-center justify-center rounded-md bg-white/80 text-xs leading-none font-bold text-zinc-900 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
+        className="flex size-7 cursor-pointer items-center justify-center rounded-sm bg-white/80 text-xs leading-none font-bold text-zinc-900 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
       >
         +
       </button>
@@ -85,7 +85,7 @@ function MapZoomControls() {
         type="button"
         onClick={() => map.zoomOut()}
         aria-label="Alejar mapa"
-        className="flex size-7 cursor-pointer items-center justify-center rounded-md bg-white/80 text-xs leading-none font-bold text-zinc-900 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
+        className="flex size-7 cursor-pointer items-center justify-center rounded-sm bg-white/80 text-xs leading-none font-bold text-zinc-900 shadow-sm backdrop-blur-md transition-colors hover:bg-white"
       >
         −
       </button>
@@ -129,7 +129,7 @@ export function RouteMapPreview({
     return (
       <div
         className={cn(
-          "mt-3 flex h-48 w-full items-center justify-center rounded-lg border border-dashed border-neutral-300 bg-neutral-50 px-6 text-center",
+          "mt-3 flex h-48 w-full items-center justify-center rounded-sm border border-dashed border-neutral-300 bg-neutral-50 px-6 text-center",
           className
         )}
       >
@@ -149,12 +149,12 @@ export function RouteMapPreview({
         // No border — this app's 100%-frameless pass differentiates every
         // container purely by background/shadow, never a hairline outline.
         // `overflow-hidden` still does real work here beyond clipping the
-        // Leaflet tiles to `rounded-lg`: a caller embedding this flush inside
+        // Leaflet tiles to `rounded-sm`: a caller embedding this flush inside
         // its own already-rounded card (see the Fueling Planner's Ruta
-        // widget) overrides this component's own `rounded-lg`/`mt-3` via the
+        // widget) overrides this component's own `rounded-sm`/`mt-3` via the
         // `className` merge below, letting the *parent* card's corners do
         // the clipping instead.
-        "relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-lg bg-white shadow-sm",
+        "relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-sm bg-white shadow-sm",
         className
       )}
     >

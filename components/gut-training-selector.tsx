@@ -55,7 +55,7 @@ export function GutTrainingSelector({
     <div className="flex flex-col gap-3">
       <div
         className={cn(
-          "grid grid-cols-2 gap-2 rounded-lg sm:grid-cols-4",
+          "grid grid-cols-2 gap-2 rounded-sm sm:grid-cols-4",
           invalid && "ring-1 ring-red-500"
         )}
         onBlur={(e) => {

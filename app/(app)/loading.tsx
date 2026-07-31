@@ -21,14 +21,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function AppLoading() {
   return (
     <div className="w-full flex-1 space-y-6">
-      <Skeleton className="h-8 w-48 rounded-md" />
-      <Skeleton className="h-12 w-full rounded-lg" />
+      <Skeleton className="h-8 w-48 rounded-sm" />
+      <Skeleton className="h-12 w-full rounded-sm" />
       <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-3">
-        <Skeleton className="h-24 rounded-xl" />
-        <Skeleton className="h-24 rounded-xl" />
-        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-24 rounded-sm" />
+        <Skeleton className="h-24 rounded-sm" />
+        <Skeleton className="h-24 rounded-sm" />
       </div>
-      <Skeleton className="h-32 w-full rounded-xl" />
+      <Skeleton className="h-32 w-full rounded-sm" />
     </div>
   );
 }

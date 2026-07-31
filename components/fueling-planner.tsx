@@ -74,7 +74,7 @@ const RouteMapPreview = dynamic(
   () => import("@/components/route-map-preview").then((mod) => mod.RouteMapPreview),
   {
     ssr: false,
-    loading: () => <Skeleton className="mt-3 h-48 w-full rounded-lg" />,
+    loading: () => <Skeleton className="mt-3 h-48 w-full rounded-sm" />,
   }
 );
 
@@ -145,7 +145,7 @@ const selectableInputClass = selectableFieldClass;
 // which would otherwise force the column (and the whole row) wider than its
 // share of the grid instead of ever truncating.
 const segmentedButtonClass =
-  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center rounded-lg border px-1 text-center text-xs font-medium shadow-none transition-colors duration-150 sm:px-3 sm:text-sm";
+  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center rounded-sm border px-1 text-center text-xs font-medium shadow-none transition-colors duration-150 sm:px-3 sm:text-sm";
 // Applied to the label text itself, not the button — `overflow-hidden`/
 // `text-ellipsis` on a `flex items-center justify-center` button clips
 // symmetrically from *both* sides of the centered content (verified live:
@@ -392,12 +392,13 @@ function PocketFoodStepperRow({
           `bg-zinc-100` solid fill was dropped in favor of a clean outline on
           a transparent background), reduced to `h-7`/`min-w-[80px]` and
           tighter `px-2 py-0.5` so it reads as a small compact widget rather
-          than a full-size button. `rounded-full` — the "PNS Style" pass
-          deliberately keeps this one control a capsule while every other
-          selector in the app (segmented buttons, fields, RadioCard, the RPE
-          picker) uses `rounded-lg` instead, so the quantity stepper reads as
-          its own distinct control type. */}
-      <div className="flex h-7 min-w-20 items-center justify-between rounded-full border border-zinc-200 bg-transparent px-2 py-0.5">
+          than a full-size button. `rounded-sm` — a later "radio de bordes
+          pequeño global" pass reversed this control's earlier `rounded-full`
+          capsule geometry (itself a deliberate exception to every other
+          selector's `rounded-lg`) back to the same flat, technical
+          `rounded-sm` every other selector in the app now shares, so the
+          stepper no longer reads as a categorically different control type. */}
+      <div className="flex h-7 min-w-20 items-center justify-between rounded-sm border border-zinc-200 bg-transparent px-2 py-0.5">
         <button
           type="button"
           onClick={() => onChange(qty - 1)}
@@ -734,13 +735,15 @@ export function FuelingPlanner({
             shared default (`text-sm font-bold uppercase tracking-wide`) —
             this one card's title is elevated to read like a page-level `<h1>`
             now that it houses the numbered 01/02/03 step structure below,
-            matching `/perfil`'s own heavier title treatment. `mb-6` (not
-            `sm:mb-0` this time) is still needed on mobile specifically,
-            where `flatMobileCardClass` zeroes `--card-spacing` and would
-            otherwise leave the title flush against Paso 01 below it — `sm:`
-            and up already get a real gap from `--card-spacing` itself, so
-            the margin cancels there to avoid doubling up. */}
-        <CardTitle className="mb-6 text-xl font-semibold tracking-normal text-zinc-900 normal-case sm:mb-0">
+            matching `/perfil`'s own heavier title treatment. `mb-3` on
+            mobile specifically (down from an earlier `mb-6`, part of the
+            "Jerarquía de Espaciado Editorial" ultracompact pass) is still
+            needed since `flatMobileCardClass` zeroes `--card-spacing` there
+            and would otherwise leave the title flush against Paso 01 below
+            it — `sm:` and up keeps `mb-0`, relying on the real gap
+            `--card-spacing` itself already provides, so the margin cancels
+            there to avoid doubling up. */}
+        <CardTitle className="mb-3 text-xl font-semibold tracking-normal text-zinc-900 normal-case sm:mb-0">
           Planificador de nutrición
         </CardTitle>
       </CardHeader>
@@ -749,17 +752,17 @@ export function FuelingPlanner({
             whichever source-specific fields that mode needs (Strava route
             select + map, manual duration/watts, or a GPX upload + map). Full
             white "tarjeta madre" (`bg-white`, zero border, zero shadow,
-            `rounded-xl`) matching `/perfil`'s own numbered-card convention —
+            `rounded-sm`) matching `/perfil`'s own numbered-card convention —
             see the `01 ·`/`02 ·`/`03 ·` eyebrow labels throughout this
             component. The map itself still bleeds edge-to-edge: the
             label/select/dropzone portion keeps its own `p-4 sm:p-6` padding,
             but `RouteMapPreview` is a direct sibling with none of its own,
             so it touches this card's own left/right/bottom boundary —
             `overflow-hidden` on the outer card clips the map's rectangular
-            Leaflet container to match `rounded-xl`; `RouteMapPreview`'s own
-            default `mt-3`/`rounded-lg` are overridden via its `className`
+            Leaflet container to match `rounded-sm`; `RouteMapPreview`'s own
+            default `mt-3`/`rounded-sm` are overridden via its `className`
             prop specifically for this reason. */}
-        <div className="overflow-hidden rounded-xl bg-white shadow-none">
+        <div className="overflow-hidden rounded-sm bg-white shadow-none">
           <div className="p-4 sm:p-6">
             <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
               01 · Selección y origen de ruta
@@ -837,7 +840,7 @@ export function FuelingPlanner({
                     <select
                       id="route"
                       className={cn(
-                        "w-full cursor-pointer appearance-none rounded-md border-0 bg-[#F8F7F5] px-4 py-2 pr-9 text-sm font-sans text-zinc-900 transition-colors duration-150 hover:bg-[#F1EEE7] focus:outline-none focus:ring-1 focus:ring-terracotta",
+                        "w-full cursor-pointer appearance-none rounded-sm border-0 bg-[#F8F7F5] px-4 py-2 pr-9 text-sm font-sans text-zinc-900 transition-colors duration-150 hover:bg-[#F1EEE7] focus:outline-none focus:ring-1 focus:ring-terracotta",
                         refreshingRoutes && "text-zinc-400"
                       )}
                       value={refreshingRoutes ? "__syncing" : selectedRouteId}
@@ -995,7 +998,7 @@ export function FuelingPlanner({
             used to carry). The `mt-2` right under the eyebrow (down from
             `mt-4`) is that same pass's "título numerado → primer campo"
             micro-spacing rule. */}
-        <div className="rounded-xl bg-white p-4 sm:p-6 shadow-none">
+        <div className="rounded-sm bg-white p-4 sm:p-6 shadow-none">
           <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
             02 · Condiciones de la salida
           </span>
@@ -1122,7 +1125,7 @@ export function FuelingPlanner({
             nested white box — they're porcelain `bg-[#F8F7F5]` sub-blocks
             living straight inside this already-white "tarjeta madre" now,
             same flat-hierarchy convention as PASO 02 above). */}
-        <div className="rounded-xl bg-white p-4 sm:p-6 shadow-none">
+        <div className="rounded-sm bg-white p-4 sm:p-6 shadow-none">
           <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
             03 · Estrategia y comida en bolsillo
           </span>
@@ -1192,14 +1195,14 @@ export function FuelingPlanner({
                 (() => {
                   const restanteG = Math.max(0, result.totalRideCarbsG - result.pocketFoodCarbsG);
                   return (
-                    <div className="mb-2 rounded-lg bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
+                    <div className="mb-2 rounded-sm bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
                       OBJETIVO {result.totalRideCarbsG}g HC · CUBIERTO {result.pocketFoodCarbsG}g HC ·
                       RESTANTE {restanteG}g HC
                     </div>
                   );
                 })()
               ) : (
-                <div className="mb-2 rounded-lg bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
+                <div className="mb-2 rounded-sm bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
                   Calcula tu estrategia para ver el desglose objetivo / cubierto / restante.
                 </div>
               )}
@@ -1238,7 +1241,7 @@ export function FuelingPlanner({
                           value={customCarbsG || ""}
                           onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
                           placeholder="0"
-                          className="w-16 rounded-md border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                          className="w-16 rounded-sm border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                         />
                         <span className="font-mono text-xs text-neutral-500">g HC</span>
                       </div>
@@ -1268,7 +1271,7 @@ export function FuelingPlanner({
                 "w-full py-3.5 text-sm",
                 isProfileComplete
                   ? primaryButtonClass
-                  : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
+                  : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-sm bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
               )}
             >
               {isProfileComplete ? (
@@ -1317,7 +1320,7 @@ export function FuelingPlanner({
               <span className={eyebrow}>Estrategia de bolsillo &amp; receta casera</span>
             </div>
 
-            <div className="mb-2 flex flex-col gap-3 rounded-xl bg-[#343334] p-5 text-white shadow-none">
+            <div className="mb-2 flex flex-col gap-3 rounded-sm bg-[#343334] p-5 text-white shadow-none">
               <div>
                 <span className="font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
                   Dosis casera por bidón
@@ -1394,7 +1397,7 @@ export function FuelingPlanner({
               </p>
             )}
 
-            <div className="grid grid-cols-1 gap-3 rounded-lg bg-[#F8F7F5] px-3 py-3 sm:grid-cols-3 sm:gap-4">
+            <div className="grid grid-cols-1 gap-3 rounded-sm bg-[#F8F7F5] px-3 py-3 sm:grid-cols-3 sm:gap-4">
               <div className="flex flex-col gap-1">
                 <span className={eyebrow}>Gasto estimado de HC</span>
                 <span className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
@@ -1424,7 +1427,7 @@ export function FuelingPlanner({
               </div>
             </div>
 
-            <details className="group rounded-lg bg-[#F8F7F5]">
+            <details className="group rounded-sm bg-[#F8F7F5]">
               <summary className="flex list-none cursor-pointer flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">
                 <span className="flex min-w-0 items-center gap-1.5">
                   <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
@@ -1564,7 +1567,7 @@ export function FuelingPlanner({
               </div>
             </details>
 
-            <details className="group rounded-lg bg-[#F8F7F5]">
+            <details className="group rounded-sm bg-[#F8F7F5]">
               <summary className="flex list-none cursor-pointer items-center gap-1.5 p-3 [&::-webkit-details-marker]:hidden">
                 <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
                 <span className={eyebrow}>Cronograma dinámico de ingesta</span>
@@ -1602,7 +1605,7 @@ export function FuelingPlanner({
             </details>
 
             {result.reloadStrategy && (
-              <details className="group rounded-lg border border-status-warning/40 bg-status-warning/10">
+              <details className="group rounded-sm border border-status-warning/40 bg-status-warning/10">
                 <summary className="flex list-none cursor-pointer items-center justify-between gap-2 p-3 [&::-webkit-details-marker]:hidden">
                   <span className="flex min-w-0 flex-col gap-1">
                     <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-status-warning uppercase">
@@ -1657,7 +1660,7 @@ export function FuelingPlanner({
             )}
 
             {result.carbLoading && (
-              <details className="rounded-lg bg-[#F8F7F5] px-3 py-2.5">
+              <details className="rounded-sm bg-[#F8F7F5] px-3 py-2.5">
                 <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-700 uppercase">
                   <CalendarDays className="size-3.5 shrink-0" />
                   Estrategia de carga día −1 · {result.carbLoading.minCarbsG}-

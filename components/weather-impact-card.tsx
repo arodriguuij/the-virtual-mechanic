@@ -33,7 +33,7 @@ export function WeatherImpactCard({
   sodiumMgPerHour: number;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-lg bg-surface px-3 py-3">
+    <div className="flex flex-col gap-3 rounded-sm bg-surface px-3 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className={statLabel}>Impacto térmico</span>
         <span className="text-xs text-neutral-500">

@@ -31,7 +31,7 @@ const cardNumberHeading = "font-mono text-xs font-bold tracking-widest text-neut
 
 const errorTextClass = "mt-1 font-mono text-[11px] text-red-500";
 const invalidFieldClass = "border-red-500 focus:border-red-500 focus:ring-red-500";
-const invalidGroupClass = "rounded-lg ring-1 ring-red-500";
+const invalidGroupClass = "rounded-sm ring-1 ring-red-500";
 
 // Shared with every other field/button across the app (`lib/ui-classes.ts`).
 const profileInputClass = fieldClass;
@@ -383,10 +383,10 @@ export function PhysiologicalProfileForm({
           type="submit"
           disabled={!canSave}
           className={cn(
-            "w-full rounded-lg py-3.5 text-xs transition-all duration-150",
+            "w-full rounded-sm py-3.5 text-xs transition-all duration-150",
             canSave
               ? primaryButtonClass
-              : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-lg bg-neutral-300/30 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase opacity-60 shadow-none"
+              : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-sm bg-neutral-300/30 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase opacity-60 shadow-none"
           )}
         >
           {isSubmitting ? "Guardando…" : "Guardar cambios"}

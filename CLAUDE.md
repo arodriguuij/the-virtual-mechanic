@@ -3683,6 +3683,114 @@ would need fixing before any further styling pass made sense:
   all render correctly at both 390px mobile and 1280px desktop, on both the Pre-Ruta and
   Post-Ruta tabs.
 
+**A thirteenth pass reversed the stepper's radius yet again and stepped every corner in
+the app down to one small, technical `rounded-sm`** — a "Radio de Bordes Pequeño Global"
+request explicitly asking for an "industrial" curvature everywhere: buttons, cards, form
+fields, selects, tabs, and the pocket-food stepper, with `rounded-lg`/`rounded-xl`/
+`rounded-2xl`/`rounded-full` all disallowed on any of those six categories. Scope was
+interpreted literally — anything that isn't a button/card/field/select/tab/stepper (a
+radio-indicator dot, a spinner ring, an avatar circle, a progress-bar track, a floating
+glass chip/badge) was left alone, since none of those were named:
+
+- **Shared tokens (`lib/ui-classes.ts`)** — `primaryButtonClass`/`secondaryButtonClass`/
+  `fieldClass`/`selectableFieldClass`/`flatMobileCardClass` all `rounded-lg`/`rounded-xl` →
+  `rounded-sm`. `badgeClass` deliberately untouched — a small data pill, not one of the six
+  named categories (same reasoning that already exempted it from the border-removal
+  passes' scope).
+- **Shadcn primitives actually rendered in this app** — the base `Card` (and its
+  `CardHeader`/`CardFooter`/image-slot corner classes) and `Tabs`/`TabsTrigger` both
+  stepped down to `rounded-sm`. `components/ui/button.tsx`/`dialog.tsx`/`avatar.tsx`/
+  `badge.tsx`/`progress.tsx` were left alone — a grep confirmed none of them are actually
+  imported by any page/component in this app (dead shadcn scaffolding), so touching them
+  would be effort spent on code with zero live call sites.
+- **The pocket-food quantity stepper** (`components/fueling-planner.tsx`) — reversed
+  *again*, from the "twelfth pass"'s `rounded-full` capsule (itself a deliberate exception
+  carved out specifically so the stepper would read as a categorically different control
+  from every other selector) back to the same flat `rounded-sm` every other selector now
+  shares. This is the stepper's fourth radius in its history (see "Hybrid nutrition" above
+  for the full account) — the "distinct control type" reasoning that justified the capsule
+  no longer applies once this pass's explicit ask is "the stepper shares the exact same
+  geometry as every other button."
+- **Every segmented/toggle control, form field, and porcelain sub-block** — the mode
+  toggle/`DeparturePicker`/Estrategia nutricional segmented buttons, `RadioCard` (Fenotipo/
+  Sudoración/Gut Training), `GutTrainingSelector`'s wrapping grid, the RPE picker, every
+  Consumo Real input row, the objetivo/cubierto/restante banner, the Hero "Dosis casera"
+  card, the Net Carb Deficit stat row, every `<details>` accordion, the custom-carbs input,
+  and the disabled-button variants across `fueling-planner.tsx`/`post-ride-analysis.tsx`/
+  `physiological-profile-form.tsx` all stepped down to `rounded-sm`.
+- **The W/kg pill and every floating map badge/zoom control were left at their existing
+  radius** — small data pills/glass chips, not one of the six named categories, matching
+  the same scoping judgment `badgeClass` got.
+- **Skeletons/loading fallbacks** (`app/(app)/loading.tsx`, `app/(app)/page.tsx`'s
+  `DashboardSectionSkeleton`/`FuelingPlannerSkeleton`, `app/(app)/perfil/page.tsx`'s
+  `PhysiologicalProfileSkeleton`, `RouteMapPreview`'s own `<Skeleton>` fallback) all
+  updated to match — this app's "a loading fallback must mirror the real eventual shape"
+  convention applies to radius too, not just layout.
+- **`/login`'s auth-flow card and CTA button** — despite living outside the Dashboard/Perfil
+  scope every other pass in this section is careful to stay within, this request's own
+  "absolutamente todos los componentes de la interfaz" wording named no page exclusion, and
+  a radius-only change carries none of the height/scroll risk that made this page's
+  *spacing* off-limits in prior passes — so `LoginHeroLayout`'s mobile card and
+  `StravaLoginButton`'s CTA both stepped down to `rounded-sm` too.
+- **Deliberately left untouched**: `components/toast.tsx`'s `rounded-xl` (a floating
+  notification, not page-content chrome — same "floating overlays are a distinct design
+  language" exemption the border-removal passes already established) and
+  `RouteMapPreview`'s own floating distance/elevation badge (a glass chip, not a card).
+- Verified via `npx tsc --noEmit`/`npm run lint`/`npm run build` (all clean) and a live
+  Playwright check (a temporary `DashboardShell` preview wrapping `FuelingPlanner`,
+  `PostRideAnalysis`, and `PhysiologicalProfileForm` with mocked data, at 390px and 1280px)
+  — confirmed every button/card/select/segmented-control/stepper renders with the same
+  small `rounded-sm` corner, with only the radio-indicator dot staying circular.
+
+**The same pass also applied an "ultracompact" ~50% reduction to the Dashboard's macro
+header spacing** ("Jerarquía de Espaciado Editorial y Estructura Frameless," a follow-up
+to the twelfth pass's own more moderate tightening):
+
+- **`<main>`'s own top padding** (`components/dashboard-shell.tsx`, shared by every
+  interior route) — `pt-10 sm:pt-14` → `pt-3 sm:pt-4`, a request literally aimed at "que el
+  Dashboard... se sienta como una aplicación nativa... densa," applied once at the shared
+  shell level so all four routes (Dashboard, Perfil, Estadísticas, Historial) inherit it.
+- **Greeting → tabs** (`app/(app)/page.tsx`) — the outer wrapper's `gap-6` (itself a still-
+  earlier explicit "margen generoso" request, see the twelfth pass above) tightened to
+  `gap-3`, this later, more specific instruction superseding that one.
+- **Tabs → card title** — both `TabsContent` wrappers' `pt-4` → `pt-2`.
+- **Card title → first numbered step** (`components/fueling-planner.tsx`'s
+  `CardTitle`) — mobile's `mb-6` → `mb-3` (the `sm:mb-0` breakpoint, which relies on the
+  base `Card`'s own `--card-spacing` gap rather than an explicit margin, was left as-is).
+- **The same title→first-card tightening was extended to `/perfil` and Post-Ride
+  Analysis** — both routes follow the identical "outer wrapper gap governs header→first-
+  visible-block spacing, while an *inner*, separate wrapper governs the gap *between* the
+  numbered cards themselves" structure (`app/(app)/perfil/page.tsx`'s outer `gap-6` vs.
+  `PhysiologicalProfileForm`'s own `gap-6` between its 3 Cards; `PostRideAnalysis`'s outer
+  `gap-6` vs. its inner `result &&` wrapper's own separate `gap-6` between its 3 numbered
+  cards) — so tightening only the *outer* wrapper to `gap-3` in both files shrinks
+  header→first-card spacing without touching the cards' own separation from each other,
+  the exact concern the still-fresh "Corrección: Visibilidad y Separación Real de Tarjetas"
+  investigation (see the twelfth pass above) had already confirmed was never a real bug.
+  **Estadísticas and Historial were deliberately left untouched** — both are documented
+  elsewhere as mid-rebuild and outside this section's established scope (see the "Zero-
+  border pass" bullet under the ninth pass above for the same exclusion applied to a
+  different sweep), and this specific bespoke gap-value tightening isn't a shared-token
+  change that would apply to them automatically the way the radius pass above did.
+- **`space-y-5` → `space-y-3`** — `PostRideAnalysis`'s loading-skeleton wrapper was the one
+  remaining `space-y-5` in the app (Paso 02's own `gap-5` sub-sections had already been
+  tightened to `gap-3` in an earlier pass, per this same rule).
+- **Frameless/zero-border verification** — a grep across the Dashboard's own components
+  turned up no stray 1px borders beyond the already-deliberate exceptions documented
+  elsewhere (`TabsList`'s own `border-b` underline, the spinner's `border-2`, the dashed
+  GPX/route-preview drop-target borders) — the 100%-frameless system from earlier passes
+  was already intact; nothing needed removing.
+- **"Sincronizar" placement re-verified, no code change needed** — `SyncForm` still only
+  renders inside `viewer-identity.tsx`'s sidebar identity card and as `PostRideAnalysis`'s
+  empty-state CTA, never in the Dashboard header (moved out in the "PNS premium redesign"'s
+  own fourth pass, see above).
+- Verified together with the radius pass above via the same Playwright check — confirmed
+  the greeting sits close beneath the sticky header, the tabs sit close beneath the
+  greeting, "Planificador de nutrición"/"Análisis post-ruta" sit close beneath the tabs, and
+  each numbered step/card sits close beneath its own title, while the porcelain gaps
+  *between* the independent numbered cards (Post-Ride Analysis's 3 cards, Perfil's 3 cards)
+  remain exactly as generous as before.
+
 ### Spanish-only UI text
 
 A pass removed the remaining "Spanglish" — English words left over in otherwise-Spanish
@@ -4447,12 +4555,21 @@ accurately — no invented pricing/category to game a rich-result eligibility ch
   — a stark black divider reads as heavy-handed/brutalist rather than clean; `border-neutral-900`
   itself is no longer used for "active/selected" states either (that's `border-terracotta`
   now), only for genuinely monochrome one-off elements that have no accent-color reason to
-  exist (e.g. the app's own Flame mark). Corners are `rounded-lg` on every shared button/
-  field/badge and `rounded-2xl` on `/login`'s auth-flow card — plain
-  `rounded-sm`/square corners are reserved for dense data cards/rows (`Card` itself, ride
-  history rows, reference tables) where a softer radius would look inconsistent with their
-  tighter internal spacing. Never a bare `rounded-none`/no-radius button — every button
-  shares one of the two classes above specifically so this can't regress file-by-file.
+  exist (e.g. the app's own Flame mark). **Corners are `rounded-sm` everywhere** — a later
+  "Radio de Bordes Pequeño Global" pass (see "PNS premium redesign" below) reversed the
+  softer `rounded-lg`/`rounded-xl`/`rounded-2xl` geometry every button/field/select/tab/
+  card used to carry, in favor of one small, technical, industrial radius shared by
+  literally every interactive control and every card in the app (`primaryButtonClass`/
+  `secondaryButtonClass`/`fieldClass`/`selectableFieldClass`, the base `Card` primitive,
+  `Tabs`/`TabsTrigger`, `RadioCard`, the pocket-food quantity stepper, `/login`'s auth-flow
+  card — all `rounded-sm` now). The few deliberate exceptions are non-card/non-button
+  shapes that were never part of this radius scale to begin with: the small circular
+  radio-indicator dot inside `RadioCard`, spinner/loading rings, avatar circles, progress-
+  bar tracks, and floating glass chips (the map's zoom controls' own distance/elevation
+  badge, `badgeClass`, the W/kg pill) — none of those are "buttons/cards/fields/selects/
+  tabs/steppers," the six categories this pass explicitly named. Never a bare
+  `rounded-none`/no-radius button — every button shares one of the two classes above
+  specifically so this can't regress file-by-file.
   `--font-sans` in `app/globals.css` must stay wired to `var(--font-geist-sans)` (the
   actual variable `next/font/google`'s `Geist` sets in `app/layout.tsx`) — it was
   accidentally self-referential (`var(--font-sans)`) for a long stretch of this project's
