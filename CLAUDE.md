@@ -4760,6 +4760,110 @@ label "Recreacional"; and clearing the weight field removes the bar (and the tex
 entirely rather than rendering a broken position. Also confirmed correct rendering with no
 overflow at a 390px mobile viewport.
 
+### "Reestructuración Integral de Resultados y Flujo Interactivo" — Target-First Fueling Flow
+
+A pass targeting data overload, duplicated selectors, and scroll friction across the three
+result cards (03/04/05) — restructured into a progressive, coordinated flow rather than one
+long scroll of every possible number at once.
+
+- **Tarjeta 03 (Metabolismo y objetivos calculados) — the dark "Dosis casera por bidón"
+  hero preview was removed outright.** Showing a bottle recipe (per-bottle Malto/Fructosa/
+  Sal, plus the hydration-interval line) before the athlete has chosen a bottle role or
+  pocket-food selection in Card 04 is a physiological contradiction — the recipe is
+  literally computed from what's *left* uncovered by pocket food, which isn't decided yet
+  at this point in the flow. Neither figure was silently dropped: the hydration-interval
+  line already lives in Card 05's "Cronograma dinámico de ingesta" ("Bebe un trago cada X
+  min"), and the per-bottle dose already lives in Card 05's own "Receta de laboratorio
+  casero" / "Arquitectura de bidones" sections — both computed from the athlete's real
+  Card 04 configuration, not a premature preview of it. The 2x2 Duración/Carbohidratos/
+  Hidratación/Sodio grid (with the Carbohidratos tooltip's existing `z-50`/`overflow-visible`
+  fix, from an earlier pass), `WeatherImpactCard` (with its already-dynamic "punto más
+  alto"/"mitad de ruta" wording, also an earlier pass), and the gut-training warning are
+  all unchanged — none were named for removal, and dropping already-computed real data
+  would contradict this app's "never silently drop real data" convention. The Gasto/
+  Ingesta/Déficit block was already relocated to Card 04 in a prior pass — no change
+  needed here, it was already out of Card 03.
+- **Tarjeta 04 (Configuración de bidones y comida en bolsillo) — the "Estrategia
+  nutricional" (Óptimo/Mi Inventario/Híbrido) selector was removed entirely**, cutting the
+  two duplicated top-level selectors this card used to carry (bottle config + fueling
+  mode) down to one. `fuelingMode` — previously `useState<FuelingMode>`, settable via
+  those three buttons — is now a fixed `const fuelingMode: FuelingMode = "inventory"`;
+  the pocket-food inventory list is no longer gated behind it (previously Óptimo mode
+  swapped in a server-computed, disabled 3-gel-only subset) — it's now always the full
+  9-row list (5 solids/gummies + 3 gel doses + Personalizado), always editable, matching
+  the prompt's own literal "Inventario de Bolsillo Interactivo" spec. This is a UI-only
+  simplification: the API/engine still accept and support `"optimal"`/`"hybrid"`
+  server-side, untouched — no other caller of `POST /api/fueling/plan` is affected, only
+  this one client no longer exposes a way to reach those two modes. Downstream dead code
+  from this removal was cleaned up rather than left as unreachable branches: the
+  `FUELING_MODE_OPTIONS`/`FUELING_MODE_DESCRIPTIONS` consts, the `GEL_DOSE_TYPES`-only /
+  `disabled` ternaries on the pocket-food rows, the "Automático — solo geles..." paragraph,
+  and Card 05's "Alternativa: N geles..." `hybridGelSuggestion` line (permanently
+  unreachable once `fuelingMode` can never be `"hybrid"` from this UI) were all deleted —
+  `PlanResult.hybridGelSuggestion` itself stays in the type/API response, just unread by
+  this component now.
+  - **Píldora Fija de Balance en Tiempo Real** — the old "Objetivo: Xg HC · Cubierto: Yg HC
+    · Restante: Zg HC" banner (previously sitting mid-card, after the now-removed
+    Estrategia selector) moved to the very top of Card 04, directly under its own "04 ·"
+    eyebrow, reformatted to the prompt's literal "OBJETIVO: 114g HC | CUBIERTO: XXg HC |
+    RESTANTE: YYg HC" pipe-separated style, and made genuinely `sticky` — pinned to the
+    viewport as the athlete scrolls through the bottle-config selector and the (now always
+    9-row) pocket-food inventory beneath it, rather than scrolling out of view. Colors
+    reuse this app's existing `text-status-good`/`text-status-warning` convention (already
+    used for the Net Carb Deficit figure) — CUBIERTO always green, RESTANTE green at 0g,
+    amber otherwise — rather than inventing a new color pairing. Recomputes from
+    `pocketFoodCarbsPreview`/`remainingCarbsG` (both pure client-side arithmetic, derived
+    from `effectivePocketFood`) on every stepper +/- tap, with zero network round-trip —
+    verified live: tapping "+" on Plátano updated "CUBIERTO"/"RESTANTE" instantly with the
+    mocked `/api/fueling/plan` endpoint hit exactly once (the initial calculation), never a
+    second time for the stepper tap. Bottle config itself doesn't feed this arithmetic at
+    all (it's a planning preference, not a parameter the recipe math re-derives from — see
+    `getBottleConfigSummary`'s own doc comment) — the pill only ever reacts to pocket-food
+    changes, which is the only thing "cubierto"/"restante" can meaningfully mean.
+  - **Making `position: sticky` actually work required a real fix, not just the CSS
+    class.** The first attempt (`sticky top-16 lg:top-4 z-10` on the pill) silently did
+    nothing — verified live via Playwright (scrolling the page 600px moved the pill from
+    y≈554 to y≈-19, i.e. it scrolled away with the page exactly like a normal, non-sticky
+    element). Root cause: the base `Card` primitive (`components/ui/card.tsx`) carries
+    `overflow-hidden` (needed elsewhere for image-corner clipping), and `overflow: hidden`
+    on *any* ancestor establishes a CSS "scroll container" per spec — even with nothing to
+    actually scroll inside it — which silently defeats `position: sticky` on any
+    descendant, since the sticky element's containing block becomes that non-scrolling
+    ancestor instead of the true document viewport. `FuelingPlanner`'s own root `<Card
+    className={cn(flatMobileCardClass, "overflow-visible")}>` overrides this specifically
+    at this one call site (via `cn()`'s tailwind-merge "later utility wins," confirmed
+    against `Card`'s own `cn(baseClasses, className)` implementation) — safe here since the
+    one thing inside this component that genuinely needs corner clipping (the Paso 01 map)
+    already has its own independent, *local* `overflow-hidden` wrapper `<div>`, not the
+    outer shared `Card`. No other call site of the shared `Card` primitive was touched.
+    Re-verified after the fix: scrolling 600px now moves the pill from y≈554 to y≈72
+    (pinned near `top-16`'s 64px offset), confirming it genuinely sticks rather than
+    scrolling away.
+  - **`top-16 lg:top-4`** clears the mobile sticky header (`components/dashboard-shell.tsx`,
+    `sticky top-0 z-40`, ~64px tall, `lg:hidden`) so the pill never renders underneath it;
+    desktop has no such header, so it sticks close to the viewport's own top instead.
+  - **"Diseño Compacto Móvil"** — `PocketFoodStepperRow`'s own list-row padding stepped
+    down once more, from `py-2.5` to `py-2` — the inventory now always renders all 9 rows
+    unconditionally (never a shorter 3-gel Óptimo subset), so trimming each row's own
+    footprint matters more for minimizing scroll on a small screen than it used to.
+- **Reset rule (item 4 of the prompt) needed no new code** — the `useEffect` that clears
+  `result` (and, with it, Cards 03/04/05, since they're all inside one `{result && (...)}`
+  conditional) the instant any Paso 01/02 input changes was already built in an earlier
+  pass ("Reseteo Automático del Estado de Cálculo") and already covers exactly the fields
+  this prompt names (route/GPX, duration, intensity, departure date/hour, the "Ruta
+  objetivo" checkbox) — re-verified still correct via Playwright (changing "Intensidad
+  objetivo" mid-result immediately hid all 3 cards and re-enabled the CTA) rather than
+  reimplemented.
+
+Verified via `npx tsc --noEmit`/`npm run lint`/`npm run build` (all clean) and a live
+Playwright check (a temporary route rendering the real `FuelingPlanner` with a mocked
+Strava route and a mocked `/api/fueling/plan` response, at both 800px and 390px) —
+confirmed the hero block is gone from Card 03, "Estrategia nutricional" no longer appears
+anywhere in the DOM, all 9 pocket-food rows render unconditionally and editable, the
+sticky pill genuinely pins during scroll (not just visually similar), CUBIERTO/RESTANTE
+update instantly on a stepper tap with zero additional network requests, and changing
+Paso 02's intensity mid-result hides all 3 cards and re-enables the CTA.
+
 ### Route dynamic rendering
 
 Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because

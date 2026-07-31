@@ -91,20 +91,6 @@ const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = [...POCKET_FOOD_TYPES, ...GE
 const MAX_POCKET_FOOD_QTY = 6;
 const MAX_CUSTOM_CARBS_G = 500;
 
-const FUELING_MODE_OPTIONS: { value: FuelingMode; label: string }[] = [
-  { value: "optimal", label: "Óptimo" },
-  { value: "inventory", label: "Mi Inventario" },
-  { value: "hybrid", label: "Híbrido" },
-];
-
-const FUELING_MODE_DESCRIPTIONS: Record<FuelingMode, string> = {
-  optimal:
-    "Estrategia de alta eficiencia digestiva recomendada para rendimiento: formulada únicamente con bidón de hidratación y geles de rápida absorción.",
-  inventory:
-    "Selecciona los productos disponibles en tu inventario personal — el bidón casero ajustará su concentración para cubrir el déficit.",
-  hybrid:
-    "Fija tus alimentos imprescindibles — te sugerimos geles o bidón para cubrir la brecha restante.",
-};
 // Offline fallback for "en medio de un puerto sin cobertura" — the last
 // successfully calculated strategy, so the athlete still has *something*
 // actionable instead of a blank/broken screen with no signal.
@@ -519,7 +505,11 @@ function PocketFoodStepperRow({
         // itself; a single flat `py-2.5` at every width (down from an
         // intermediate `py-3.5`, per a later "reduce and equalize" request)
         // is just as symmetric and reads as a tighter, less congested list.
-        "flex items-center justify-between gap-2 border-b border-zinc-100 py-2.5 last:border-b-0",
+        // Stepped down once more to `py-2` ("Diseño Compacto Móvil" —
+        // the inventory now always shows all 9 rows unconditionally, so
+        // trimming each row's own footprint matters more for minimizing
+        // scroll on a small screen than it used to).
+        "flex items-center justify-between gap-2 border-b border-zinc-100 py-2 last:border-b-0",
         disabled && "opacity-50"
       )}
     >
@@ -612,7 +602,15 @@ export function FuelingPlanner({
   const [isTargetEvent, setIsTargetEvent] = useState(false);
   const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
   const [customCarbsG, setCustomCarbsG] = useState(0);
-  const [fuelingMode, setFuelingMode] = useState<FuelingMode>("inventory");
+  // "Estrategia nutricional" (Óptimo/Mi Inventario/Híbrido) was removed
+  // entirely from this UI — "Reestructuración Integral de Resultados"
+  // collapsed it and the bottle-config selector down to one always-visible,
+  // always-editable pocket-food inventory instead, to cut the two
+  // duplicated top-level selectors down to one. The API/engine still accept
+  // "optimal"/"hybrid" server-side (untouched) — this is a UI-only
+  // simplification, not a removal of that capability from the data model,
+  // so `fuelingMode` is now a fixed constant rather than editable state.
+  const fuelingMode: FuelingMode = "inventory";
   // Sub-bloque B's own preference, post-calculation only — no default,
   // same "never silently pick one for the athlete" rule the route/
   // intensity selects already follow.
@@ -708,14 +706,12 @@ export function FuelingPlanner({
       })
     : null;
 
-  // In Óptimo mode the selection is server-computed (only known once
-  // `result` comes back), so that takes priority over the athlete's own
-  // local (disabled) steppers — feeds the live "Objetivo/Cubierto/Restante"
-  // coverage banner in Card 2 (04 · Configuración de bidones y comida en
-  // bolsillo).
-  const effectivePocketFood: PocketFoodSelection =
-    fuelingMode === "optimal" ? (result?.pocketFood ?? {}) : { ...pocketFood, customCarbsG };
+  // Always the athlete's own manual selection now that "Estrategia
+  // nutricional" no longer gates it behind a server-computed Óptimo mode —
+  // feeds the live "Objetivo/Cubierto/Restante" balance pill in Card 04.
+  const effectivePocketFood: PocketFoodSelection = { ...pocketFood, customCarbsG };
   const pocketFoodCarbsPreview = getPocketFoodTotalCarbsG(effectivePocketFood);
+  const remainingCarbsG = result ? Math.max(0, result.totalRideCarbsG - pocketFoodCarbsPreview) : 0;
 
   // "Modo Cobertura Limitada" — if the athlete opens the app with no
   // connection at all (mid-climb, no signal), load the last strategy that
@@ -962,7 +958,18 @@ export function FuelingPlanner({
   }
 
   return (
-    <Card className={flatMobileCardClass}>
+    // `overflow-visible` overrides the base `Card` primitive's own
+    // `overflow-hidden` (needed elsewhere for image-corner clipping,
+    // untouched at the shared-component level) specifically for this one
+    // call site — `overflow: hidden` on any ancestor establishes a "scroll
+    // container" per the CSS Overflow spec even with nothing to actually
+    // scroll, which silently defeats `position: sticky` on any descendant
+    // (verified live: Card 04's balance pill scrolled away with the page
+    // instead of sticking, until this override was added). Safe here since
+    // the one thing inside this component that genuinely needs corner
+    // clipping — the Paso 01 map — already has its own *local*
+    // `overflow-hidden` wrapper div, independent of this outer Card.
+    <Card className={cn(flatMobileCardClass, "overflow-visible")}>
       <CardHeader>
         {/* `text-xl font-semibold text-zinc-900` overrides `CardTitle`'s own
             shared default (`text-sm font-bold uppercase tracking-wide`) —
@@ -1511,33 +1518,27 @@ export function FuelingPlanner({
                 the card whose "objetivos calculados" concern they're most
                 directly part of. */}
 
-            {/* 🎴 Tarjeta 1 · 03 · Metabolismo y objetivos calculados */}
+            {/* 🎴 Tarjeta 1 · 03 · Metabolismo y objetivos calculados —
+                exclusively the theoretical/environmental targets for this
+                ride; no dosing recipe here. The old "Dosis casera por
+                bidón" dark hero preview (per-bottle Malto/Fructosa/Sal plus
+                the hydration-frequency line) was removed outright — showing
+                a bottle recipe before the athlete has configured bottle
+                role or pocket food in Card 04 below is a physiological
+                contradiction (the recipe depends on what's left uncovered
+                by pocket food, which isn't chosen yet at this point in the
+                flow). Neither figure is lost: the hydration-interval line
+                still lives in Card 05's "Cronograma dinámico de ingesta,"
+                and the per-bottle recipe lives in Card 05's own "Receta de
+                laboratorio casero," both computed from the athlete's real
+                Card 04 configuration instead of a premature preview. */}
             <div className="rounded-xl border-0 bg-white p-4 shadow-none">
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
                 03 · Metabolismo y objetivos calculados
               </span>
 
-              <div className="flex flex-col gap-3 rounded-xl bg-[#343334] p-4 text-white shadow-none">
-                <div>
-                  <span className="font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
-                    Dosis casera por bidón
-                  </span>
-                  <p className="mt-1.5 font-mono text-lg font-bold text-[#FD5A08] sm:text-xl">
-                    {result.bottlePlan.fuelBottles.count > 0
-                      ? `${result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g Malto + ${result.bottlePlan.fuelBottles.fructoseGPerBottle}g Fructosa + ${getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g Sal`
-                      : "Cobertura completa vía comida de bolsillo"}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-1.5 border-t border-white/10 pt-3 text-xs text-neutral-300">
-                  <span className="flex items-center gap-1.5">
-                    <Droplet className="size-3.5 shrink-0 text-neutral-400" />
-                    1 trago cada {result.timingTimeline.hydrationIntervalMinutes} min ({result.carbsGPerHour} g/h HC · {result.sodiumMgPerHour} mg/h Sodio)
-                  </span>
-                </div>
-              </div>
-
               {/* Cuadrícula 2x2 de objetivos por hora + total */}
-              <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
                   <span className={eyebrow}>Duración</span>
                   <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
@@ -1616,6 +1617,35 @@ export function FuelingPlanner({
                 04 · Configuración de bidones y comida en bolsillo
               </span>
 
+              {/* Píldora Fija de Balance en Tiempo Real — sticky within this
+                  card as the athlete scrolls through the bottle-config
+                  selector and the (now always-visible) pocket-food
+                  inventory below, so OBJETIVO/CUBIERTO/RESTANTE stays on
+                  screen instead of requiring a scroll back up. Recomputes
+                  instantly from `pocketFoodCarbsPreview`/`remainingCarbsG`
+                  (pure client-side arithmetic) on every stepper +/- tap —
+                  no network round-trip, no need to press "Calcular" again
+                  just to see the coverage change. `top-16 lg:top-4` clears
+                  the mobile sticky header (`sticky top-0 z-40`, ~64px tall,
+                  `lg:hidden`) so the pill never renders underneath it;
+                  desktop has no such header, so it sticks close to the
+                  viewport's own top instead. Bottle config itself is a
+                  planning preference that doesn't feed this arithmetic (see
+                  `getBottleConfigSummary`'s own doc comment) — only pocket
+                  food does, so the pill only ever reacts to that. */}
+              <div className="sticky top-16 z-10 mb-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg bg-[#F8F7F5]/95 px-3 py-2 text-center font-mono text-[11px] font-semibold tracking-wide text-zinc-700 shadow-sm backdrop-blur-sm sm:text-xs lg:top-4">
+                <span>OBJETIVO: {result.totalRideCarbsG}g HC</span>
+                <span className="text-zinc-300">|</span>
+                <span className="text-status-good">CUBIERTO: {pocketFoodCarbsPreview}g HC</span>
+                <span className="text-zinc-300">|</span>
+                <span className={remainingCarbsG > 0 ? "text-status-warning" : "text-status-good"}>
+                  RESTANTE: {remainingCarbsG}g HC
+                </span>
+              </div>
+
+              <span className="mb-2 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+                Configuración de bidones
+              </span>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {BOTTLE_CONFIG_OPTIONS.map((opt) => (
                   <button
@@ -1639,89 +1669,51 @@ export function FuelingPlanner({
                   : "Elige una configuración para ver cómo se reparte tu objetivo entre bidones y bolsillo."}
               </div>
 
+              {/* Inventario de Bolsillo Interactivo — always the full
+                  9-item list (5 solids/gummies + 3 gel doses + custom),
+                  always editable. The old "Estrategia nutricional"
+                  (Óptimo/Mi Inventario/Híbrido) selector that used to gate
+                  this — swapping in a server-computed, disabled subset for
+                  Óptimo mode — was removed entirely as a second, duplicated
+                  selector competing with the bottle-config one above it. */}
               <div className="mt-4">
                 <span className="mb-2 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-                  Estrategia nutricional
+                  Comida en bolsillo
                 </span>
-                <div className="grid grid-cols-3 gap-2">
-                  {FUELING_MODE_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setFuelingMode(opt.value)}
-                      className={cn(
-                        segmentedButtonClass,
-                        fuelingMode === opt.value
-                          ? "border-transparent bg-terracotta text-white"
-                          : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
-                      )}
-                    >
-                      <span className={segmentedButtonLabelClass}>{opt.label}</span>
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-2 text-xs font-mono text-zinc-500">
-                  {FUELING_MODE_DESCRIPTIONS[fuelingMode]}
-                </p>
-              </div>
-
-              {/* Indicador de Cobertura en Tiempo Real — recomputado en cada
-                  tap +/- de un stepper (`pocketFoodCarbsPreview` es pura
-                  aritmética cliente, ver su propia definición más arriba). */}
-              <div className="mt-4 mb-3 rounded-lg bg-[#F8F7F5] p-3 text-xs font-mono text-zinc-600">
-                Objetivo: {result.totalRideCarbsG}g HC · Cubierto: {pocketFoodCarbsPreview}g HC ·
-                Restante: {Math.max(0, result.totalRideCarbsG - pocketFoodCarbsPreview)}g HC
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                {fuelingMode === "optimal" && (
-                  <p className="text-xs text-neutral-500">
-                    Automático — solo geles y bidón en modo Óptimo, sin alimentos sólidos.
-                  </p>
-                )}
                 <div className="grid grid-cols-1 gap-0 md:grid-cols-2 md:gap-x-4 md:gap-y-0">
-                  {(fuelingMode === "optimal" ? GEL_DOSE_TYPES : ALL_POCKET_FOOD_TYPES).map((type) => (
+                  {ALL_POCKET_FOOD_TYPES.map((type) => (
                     <PocketFoodStepperRow
                       key={type}
                       type={type}
-                      qty={
-                        fuelingMode === "optimal"
-                          ? (result?.pocketFood[type] ?? 0)
-                          : (pocketFood[type] ?? 0)
-                      }
+                      qty={pocketFood[type] ?? 0}
                       onChange={(qty) => setPocketFoodQty(type, qty)}
-                      disabled={fuelingMode === "optimal"}
                     />
                   ))}
-                  {fuelingMode !== "optimal" && (
-                    <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-2.5 last:border-b-0">
-                      <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
-                        Personalizado
-                      </label>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          id="custom-carbs"
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          max={MAX_CUSTOM_CARBS_G}
-                          value={customCarbsG || ""}
-                          onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
-                          placeholder="0"
-                          className="w-16 rounded-sm border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
-                        />
-                        <span className="font-mono text-xs text-neutral-500">g HC</span>
-                      </div>
+                  <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-2 last:border-b-0">
+                    <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
+                      Personalizado
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        id="custom-carbs"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={MAX_CUSTOM_CARBS_G}
+                        value={customCarbsG || ""}
+                        onChange={(e) => setCustomCarbsG(Math.max(0, Number(e.target.value) || 0))}
+                        placeholder="0"
+                        className="w-16 rounded-sm border border-neutral-300 bg-white px-2 py-1 text-right font-mono text-sm text-neutral-900 shadow-sm outline-none hover:border-neutral-400 focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                      />
+                      <span className="font-mono text-xs text-neutral-500">g HC</span>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
-              {fuelingMode !== "optimal" && (
-                <p className="mt-3 text-[11px] text-neutral-500">
-                  Pulsa &quot;Calcular estrategia nutricional&quot; (arriba) de nuevo para
-                  actualizar la receta casera y el plan de bidones con esta selección.
-                </p>
-              )}
+              <p className="mt-3 text-[11px] text-neutral-500">
+                Pulsa &quot;Calcular estrategia nutricional&quot; (arriba) de nuevo para
+                actualizar la receta casera y el plan de bidones con esta selección.
+              </p>
 
               {/* Sub-bloque de Balance Neto — moved here from Tarjeta 03: it
                   genuinely didn't belong there, since a burn-vs-intake
@@ -1808,14 +1800,13 @@ export function FuelingPlanner({
                     el resto ({result.recipe.totalCarbsG}g) va en el bidón.
                   </p>
                 )}
-                {result.fuelingMode === "hybrid" && (result.hybridGelSuggestion ?? 0) > 0 && (
-                  <p className="mt-1.5 flex items-start gap-1.5 text-xs text-neutral-500">
-                    <FlaskConical className="mt-0.5 size-3 shrink-0" />
-                    Alternativa: {result.hybridGelSuggestion} gel{result.hybridGelSuggestion === 1 ? "" : "es"}{" "}
-                    estándar (30g c/u) cubrirían la brecha en vez del bidón — o deja que el bidón la
-                    absorba, como ya hace la receta de abajo.
-                  </p>
-                )}
+                {/* The old "Alternativa: N geles..." hybridGelSuggestion
+                    line only ever rendered in Híbrido mode — unreachable
+                    now that "Estrategia nutricional" was removed from this
+                    UI (`fuelingMode` is a fixed "inventory" constant), so
+                    it was deleted rather than left as dead JSX. The API
+                    response still carries `hybridGelSuggestion` (untouched
+                    server-side), simply unused by this component now. */}
                 <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
                   <div className="flex items-center justify-between">
                     <span>Maltodextrina</span>
