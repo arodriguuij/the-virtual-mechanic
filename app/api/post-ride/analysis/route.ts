@@ -254,6 +254,11 @@ export async function POST(request: NextRequest) {
       // for a trainer ride) — surfaced so the telemetry card can cite it
       // rather than asking the athlete to trust an unexplained number.
       temperatureAvgC: activity.temperature_avg,
+      // Strava's own reverse-geocoded city/state, joined for display — `null`
+      // (never a fabricated guess) whenever Strava has neither on file.
+      location:
+        [activityDetail?.locationCity, activityDetail?.locationState].filter(Boolean).join(", ") ||
+        null,
     },
     carbsBurnedG,
     fluidLossMl,

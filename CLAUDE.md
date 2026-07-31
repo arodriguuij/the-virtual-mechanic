@@ -1963,6 +1963,77 @@ confirmed the badge and switcher are both gone, the map bleeds edge-to-edge with
 distance/D+ badge and `+`/`−` zoom controls intact, and the stat grid/footnotes render
 correctly above it at both widths.
 
+#### "Análisis Post-Ruta Estilo Strava Mobile" (map-first ordering, Title Case metrics)
+
+A later pass reordered this same card again — a request to mirror Strava's own mobile
+activity-summary hierarchy exactly, for user familiarity — superseding the ordering from
+the section above (which put the padded name/date + stat grid *before* the map). The card
+inside the `overflow-hidden rounded-xl bg-white shadow-none` shell now stacks, top to
+bottom:
+
+1. **The map** — `RouteMapPreview`, unchanged (`className="mt-0 rounded-none"`, same
+   shared tiles/route-line color/floating zoom-control/badge chrome as Pre-Ruta), but now
+   the card's very first child rather than sitting below the stats — nothing (no badge, no
+   dropdown) ever renders over the canvas.
+2. **A quiet metadata line** — a small `Bike` icon (`lucide-react`) plus
+   `formatActivityDateTime()`'s output, now reformatted to "martes 28 de julio a las
+   18:58h" (lowercase weekday/month, "a las" instead of the previous "· Inicio a las" —
+   this line is deliberately quiet/secondary now, not a stamp worth capitalizing), with
+   `· {location}` appended when Strava has a resolved location for the ride.
+3. **The activity title** — `result.activity.name` alone, as a plain `text-xl font-bold`
+   `<h3>` — no longer paired with the date directly beneath it (the date moved to the
+   metadata line above), matching Strava's own "title reads as its own headline" layout.
+4. **A 2-column metrics grid** — `grid-cols-2 gap-x-6 gap-y-5`, Title Case labels
+   (Distancia, Desnivel Positivo, Tiempo en Movimiento, Potencia Media, Velocidad Media,
+   Calorías) replacing this app's usual `UPPERCASE tracking-widest` stat-label convention
+   for this one grid specifically — and, unlike every other numeric readout in this app,
+   **no `font-mono`** on the values (`text-lg sm:text-xl font-bold text-zinc-900
+   tracking-tight`), a deliberate one-off exception matching Strava's own plain-sans
+   numeral display, scoped to this grid alone (every other stat block in this file —
+   Glucógeno quemado, Balance Neto, Fase 1/2, etc. — keeps `font-mono` unchanged).
+   **Velocidad Media** is a new figure, computed client-side
+   (`distanceKm / durationHours`, guarded against a zero-duration edge case) rather than
+   fetched — Strava doesn't return a separate average-speed field this app was already
+   pulling, and distance/duration were already on hand. **Calorías** reuses
+   `telemetry.energyKcal` but labeled "Cal" (Strava's own short unit) instead of this
+   app's usual "kcal," scoped to this one card. Frecuencia cardíaca — part of the *previous*
+   5-stat grid — is deliberately **not** one of the 6 metrics here (the spec's exact layout
+   has no 7th cell and no heart-rate slot), but the real figure isn't dropped: it moved into
+   the footnote list below (a new `HeartPulse` icon line, "Frecuencia cardíaca media: X ppm"
+   — only rendered when Strava actually has one, never a fabricated "-- ppm" placeholder the
+   way the old primary-grid cell used to show for a sensor-less ride, since a footnote is
+   supplementary and simply omits itself when there's nothing real to report).
+   Distancia now shows 2 decimals (`toFixed(2)`, e.g. "50.40 km" vs. the previous "50.4
+   km") to match Strava's own precision — the underlying `distanceKm` value is still only
+   rounded to 1 decimal server-side, so `toFixed(2)` just pads a trailing zero rather than
+   asserting false precision. Tiempo en Movimiento deliberately keeps this app's existing
+   `formatHoursMinutes()` output ("1h 29m") rather than switching to Strava's own
+   "1:29:00" h:mm:ss style — the literal example text was read as illustrative, not a
+   mandate to plumb raw seconds through the API and diverge from every other duration
+   display in this app (the Fueling Planner's own estimated-duration readout uses the same
+   helper).
+5. **Data-provenance footnotes** — not part of the requested layers, kept (now sitting
+   below the grid, inside the same padded section, `px-5 py-3 border-t`) purely so real
+   data this app already surfaces elsewhere (heart rate, route temperature, the glycogen
+   calculation's source tier) is never silently dropped by a redesign that didn't ask for
+   its removal — flagged here per this codebase's "flag rather than silently invent /
+   silently drop" convention.
+
+**New field: `activity.location`.** Strava's `/activities/{id}` detail response can carry
+a reverse-geocoded `location_city`/`location_state` — `StravaActivityDetail` in
+`lib/strava.ts` now returns both (`locationCity`/`locationState`, `null` whenever Strava
+has neither on file — an indoor ride, a privacy zone, or a location Strava never resolved;
+never a fabricated guess), and `POST /api/post-ride/analysis` joins them into one
+`activity.location` string (`null` when both are empty) for the metadata line to consume.
+
+Verified live via the same temporary-route/Playwright pattern (mocked API response
+including a `location: "Palma, Balearic Islands"` field and full telemetry) at 390px
+mobile and 1280px desktop — confirmed the map renders first with no badge/dropdown over
+it, the metadata line reads correctly with the bike icon and location, the title renders
+as a clean bold headline, all 6 metrics render in a proper 2-column grid with Title Case
+labels and non-monospace bold values, and the footnotes (including the relocated heart-rate
+line) render correctly below.
+
 #### Net recovery debt ("¿Qué consumiste realmente durante la ruta?")
 
 A ride's raw burn/loss figures overstate what's actually left to replace whenever the
@@ -4014,6 +4085,11 @@ accurately — no invented pricing/category to game a rich-result eligibility ch
   two tabs are short, technical-reading labels (closer to a mode/status indicator than a
   prose name), so this one spot intentionally reads as mono/caps like the rest of this
   app's technical chrome rather than staying in the sans face `CardTitle`/`<h1>` keep.
+  Post-Ride Analysis's own "Estilo Strava Mobile" metrics grid (see that section under
+  "Post-Ride Analysis" above) is the inverse exception — a deliberate *absence* of
+  `font-mono` on genuine numeric values (Distancia, Potencia Media, etc.), scoped to that
+  one grid, to match Strava's own plain-sans numeral display; every other numeric readout
+  in the app keeps `font-mono` unchanged.
   Structural
   dividers are soft `border-neutral-200`/`border-neutral-300` lines, not `border-neutral-900`
   — a stark black divider reads as heavy-handed/brutalist rather than clean; `border-neutral-900`

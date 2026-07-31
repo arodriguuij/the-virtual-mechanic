@@ -244,6 +244,13 @@ export type StravaActivityDetail = {
   // past ride can visually confirm *which* ride it is rather than relying on
   // a title alone (many routes share generic/duplicate names).
   summaryPolyline: string | null;
+  // Strava's own reverse-geocoded location for the ride — often absent (an
+  // indoor ride, a privacy zone, or simply a location Strava never resolved),
+  // so both are `null` rather than a fabricated placeholder when missing.
+  // Powers the Post-Ride Analysis telemetry card's "Martes 28 de julio a las
+  // 18:58h · Palma, Balearic Islands" metadata line.
+  locationCity: string | null;
+  locationState: string | null;
 };
 
 /**
@@ -280,6 +287,8 @@ export async function fetchActivityDetail(
     kilojoules: activity.kilojoules ?? null,
     calories: activity.calories ?? null,
     summaryPolyline: activity.map?.summary_polyline ?? null,
+    locationCity: activity.location_city || null,
+    locationState: activity.location_state || null,
   };
 }
 
