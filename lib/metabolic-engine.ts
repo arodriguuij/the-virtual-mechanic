@@ -1414,47 +1414,6 @@ export function getCarbLoadingTarget(weightKg: number): CarbLoadingPlan {
   };
 }
 
-// Plain-text summary for the "Copiar Receta" button — pasteable as-is into
-// WhatsApp, Notes, or read straight off the phone at the kitchen counter,
-// so it spells out exact per-bottle grams rather than just totals.
-export function formatRecipeForSharing({
-  durationHours,
-  carbsGPerHour,
-  sodiumMgPerHour,
-  recipe,
-  bottlePlan,
-}: {
-  durationHours: number;
-  carbsGPerHour: number;
-  sodiumMgPerHour: number;
-  recipe: HomeLabRecipe;
-  bottlePlan: Pick<BottlePlan, "bottleSizeMl" | "fuelBottles" | "waterBottles">;
-}): string {
-  const lines = [
-    "🚴 RECETA CASERA — RATIO",
-    `Duración: ${durationHours}h · ${carbsGPerHour}g/h HC · ${sodiumMgPerHour}mg/h sodio`,
-    "",
-  ];
-  if (bottlePlan.fuelBottles.count > 0) {
-    lines.push(
-      `🧪 ${bottlePlan.fuelBottles.count > 1 ? "Bidones" : "Bidón"} Fuel Concentrado (${bottlePlan.bottleSizeMl}ml) × ${bottlePlan.fuelBottles.count}`,
-      `   ${bottlePlan.fuelBottles.maltodextrinGPerBottle}g maltodextrina · ${bottlePlan.fuelBottles.fructoseGPerBottle}g fructosa · ${getTableSaltGrams(bottlePlan.fuelBottles.sodiumMgPerBottle)}g sal común (${bottlePlan.fuelBottles.sodiumMgPerBottle}mg sodio) / bidón`
-    );
-  }
-  if (bottlePlan.waterBottles.count > 0) {
-    lines.push(
-      "",
-      `💧 ${bottlePlan.waterBottles.count > 1 ? "Bidones" : "Bidón"} Agua / Electrolitos (${bottlePlan.bottleSizeMl}ml) × ${bottlePlan.waterBottles.count}`,
-      "   A demanda para completar la hidratación"
-    );
-  }
-  lines.push(
-    "",
-    `Total: ${recipe.maltodextrinG}g maltodextrina + ${recipe.fructoseG}g fructosa + ${getTableSaltGrams(recipe.sodiumMg)}g sal común (aporta ${recipe.sodiumMg}mg sodio puro) + ${recipe.waterMl}ml agua`
-  );
-  return lines.join("\n");
-}
-
 /**
  * "Ficha técnica" for the "Exportar a Garmin / Wahoo / Strava" button —
  * plain text meant to be pasted into a route description or a

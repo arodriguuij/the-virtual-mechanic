@@ -3,7 +3,6 @@
 import {
   CalendarDays,
   ChevronDown,
-  Copy,
   Droplet,
   FlaskConical,
   Fuel,
@@ -11,7 +10,6 @@ import {
   MapPin,
   Pencil,
   RefreshCw,
-  Send,
   TriangleAlert,
   Upload,
   Utensils,
@@ -43,7 +41,6 @@ import {
 } from "@/lib/ui-classes";
 import {
   calculateHouseholdMeasures,
-  formatRecipeForSharing,
   getPocketFoodTotalCarbsG,
   getTableSaltGrams,
   HYPERTONIC_THRESHOLD_PCT,
@@ -373,13 +370,27 @@ type PlanResult = {
 type BottleConfigOption = "water_only" | "one_mix" | "both_mix";
 const DEFAULT_BOTTLE_CONFIG: BottleConfigOption = "water_only";
 
-// Title Case, short — fits a fixed 3-column row even on a narrow phone
-// (unlike the earlier, longer "1 Agua + 1 Mix"/"Ambos con Mix" labels).
-const BOTTLE_CONFIG_OPTIONS: { value: BottleConfigOption; label: string }[] = [
+// Title Case, short — fits a fixed row even on a narrow phone (unlike the
+// earlier, longer "1 Agua + 1 Mix"/"Ambos con Mix" labels). Two variants,
+// picked at render time off the athlete's real `athlete_profiles.bottle_count`
+// (`getBottleConfigOptions` below) — "Ambos Mix" is physically impossible on
+// a 1-cage bike, so it's dropped entirely rather than shown disabled, and
+// the remaining mix option is relabeled "Con Mix" once it's the only one
+// left (a lone "1 Mix" reads oddly without a second option to contrast it
+// against).
+const TWO_CAGE_BOTTLE_CONFIG_OPTIONS: { value: BottleConfigOption; label: string }[] = [
   { value: "water_only", label: "Solo Agua" },
   { value: "one_mix", label: "1 Mix" },
   { value: "both_mix", label: "Ambos Mix" },
 ];
+const ONE_CAGE_BOTTLE_CONFIG_OPTIONS: { value: BottleConfigOption; label: string }[] = [
+  { value: "water_only", label: "Solo Agua" },
+  { value: "one_mix", label: "Con Mix" },
+];
+
+function getBottleConfigOptions(athleteBottleCount: number) {
+  return athleteBottleCount === 1 ? ONE_CAGE_BOTTLE_CONFIG_OPTIONS : TWO_CAGE_BOTTLE_CONFIG_OPTIONS;
+}
 
 /** How many grams of the ride's carb target the selected bottle
  * configuration itself contributes — the piece that makes the CUBIERTO/
@@ -430,10 +441,13 @@ function getBottleCarbsContributionG(config: BottleConfigOption, result: PlanRes
 /** Tarjeta 05's "Checklist de preparación para llevar" — what to physically
  * grab before rolling out, split into "En bici" (bottles, driven by the
  * same `bottleConfig` preference the balance pill reacts to) and "En
- * bolsillo" (whatever pocket-food quantities are currently selected). Pure
- * functions so both the on-screen checklist and the shareable plain-text
- * export (`buildChecklistText`) read from one source instead of two copies
- * that could drift apart.
+ * bolsillo" (whatever pocket-food quantities are currently selected).
+ *
+ * Deliberately names only the *container and its contents* ("Bidón de
+ * 750ml (con Mezcla Casera)"), never the exact malto/fructosa/sal grams —
+ * those already appear once, in full, in the "Dosis ejecutiva para mezcla
+ * casera" box directly above this one; repeating the same grams here would
+ * just be the same fact printed twice on the same card.
  *
  * The bottle count listed here is capped at what actually fits in the
  * athlete's real cages (`reloadStrategy.startingBottleCount` whenever the
@@ -456,15 +470,12 @@ function getBikeChecklistLines(result: PlanResult, bottleConfig: BottleConfigOpt
     // (`result.athleteBottleCount`, 1 or 2), not a hardcoded 2 — capped at
     // `maxOnBike` so this can never exceed what's actually mounted.
     mixBottleCount = Math.min(bottleConfig === "one_mix" ? 1 : result.athleteBottleCount, maxOnBike);
-    const saltG = getTableSaltGrams(fuelBottles.sodiumMgPerBottle);
-    lines.push(
-      `${mixBottleCount}x Bidón de ${bottleSizeMl}ml (${fuelBottles.maltodextrinGPerBottle}g Malto + ${fuelBottles.fructoseGPerBottle}g Fructosa + ${saltG}g Sal)`
-    );
+    lines.push(`${mixBottleCount}x Bidón de ${bottleSizeMl}ml (con Mezcla Casera)`);
   }
 
   const waterBottlesOnBike = Math.min(waterBottles.count, Math.max(0, maxOnBike - mixBottleCount));
   if (waterBottlesOnBike > 0) {
-    lines.push(`${waterBottlesOnBike}x Bidón de ${bottleSizeMl}ml (Agua / Electrolitos)`);
+    lines.push(`${waterBottlesOnBike}x Bidón de ${bottleSizeMl}ml (Solo Agua)`);
   }
   return lines;
 }
@@ -496,44 +507,6 @@ function getPocketChecklistLines(
   }
   if (customCarbsG > 0) lines.push(`${customCarbsG}g HC Personalizado`);
   return lines;
-}
-
-/** The "Pauta" line — hydration frequency plus the first solid-food and
- * caffeine milestones, when either exists — mirrors the on-screen
- * Cronograma without repeating its full entry list. */
-function getPautaLine(result: PlanResult): string {
-  const solidEntry = result.timingTimeline.entries.find((e) => e.type === "solid");
-  const caffeineEntry = result.timingTimeline.entries.find((e) => e.type === "caffeine");
-  const parts = [
-    `1 bidón (~${result.bottlePlan.bottleSizeMl}ml) c/${result.timingTimeline.hydrationIntervalMinutes} min`,
-  ];
-  if (solidEntry) parts.push(`${stripEmoji(solidEntry.label)} min ${solidEntry.atMinutes}`);
-  if (caffeineEntry) parts.push(`Cafeína min ${caffeineEntry.atMinutes}`);
-  return parts.join(" · ");
-}
-
-function buildChecklistText(
-  result: PlanResult,
-  bottleConfig: BottleConfigOption,
-  pocketFood: Partial<Record<PocketFoodItemType, number>>,
-  customCarbsG: number
-): string {
-  const bikeLines = getBikeChecklistLines(result, bottleConfig);
-  const pocketLines = getPocketChecklistLines(pocketFood, customCarbsG);
-  const waterPlanLines = getWaterPlanLines(result);
-  const sections: string[] = ["RATIO · Lista de Avituallamiento", ""];
-  if (bikeLines.length > 0) {
-    sections.push("En bici:", ...bikeLines.map((l) => `- ${l}`), "");
-  }
-  if (pocketLines.length > 0) {
-    sections.push("En bolsillo:", ...pocketLines.map((l) => `- ${l}`), "");
-  }
-  if (waterPlanLines.length > 0) {
-    sections.push("Plan de agua en ruta:", ...waterPlanLines.map((l) => `- ${l}`), "");
-  }
-  sections.push(`Pauta: ${getPautaLine(result)}.`);
-  sections.push("Calculado en ratiovelo.com");
-  return sections.join("\n");
 }
 
 type DepartureDayMode = "today" | "tomorrow" | "custom";
@@ -791,8 +764,6 @@ export function FuelingPlanner({
   const [hasCalculatedOnce, setHasCalculatedOnce] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [checklistCopied, setChecklistCopied] = useState(false);
   const [isOfflineCache, setIsOfflineCache] = useState(false);
   const [parsedGpx, setParsedGpx] = useState<ParsedGpxRoute | null>(null);
   const [gpxDurationHours, setGpxDurationHours] = useState(2);
@@ -886,11 +857,14 @@ export function FuelingPlanner({
   const bottleCarbsContributionG = result ? getBottleCarbsContributionG(bottleConfig, result) : 0;
   const coveredCarbsG = pocketFoodCarbsPreview + bottleCarbsContributionG;
   const remainingCarbsG = result ? Math.max(0, result.totalRideCarbsG - coveredCarbsG) : 0;
+  // Which bottle-config buttons Card 04 actually renders — see
+  // `getBottleConfigOptions` above for why a 1-cage athlete never sees
+  // "Ambos Mix" at all.
+  const bottleConfigOptions = result ? getBottleConfigOptions(result.athleteBottleCount) : TWO_CAGE_BOTTLE_CONFIG_OPTIONS;
 
   // Tarjeta 05's "Checklist de preparación para llevar" — same source data
   // as the balance pill above, read fresh on every render so the on-screen
-  // list and the "Copiar Lista"/"Enviar a WhatsApp" export never drift
-  // apart from what's currently selected.
+  // list stays in sync with what's currently selected.
   const bikeChecklistLines = result ? getBikeChecklistLines(result, bottleConfig) : [];
   const pocketChecklistLines = getPocketChecklistLines(pocketFood, customCarbsG);
   const waterPlanChecklistLines = result ? getWaterPlanLines(result) : [];
@@ -1144,42 +1118,6 @@ export function FuelingPlanner({
     } finally {
       setLoading(false);
     }
-  }
-
-  async function handleCopyRecipe() {
-    if (!result) return;
-    const text = formatRecipeForSharing({
-      durationHours: result.durationHours,
-      carbsGPerHour: result.carbsGPerHour,
-      sodiumMgPerHour: result.sodiumMgPerHour,
-      recipe: result.recipe,
-      bottlePlan: result.bottlePlan,
-    });
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setError("No se pudo copiar la receta al portapapeles.");
-    }
-  }
-
-  async function handleCopyChecklist() {
-    if (!result) return;
-    const text = buildChecklistText(result, bottleConfig, pocketFood, customCarbsG);
-    try {
-      await navigator.clipboard.writeText(text);
-      setChecklistCopied(true);
-      setTimeout(() => setChecklistCopied(false), 2000);
-    } catch {
-      setError("No se pudo copiar la lista al portapapeles.");
-    }
-  }
-
-  function handleSendWhatsApp() {
-    if (!result) return;
-    const text = buildChecklistText(result, bottleConfig, pocketFood, customCarbsG);
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -1888,13 +1826,17 @@ export function FuelingPlanner({
               <span className="mb-2 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
                 Configuración de bidones
               </span>
-              {/* Fixed 3-column row at every width — short Title Case
-                  labels ("Solo Agua"/"1 Mix"/"Ambos Mix") keep this
-                  legible even on a narrow phone, so this never needs to
-                  drop to a single stacked column the way the old, longer
-                  labels did. */}
-              <div className="grid grid-cols-3 gap-2 *:min-w-0">
-                {BOTTLE_CONFIG_OPTIONS.map((opt) => (
+              {/* Fixed row at every width — short Title Case labels ("Solo
+                  Agua"/"1 Mix"/"Ambos Mix", or "Solo Agua"/"Con Mix" on a
+                  1-cage bike) keep this legible even on a narrow phone, so
+                  this never needs to drop to a single stacked column the
+                  way the old, longer labels did. `athleteBottleCount === 1`
+                  (the athlete's real `athlete_profiles.bottle_count`) drops
+                  "Ambos Mix" entirely rather than showing it disabled — a
+                  second mix bottle simply doesn't fit on a 1-cage bike — so
+                  the grid itself goes from 3 to 2 columns to match. */}
+              <div className={cn("grid gap-2 *:min-w-0", bottleConfigOptions.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
+                {bottleConfigOptions.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
@@ -1996,14 +1938,13 @@ export function FuelingPlanner({
                 the dynamic ingestion timeline as the hero (top priority
                 reading in ruta), a concise executive per-bottle dose, and a
                 checklist of what to actually grab before rolling out.
-                Descargar GPX / Exportar a Garmin and the GPS-alert
-                explainer were removed outright (see the master spec) — the
-                Checklist's own "Copiar Lista"/"Enviar a WhatsApp" buttons
-                are this card's export mechanism now. The reload-strategy
-                and carb-loading accordions (when applicable) stay, unlike
-                the removed GPX/Garmin export — they're real, conditional
-                *nutrition* content, not the navigation-file concern this
-                pass explicitly cut. */}
+                Descargar GPX / Exportar a Garmin, the GPS-alert explainer,
+                and every "Copiar"/"Enviar a WhatsApp" export button were
+                all removed outright (see the master spec) — the athlete
+                screenshots this card if they want to save or share it. The
+                reload-strategy and carb-loading accordions (when
+                applicable) stay — they're real, conditional *nutrition*
+                content, not an export mechanism. */}
             <div className="flex flex-col gap-3 rounded-xl border-0 bg-white p-4 shadow-none">
               <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
                 05 · Pauta de ingesta y receta
@@ -2045,9 +1986,12 @@ export function FuelingPlanner({
 
               {/* Dosis Ejecutiva para Mezcla Casera — the concise per-bottle
                   number the athlete actually mixes at the kitchen counter,
-                  sized to their real bottle capacity, plus "Copiar Receta"
-                  and a collapsible scoop-equivalence breakdown for anyone
-                  without a scale. */}
+                  sized to their real bottle capacity, plus a collapsible
+                  scoop-equivalence breakdown for anyone without a scale.
+                  This is the one place in the card where the exact
+                  malto/fructosa/sal grams are spelled out — the checklist
+                  below deliberately doesn't repeat them, see
+                  `getBikeChecklistLines`'s own doc comment. */}
               <div className="rounded-sm bg-[#F8F7F5] p-3">
                 <span className={eyebrow}>
                   Dosis ejecutiva para mezcla casera (por bidón {result.bottlePlan.bottleSizeMl}ml)
@@ -2073,44 +2017,32 @@ export function FuelingPlanner({
                     </span>
                   </div>
                 )}
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={handleCopyRecipe} className={cn(secondaryButtonClass, "w-fit")}>
-                    {copied ? (
-                      "✓ Receta copiada"
-                    ) : (
-                      <>
-                        <Copy className="size-3.5" />
-                        Copiar receta
-                      </>
-                    )}
-                  </button>
-                  {result.bottlePlan.fuelBottles.count > 0 && (
-                    <details className="group">
-                      <summary className="flex cursor-pointer list-none items-center gap-1 font-mono text-xs font-medium text-zinc-600 transition-colors duration-150 hover:text-zinc-900 [&::-webkit-details-marker]:hidden">
-                        <ChevronDown className="size-3.5 shrink-0 transition-transform duration-150 group-open:rotate-180" />
-                        Ver equivalencias en cazos
-                      </summary>
-                      <div className="mt-2 flex flex-col gap-1 border-t border-zinc-200 pt-2 text-xs text-neutral-600">
-                        <p>
-                          Maltodextrina: {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g (~
-                          {fuelBottleMeasures!.maltodextrinScoops} cazos)
-                        </p>
-                        <p>
-                          Fructosa: {result.bottlePlan.fuelBottles.fructoseGPerBottle}g (~
-                          {fuelBottleMeasures!.fructoseScoops} cazos)
-                        </p>
-                        <p>
-                          Sal común: {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g (~
-                          {fuelBottleMeasures!.saltTeaspoons} cdta.)
-                        </p>
-                        <p className="text-[10px] text-neutral-400">
-                          *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g de
-                          sal.
-                        </p>
-                      </div>
-                    </details>
-                  )}
-                </div>
+                {result.bottlePlan.fuelBottles.count > 0 && (
+                  <details className="group mt-2">
+                    <summary className="flex cursor-pointer list-none items-center gap-1 font-mono text-xs font-medium text-zinc-600 transition-colors duration-150 hover:text-zinc-900 [&::-webkit-details-marker]:hidden">
+                      <ChevronDown className="size-3.5 shrink-0 transition-transform duration-150 group-open:rotate-180" />
+                      Ver equivalencias en cazos
+                    </summary>
+                    <div className="mt-2 flex flex-col gap-1 border-t border-zinc-200 pt-2 text-xs text-neutral-600">
+                      <p>
+                        Maltodextrina: {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g (~
+                        {fuelBottleMeasures!.maltodextrinScoops} cazos)
+                      </p>
+                      <p>
+                        Fructosa: {result.bottlePlan.fuelBottles.fructoseGPerBottle}g (~
+                        {fuelBottleMeasures!.fructoseScoops} cazos)
+                      </p>
+                      <p>
+                        Sal común: {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g (~
+                        {fuelBottleMeasures!.saltTeaspoons} cdta.)
+                      </p>
+                      <p className="text-[10px] text-neutral-400">
+                        *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g de
+                        sal.
+                      </p>
+                    </div>
+                  </details>
+                )}
               </div>
 
               {/* Only a genuine *fuel/powder* overflow warrants this
@@ -2266,30 +2198,6 @@ export function FuelingPlanner({
                     )}
                   </div>
                 )}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCopyChecklist}
-                    className={cn(secondaryButtonClass, "w-fit")}
-                  >
-                    {checklistCopied ? (
-                      "✓ Lista copiada"
-                    ) : (
-                      <>
-                        <Copy className="size-3.5" />
-                        Copiar lista
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSendWhatsApp}
-                    className={cn(secondaryButtonClass, "w-fit")}
-                  >
-                    <Send className="size-3.5" />
-                    Enviar a WhatsApp
-                  </button>
-                </div>
               </div>
             </div>
           </div>
