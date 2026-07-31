@@ -127,7 +127,7 @@ export function RouteMapPreview({
   distanceKm,
   elevationGainM,
   className,
-  emptyMessage = "Selecciona una ruta de Strava o sube un GPX para visualizar el trazado.",
+  emptyMessage = "Selecciona una ruta o sube un archivo GPX para visualizar el trazado.",
 }: {
   points: [number, number][] | null;
   distanceKm: number | null;

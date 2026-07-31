@@ -172,6 +172,19 @@ const DEPARTURE_HOUR_OPTIONS = [
   "17:00", "18:00", "19:00", "20:00",
 ];
 
+/** The current local hour, rounded to the nearest whole hour and clamped
+ * into `DEPARTURE_HOUR_OPTIONS`' own 05:00-20:00 range — a reasonable
+ * "now-ish" default for the hour `<select>` (replacing a fixed "08:00"
+ * regardless of when the athlete actually opened the planner) without
+ * introducing a genuinely empty/required field for something as low-stakes
+ * as which hour option starts selected. */
+function getRoundedCurrentHour(): string {
+  const now = new Date();
+  let hour = now.getMinutes() >= 30 ? now.getHours() + 1 : now.getHours();
+  hour = Math.min(20, Math.max(5, hour));
+  return `${String(hour).padStart(2, "0")}:00`;
+}
+
 const INTENSITY_OPTIONS: IntensityLevel[] = [
   "recovery",
   "endurance",
@@ -455,9 +468,18 @@ export function FuelingPlanner({
   isProfileComplete: boolean;
 }) {
   const [mode, setMode] = useState<"route" | "quick" | "gpx">(routes.length > 0 ? "route" : "quick");
-  const [selectedRouteId, setSelectedRouteId] = useState(routes[0]?.id ?? "");
+  // No route pre-selected — even with saved Strava routes on hand, loading
+  // the athlete's last ride automatically risked silently calculating
+  // against the wrong route if they didn't notice/change it. The select
+  // itself renders a disabled placeholder option for this empty value (see
+  // below), and the map shows its own neutral empty state until a real
+  // choice is made.
+  const [selectedRouteId, setSelectedRouteId] = useState("");
   const [gpxUploadOpen, setGpxUploadOpen] = useState(false);
-  const [intensity, setIntensity] = useState<IntensityLevel>("endurance");
+  // No intensity pre-selected either ("Fondo Z2" used to be silently
+  // assumed) — same reasoning, an unintentional calculation is worse than
+  // one extra required click.
+  const [intensity, setIntensity] = useState<IntensityLevel | "">("");
   // No pre-filled defaults — the athlete must explicitly enter a real
   // duration/watts pair rather than silently calculating against whatever
   // placeholder happened to be in the field.
@@ -465,9 +487,16 @@ export function FuelingPlanner({
   const [quickMinutesInput, setQuickMinutesInput] = useState("");
   const [quickAverageWattsInput, setQuickAverageWattsInput] = useState("");
   const [structuredWorkoutType, setStructuredWorkoutType] = useState<StructuredWorkoutType | "">("");
-  const [departureDayMode, setDepartureDayMode] = useState<DepartureDayMode>("tomorrow");
+  // "Hoy" stays the default day (a same-day departure is still the single
+  // most common case, and picking a day is a low-stakes default unlike a
+  // route or intensity choice that could silently drive a wrong
+  // calculation) — only the route/intensity selections above lost their
+  // defaults. The hour, though, starts rounded to the current time rather
+  // than a fixed "08:00" so it reads as "now-ish" instead of an arbitrary
+  // stand-in the athlete has to notice and correct.
+  const [departureDayMode, setDepartureDayMode] = useState<DepartureDayMode>("today");
   const [departureCustomDate, setDepartureCustomDate] = useState(todayIsoDate);
-  const [departureHour, setDepartureHour] = useState("08:00");
+  const [departureHour, setDepartureHour] = useState(getRoundedCurrentHour);
   const departureLocal = useMemo(
     () => buildDepartureLocal(departureDayMode, departureCustomDate, departureHour),
     [departureDayMode, departureCustomDate, departureHour]
@@ -524,6 +553,12 @@ export function FuelingPlanner({
     () => (selectedRoute?.summaryPolyline ? decodePolyline(selectedRoute.summaryPolyline) : null),
     [selectedRoute]
   );
+  // Drives the CTA's gating/helper-text/tooltip for the two route-based
+  // modes — a route (or GPX) alone isn't enough to calculate against
+  // without an intensity too, and vice versa.
+  const routeModeIncomplete =
+    (mode === "route" && (!selectedRoute || !intensity)) ||
+    (mode === "gpx" && (!parsedGpx || !intensity));
 
   // "Conversión Dinámica a Medidas Caseras" — recomputed from the last
   // calculated result whenever it changes; cheap pure arithmetic, no memo
@@ -873,7 +908,10 @@ export function FuelingPlanner({
                         setParsedGpx(null);
                         setGpxError(null);
                         setMode("route");
-                        setSelectedRouteId(routes[0]?.id ?? "");
+                        // Back to a genuinely empty selection, not the first
+                        // Strava route — same "never silently pick one for
+                        // the athlete" rule the initial state follows.
+                        setSelectedRouteId("");
                       }}
                       className="shrink-0 cursor-pointer text-[11px] font-semibold tracking-widest text-zinc-500 uppercase transition-colors duration-150 hover:text-zinc-900"
                     >
@@ -926,11 +964,16 @@ export function FuelingPlanner({
                                 Sincronizando rutas de Strava...
                               </option>
                             ) : (
-                              routes.map((route) => (
-                                <option key={route.id} value={route.id}>
-                                  {route.name} · {route.distanceKm}km · {route.elevationGainM}m D+
+                              <>
+                                <option value="" disabled>
+                                  Seleccionar ruta de Strava...
                                 </option>
-                              ))
+                                {routes.map((route) => (
+                                  <option key={route.id} value={route.id}>
+                                    {route.name} · {route.distanceKm}km · {route.elevationGainM}m D+
+                                  </option>
+                                ))}
+                              </>
                             )}
                           </select>
                           {refreshingRoutes ? (
@@ -1148,6 +1191,9 @@ export function FuelingPlanner({
                     value={intensity}
                     onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
                   >
+                    <option value="" disabled>
+                      Seleccionar intensidad...
+                    </option>
                     {INTENSITY_OPTIONS.map((level) => (
                       <option key={level} value={level}>
                         {intensityLabels[level]}
@@ -1202,6 +1248,9 @@ export function FuelingPlanner({
                       value={intensity}
                       onChange={(e) => setIntensity(e.target.value as IntensityLevel)}
                     >
+                      <option value="" disabled>
+                        Seleccionar intensidad...
+                      </option>
                       {INTENSITY_OPTIONS.map((level) => (
                         <option key={level} value={level}>
                           {intensityLabels[level]}
@@ -1450,9 +1499,14 @@ export function FuelingPlanner({
             disabled={
               loading ||
               !isProfileComplete ||
-              (mode === "route" && !selectedRoute) ||
-              (mode === "gpx" && !parsedGpx) ||
+              (mode === "route" && (!selectedRoute || !intensity)) ||
+              (mode === "gpx" && (!parsedGpx || !intensity)) ||
               (mode === "quick" && !quickValid)
+            }
+            title={
+              isProfileComplete && routeModeIncomplete
+                ? "Selecciona una ruta e intensidad para calcular"
+                : undefined
             }
             className={cn(
               "w-full py-3.5 text-sm",
@@ -1476,6 +1530,11 @@ export function FuelingPlanner({
           {isProfileComplete && mode === "quick" && !quickValid && (
             <p className="text-[11px] text-neutral-500">
               Introduce una duración y unos vatios objetivo válidos para poder calcular.
+            </p>
+          )}
+          {isProfileComplete && routeModeIncomplete && (
+            <p className="text-[11px] text-neutral-500">
+              Selecciona una ruta e intensidad objetivo para poder calcular.
             </p>
           )}
           {!isProfileComplete && <ProfileRequiredBanner />}

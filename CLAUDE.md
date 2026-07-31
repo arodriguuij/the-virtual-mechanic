@@ -4169,6 +4169,69 @@ rename (throughout this file's history of the Fueling Planner) is left as-is —
 describe what the UI was called at the time, not what it's called now; only this section's
 own verification note and the label itself were updated.
 
+**A second follow-up pass removed every remaining silent default from Paso 01/02** —
+auto-loading the athlete's last-used route/intensity/hour on every page load meant a
+distracted click on "Calcular estrategia" could compute against a route or intensity the
+athlete never actually chose for *this* session, silently reusing whatever happened to be
+selected last time:
+
+- **No route pre-selected.** `selectedRouteId` used to default to `routes[0]?.id ?? ""` —
+  even with real saved Strava routes on hand, that meant the athlete's most recent route was
+  silently active on every fresh page load. Now always starts at `""` regardless of how many
+  routes exist, and the `<select>` renders a real placeholder option ("Seleccionar ruta de
+  Strava...", `disabled` so it can't be re-selected once a real route is chosen) rather than
+  jumping straight to the first route in the list. Removing an active GPX (the "Quitar GPX"
+  button, see the pass above) now resets back to this same empty `""` too, not `routes[0]`
+  — consistent with "never silently pick a route for the athlete" at every point in the
+  flow, not just on first load.
+- **The map's own empty state was already correct for free** — `RouteMapPreview` shows its
+  neutral placeholder whenever `points` is `null`/has fewer than 2 entries, and an empty
+  `selectedRouteId` already resolves to `selectedRoute === null` → `selectedRoutePoints ===
+  null`, so no new conditional was needed there, just the state-default fix above. The
+  default placeholder copy itself (`RouteMapPreview`'s own `emptyMessage` prop default, in
+  `components/route-map-preview.tsx`) was reworded to match this pass's exact spec —
+  "Selecciona una ruta o sube un archivo GPX para visualizar el trazado." (was "...de
+  Strava o sube un GPX...") — Post-Ride Analysis's own call site passes its own explicit
+  `emptyMessage` ("Sin datos de trazado GPS para esta actividad."), so this default-string
+  change only affects the planner's two call sites (Ruta mode, GPX mode).
+- **No intensity pre-selected.** `intensity` used to default to `"endurance"` ("Fondo Z2")
+  — now typed `IntensityLevel | ""`, starting at `""`, with both Intensidad Objetivo
+  `<select>`s (route mode's `#intensity` and GPX mode's `#intensity-gpx`, which share this
+  one piece of state) gaining the same disabled placeholder pattern as the route select
+  ("Seleccionar intensidad...").
+- **"Hoy" stays the default departure day** — a same-day ride is still the overwhelmingly
+  common case, and which day starts selected is a low-stakes default unlike a route or
+  intensity choice that could silently drive a wrong calculation; only `departureDayMode`'s
+  previous default (`"tomorrow"`) changed, to `"today"`. The **hour**, though, no longer
+  defaults to a fixed "08:00" regardless of when the athlete actually opens the planner —
+  **`getRoundedCurrentHour()`** (`components/fueling-planner.tsx`) rounds the real current
+  local time to the nearest whole hour (30+ minutes rounds up) and clamps it into
+  `DEPARTURE_HOUR_OPTIONS`' own 05:00-20:00 range, so the initial hour reads as "now-ish"
+  rather than an arbitrary stand-in the athlete has to notice and correct — a `useState`
+  lazy initializer, same pattern `departureCustomDate` already uses for `todayIsoDate`.
+- **Entreno Manual's duration/watts fields were already blank** — no change needed here,
+  since the prior "Calculadora" pass had already removed their `2`/`180` prefilled defaults
+  in favor of empty string inputs with descriptive placeholders.
+- **CTA gating extended to cover intensity, not just route/GPX presence.** A new derived
+  `routeModeIncomplete` (`(mode === "route" && (!selectedRoute || !intensity)) || (mode ===
+  "gpx" && (!parsedGpx || !intensity))`) feeds three things: the button's own `disabled`
+  condition (previously only checked for a selected route/GPX, never intensity), a `title`
+  attribute on the button itself ("Selecciona una ruta e intensidad para calcular" — a
+  native-tooltip hover hint, satisfying the spec's "aviso sutil o tooltip" as a soft,
+  non-blocking affordance), and a visible helper line below the button ("Selecciona una ruta
+  e intensidad objetivo para poder calcular.") mirroring the existing Entreno Manual
+  incomplete-state helper text exactly. Entreno Manual's own gating (`quickValid`) is
+  unchanged — it never had an "Intensidad Objetivo" selector of its own to require, since
+  average watts already serves that role there.
+
+Verified via `npx tsc --noEmit`/`npm run lint`/`npm run build` (all clean) and a live
+Playwright check (a temporary route rendering the real `FuelingPlanner` with a mocked
+Strava route) at 390px mobile — confirmed the route select, intensity select, and hour
+field's actual DOM values on a fresh load (`""`, `""`, and a real rounded-current-hour
+value, not "08:00"), the map rendering its neutral empty state, the CTA disabled with the
+new helper text visible, the button staying disabled after selecting only a route, and the
+button becoming enabled only once both a route *and* an intensity were chosen.
+
 ### Route dynamic rendering
 
 Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because
