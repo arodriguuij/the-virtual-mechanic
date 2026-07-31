@@ -4306,6 +4306,91 @@ exact same 7-item option list (placeholder + 6 zones, byte-for-byte identical
 card in both tabs (not cut off, `z-50` holding), and the tooltip content is identical
 between both tabs.
 
+### "Reestructuración UX: Flujo Invertido" — calculate first, adjust pocket food after
+
+Paso 03 ("Estrategia y comida en bolsillo" — the Óptimo/Mi Inventario/Híbrido selector plus
+the pocket-food inventory) used to sit *before* the CTA, meaning the athlete had to plan a
+food strategy against a carb/fluid/sodium target they hadn't seen yet. Inverted: the
+pre-calculation form is now just Paso 01 (Selección y origen de ruta) + Paso 02 (Condiciones
+de la salida) + the CTA — Paso 03's entire contents moved into the results container,
+restructured as 3 labeled sub-blocks inside the same white "tarjeta madre" that used to be
+Paso 03's own card, now positioned as the *first* thing shown once a result exists (above
+the pre-existing Hero card/weather card/stat rows/accordions, which are otherwise
+untouched):
+
+- **A · Necesidades metabólicas totales** — a small 3-stat readout (Carbohidratos objetivo,
+  Líquido objetivo, Sodio objetivo) giving the athlete the *ride-total* figures up front,
+  before anything else. `totalRideCarbsG` already existed; `totalFluidMl`/`totalSodiumMg` are
+  new client-derived totals (`fluidLossMlPerHour`/`sodiumMgPerHour × durationHours`) — the
+  API only ever returned per-hour rates, and adding a dedicated response field for two
+  numbers this trivial to derive client-side wasn't warranted (same reasoning that kept
+  `totalRideCarbsG` itself a derived figure early in this app's history).
+- **B · Configuración de bidones** — a genuinely new 3-option segmented selector (`BOTTLE_CONFIG_OPTIONS`:
+  "Solo agua" / "1 Agua + 1 Mix" / "Ambos con Mix"), no default (same "never silently pick
+  one" convention every other post-inversion selector in this file now follows). **This is
+  a planning-preference selector, not a parameter that re-drives `getBottlePlan`'s own
+  GI/solubility-capped math** — that engine already computes the real, optimal bottle split
+  server-side (see "Bottle architecture & osmolarity control" above), and re-architecting it
+  to accept a manual override was judged out of scope for what this request explicitly framed
+  as a UX-flow restructuring, not a physiological-engine change (the request's own
+  verification checklist never mentions validating a recomputed bottle plan, only the pocket-
+  food deficit counter). Instead, **`getBottleConfigSummary(config, result)`** builds a
+  plain-language preview *entirely from figures `result` already carries* — `recipe.totalCarbsG`,
+  `bottlePlan.fuelBottles.count/count.malto/fructose`, `bottlePlan.waterBottles.count` — never
+  a fabricated number. Each option's summary is genuinely different and, when the athlete's
+  preference doesn't match what the recipe actually needs (e.g. picking "1 Agua + 1 Mix" when
+  the real recipe needs 2+ concentrated bottles to stay under the 8% GI cap), the summary
+  says so explicitly rather than silently contradicting the automatic recipe shown further
+  below.
+- **C · Ajustador de comida en bolsillo** — the Estrategia nutricional selector (Óptimo/Mi
+  Inventario/Híbrido) + legend + the pocket-food `<details>` accordion, relocated here
+  verbatim (identical `open`/`key={fuelingMode}` remount logic, identical stepper grid) from
+  the old Paso 03. **The objetivo/cubierto/restante banner was changed to use
+  `pocketFoodCarbsPreview` instead of the frozen `result.pocketFoodCarbsG`** — a real,
+  necessary fix, not just a relocation: the old banner compared against `result.pocketFoodCarbsG`,
+  a value frozen at the *last server calculation*, so it never actually updated on a stepper
+  tap even before this pass (pocket food only existed pre-calc back then, so this discrepancy
+  was latent/unnoticed). The new explicit "Contador Dinámico en Tiempo Real" requirement
+  surfaced it — `pocketFoodCarbsPreview` (already a pure client derivation from
+  `effectivePocketFood`, unchanged) is what actually recomputes on every +/- tap with zero
+  network round-trip. Relabeled to match the request's own wording — "CUBIERTO CON SELECCIÓN"/
+  "DÉFICIT RESTANTE" instead of the old "CUBIERTO"/"RESTANTE" — and the old `result ? (...) :
+  (<placeholder>)` ternary was removed outright, since this block now only ever renders
+  inside `{result && (...)}` (a placeholder for "no result yet" is unreachable once Paso 03
+  moved into the results container). A new helper line ("Pulsa 'Calcular estrategia
+  nutricional' (arriba) de nuevo para actualizar la receta casera y el plan de bidones con
+  esta selección.") clarifies the two-tier reactivity this design intentionally keeps: the
+  deficit counter is instant/client-only, but the actual DIY recipe/bottle-plan numbers
+  shown further below the fold still only update on the next explicit "Calcular estrategia
+  nutricional" click — this app's long-standing "button-triggered recompute, not live
+  per-keystroke" convention for anything that's genuinely server-computed (weather, gut cap,
+  bottle GI/solubility math), left completely unchanged by this pass. The CTA button itself
+  was *not* duplicated near sub-block C — it stays exactly where it already was, above the
+  results container, remaining clickable at any time to recalculate with whatever pocket-food/
+  fueling-mode/bottle-config-irrelevant state currently exists.
+- **Auto-scroll was already implemented** — `resultRef`/the `useEffect(() => { if (result)
+  resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }) }, [result])` pair
+  predates this pass entirely (see "Fueling planner" above, "A freshly calculated strategy
+  renders below the fold..."). No new code was needed to satisfy this request's "auto-scroll
+  on calculate" ask — it already fires on every `result` change, including a recalculation
+  triggered from the newly-relocated sub-block C.
+- **CTA gating is unchanged** — the button was already disabled until a valid route/GPX
+  + intensity (or valid Entreno Manual duration/watts) existed, from an earlier pass; nothing
+  about Paso 03's removal from the pre-calc form affects that gating, since Paso 03 never
+  factored into it.
+
+Verified via `npx tsc --noEmit`/`npm run lint`/`npm run build` (all clean) and a live
+Playwright check (a temporary route rendering the real `FuelingPlanner` with a mocked Strava
+route and a mocked `/api/fueling/plan` response) at 390px — confirmed the pre-calculation
+form contains neither "03 ·" nor "Comida en bolsillo" anywhere in the DOM, clicking
+"Calcular estrategia nutricional" scrolls the page from `scrollY: 0` to `740` (smooth
+auto-scroll fired), sub-blocks A/B/C all render with the correct headers and real
+(non-placeholder) figures, tapping a pocket-food stepper's `+` button twice updates
+"DÉFICIT RESTANTE" from `180g` to `136g` **instantly with no second network request** (the
+mocked route only ever fired once, for the initial calculation), and cycling through all 3
+"Configuración de bidones" options renders 3 genuinely different, correctly-computed summary
+strings.
+
 ### Route dynamic rendering
 
 Both `app/(app)/page.tsx` and `app/(app)/perfil/page.tsx` export `dynamic = "force-dynamic"` because
