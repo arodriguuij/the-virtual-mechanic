@@ -19,7 +19,18 @@ import { cn } from "@/lib/utils";
 // unlike this app's earlier "Dark Vector HUD" experiment (which inverted
 // this same tile to fake a dark map), this pass wants OpenTopoMap's own
 // natural daylight palette as-is.
-const TILE_URL = "https://{a-c}.tile.opentopomap.org/{z}/{x}/{y}.png";
+// `{a-c}` (a hyphenated inline range) isn't a placeholder Leaflet's own
+// `TileLayer` URL-template parser understands — it only substitutes tokens
+// it explicitly knows about (`{z}`/`{x}/`{y}`/`{s}`/`{r}`), and `{s}`
+// specifically expects a *separate* `subdomains` prop listing the letters
+// to round-robin through, not the range spelled out inline in the URL
+// itself. Left as `{a-c}`, every tile request literally requested the
+// path `/{a-c}.tile.../...`, which Leaflet's template engine rejected
+// outright with "No value provided for variable {a-c}" before a single
+// tile could load — crashing the whole Dashboard on mount, not just
+// degrading the basemap.
+const TILE_URL = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png";
+const TILE_SUBDOMAINS = "abc";
 // OpenTopoMap's own required attribution wording (CC-BY-SA), layered on top
 // of the underlying OSM/SRTM data attribution its own tiles are built from.
 const TILE_ATTRIBUTION =
@@ -189,7 +200,7 @@ export function RouteMapPreview({
             boxZoom={false}
             keyboard={false}
           >
-            <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+            <TileLayer url={TILE_URL} subdomains={TILE_SUBDOMAINS} attribution={TILE_ATTRIBUTION} />
           </MapContainer>
         </div>
         <div className="absolute inset-0 flex items-center justify-center px-4">
@@ -243,7 +254,7 @@ export function RouteMapPreview({
         attributionControl={false}
         zoomControl={false}
       >
-        <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+        <TileLayer url={TILE_URL} subdomains={TILE_SUBDOMAINS} attribution={TILE_ATTRIBUTION} />
         {/* Shadow stroke first (wider, translucent dark), the real obsidian
             route drawn on top — gives the line a subtle sense of depth over
             the busier topo terrain without needing a CSS filter. */}
