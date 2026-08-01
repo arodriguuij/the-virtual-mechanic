@@ -84,7 +84,19 @@ function formatHoursMinutes(hours: number): string {
   return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
-const POCKET_FOOD_TYPES: PocketFoodItemType[] = ["banana", "energy_bar", "rice_cake", "dates", "gummies"];
+// "Refresco"/"Bollería" lead the list — the two real-world café/gasolinera
+// purchases the "Paradas previstas en ruta" section (Card 02) points the
+// athlete toward, so they're the first thing visible in Card 04's inventory
+// rather than buried after the pocket-carried items.
+const POCKET_FOOD_TYPES: PocketFoodItemType[] = [
+  "soda",
+  "pastry",
+  "banana",
+  "energy_bar",
+  "rice_cake",
+  "dates",
+  "gummies",
+];
 const GEL_DOSE_TYPES: PocketFoodItemType[] = ["gel_small", "gel_standard", "gel_high"];
 const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = [...POCKET_FOOD_TYPES, ...GEL_DOSE_TYPES];
 const MAX_POCKET_FOOD_QTY = 6;
@@ -643,18 +655,27 @@ function getCafeteriaStopPlans({
   }));
 }
 
+/** A `~` prefix rather than a bare figure — this is a rough zone to plan
+ * around ("sobre el km 40," not "para exactamente en el km 40"), never a
+ * command. "Flexibilidad Total en Paradas": the athlete decides on the road
+ * exactly when/where to actually stop, this is only a planning estimate for
+ * sizing how much to buy at whichever café/gasolinera they pass. */
 function getCafeteriaStopLocationLabel(plan: CafeteriaStopPlan): string {
-  return plan.atKm != null ? `Km ${plan.atKm}` : `Hora ${plan.atHours}`;
+  return plan.atKm != null ? `~Km ${plan.atKm}` : `~Hora ${plan.atHours}`;
 }
 
 /** Tarjeta 05's own "Plan de Paradas en Ruta" checklist lines — one per
  * planned stop, `[]` entirely when none are planned (or the deficit is
  * already fully covered without one), matching every other checklist
- * helper's "nothing selected, nothing shown" convention above. */
+ * helper's "nothing selected, nothing shown" convention above. Deliberately
+ * orientative, not imperative — no "parar exactamente en el km/minuto X."
+ * The stop's own estimated position is a planning reference, not a rule the
+ * athlete is expected to follow to the letter; they decide on the road when
+ * an actual café/gasolinera is genuinely convenient to stop at. */
 function getCafeteriaStopChecklistLines(plans: CafeteriaStopPlan[]): string[] {
   return plans.map(
     (plan) =>
-      `${getCafeteriaStopLocationLabel(plan)}: Parada ${plan.index} (Cafetería/Gasolinera) para tomar ~${plan.carbsG}g HC.`
+      `Parada ${plan.index} (Cafetería/Gasolinera), orientativa sobre ${getCafeteriaStopLocationLabel(plan)}: cubre ~${plan.carbsG}g HC cuando te venga bien parar.`
   );
 }
 
@@ -783,8 +804,8 @@ function PocketFoodStepperRow({
         // intermediate `py-3.5`, per a later "reduce and equalize" request)
         // is just as symmetric and reads as a tighter, less congested list.
         // Stepped down once more to `py-2` ("Diseño Compacto Móvil" —
-        // the inventory now always shows all 9 rows unconditionally, so
-        // trimming each row's own footprint matters more for minimizing
+        // the inventory now always shows the full catalog unconditionally,
+        // so trimming each row's own footprint matters more for minimizing
         // scroll on a small screen than it used to).
         "flex items-center justify-between gap-2 border-b border-zinc-100 py-2 last:border-b-0",
         disabled && "opacity-50"
@@ -1083,13 +1104,20 @@ export function FuelingPlanner({
           atKm: entry.atKm,
           icon: entry.type,
           label: stripEmoji(entry.label),
+          // Pocket-food solid/gel/caffeine milestones are a real schedule
+          // the athlete carries with them from the start — the marker
+          // reads as a precise plan. A café/gasolinera stop is the
+          // opposite: an orientative zone, never a literal "stop exactly
+          // here" instruction (see `getCafeteriaStopLocationLabel`).
+          approx: false,
         })),
         ...cafeteriaStopPlans.map((plan) => ({
           key: `stop-${plan.index}`,
           atMinutes: Math.round(plan.atHours * 60),
           atKm: plan.atKm,
           icon: "cafeteria" as const,
-          label: `Parada ${plan.index} · Cafetería / Gasolinera. Tomar ~${plan.carbsG}g HC (${plan.suggestion}).`,
+          label: `Parada ${plan.index} · Cafetería / Gasolinera (orientativa) — cubre ~${plan.carbsG}g HC cuando pares: ${plan.suggestion}.`,
+          approx: true,
         })),
       ].sort((a, b) => a.atMinutes - b.atMinutes)
     : [];
@@ -1789,6 +1817,72 @@ export function FuelingPlanner({
             </div>
           )}
 
+          {/* Paradas previstas en ruta — relocated here from Card 04
+              ("Reubicación de Paradas al Paso 02"): a café/gasolinera stop
+              is a departure-planning decision, made alongside intensity and
+              fecha/hora, not an avituallamiento config choice, so it now
+              sits in the same card as those two rather than one step later.
+              Zero-friction by default ("Sin paradas," 0 taps needed) —
+              picking 1 or 2 stops is the athlete's own opt-in choice, never
+              pre-selected on their behalf. The brief describes an adaptive
+              default ("1 Parada" once the projected deficit exceeds 60g
+              HC) — not implemented, deliberately: that deficit only exists
+              once bottle role + pocket food are configured in Card 04,
+              which now happens strictly *after* this selector renders, so
+              there's no real figure yet to base an adaptive default on at
+              this point in the flow; defaulting to "1 Parada" against an
+              unconfigured (and therefore maximal) deficit would suggest a
+              stop far more often than actually needed. The grams each stop
+              shows are never typed in — always `cafeteriaStopDeficitG`
+              split across however many stops are picked (see
+              `getCafeteriaStopPlans` above), so the preview only has real
+              entries once a strategy has actually been calculated. */}
+          <div className="mt-4">
+            <span className="mb-2 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+              Paradas previstas en ruta
+            </span>
+            <div className="grid grid-cols-3 gap-2 *:min-w-0">
+              {CAFETERIA_STOP_COUNT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setCafeteriaStopCount(opt.value)}
+                  className={cn(
+                    segmentedButtonClass,
+                    cafeteriaStopCount === opt.value
+                      ? "border-transparent bg-terracotta text-white"
+                      : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
+                  )}
+                >
+                  <span className={segmentedButtonLabelClass}>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {result && cafeteriaStopPlans.length > 0 && (
+              <div className="mt-2 flex flex-col divide-y divide-zinc-200 rounded-lg bg-[#F8F7F5] p-3">
+                {cafeteriaStopPlans.map((plan) => (
+                  <div key={plan.index} className={cn("flex flex-col gap-0.5", plan.index > 1 && "pt-2.5")}>
+                    <span className="text-sm font-medium text-neutral-900">
+                      ☕ Parada {plan.index} ({getCafeteriaStopLocationLabel(plan)}): ~{plan.carbsG}g HC
+                    </span>
+                    <span className="pl-4 text-xs text-neutral-500">└─ {plan.suggestion}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {result && cafeteriaStopCount > 0 && cafeteriaStopPlans.length === 0 && (
+              <p className="mt-2 text-xs text-neutral-500">
+                Tu objetivo ya está cubierto — no hace falta ninguna parada extra.
+              </p>
+            )}
+            {!result && cafeteriaStopCount > 0 && (
+              <p className="mt-2 text-xs text-neutral-500">
+                Calcula tu estrategia para ver cuántos gramos cubrir en cada parada.
+              </p>
+            )}
+          </div>
+
           {/* Modo Competición / Ruta Objetivo — integrated strictly inside
               Card 02 (it used to float on the porcelain canvas between this
               card and the CTA button), at the bottom, separated by a thin
@@ -1949,16 +2043,31 @@ export function FuelingPlanner({
                   `min-width: auto` grid items get otherwise), so a long
                   number/tooltip trigger can never push this card past the
                   viewport edge on a narrow phone. */}
+              {/* "Código de Color en Métricas" — each of the 4 tiles gets its
+                  own subtle background/border tint plus a matching accent on
+                  its label, so the four read as distinct, consistently
+                  recognizable anchors at a glance instead of four identical
+                  porcelain boxes: Duración stays a neutral slate/zinc tone
+                  (no physiological quantity of its own), Carbohidratos is
+                  amber (energy), Hidratación is sky (water), Sodio is
+                  emerald (minerals). The big numeric value stays bold
+                  neutral-900 in every tile — this app's own convention for
+                  numeric readouts — only the label/border/background carry
+                  the color, so legibility isn't traded for the color code. */}
               <div className="grid grid-cols-2 gap-3 *:min-w-0">
-                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
-                  <span className={eyebrow}>Duración</span>
+                <div className="flex flex-col gap-1 rounded-lg border border-zinc-200/70 bg-zinc-50 p-3">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600">
+                    Duración
+                  </span>
                   <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
                     {formatHoursMinutes(result.durationHours)}
                   </span>
                 </div>
-                <div className="relative flex flex-col gap-1 overflow-visible rounded-lg bg-[#F8F7F5] p-3">
+                <div className="relative flex flex-col gap-1 overflow-visible rounded-lg border border-amber-200/70 bg-amber-50/60 p-3">
                   <span className="flex items-center gap-1">
-                    <span className={eyebrow}>Carbohidratos</span>
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-amber-700">
+                      Carbohidratos
+                    </span>
                     <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
                   </span>
                   <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
@@ -1969,8 +2078,10 @@ export function FuelingPlanner({
                     Total: {result.totalRideCarbsG} g
                   </span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
-                  <span className={eyebrow}>Hidratación</span>
+                <div className="flex flex-col gap-1 rounded-lg border border-sky-200/70 bg-sky-50/60 p-3">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-sky-700">
+                    Hidratación
+                  </span>
                   <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
                     {result.fluidLossMlPerHour}
                     <span className="ml-1 text-xs font-normal text-neutral-500">ml/h</span>
@@ -1979,8 +2090,10 @@ export function FuelingPlanner({
                     Total: {(totalFluidMl / 1000).toFixed(1)} L
                   </span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
-                  <span className={eyebrow}>Sodio</span>
+                <div className="flex flex-col gap-1 rounded-lg border border-emerald-200/70 bg-emerald-50/60 p-3">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-700">
+                    Sodio
+                  </span>
                   <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
                     {result.sodiumMgPerHour}
                     <span className="ml-1 text-xs font-normal text-neutral-500">mg/h</span>
@@ -2156,63 +2269,17 @@ export function FuelingPlanner({
                   </label>
                 )}
               </div>
-
-              {/* Planificación de Paradas en Ruta — a third, opportunistic
-                  coverage source alongside bottles and pocket food above.
-                  Zero-friction by default ("Sin paradas," 0 taps needed):
-                  picking 1 or 2 stops is the athlete's own opt-in choice,
-                  never something this UI pre-selects on their behalf. The
-                  grams each stop shows are never typed in — always
-                  `cafeteriaStopDeficitG` split across however many stops
-                  are picked (see `getCafeteriaStopPlans` above) — so
-                  switching from 1 to 2 stops (or editing pocket food/bottle
-                  config afterward) instantly re-derives every stop's own
-                  figure with zero extra event wiring. */}
-              <div className="mt-4">
-                <span className="mb-2 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-                  Planificación de paradas en ruta
-                </span>
-                <div className="grid grid-cols-3 gap-2 *:min-w-0">
-                  {CAFETERIA_STOP_COUNT_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setCafeteriaStopCount(opt.value)}
-                      className={cn(
-                        segmentedButtonClass,
-                        cafeteriaStopCount === opt.value
-                          ? "border-transparent bg-terracotta text-white"
-                          : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
-                      )}
-                    >
-                      <span className={segmentedButtonLabelClass}>{opt.label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {cafeteriaStopPlans.length > 0 && (
-                  <div className="mt-2 flex flex-col divide-y divide-zinc-200 rounded-lg bg-[#F8F7F5] p-3">
-                    {cafeteriaStopPlans.map((plan) => (
-                      <div
-                        key={plan.index}
-                        className={cn("flex flex-col gap-0.5", plan.index > 1 && "pt-2.5")}
-                      >
-                        <span className="text-sm font-medium text-neutral-900">
-                          ☕ Parada {plan.index} ({getCafeteriaStopLocationLabel(plan)} · Cafetería/
-                          Gasolinera): ~{plan.carbsG}g HC
-                        </span>
-                        <span className="pl-4 text-xs text-neutral-500">└─ {plan.suggestion}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {cafeteriaStopCount > 0 && cafeteriaStopPlans.length === 0 && (
-                  <p className="mt-2 text-xs text-neutral-500">
-                    Tu objetivo ya está cubierto — no hace falta ninguna parada extra.
-                  </p>
-                )}
-              </div>
             </div>
+            {/* "Planificación de Paradas en Ruta" (selector + live per-stop
+                preview) moved entirely to Card 02 (Condiciones de la
+                salida) — see the "Paradas previstas en ruta" sub-section
+                there. A stop is a departure-planning decision the athlete
+                makes alongside intensity/fecha, not an avituallamiento
+                config choice, so keeping its own selector here duplicated
+                the one now sitting in Card 02. Nothing is lost by dropping
+                it from this card specifically: `cafeteriaStopPlans` still
+                feeds Card 05's "Cronograma dinámico de ingesta" and its
+                "Plan de paradas en ruta" checklist line exactly as before. */}
 
             <PantryEditorModal
               open={pantryModalOpen}
@@ -2267,6 +2334,7 @@ export function FuelingPlanner({
                           <Coffee className="size-3.5 shrink-0 text-neutral-500" />
                         )}
                         <span className="font-mono text-xs text-neutral-500">
+                          {entry.approx ? "~" : ""}
                           {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
                         </span>
                         {entry.label}
@@ -2452,9 +2520,9 @@ export function FuelingPlanner({
                     </span>
                     <p className="text-sm text-neutral-700">
                       Te faltan <span className="font-semibold text-status-warning">{remainingCarbsG}g HC</span>{" "}
-                      para alcanzar tu objetivo de la ruta. Te recomendamos activar la &quot;Parada en
-                      cafetería / gasolinera&quot; o añadir más comida al bolsillo en la Tarjeta 04 para
-                      evitar la pájara.
+                      para alcanzar tu objetivo de la ruta. Te recomendamos activar &quot;Paradas
+                      previstas en ruta&quot; (Tarjeta 02) o añadir más comida al bolsillo en la
+                      Tarjeta 04 para evitar la pájara.
                     </p>
                   </div>
                 </div>

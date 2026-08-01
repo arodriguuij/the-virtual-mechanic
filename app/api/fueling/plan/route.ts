@@ -58,6 +58,8 @@ const VALID_INTENSITIES = new Set<IntensityLevel>([
 ]);
 
 const VALID_POCKET_FOOD_TYPES = new Set<PocketFoodItemType>([
+  "soda",
+  "pastry",
   "banana",
   "energy_bar",
   "rice_cake",

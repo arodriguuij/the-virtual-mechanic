@@ -456,6 +456,8 @@ export function calculateHouseholdMeasures({
  * convention as the recovery meal options below).
  */
 export type PocketFoodItemType =
+  | "soda"
+  | "pastry"
   | "banana"
   | "energy_bar"
   | "rice_cake"
@@ -466,6 +468,14 @@ export type PocketFoodItemType =
   | "gel_high";
 
 export const pocketFoodLabels: Record<PocketFoodItemType, string> = {
+  // "Refresco"/"Bollería" — the two most common real-world café/gasolinera
+  // stop purchases (Coca-Cola/Fanta, a croissant/donut/napolitana), added
+  // alongside the carried-from-pocket catalog above so a stop's actual
+  // purchase counts toward CUBIERTO the same way any other catalog item
+  // does — same "illustrative fixed dose, not a real nutrition database"
+  // convention as every other entry here.
+  soda: "🥤 Refresco",
+  pastry: "🥐 Bollería",
   banana: "🍌 Plátano",
   energy_bar: "🍫 Barrita energética",
   rice_cake: "🍙 Bollo de arroz / Rice cake",
@@ -477,6 +487,8 @@ export const pocketFoodLabels: Record<PocketFoodItemType, string> = {
 };
 
 export const pocketFoodCarbsG: Record<PocketFoodItemType, number> = {
+  soda: 35,
+  pastry: 35,
   banana: 22,
   energy_bar: 30,
   rice_cake: 25,
@@ -731,7 +743,15 @@ export function generateTimingTimeline({
   bottleCapacityMl?: number;
 }): TimingTimeline {
   const { customCarbsG, includeCaffeine, ...items } = selection;
-  const solidTypes = new Set<PocketFoodItemType>(["banana", "energy_bar", "rice_cake", "dates", "gummies"]);
+  const solidTypes = new Set<PocketFoodItemType>([
+    "soda",
+    "pastry",
+    "banana",
+    "energy_bar",
+    "rice_cake",
+    "dates",
+    "gummies",
+  ]);
   const gelTypes = new Set<PocketFoodItemType>(["gel_small", "gel_standard", "gel_high"]);
 
   const solidLabels: string[] = [];
