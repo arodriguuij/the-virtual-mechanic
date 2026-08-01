@@ -295,13 +295,18 @@ type PlanResult = {
     source: "dynamic" | "planning_default" | "seasonal_average";
     multiPointSample: boolean;
     lapseRateAdjustmentC: number;
-    /** Only present on a route with a significant climb (D+ ≥ 400m or a
-     * known summit ≥ 500m) — see `WeatherImpactCard`'s comparative "Base /
-     * Llanos" vs. "Cima del Puerto" cards. `null` on a flat route or
-     * Entreno Manual, where the single blended reading above is the whole
-     * story. */
+    /** Only present on a route with a significant climb (real elevation
+     * range cota máxima − cota mínima ≥ 400m, or a known summit ≥ 500m) —
+     * see `WeatherImpactCard`'s comparative "Valle / Salida" vs. "Cima del
+     * Puerto" cards. `null` on a flat route or Entreno Manual, where the
+     * single blended reading above is the whole story. */
     altitude: {
-      base: { temperatureC: number; humidityPct: number; windSpeedKmh: number };
+      base: {
+        temperatureC: number;
+        humidityPct: number;
+        windSpeedKmh: number;
+        elevationM: number | null;
+      };
       peak: {
         temperatureC: number;
         humidityPct: number;
@@ -1084,6 +1089,10 @@ export function FuelingPlanner({
                 peakLng: parsedGpx.peakLng,
                 peakDistanceFraction: parsedGpx.peakDistanceFraction,
                 peakElevationM: parsedGpx.peakElevationM,
+                troughLat: parsedGpx.troughLat,
+                troughLng: parsedGpx.troughLng,
+                troughDistanceFraction: parsedGpx.troughDistanceFraction,
+                troughElevationM: parsedGpx.troughElevationM,
                 intensity,
                 isTargetEvent,
                 pocketFood: pocketFoodPayload,

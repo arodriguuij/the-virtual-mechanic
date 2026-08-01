@@ -6,8 +6,9 @@
  * browser's own `DOMParser`, no server round-trip needed: distance/elevation/
  * coordinates are plain geometry, and — unlike a Strava route's summary
  * polyline, which has no altitude per point and needs a second Strava API
- * call (`fetchRoutePeakPoint`) to find the summit — a GPX track already
- * carries elevation on every point, so the peak can be found locally too.
+ * call (`fetchRouteElevationExtremes`) to find the summit/valley — a GPX
+ * track already carries elevation on every point, so both can be found
+ * locally too.
  */
 
 export type ParsedGpxRoute = {
@@ -19,9 +20,9 @@ export type ParsedGpxRoute = {
   endLat: number;
   endLng: number;
   /** Highest-elevation point along the track, and how far along the route
-   * (0-1, by distance) it sits — feeds the same start/summit/finish weather
-   * sampling a real Strava route uses, without a second API call. `null`
-   * when the file has no elevation data at all. */
+   * (0-1, by distance) it sits — feeds the same summit weather sampling a
+   * real Strava route uses, without a second API call. `null` when the file
+   * has no elevation data at all. */
   peakLat: number | null;
   peakLng: number | null;
   peakDistanceFraction: number | null;
@@ -32,6 +33,14 @@ export type ParsedGpxRoute = {
    * `POST /api/fueling/plan`). `null` alongside `peakLat`/`peakLng` when the
    * file has no elevation data at all. */
   peakElevationM: number | null;
+  /** Lowest-elevation point along the track ("Cota Mínima / Valle") — a
+   * route that starts high, descends into a hot valley, and then climbs has
+   * its real thermal peak at this point, not at the start. Same shape as the
+   * peak fields above, `null` under the same conditions. */
+  troughLat: number | null;
+  troughLng: number | null;
+  troughDistanceFraction: number | null;
+  troughElevationM: number | null;
   /** The full decoded track, for `RouteMapPreview` — a GPX file already has
    * every point in hand locally, no polyline decoding needed the way a
    * Strava route's `summaryPolyline` requires. */
@@ -97,10 +106,17 @@ export function parseGpxFile(xmlText: string, fileName: string): ParsedGpxRoute 
 
   let peakIndex = -1;
   let peakEleM = -Infinity;
+  let troughIndex = -1;
+  let troughEleM = Infinity;
   points.forEach((p, i) => {
-    if (p.eleM != null && p.eleM > peakEleM) {
+    if (p.eleM == null) return;
+    if (p.eleM > peakEleM) {
       peakEleM = p.eleM;
       peakIndex = i;
+    }
+    if (p.eleM < troughEleM) {
+      troughEleM = p.eleM;
+      troughIndex = i;
     }
   });
 
@@ -122,6 +138,13 @@ export function parseGpxFile(xmlText: string, fileName: string): ParsedGpxRoute 
     peakDistanceFraction:
       peakIndex >= 0 && distanceKm > 0
         ? Math.max(0, Math.min(1, cumulativeDistanceKm[peakIndex] / distanceKm))
+        : null,
+    troughLat: troughIndex >= 0 ? points[troughIndex].lat : null,
+    troughLng: troughIndex >= 0 ? points[troughIndex].lng : null,
+    troughElevationM: troughIndex >= 0 ? Math.round(troughEleM) : null,
+    troughDistanceFraction:
+      troughIndex >= 0 && distanceKm > 0
+        ? Math.max(0, Math.min(1, cumulativeDistanceKm[troughIndex] / distanceKm))
         : null,
     points: points.map((p): [number, number] => [p.lat, p.lng]),
   };

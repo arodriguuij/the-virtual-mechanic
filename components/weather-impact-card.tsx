@@ -4,7 +4,12 @@ import type { ReactNode } from "react";
 const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
 
 export type AltitudeWeather = {
-  base: { temperatureC: number; humidityPct: number; windSpeedKmh: number };
+  base: {
+    temperatureC: number;
+    humidityPct: number;
+    windSpeedKmh: number;
+    elevationM: number | null;
+  };
   peak: {
     temperatureC: number;
     humidityPct: number;
@@ -58,14 +63,19 @@ function WeatherStatTile({
  *
  * "Impacto Térmico Diferenciado por Altitud" — a single blended reading
  * (still what's shown by default) silently averages away a mountain route's
- * real base-vs-summit temperature swing. Whenever the server flags a
- * significant climb (`altitude` non-null — D+ ≥ 400m or a known summit ≥
- * 500m, see `POST /api/fueling/plan`), this renders two comparative tiles
- * instead of one: "Base / Llanos" (the route's start/finish-level
- * conditions) and "Cima del Puerto" (the actual summit's own reading, real
- * Open-Meteo data at the peak's coordinates when a 3-point sample succeeded,
- * or the same `-0.65°C/100m` lapse-rate estimate already used elsewhere in
- * this app otherwise — see `getLapseRateAdjustedTemperature`).
+ * real valley-vs-summit temperature swing, and can even miss it entirely on
+ * a route that starts high, descends into a hot valley, then climbs — the
+ * valley, not the start, is where the real thermal peak sits. Whenever the
+ * server flags a significant climb (`altitude` non-null — the route's real
+ * elevation range ≥ 400m, or a known summit ≥ 500m ASL, see
+ * `POST /api/fueling/plan`), this renders two comparative tiles instead of
+ * one: "Valle / Salida" (sampled at the route's own lowest point — which may
+ * literally be the departure point on a pure-ascent route, or a genuine
+ * valley dip further along it) and "Cima del Puerto" (the actual summit's
+ * own reading). Both are real Open-Meteo data at each point's own
+ * coordinates when the multi-point sample succeeded, or the same
+ * `-0.65°C/100m` lapse-rate estimate already used elsewhere in this app
+ * otherwise — see `getLapseRateAdjustedTemperature`.
  */
 export function WeatherImpactCard({
   temperatureC,
@@ -89,16 +99,16 @@ export function WeatherImpactCard({
   const sourceLabel =
     source === "dynamic"
       ? // `multiPointSample` is true precisely when a real geographic
-        // 3-point sample (start/summit/finish) succeeded — only possible
-        // in route/GPX mode with a genuine elevation profile ("hay
+        // multi-point sample (start/valle/cima/llegada) succeeded — only
+        // possible in route/GPX mode with a genuine elevation profile ("hay
         // puerto"). Entreno Manual (no coordinates at all) or a flat route
-        // with no meaningful peak both fall through to the same
+        // with no meaningful peak/trough both fall through to the same
         // single-location forecast, averaged across the ride's own
         // departure-to-arrival window — "mitad de ruta" describes that
         // time-averaged midpoint reading in plain language, not a second
         // physical location actually being sampled.
         multiPointSample
-        ? "Previsión real Open-Meteo · inicio / punto más alto / llegada"
+        ? "Previsión real Open-Meteo · inicio / valle / cima / llegada"
         : "Previsión real Open-Meteo · inicio / mitad de ruta / llegada"
       : source === "seasonal_average"
         ? "media histórica estacional"
@@ -121,10 +131,11 @@ export function WeatherImpactCard({
       </div>
 
       {altitude ? (
-        <div className="flex flex-col gap-2.5">
+        <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <span className="text-[10px] font-semibold tracking-widest text-neutral-500 uppercase">
-              Base / Llanos
+              Valle / Salida
+              {altitude.base.elevationM != null && ` (${altitude.base.elevationM}m)`}
             </span>
             <div className="grid w-full grid-cols-3 gap-1.5">
               <WeatherStatTile
@@ -151,7 +162,7 @@ export function WeatherImpactCard({
                 label="Temp."
                 icon={<Thermometer className="size-3 shrink-0" />}
                 value={`${altitude.peak.temperatureC}°C`}
-                caption={`${Math.round((altitude.peak.temperatureC - altitude.base.temperatureC) * 10) / 10}°C vs. base`}
+                caption={`${Math.round((altitude.peak.temperatureC - altitude.base.temperatureC) * 10) / 10}°C vs. valle`}
               />
               <WeatherStatTile
                 label="Viento"

@@ -26,9 +26,9 @@ export type StravaRoute = {
   startLat: number | null;
   startLng: number | null;
   // The route's last coordinate — together with `startLat`/`startLng`, lets
-  // the 3-point weather sample (start/summit/finish, see
-  // `fetchRoutePeakPoint` below) cover a loop or point-to-point route
-  // without a second Strava call, since it's decoded from the same
+  // the multi-point weather sample (valley/summit/finish, see
+  // `fetchRouteElevationExtremes` below) cover a loop or point-to-point
+  // route without a second Strava call, since it's decoded from the same
   // already-fetched polyline.
   endLat: number | null;
   endLng: number | null;
@@ -77,18 +77,29 @@ export async function fetchAthleteRoutes(accessToken: string): Promise<StravaRou
     });
 }
 
-export type RoutePeakPoint = {
+export type RouteElevationPoint = {
   lat: number;
   lng: number;
   // How far along the route (by distance, 0-1) this point sits — used to
   // estimate its pass-through time the same way `getRouteSamplePoints`
   // estimates time for its own control points.
   distanceFraction: number;
-  // The peak's own absolute elevation (meters above sea level) — already
-  // computed while scanning the altitude stream for the highest point, just
-  // not previously returned. Feeds the "cota máxima ≥ 500m" half of the
-  // altitude-differentiated weather threshold (see `POST /api/fueling/plan`).
+  // This point's own absolute elevation (meters above sea level) — already
+  // computed while scanning the altitude stream for its high/low point, just
+  // not previously returned. Feeds the altitude-differentiated weather
+  // threshold (see `POST /api/fueling/plan`).
   elevationM: number;
+};
+
+export type RouteElevationExtremes = {
+  // The "Cota Máxima / Puerto" — a mountain route's actual summit.
+  peak: RouteElevationPoint;
+  // The "Cota Mínima / Valle" — a route's lowest point along its own
+  // trace, not necessarily the start (a route can start high, descend
+  // into a hot valley, then climb — the valley, not the start, is where
+  // the ride's real thermal peak sits). See `POST /api/fueling/plan`'s
+  // "Valle / Salida" weather card.
+  trough: RouteElevationPoint;
 };
 
 // Unlike activity streams, Strava's route streams endpoint always returns
@@ -101,23 +112,24 @@ type StravaRouteStreamEntry = {
 };
 
 /**
- * Finds the highest-elevation point along a saved route — the "Cota Máxima
- * / Puerto" a mountain route climbs to, which a single start-coordinate
- * weather sample would completely miss. Strava's route summary (the
- * `/athlete/routes` list) only has 2D polyline geometry, no altitude per
- * point, so this is a second, on-demand call to `/routes/{id}/streams` —
- * only made when the athlete actually calculates a strategy for a route
- * (never eagerly), so it doesn't add to the passive Strava call volume
- * "Strava API & cache defensivo" above is about. Returns `null` (never
- * throws) on any failure — missing streams, malformed data, or a route the
- * access token doesn't have permission for — so the caller can fall back
- * to the existing start-point-only weather sample instead of failing the
- * whole calculation.
+ * Finds both the highest- and lowest-elevation points along a saved route in
+ * one pass over the same altitude stream — the "Cota Máxima / Puerto" a
+ * mountain route climbs to, and the "Cota Mínima / Valle" it may dip through
+ * first, both of which a single start-coordinate weather sample would
+ * completely miss. Strava's route summary (the `/athlete/routes` list) only
+ * has 2D polyline geometry, no altitude per point, so this is a second,
+ * on-demand call to `/routes/{id}/streams` — only made when the athlete
+ * actually calculates a strategy for a route (never eagerly), so it doesn't
+ * add to the passive Strava call volume "Strava API & cache defensivo" above
+ * is about. Returns `null` (never throws) on any failure — missing streams,
+ * malformed data, or a route the access token doesn't have permission for —
+ * so the caller can fall back to the existing start-point-only weather
+ * sample instead of failing the whole calculation.
  */
-export async function fetchRoutePeakPoint(
+export async function fetchRouteElevationExtremes(
   accessToken: string,
   routeId: string
-): Promise<RoutePeakPoint | null> {
+): Promise<RouteElevationExtremes | null> {
   const res = await fetch(
     `${STRAVA_API_BASE}/routes/${routeId}/streams?keys=latlng,altitude,distance`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -136,26 +148,46 @@ export async function fetchRoutePeakPoint(
 
   let peakIndex = 0;
   let peakAltitude = -Infinity;
+  let troughIndex = 0;
+  let troughAltitude = Infinity;
   altitude.forEach((alt, i) => {
     if (alt > peakAltitude) {
       peakAltitude = alt;
       peakIndex = i;
     }
+    if (alt < troughAltitude) {
+      troughAltitude = alt;
+      troughIndex = i;
+    }
   });
 
   const totalDistance = distance?.[distance.length - 1];
-  const distanceFraction =
-    distance && totalDistance
-      ? distance[peakIndex] / totalDistance
-      : peakIndex / (altitude.length - 1);
+  const distanceFractionAt = (index: number) =>
+    Math.max(
+      0,
+      Math.min(
+        1,
+        distance && totalDistance ? distance[index] / totalDistance : index / (altitude.length - 1)
+      )
+    );
 
-  const point = latlng[peakIndex];
-  if (!point) return null;
-  const [lat, lng] = point;
+  const peakPoint = latlng[peakIndex];
+  const troughPoint = latlng[troughIndex];
+  if (!peakPoint || !troughPoint) return null;
+  const [peakLat, peakLng] = peakPoint;
+  const [troughLat, troughLng] = troughPoint;
   return {
-    lat,
-    lng,
-    distanceFraction: Math.max(0, Math.min(1, distanceFraction)),
-    elevationM: Math.round(peakAltitude),
+    peak: {
+      lat: peakLat,
+      lng: peakLng,
+      distanceFraction: distanceFractionAt(peakIndex),
+      elevationM: Math.round(peakAltitude),
+    },
+    trough: {
+      lat: troughLat,
+      lng: troughLng,
+      distanceFraction: distanceFractionAt(troughIndex),
+      elevationM: Math.round(troughAltitude),
+    },
   };
 }
