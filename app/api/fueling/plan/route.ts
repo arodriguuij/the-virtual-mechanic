@@ -29,8 +29,12 @@ import {
   getReloadStrategy,
   getRelativeIntensityFromLevel,
   getSodiumLossMgPerHour,
+  getThermalAdaptation,
+  getTrainLowCarbTargetGPerHour,
+  isPastCaffeineCurfew,
   type FuelingMode,
   type IntensityLevel,
+  type MountainPass,
   type PocketFoodItemType,
   type PocketFoodSelection,
 } from "@/lib/metabolic-engine";
@@ -68,7 +72,36 @@ const VALID_POCKET_FOOD_TYPES = new Set<PocketFoodItemType>([
   "gel_small",
   "gel_standard",
   "gel_high",
+  "gel_ultra",
 ]);
+
+// "Calibrador Rápido" — the target power everywhere in this app is derived
+// from the athlete's own FTP, never a real potenciómetro reading (Strava's
+// own route-planning tools have no such measurement to give either), so a
+// rider expecting a draft/tailwind-assisted effort can nudge the target a
+// fixed ±10% rather than picking a whole different intensity zone.
+const VALID_INTENSITY_CALIBRATION_PCT = new Set([-10, 0, 10]);
+
+/** Client-supplied mountain-pass list (GPX Híbrido, computed locally via
+ * `detectMountainPasses` — see `lib/gpx-import.ts`) — sanitized the same
+ * "drop anything malformed, never reject the whole request" way every other
+ * client-supplied array in this route is handled. */
+function sanitizeMountainPasses(input: unknown): MountainPass[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter(
+      (p): p is { distanceFraction: number; elevationM: number; gainM?: number } =>
+        p &&
+        typeof p === "object" &&
+        typeof p.distanceFraction === "number" &&
+        typeof p.elevationM === "number"
+    )
+    .map((p) => ({
+      distanceFraction: Math.max(0, Math.min(1, p.distanceFraction)),
+      elevationM: p.elevationM,
+      gainM: typeof p.gainM === "number" ? p.gainM : 0,
+    }));
+}
 
 // A single free-text "custom food" entry could otherwise be abused to smuggle
 // an absurd carb figure into the recipe — cap it at a generous but sane
@@ -125,6 +158,19 @@ export async function POST(request: NextRequest) {
 
   const departureIso = typeof body.departureIso === "string" ? body.departureIso : null;
   const isTargetEvent = body.isTargetEvent === true;
+  // "Entrenamientos en Ayunas / Z2 Low Carb (Train Low)" — overrides the
+  // usual intensity-driven carb target with a fixed low-carb floor (see
+  // `getTrainLowCarbTargetGPerHour`), applied further below once the
+  // ride's normal gut-capped target has already been computed.
+  const trainLow = body.trainLow === true;
+  // "Calibrador Rápido de Vatios Estimados" — every target watts figure in
+  // this planner is FTP-derived, not read from a real potenciómetro, so a
+  // ±10% nudge lets the athlete correct for a drafted/tailwind-assisted (or
+  // headwind-slowed) effort without picking a different intensity zone.
+  const intensityCalibrationPct = VALID_INTENSITY_CALIBRATION_PCT.has(body.intensityCalibrationPct)
+    ? body.intensityCalibrationPct
+    : 0;
+  const intensityCalibrationMultiplier = 1 + intensityCalibrationPct / 100;
   const athleteType = athleteProfile.athlete_type ?? "balanced";
   const fuelingMode: FuelingMode = VALID_FUELING_MODES.has(body.fuelingMode)
     ? body.fuelingMode
@@ -168,7 +214,7 @@ export async function POST(request: NextRequest) {
             weightKg: athleteProfile.weight_kg,
             intensity: intensityLevel,
           });
-    relativeIntensity = getRelativeIntensityFromLevel(intensityLevel);
+    relativeIntensity = getRelativeIntensityFromLevel(intensityLevel) * intensityCalibrationMultiplier;
     startLat = typeof body.startLat === "number" ? body.startLat : null;
     startLng = typeof body.startLng === "number" ? body.startLng : null;
     endLat = typeof body.endLat === "number" ? body.endLat : null;
@@ -193,7 +239,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "invalid_quick" }, { status: 400 });
     }
     durationHours = hours;
-    relativeIntensity = getRelativeIntensityFromLevel(intensityLevel);
+    relativeIntensity = getRelativeIntensityFromLevel(intensityLevel) * intensityCalibrationMultiplier;
   }
 
   // "Modo Óptimo" replaces whatever the athlete may have manually selected
@@ -235,6 +281,12 @@ export async function POST(request: NextRequest) {
   // their own real reading rather than a value diluted by every other
   // sampled point.
   let routeSamplePoints: (PointSample | null)[] | null = null;
+  // "Rutas Multipuerto de Alta Montaña" — starts from whatever the client
+  // already computed locally (a GPX Híbrido upload, which has no Strava
+  // `routeId` to fetch streams for) and gets overwritten below by the real
+  // Strava streams call whenever a saved route's own elevation profile is
+  // fetched instead.
+  let mountainPasses: MountainPass[] = sanitizeMountainPasses(body.mountainPasses);
 
   // A GPX Híbrido upload already found its own elevation extremes
   // client-side (it has per-point altitude, unlike a Strava route's summary
@@ -293,6 +345,12 @@ export async function POST(request: NextRequest) {
           if (extremes) {
             peak ??= extremes.peak;
             trough ??= extremes.trough;
+            // A real Strava route's own streams call is the only source for
+            // this (a GPX upload already sent its own client-computed list
+            // via `body.mountainPasses`, sanitized into `mountainPasses`
+            // above) — mutually exclusive in practice, so this always wins
+            // whenever it fires.
+            mountainPasses = extremes.mountainPasses;
           }
         }
         if (peak && trough) {
@@ -459,12 +517,21 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // "Adaptación Térmica Extrema" — cold below 8°C, heat above 32°C, checked
+  // against the final (lapse-rate/altitude-adjusted) temperature so a
+  // mountain summit's own real cold reading counts, not just the valley
+  // start.
+  const thermalAdaptation = getThermalAdaptation(temperatureC);
+
   const gutTarget = getGutCappedCarbTarget(
     relativeIntensity,
     athleteProfile.gut_training_level,
     athleteType
   );
-  const carbsGPerHour = gutTarget.recommendedGPerHour;
+  // "Modo Eficiencia Metabólica (Train Low)" — overrides the ride's normal
+  // gut-capped target with a fixed low-carb floor once the athlete opts in;
+  // hydration/sodium below are completely unaffected.
+  const carbsGPerHour = trainLow ? getTrainLowCarbTargetGPerHour() : gutTarget.recommendedGPerHour;
   const fluidLossMlPerHour = getFluidLossMlPerHour(
     athleteProfile.sweat_rate,
     temperatureC,
@@ -472,7 +539,8 @@ export async function POST(request: NextRequest) {
   );
   const sodiumMgPerHour = getSodiumLossMgPerHour(
     fluidLossMlPerHour,
-    athleteProfile.is_salty_sweater ?? false
+    athleteProfile.is_salty_sweater ?? false,
+    thermalAdaptation.isExtremeHeat
   );
   const totalRideCarbsG = Math.round(carbsGPerHour * durationHours);
   const recipe = getHomeLabRecipe({
@@ -483,7 +551,10 @@ export async function POST(request: NextRequest) {
     pocketFoodCarbsG,
     forceHighCarbRatio: isTargetEvent,
   });
-  const bottlePlan = getBottlePlan(recipe, athleteProfile.bottle_capacity_ml);
+  const bottlePlan = getBottlePlan(recipe, athleteProfile.bottle_capacity_ml, {
+    coldWeatherReduction: thermalAdaptation.isExtremeCold,
+    minWaterBottles: thermalAdaptation.isExtremeHeat ? 1 : 0,
+  });
   const reloadStrategy = getReloadStrategy({
     bottlePlan,
     durationHours,
@@ -503,7 +574,20 @@ export async function POST(request: NextRequest) {
     fluidLossMlPerHour,
     peakFraction: peakFractionForTimeline,
     bottleCapacityMl: athleteProfile.bottle_capacity_ml,
+    mountainPasses,
   });
+  // "Sensibilidad a Cafeína e Horario Nocturno" — an arrival at/after 18:30
+  // local drops every caffeine milestone the timeline above just scheduled,
+  // regardless of pocket food or route profile, to protect the athlete's
+  // night's sleep.
+  const arrivalDate = departureIso ? new Date(new Date(departureIso).getTime() + durationHours * 3_600_000) : null;
+  const caffeineSuppressed =
+    arrivalDate != null &&
+    isPastCaffeineCurfew(arrivalDate) &&
+    timingTimeline.entries.some((entry) => entry.type === "caffeine");
+  if (caffeineSuppressed) {
+    timingTimeline.entries = timingTimeline.entries.filter((entry) => entry.type !== "caffeine");
+  }
   // The real deficit is measured against the ride's *true* metabolic demand
   // (uncapped, phenotype-adjusted) regardless of what the gut can absorb —
   // the gut cap limits the recommended intake, not the body's actual burn
@@ -576,5 +660,9 @@ export async function POST(request: NextRequest) {
     timingTimeline,
     netCarbDeficit,
     carbLoading,
+    trainLow,
+    thermalAdaptation,
+    caffeineSuppressed,
+    mountainPassesDetected: mountainPasses.length,
   });
 }

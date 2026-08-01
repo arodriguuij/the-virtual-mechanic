@@ -8,9 +8,13 @@ import {
   Coffee,
   Droplet,
   FlaskConical,
+  Gauge,
   Lock,
+  Moon,
   Pencil,
   RefreshCw,
+  Snowflake,
+  Sun,
   TriangleAlert,
   Upload,
   Utensils,
@@ -42,6 +46,7 @@ import {
 } from "@/lib/ui-classes";
 import {
   calculateHouseholdMeasures,
+  getBottlePlan,
   getPocketFoodTotalCarbsG,
   getTableSaltGrams,
   HYPERTONIC_THRESHOLD_PCT,
@@ -97,7 +102,12 @@ const POCKET_FOOD_TYPES: PocketFoodItemType[] = [
   "dates",
   "gummies",
 ];
-const GEL_DOSE_TYPES: PocketFoodItemType[] = ["gel_small", "gel_standard", "gel_high"];
+// "gel_ultra" (the 80g commercial sachet — Maurten 320 / Beta Fuel) joins
+// the fast-absorption gel tiers rather than the pocket-solids list — it's
+// dissolved directly into a bottle, not eaten from the jersey, but it still
+// belongs in the same "fast source, schedule from the ride's second half"
+// bucket `generateTimingTimeline` already sorts every gel dose into.
+const GEL_DOSE_TYPES: PocketFoodItemType[] = ["gel_small", "gel_standard", "gel_high", "gel_ultra"];
 const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = [...POCKET_FOOD_TYPES, ...GEL_DOSE_TYPES];
 const MAX_POCKET_FOOD_QTY = 6;
 
@@ -395,7 +405,28 @@ type PlanResult = {
     maxCarbsG: number;
     guidelines: string[];
   } | null;
+  /** "Modo Eficiencia Metabólica" — `true` once the server actually applied
+   * the Train Low carb-target override (see `TrainLowCheckbox` below). */
+  trainLow: boolean;
+  /** "Adaptación Térmica Extrema" — cold/heat thresholds evaluated against
+   * the ride's final (lapse-rate/altitude-adjusted) temperature. */
+  thermalAdaptation: {
+    isExtremeCold: boolean;
+    isExtremeHeat: boolean;
+  };
+  /** "Sensibilidad a Cafeína e Horario Nocturno" — `true` when the server
+   * dropped every caffeine milestone because the estimated arrival lands at
+   * or after 18:30 local. */
+  caffeineSuppressed: boolean;
+  /** "Rutas Multipuerto de Alta Montaña" — how many real summits the server
+   * detected along the route (0 for Entreno Manual or a flat route). */
+  mountainPassesDetected: number;
 };
+
+// "Micro-Edición In-Situ de Capacidad de Bidón" — the standard capacities a
+// rider's bottles actually come in, offered as one-tap quick options rather
+// than a free-text field.
+const BOTTLE_CAPACITY_QUICK_OPTIONS = [500, 550, 750, 950, 1000];
 
 // "Configuración de bidones" — a lightweight planning preference, not a
 // parameter that re-drives `getBottlePlan`'s own GI/solubility-capped math
@@ -464,8 +495,12 @@ function getBottleConfigOptions(athleteBottleCount: number) {
  * (`athlete_profiles.bottle_count`) physically can't run 2 mix bottles at
  * once, so crediting a second one they don't have would silently overstate
  * CUBIERTO. */
-function getBottleCarbsContributionG(config: BottleConfigOption, result: PlanResult): number {
-  const { fuelBottles } = result.bottlePlan;
+function getBottleCarbsContributionG(
+  config: BottleConfigOption,
+  bottlePlan: PlanResult["bottlePlan"],
+  athleteBottleCount: number
+): number {
+  const { fuelBottles } = bottlePlan;
   if (fuelBottles.count === 0) return 0;
   const singleBottleCarbsG = fuelBottles.maltodextrinGPerBottle + fuelBottles.fructoseGPerBottle;
   switch (config) {
@@ -474,7 +509,7 @@ function getBottleCarbsContributionG(config: BottleConfigOption, result: PlanRes
     case "one_mix":
       return singleBottleCarbsG;
     case "both_mix":
-      return singleBottleCarbsG * result.athleteBottleCount;
+      return singleBottleCarbsG * athleteBottleCount;
     default:
       return 0;
   }
@@ -507,9 +542,13 @@ function getBottleCarbsContributionG(config: BottleConfigOption, result: PlanRes
  * (e.g. "3x Bidón (Agua / Electrolitos)" on a 2-cage bike) — any water need
  * beyond that cap is a fountain refill, not a bottle to carry from home,
  * and is listed separately by `getWaterPlanLines` below instead. */
-function getBikeChecklistLines(result: PlanResult, bottleConfig: BottleConfigOption): string[] {
-  const { fuelBottles, waterBottles, bottleSizeMl } = result.bottlePlan;
-  const maxOnBike = result.reloadStrategy?.startingBottleCount ?? result.bottlePlan.totalBottles;
+function getBikeChecklistLines(
+  result: PlanResult,
+  bottleConfig: BottleConfigOption,
+  bottlePlan: PlanResult["bottlePlan"]
+): string[] {
+  const { fuelBottles, waterBottles, bottleSizeMl } = bottlePlan;
+  const maxOnBike = result.reloadStrategy?.startingBottleCount ?? bottlePlan.totalBottles;
   const lines: string[] = [];
 
   let mixBottleCount = 0;
@@ -954,6 +993,16 @@ export function FuelingPlanner({
     [departureDayMode, departureCustomDate, departureHour]
   );
   const [isTargetEvent, setIsTargetEvent] = useState(false);
+  // "Modo Eficiencia Metabólica (Train Low / Ayunas)" — a deliberate
+  // low-carb session; the server caps the carb target to a fixed 0-25g/h
+  // electrolyte-only band and the deficit/gut-cap warnings below suppress
+  // themselves accordingly (see `result.trainLow`).
+  const [trainLow, setTrainLow] = useState(false);
+  // "Calibrador Rápido de Vatios Estimados" — every target watts figure
+  // here is FTP-derived, never a real potenciómetro reading, so this lets
+  // the athlete nudge the target ±10% for a drafted/tailwind-assisted (or
+  // headwind-slowed) effort.
+  const [intensityCalibrationPct, setIntensityCalibrationPct] = useState<-10 | 0 | 10>(0);
   const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
   const [customCarbsG, setCustomCarbsG] = useState(0);
   // "Incluye cafeína" — a modifier on whatever gel(s) are already selected,
@@ -990,6 +1039,15 @@ export function FuelingPlanner({
   // most conservative assumption, and is what the reset effect below
   // returns it to on every Paso 01/02 change (see `DEFAULT_BOTTLE_CONFIG`).
   const [bottleConfig, setBottleConfig] = useState<BottleConfigOption>(DEFAULT_BOTTLE_CONFIG);
+  // "Micro-Edición In-Situ de Capacidad de Bidón" — a display-only override
+  // of the athlete's real `athlete_profiles.bottle_capacity_ml` for this one
+  // calculated strategy, letting them preview a different bottle size (e.g.
+  // borrowing a teammate's 950ml bottle) without leaving the planner or
+  // editing their saved profile. `null` means "use the server's real
+  // figure" (`result.bottlePlan.bottleSizeMl`) — see `displayBottlePlan`
+  // below for the client-side recompute this drives.
+  const [bottleCapacityOverrideMl, setBottleCapacityOverrideMl] = useState<number | null>(null);
+  const [bottleCapacityEditorOpen, setBottleCapacityEditorOpen] = useState(false);
   // "Planificación de Paradas en Ruta" — a third, opportunistic coverage
   // source alongside bottles and pocket food: 0 (zero-friction default), 1,
   // or 2 café/gasolinera/fuente stops. A plain count is deliberately the
@@ -1090,17 +1148,35 @@ export function FuelingPlanner({
   const totalFluidMl = result ? Math.round(result.fluidLossMlPerHour * result.durationHours) : 0;
   const totalSodiumMg = result ? Math.round(result.sodiumMgPerHour * result.durationHours) : 0;
 
+  // "Micro-Edición In-Situ de Capacidad de Bidón" — whenever the athlete
+  // overrides the bottle size for this one preview, `getBottlePlan` (the
+  // same pure function the server already ran) re-derives the per-bottle
+  // grams/bottle-count instantly, client-side, with no recalculation
+  // round-trip — every display below reads this instead of
+  // `result.bottlePlan` directly, so the override reaches the hero recipe,
+  // the checklist, and the Ziploc reload-dose stepper all at once.
+  const displayBottlePlan = useMemo(
+    () =>
+      result && bottleCapacityOverrideMl && bottleCapacityOverrideMl !== result.bottlePlan.bottleSizeMl
+        ? getBottlePlan(result.recipe, bottleCapacityOverrideMl, {
+            coldWeatherReduction: result.thermalAdaptation.isExtremeCold,
+            minWaterBottles: result.thermalAdaptation.isExtremeHeat ? 1 : 0,
+          })
+        : (result?.bottlePlan ?? null),
+    [result, bottleCapacityOverrideMl]
+  );
+
   // "Conversión Dinámica a Medidas Caseras" — recomputed from the last
   // calculated result whenever it changes; cheap pure arithmetic, no memo
   // needed. Card 05's "Dosis ejecutiva" is scoped to the per-bottle figure
   // — the old "Estrategia de recarga en ruta" card (and its own
   // `ziplocMeasures` scoop-equivalence figure) was removed outright, see
   // "Dosis de recarga Mix (Ziploc)" above for its replacement.
-  const fuelBottleMeasures = result
+  const fuelBottleMeasures = displayBottlePlan
     ? calculateHouseholdMeasures({
-        saltG: getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle),
-        maltodextrinG: result.bottlePlan.fuelBottles.maltodextrinGPerBottle,
-        fructoseG: result.bottlePlan.fuelBottles.fructoseGPerBottle,
+        saltG: getTableSaltGrams(displayBottlePlan.fuelBottles.sodiumMgPerBottle),
+        maltodextrinG: displayBottlePlan.fuelBottles.maltodextrinGPerBottle,
+        fructoseG: displayBottlePlan.fuelBottles.fructoseGPerBottle,
       })
     : null;
 
@@ -1113,15 +1189,19 @@ export function FuelingPlanner({
   // contributes — picking "Solo Agua" vs. "1 Mix" vs. "Ambos Mix" updates
   // this instantly, the same as tapping a pocket-food stepper +/- already
   // did, with zero network round-trip either way.
-  const bottleCarbsContributionG = result ? getBottleCarbsContributionG(bottleConfig, result) : 0;
+  const bottleCarbsContributionG =
+    result && displayBottlePlan
+      ? getBottleCarbsContributionG(bottleConfig, displayBottlePlan, result.athleteBottleCount)
+      : 0;
   // "Dosis de recarga Mix (Ziploc)" — always identical to what one fuel
   // bottle at the athlete's *own* configured bottle size delivers this
   // ride (`bottlePlan.bottleSizeMl` already comes from their real
-  // `athlete_profiles.bottle_capacity_ml`), so changing that profile field
-  // and recalculating updates this figure automatically with zero extra
-  // wiring — same reactive pattern as every other Card 04 coverage source.
-  const ziplocDoseGramsPerUnit = result
-    ? result.bottlePlan.fuelBottles.maltodextrinGPerBottle + result.bottlePlan.fuelBottles.fructoseGPerBottle
+  // `athlete_profiles.bottle_capacity_ml`, or the in-situ override above),
+  // so changing that profile field/override and recalculating updates this
+  // figure automatically with zero extra wiring — same reactive pattern as
+  // every other Card 04 coverage source.
+  const ziplocDoseGramsPerUnit = displayBottlePlan
+    ? displayBottlePlan.fuelBottles.maltodextrinGPerBottle + displayBottlePlan.fuelBottles.fructoseGPerBottle
     : 0;
   const ziplocDoseCarbsG = ziplocDoseCount * ziplocDoseGramsPerUnit;
   const bottlesAndPocketCoveredCarbsG = pocketFoodCarbsPreview + bottleCarbsContributionG + ziplocDoseCarbsG;
@@ -1172,7 +1252,8 @@ export function FuelingPlanner({
   // Tarjeta 05's "Checklist de preparación para llevar" — same source data
   // as the balance pill above, read fresh on every render so the on-screen
   // list stays in sync with what's currently selected.
-  const bikeChecklistLines = result ? getBikeChecklistLines(result, bottleConfig) : [];
+  const bikeChecklistLines =
+    result && displayBottlePlan ? getBikeChecklistLines(result, bottleConfig, displayBottlePlan) : [];
   // Ziploc reload doses aren't part of `pocketFood` (see the state comment
   // above), so they don't come back out of `getPocketChecklistLines` for
   // free — appended here instead, replacing the function of the old
@@ -1331,6 +1412,8 @@ export function FuelingPlanner({
     setZiplocDoseCount(0);
     setPocketFood({});
     setCustomCarbsG(0);
+    setBottleCapacityOverrideMl(null);
+    setBottleCapacityEditorOpen(false);
   }, [
     mode,
     selectedRouteId,
@@ -1340,6 +1423,8 @@ export function FuelingPlanner({
     intensity,
     departureLocal,
     isTargetEvent,
+    trainLow,
+    intensityCalibrationPct,
   ]);
 
   function setPocketFoodQty(type: PocketFoodItemType, qty: number) {
@@ -1426,6 +1511,8 @@ export function FuelingPlanner({
               isTargetEvent,
               pocketFood: pocketFoodPayload,
               fuelingMode,
+              trainLow,
+              intensityCalibrationPct,
             }
           : mode === "gpx" && parsedGpx
             ? {
@@ -1446,10 +1533,17 @@ export function FuelingPlanner({
                 troughLng: parsedGpx.troughLng,
                 troughDistanceFraction: parsedGpx.troughDistanceFraction,
                 troughElevationM: parsedGpx.troughElevationM,
+                // "Rutas Multipuerto de Alta Montaña" — a GPX track already
+                // has per-point altitude, so the passes are detected locally
+                // (see `lib/gpx-import.ts`) rather than needing a Strava
+                // streams call the way a saved route does.
+                mountainPasses: parsedGpx.mountainPasses,
                 intensity,
                 isTargetEvent,
                 pocketFood: pocketFoodPayload,
                 fuelingMode,
+                trainLow,
+                intensityCalibrationPct,
               }
             : {
                 mode: "quick",
@@ -1463,6 +1557,8 @@ export function FuelingPlanner({
                 isTargetEvent,
                 pocketFood: pocketFoodPayload,
                 fuelingMode,
+                trainLow,
+                intensityCalibrationPct,
               };
 
       const res = await fetch("/api/fueling/plan", {
@@ -1484,6 +1580,11 @@ export function FuelingPlanner({
       setResult(data);
       setHasCalculatedOnce(true);
       setIsOfflineCache(false);
+      // A fresh calculation already used the athlete's real profile bottle
+      // size — any in-situ override from a previous result no longer
+      // applies to this new one.
+      setBottleCapacityOverrideMl(null);
+      setBottleCapacityEditorOpen(false);
       try {
         localStorage.setItem(LAST_FUELING_STRATEGY_KEY, JSON.stringify(data));
       } catch {
@@ -1934,6 +2035,38 @@ export function FuelingPlanner({
             </div>
           )}
 
+          {/* "Strava sin Potenciómetro (Vatios Estimados)" — every target
+              watts figure this planner computes is derived from the
+              athlete's own FTP, never a real potenciómetro reading (this
+              app has no Strava power-meter data to plan a *future* ride
+              against), so this badge is always relevant, not gated by
+              mode. The 3 calibration buttons nudge the target ±10% for a
+              drafted/tailwind-assisted (or headwind-slowed) effort. */}
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-sm border border-zinc-200/70 bg-zinc-50 px-3 py-2">
+            <TriangleAlert className="size-3.5 shrink-0 text-zinc-500" />
+            <span className="min-w-0 flex-1 text-[11px] text-zinc-600">
+              Vatios objetivo estimados a partir de tu FTP (no medidos por potenciómetro). Calibra
+              si vas a rueda o con viento a favor.
+            </span>
+            <div className="flex shrink-0 gap-1">
+              {([-10, 0, 10] as const).map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => setIntensityCalibrationPct(pct)}
+                  className={cn(
+                    "rounded-sm border px-2 py-1 font-mono text-[10px] font-semibold shadow-none transition-colors duration-150",
+                    pct === intensityCalibrationPct
+                      ? "border-transparent bg-terracotta text-white"
+                      : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
+                  )}
+                >
+                  {pct === 0 ? "Base Strava" : `${pct > 0 ? "+" : ""}${pct}%`}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Paradas previstas en ruta — relocated here from Card 04
               ("Reubicación de Paradas al Paso 02"): a café/gasolinera stop
               is a departure-planning decision, made alongside intensity and
@@ -2021,6 +2154,29 @@ export function FuelingPlanner({
                 Ajusta la pauta al máximo límite de absorción intestinal (hasta 120g/h) y
                 aplica un ratio Fructosa:Maltodextrina de 1:0.8 optimizado para alta
                 intensidad.
+              </p>
+            )}
+          </div>
+
+          {/* "Entrenamientos en Ayunas / Z2 Low Carb (Train Low)" — a
+              deliberate low-carb-availability session; checking this
+              overrides the usual intensity-driven carb target with a fixed
+              0-25g/h electrolyte-only floor (`result.trainLow`), while
+              hydration/sodium stay at their normal, full targets. */}
+          <div className="mt-3 border-t border-zinc-100 pt-3">
+            <label className="flex cursor-pointer items-center gap-2 font-mono text-xs text-zinc-600">
+              <input
+                type="checkbox"
+                checked={trainLow}
+                onChange={(e) => setTrainLow(e.target.checked)}
+                className="size-3.5 cursor-pointer accent-terracotta"
+              />
+              Modo Eficiencia Metabólica (Train Low / Ayunas)
+            </label>
+            {trainLow && (
+              <p className="mt-1.5 text-[11px] text-neutral-500">
+                Fija el objetivo de carbohidratos en 0-25g/h (solo electrolitos) para estimular
+                la oxidación de grasas — hidratación y sodio no se ven afectados.
               </p>
             )}
           </div>
@@ -2241,11 +2397,40 @@ export function FuelingPlanner({
                 />
               </div>
 
+              {/* "Adaptación Térmica Extrema" — cold below 8°C, heat above
+                  32°C, both driven by the same final temperature
+                  `WeatherImpactCard` already shows above. Purely
+                  informational (the actual recipe/sodium/bottle-plan
+                  adjustments already happened server-side) so the athlete
+                  understands *why* the numbers below look different from a
+                  normal-weather calculation. */}
+              {result.thermalAdaptation.isExtremeCold && (
+                <div className="mt-3 flex items-start gap-2 rounded-sm border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                  <Snowflake className="mt-0.5 size-3.5 shrink-0 text-sky-600" />
+                  <span>
+                    Frío extremo (&lt;8°C) — prioriza comida sólida/geles en bolsillo (hasta un
+                    70-80% del objetivo) y hemos reducido la concentración del bidón para evitar
+                    sobrecarga hídrica.
+                  </span>
+                </div>
+              )}
+              {result.thermalAdaptation.isExtremeHeat && (
+                <div className="mt-3 flex items-start gap-2 rounded-sm border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
+                  <Sun className="mt-0.5 size-3.5 shrink-0" />
+                  <span>
+                    Calor sofocante (&gt;32°C) — sodio elevado a ≥900mg/L y reservamos al menos 1
+                    bidón de agua pura para termorregulación/aclarado bucal.
+                  </span>
+                </div>
+              )}
+
               {/* Plain informational text, deliberately not a navigable
                   link — a mid-form click to "/perfil" would abandon
                   whatever the athlete has already configured in this
-                  planner. */}
-              {result.gutTraining.isGutLimited && (
+                  planner. Suppressed under Train Low — a low intake by
+                  design isn't a gut-capacity limitation worth warning
+                  about. */}
+              {result.gutTraining.isGutLimited && !result.trainLow && (
                 <p className="mt-3 border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
                   Tu intestino está limitado a {result.gutTraining.gutCapGPerHour} g/h (esta ruta
                   pediría {result.gutTraining.uncappedGPerHour} g/h). Puedes aumentar tu capacidad
@@ -2270,6 +2455,20 @@ export function FuelingPlanner({
                 04 · Simulador y configuración de avituallamiento
               </span>
 
+              {/* "Modo Eficiencia Metabólica" badge — a quiet reminder,
+                  once the athlete has already opted in via Card 02's
+                  checkbox, of why OBJETIVO below reads so much lower than
+                  a normal ride at this same intensity/duración. */}
+              {result.trainLow && (
+                <div className="mb-3 flex items-start gap-2 rounded-sm border border-zinc-200/70 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                  <Gauge className="mt-0.5 size-3.5 shrink-0 text-zinc-500" />
+                  <span>
+                    Modo Eficiencia Metabólica: objetivo de HC reducido para estimular la
+                    oxidación de grasas.
+                  </span>
+                </div>
+              )}
+
               {/* Píldora Fija de Balance en Tiempo Real — sticky within this
                   card as the athlete scrolls through the bottle-config
                   selector and the pocket-food inventory below, so OBJETIVO/
@@ -2293,9 +2492,56 @@ export function FuelingPlanner({
                 </span>
               </div>
 
-              <span className="mb-2 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-                Configuración de bidones
-              </span>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+                  Configuración de bidones
+                </span>
+                {/* "Micro-Edición In-Situ de Capacidad de Bidón" — a
+                    display-only preview of a different bottle size than the
+                    athlete's saved profile, re-scaling the per-bottle
+                    grams/Ziploc dose everywhere below with zero server
+                    round-trip (see `displayBottlePlan`). */}
+                {displayBottlePlan && (
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-500">
+                    <span>
+                      Capacidad de bidón:{" "}
+                      <span className="font-semibold text-zinc-900">
+                        {displayBottlePlan.bottleSizeMl}ml
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setBottleCapacityEditorOpen((v) => !v)}
+                      className="flex cursor-pointer items-center gap-1 text-zinc-500 transition-colors duration-150 hover:text-zinc-900"
+                    >
+                      <Pencil className="size-3" />
+                      Cambiar
+                    </button>
+                  </div>
+                )}
+              </div>
+              {bottleCapacityEditorOpen && (
+                <div className="mb-3 flex flex-wrap gap-1.5">
+                  {BOTTLE_CAPACITY_QUICK_OPTIONS.map((ml) => (
+                    <button
+                      key={ml}
+                      type="button"
+                      onClick={() => {
+                        setBottleCapacityOverrideMl(ml);
+                        setBottleCapacityEditorOpen(false);
+                      }}
+                      className={cn(
+                        "rounded-sm border px-2.5 py-1 font-mono text-[11px] font-semibold shadow-none transition-colors duration-150",
+                        displayBottlePlan?.bottleSizeMl === ml
+                          ? "border-transparent bg-terracotta text-white"
+                          : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
+                      )}
+                    >
+                      {ml}ml
+                    </button>
+                  ))}
+                </div>
+              )}
               {/* Fixed row at every width — short Title Case labels ("Solo
                   Agua"/"1 Mix"/"Ambos Mix", or "Solo Agua"/"Con Mix" on a
                   1-cage bike) keep this legible even on a narrow phone, so
@@ -2500,15 +2746,15 @@ export function FuelingPlanner({
               <div className="rounded-xl bg-[#343334] p-4 text-white">
                 <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-widest text-white/50 uppercase">
                   <FlaskConical className="size-3.5 shrink-0" />
-                  Fórmula de laboratorio · bidón {result.bottlePlan.bottleSizeMl}ml
+                  Fórmula de laboratorio · bidón {displayBottlePlan!.bottleSizeMl}ml
                 </span>
-                {result.bottlePlan.fuelBottles.count > 0 ? (
+                {displayBottlePlan!.fuelBottles.count > 0 ? (
                   <p className="mt-2 font-mono text-lg leading-snug font-bold text-[#FD5A08] tabular-nums sm:text-xl">
-                    {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g{" "}
+                    {displayBottlePlan!.fuelBottles.maltodextrinGPerBottle}g{" "}
                     <span className="text-sm font-normal text-white/70">Malto</span> +{" "}
-                    {result.bottlePlan.fuelBottles.fructoseGPerBottle}g{" "}
+                    {displayBottlePlan!.fuelBottles.fructoseGPerBottle}g{" "}
                     <span className="text-sm font-normal text-white/70">Fructosa</span> +{" "}
-                    {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g{" "}
+                    {getTableSaltGrams(displayBottlePlan!.fuelBottles.sodiumMgPerBottle)}g{" "}
                     <span className="text-sm font-normal text-white/70">Sal</span>
                   </p>
                 ) : (
@@ -2516,16 +2762,26 @@ export function FuelingPlanner({
                     Cobertura completa vía comida de bolsillo — no necesitas mezcla en bidón.
                   </p>
                 )}
-                {result.bottlePlan.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
+                {/* "Productos Comerciales de Alta Densidad" — a Maurten/Beta
+                    Fuel sachet is dissolved directly into a bottle, not
+                    eaten from the pocket, so it gets its own preparation
+                    line whenever the athlete has selected one. */}
+                {(result.pocketFood.gel_ultra ?? 0) > 0 && (
+                  <p className="mt-2 text-sm text-white/80">
+                    Prepara {result.pocketFood.gel_ultra}x Bidón con 1 Sobre comercial de 80g HC
+                    (Maurten / Beta Fuel) + 500ml de agua.
+                  </p>
+                )}
+                {displayBottlePlan!.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
                   <div className="mt-3 flex items-start gap-2 border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
                     <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
                     <span>
-                      Solución hipertónica ({result.bottlePlan.fuelBottles.concentrationPct}% &gt;{" "}
+                      Solución hipertónica ({displayBottlePlan!.fuelBottles.concentrationPct}% &gt;{" "}
                       {HYPERTONIC_THRESHOLD_PCT}%) — añade agua o traslada carga a comida de bolsillo.
                     </span>
                   </div>
                 )}
-                {result.bottlePlan.fuelBottles.count > 0 && (
+                {displayBottlePlan!.fuelBottles.count > 0 && (
                   <details className="group mt-3">
                     <summary className="flex cursor-pointer list-none items-center gap-1 font-mono text-xs font-medium text-white/60 transition-colors duration-150 hover:text-white [&::-webkit-details-marker]:hidden">
                       <ChevronDown className="size-3.5 shrink-0 transition-transform duration-150 group-open:rotate-180" />
@@ -2533,16 +2789,16 @@ export function FuelingPlanner({
                     </summary>
                     <div className="mt-2 flex flex-col gap-1 border-t border-white/15 pt-2 text-xs text-white/70">
                       <p>
-                        Maltodextrina: {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g (~
+                        Maltodextrina: {displayBottlePlan!.fuelBottles.maltodextrinGPerBottle}g (~
                         {fuelBottleMeasures!.maltodextrinScoops} cazos)
                       </p>
                       <p>
-                        Fructosa: {result.bottlePlan.fuelBottles.fructoseGPerBottle}g (~
+                        Fructosa: {displayBottlePlan!.fuelBottles.fructoseGPerBottle}g (~
                         {fuelBottleMeasures!.fructoseScoops} cazos)
                       </p>
                       <p>
-                        Sal común: {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g (~
-                        {fuelBottleMeasures!.saltTeaspoons} cdta.)
+                        Sal común: {getTableSaltGrams(displayBottlePlan!.fuelBottles.sodiumMgPerBottle)}g
+                        (~{fuelBottleMeasures!.saltTeaspoons} cdta.)
                       </p>
                       <p className="text-[10px] text-white/40">
                         *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g de
@@ -2558,8 +2814,10 @@ export function FuelingPlanner({
                   alone might not be enough. Purely reactive: once the
                   athlete closes the gap from Card 04 (a café/gasolinera
                   stop, or enough extra pocket food), `remainingCarbsG`
-                  collapses to 0 and this disappears entirely. */}
-              {remainingCarbsG > 15 && (
+                  collapses to 0 and this disappears entirely. Suppressed
+                  under Train Low — a remaining "déficit" there is the whole
+                  point of the session, not something to warn about. */}
+              {remainingCarbsG > 15 && !result.trainLow && (
                 <div className="flex items-start gap-2 rounded-sm border border-status-warning/40 bg-status-warning/10 p-3">
                   <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
                   <div className="flex flex-col gap-1">
@@ -2643,11 +2901,23 @@ export function FuelingPlanner({
                 <span className={eyebrow}>Cronograma dinámico de ingesta</span>
                 <p className="mt-2 flex items-center gap-1.5 text-sm text-neutral-700">
                   <Droplet className="size-3.5 shrink-0 text-neutral-500" />
-                  Beber 1 bidón (~{result.bottlePlan.bottleSizeMl} ml) cada{" "}
+                  Beber 1 bidón (~{displayBottlePlan!.bottleSizeMl} ml) cada{" "}
                   <span className="font-mono font-semibold text-neutral-900">
                     {result.timingTimeline.hydrationIntervalMinutes} min
                   </span>
                 </p>
+                {/* "Sensibilidad a Cafeína e Horario Nocturno" — the server
+                    already dropped every caffeine milestone below when the
+                    estimated arrival lands at/after 18:30 local; this is
+                    just the visible explanation for why none show up even
+                    though a gel with caffeine was selected. */}
+                {result.caffeineSuppressed && (
+                  <p className="mt-2 flex items-start gap-1.5 text-xs text-neutral-500">
+                    <Moon className="mt-0.5 size-3.5 shrink-0 text-neutral-400" />
+                    Cafeína omitida automáticamente por el horario de llegada estimado (≥18:30h)
+                    para proteger tu descanso nocturno.
+                  </p>
+                )}
                 {mergedTimelineEntries.length > 0 && (
                   <ol className="mt-3 flex flex-col">
                     {mergedTimelineEntries.map((entry, i) => (

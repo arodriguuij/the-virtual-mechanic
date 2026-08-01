@@ -11,6 +11,8 @@
  * locally too.
  */
 
+import { detectMountainPasses, type MountainPass } from "@/lib/metabolic-engine";
+
 export type ParsedGpxRoute = {
   name: string;
   distanceKm: number;
@@ -41,6 +43,13 @@ export type ParsedGpxRoute = {
   troughLng: number | null;
   troughDistanceFraction: number | null;
   troughElevationM: number | null;
+  /** "Rutas Multipuerto de Alta Montaña" — every real climb-then-descend
+   * pass found along the track's own elevation profile (see
+   * `detectMountainPasses` in `lib/metabolic-engine.ts`), computed locally
+   * since a GPX file already carries per-point altitude — feeds the same
+   * multi-summit caffeine-splitting logic a Strava route's own streams
+   * call uses. `[]` when the file has no usable elevation data. */
+  mountainPasses: MountainPass[];
   /** The full decoded track, for `RouteMapPreview` — a GPX file already has
    * every point in hand locally, no polyline decoding needed the way a
    * Strava route's `summaryPolyline` requires. */
@@ -124,6 +133,11 @@ export function parseGpxFile(xmlText: string, fileName: string): ParsedGpxRoute 
   const start = points[0];
   const end = points[points.length - 1];
 
+  const elevationProfile = points
+    .map((p, i) => (p.eleM != null && distanceKm > 0 ? { distanceFraction: cumulativeDistanceKm[i] / distanceKm, elevationM: p.eleM } : null))
+    .filter((p): p is { distanceFraction: number; elevationM: number } => p != null);
+  const mountainPasses = detectMountainPasses(elevationProfile);
+
   return {
     name: gpxName || fileName.replace(/\.gpx$/i, ""),
     distanceKm: Math.round(distanceKm * 10) / 10,
@@ -146,6 +160,7 @@ export function parseGpxFile(xmlText: string, fileName: string): ParsedGpxRoute 
       troughIndex >= 0 && distanceKm > 0
         ? Math.max(0, Math.min(1, cumulativeDistanceKm[troughIndex] / distanceKm))
         : null,
+    mountainPasses,
     points: points.map((p): [number, number] => [p.lat, p.lng]),
   };
 }

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { decodePolyline } from "@/lib/strava";
+import { detectMountainPasses, type MountainPass } from "@/lib/metabolic-engine";
 
 const STRAVA_API_BASE = "https://www.strava.com/api/v3";
 
@@ -100,6 +101,12 @@ export type RouteElevationExtremes = {
   // the ride's real thermal peak sits). See `POST /api/fueling/plan`'s
   // "Valle / Salida" weather card.
   trough: RouteElevationPoint;
+  // "Rutas Multipuerto de Alta Montaña" — every real climb-then-descend
+  // pass along the route (see `detectMountainPasses`), found in the same
+  // pass over the already-fetched altitude stream rather than a second
+  // Strava call. Used to fraction caffeine dosing across multiple summits
+  // instead of one single late-ride dose — see `POST /api/fueling/plan`.
+  mountainPasses: MountainPass[];
 };
 
 // Unlike activity streams, Strava's route streams endpoint always returns
@@ -176,6 +183,9 @@ export async function fetchRouteElevationExtremes(
   if (!peakPoint || !troughPoint) return null;
   const [peakLat, peakLng] = peakPoint;
   const [troughLat, troughLng] = troughPoint;
+  const mountainPasses = detectMountainPasses(
+    altitude.map((elevationM, i) => ({ distanceFraction: distanceFractionAt(i), elevationM }))
+  );
   return {
     peak: {
       lat: peakLat,
@@ -189,5 +199,6 @@ export async function fetchRouteElevationExtremes(
       distanceFraction: distanceFractionAt(troughIndex),
       elevationM: Math.round(troughAltitude),
     },
+    mountainPasses,
   };
 }

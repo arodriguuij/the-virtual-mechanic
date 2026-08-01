@@ -282,6 +282,57 @@ const INTAKE_HEADROOM_FRACTION = 0.85;
  * (no consumption data logged yet) returns a plain "not enough data" note
  * rather than fabricating a comparison with nothing to compare.
  */
+// "Modo Eficiencia Metabólica" (Train Low / entrenamiento en ayunas) — a
+// deliberate low-carb-availability session (fat-adaptation, mitochondrial
+// biogenesis signaling) needs a *floor*, not the usual intensity-driven
+// target: enough carbs to protect immune function/electrolyte balance on a
+// long fasted ride, never enough to blunt the metabolic stress the session
+// is actually for. Fluid/sodium targets are untouched — dehydration risk
+// doesn't care whether the athlete is fueling carbs or not.
+export const TRAIN_LOW_TARGET_G_PER_HOUR = 15;
+export const TRAIN_LOW_MAX_G_PER_HOUR = 25;
+
+/**
+ * Caps the recommended carb intake to Train Low's 0-25g/h electrolyte-only
+ * band, overriding whatever the ride's own intensity/gut-cap would otherwise
+ * call for — the whole point of the session is restricted carb availability,
+ * so a normal recommendation would defeat it.
+ */
+export function getTrainLowCarbTargetGPerHour(): number {
+  return TRAIN_LOW_TARGET_G_PER_HOUR;
+}
+
+// Below this, the body's own peripheral vasoconstriction plus low sweat
+// output means the usual bottle-concentration ceiling stops being the
+// binding constraint — carrying most of the carb load as solid food/gels
+// instead avoids forcing down a large volume of cold liquid the athlete
+// doesn't feel thirsty enough to want, and avoids "sobrecarga hídrica en
+// vejiga" (needing to stop and empty a full bladder) from bottles sized for
+// a much higher fluid-loss rate than a cold ride actually produces.
+export const EXTREME_COLD_THRESHOLD_C = 8;
+// Above this, sweat/sodium loss accelerates past what the ordinary
+// heat-humidity slope in `getHeatHumidityMultiplier` already models —
+// sodium replacement needs to run at the top of the physiological range,
+// and gastric comfort needs a plain-water bottle in reserve for
+// termorregulación/aclarado bucal, not just concentrate.
+export const EXTREME_HEAT_THRESHOLD_C = 32;
+// Floor sodium concentration once heat is genuinely extreme — regardless of
+// whether the athlete is also a self-reported salty sweater (whose own
+// 1200mg/L figure already sits above this floor and is left untouched).
+export const EXTREME_HEAT_MIN_SODIUM_CONCENTRATION_MG_PER_L = 900;
+
+export type ThermalAdaptation = {
+  isExtremeCold: boolean;
+  isExtremeHeat: boolean;
+};
+
+export function getThermalAdaptation(temperatureC: number): ThermalAdaptation {
+  return {
+    isExtremeCold: temperatureC < EXTREME_COLD_THRESHOLD_C,
+    isExtremeHeat: temperatureC > EXTREME_HEAT_THRESHOLD_C,
+  };
+}
+
 export function getIntakeRecommendationNote(
   avgIntakeGPerHour: number | null,
   gutTrainingLevel: GutTrainingLevel | null
@@ -388,11 +439,20 @@ const SALTY_SWEATER_SODIUM_CONCENTRATION_MG_PER_L = 1200;
 
 export function getSodiumLossMgPerHour(
   fluidLossMlPerHour: number,
-  isSaltySweater: boolean = false
+  isSaltySweater: boolean = false,
+  // "Adaptación Térmica Extrema" — above `EXTREME_HEAT_THRESHOLD_C`, sodium
+  // replacement is floored at `EXTREME_HEAT_MIN_SODIUM_CONCENTRATION_MG_PER_L`
+  // regardless of the athlete's own sweater category — a genuine salty
+  // sweater's 1200mg/L already sits above that floor and is unaffected;
+  // a non-salty-sweater's usual 700mg/L is bumped up to it.
+  extremeHeat: boolean = false
 ): number {
-  const concentration = isSaltySweater
+  let concentration = isSaltySweater
     ? SALTY_SWEATER_SODIUM_CONCENTRATION_MG_PER_L
     : SODIUM_CONCENTRATION_MG_PER_L;
+  if (extremeHeat) {
+    concentration = Math.max(concentration, EXTREME_HEAT_MIN_SODIUM_CONCENTRATION_MG_PER_L);
+  }
   return Math.round((fluidLossMlPerHour / 1000) * concentration);
 }
 
@@ -465,7 +525,8 @@ export type PocketFoodItemType =
   | "gummies"
   | "gel_small"
   | "gel_standard"
-  | "gel_high";
+  | "gel_high"
+  | "gel_ultra";
 
 export const pocketFoodLabels: Record<PocketFoodItemType, string> = {
   // "Refresco"/"Bollería" — the two most common real-world café/gasolinera
@@ -484,6 +545,12 @@ export const pocketFoodLabels: Record<PocketFoodItemType, string> = {
   gel_small: "🧃 Gel pequeño",
   gel_standard: "🧃 Gel estándar",
   gel_high: "🧃 Gel alta carga / Hydro",
+  // "Productos Comerciales de Alta Densidad" — a full commercial sachet
+  // (Maurten 320 / SiS Beta Fuel, etc.), dissolved directly into a bottle
+  // rather than eaten from the pocket the way the smaller gel tiers above
+  // are — same fast-absorption "gel" bucket for timing-timeline purposes
+  // (see `generateTimingTimeline`), just at a much higher single dose.
+  gel_ultra: "🧃 Sobre comercial 80g HC (Maurten / Beta Fuel)",
 };
 
 export const pocketFoodCarbsG: Record<PocketFoodItemType, number> = {
@@ -497,6 +564,7 @@ export const pocketFoodCarbsG: Record<PocketFoodItemType, number> = {
   gel_small: 25,
   gel_standard: 30,
   gel_high: 45,
+  gel_ultra: 80,
 };
 
 /** `customCarbsG` covers anything outside the fixed catalog — a rider's own
@@ -680,6 +748,90 @@ const CAFFEINE_WINDOW_START_FRACTION = 0.65;
 // caffeine earlier than the window above.
 const LATE_CLIMB_MIN_FRACTION = 0.5;
 
+// "Sensibilidad a Cafeína e Horario Nocturno" — a caffeine hit landing after
+// this local hour risks disrupting the athlete's night sleep, which matters
+// more than the marginal late-ride alertness boost it would otherwise give.
+export const CAFFEINE_CURFEW_HOUR = 18;
+export const CAFFEINE_CURFEW_MINUTE = 30;
+
+/**
+ * Whether the ride's estimated arrival time falls at/after the caffeine
+ * curfew (18:30 local) — when `true`, callers should drop every caffeine
+ * milestone regardless of what the pocket-food selection or route profile
+ * would otherwise schedule.
+ */
+export function isPastCaffeineCurfew(arrivalDate: Date): boolean {
+  const hours = arrivalDate.getHours();
+  const minutes = arrivalDate.getMinutes();
+  return hours > CAFFEINE_CURFEW_HOUR || (hours === CAFFEINE_CURFEW_HOUR && minutes >= CAFFEINE_CURFEW_MINUTE);
+}
+
+// "Rutas Multipuerto de Alta Montaña" — a real mountain pass, not just a
+// rolling bump: at least this much cumulative climb since the last valley...
+const MOUNTAIN_PASS_MIN_GAIN_M = 350;
+// ...confirmed by at least this much subsequent descent off the summit,
+// so a brief false plateau mid-climb doesn't get counted as its own
+// separate pass.
+const MOUNTAIN_PASS_MIN_DESCENT_CONFIRM_M = 250;
+// Caffeine is only fractioned across multiple passes on a ride long enough
+// for two separate hard efforts to plausibly need it — matches the
+// carb-loading module's own "long/target ride" threshold.
+export const MULTI_PASS_CAFFEINE_MIN_DURATION_HOURS = 3.5;
+
+export type MountainPass = {
+  distanceFraction: number;
+  elevationM: number;
+  /** Cumulative climb (m) from the preceding valley/base to this summit. */
+  gainM: number;
+};
+
+/**
+ * Scans an elevation profile (ordered by distance along the route) for
+ * genuine mountain passes — a real climb-then-descend cycle of at least
+ * `MOUNTAIN_PASS_MIN_GAIN_M` gained and `MOUNTAIN_PASS_MIN_DESCENT_CONFIRM_M`
+ * subsequently lost, not every local wiggle in the trace. Heuristic, same
+ * "not a full topographic analysis" convention as the rest of this file —
+ * good enough to tell "this route has multiple real summits" from "this
+ * route has one," which is all `generateTimingTimeline`'s caffeine-splitting
+ * logic below needs.
+ */
+export function detectMountainPasses(
+  profile: { distanceFraction: number; elevationM: number }[]
+): MountainPass[] {
+  if (profile.length < 3) return [];
+  const passes: MountainPass[] = [];
+
+  let baseElevation = profile[0].elevationM;
+  let peakElevation = profile[0].elevationM;
+  let peakIndex = 0;
+
+  for (let i = 1; i < profile.length; i++) {
+    const elevationM = profile[i].elevationM;
+    if (elevationM > peakElevation) {
+      peakElevation = elevationM;
+      peakIndex = i;
+      continue;
+    }
+    if (peakElevation - elevationM >= MOUNTAIN_PASS_MIN_DESCENT_CONFIRM_M) {
+      if (peakElevation - baseElevation >= MOUNTAIN_PASS_MIN_GAIN_M) {
+        passes.push({
+          distanceFraction: profile[peakIndex].distanceFraction,
+          elevationM: Math.round(peakElevation),
+          gainM: Math.round(peakElevation - baseElevation),
+        });
+      }
+      // Start tracking the next climb from this newly-confirmed descent.
+      baseElevation = elevationM;
+      peakElevation = elevationM;
+      peakIndex = i;
+    } else if (elevationM < baseElevation) {
+      baseElevation = elevationM;
+    }
+  }
+
+  return passes;
+}
+
 export type TimingTimelineEntry = {
   type: "solid" | "gel" | "caffeine";
   label: string;
@@ -731,6 +883,7 @@ export function generateTimingTimeline({
   fluidLossMlPerHour,
   peakFraction = null,
   bottleCapacityMl = DEFAULT_HYDRATION_BOTTLE_ML,
+  mountainPasses = null,
 }: {
   selection: PocketFoodSelection;
   durationHours: number;
@@ -741,6 +894,12 @@ export function generateTimingTimeline({
    * hydration-pacing line actually paces against, see
    * `getHydrationIntervalMinutes` above. */
   bottleCapacityMl?: number;
+  /** "Rutas Multipuerto de Alta Montaña" — when at least 2 real summits were
+   * detected (`detectMountainPasses`) and the ride is long enough
+   * (`MULTI_PASS_CAFFEINE_MIN_DURATION_HOURS`), caffeine is fractioned into
+   * two ~100mg doses (before the first pass, before the final pass) instead
+   * of the usual single late-ride dose. */
+  mountainPasses?: MountainPass[] | null;
 }): TimingTimeline {
   const { customCarbsG, includeCaffeine, ...items } = selection;
   const solidTypes = new Set<PocketFoodItemType>([
@@ -752,7 +911,7 @@ export function generateTimingTimeline({
     "dates",
     "gummies",
   ]);
-  const gelTypes = new Set<PocketFoodItemType>(["gel_small", "gel_standard", "gel_high"]);
+  const gelTypes = new Set<PocketFoodItemType>(["gel_small", "gel_standard", "gel_high", "gel_ultra"]);
 
   const solidLabels: string[] = [];
   const gelLabels: string[] = [];
@@ -783,20 +942,51 @@ export function generateTimingTimeline({
   // to duration alone. No caffeine item selected → no milestone, regardless
   // of how long the ride is.
   if (includeCaffeine && durationHours >= CAFFEINE_MIN_DURATION_HOURS) {
-    const hasLateClimb = peakFraction != null && peakFraction >= LATE_CLIMB_MIN_FRACTION;
     const leadFraction = CAFFEINE_LEAD_MINUTES / 60 / durationHours;
-    // Mountain routes: 45 minutes before the real elevation peak. Flat
-    // routes/Entreno Manual (no late climb to target): 45 minutes before the
-    // ride's own finish instead — either way never earlier than the 65%
-    // floor, which protects a short ride (or an early climb) from placing
-    // caffeine too soon and defeating the point of a late-ride alertness
-    // boost.
-    const fraction = hasLateClimb
-      ? Math.max(CAFFEINE_WINDOW_START_FRACTION, peakFraction - leadFraction)
-      : Math.max(CAFFEINE_WINDOW_START_FRACTION, 1 - leadFraction);
-    entries.push(
-      makeTimingEntry("caffeine", "Toma de cafeína (~100-200mg)", fraction, durationHours, distanceKm)
-    );
+    const hasMultiplePasses =
+      (mountainPasses?.length ?? 0) >= 2 && durationHours > MULTI_PASS_CAFFEINE_MIN_DURATION_HOURS;
+
+    if (hasMultiplePasses && mountainPasses) {
+      // "Cafeína Fraccionada" — one ~100mg dose ahead of the first summit,
+      // a second ~100mg dose ahead of the final one, instead of one bigger
+      // dose late in the ride. Each still respects the same 65% window floor
+      // as the single-dose case below (a first pass early in a long ride
+      // shouldn't push its own dose earlier than that).
+      const firstPass = mountainPasses[0];
+      const lastPass = mountainPasses[mountainPasses.length - 1];
+      entries.push(
+        makeTimingEntry(
+          "caffeine",
+          "Cafeína (~100mg) — antes del Puerto 1",
+          Math.max(0.05, firstPass.distanceFraction - leadFraction),
+          durationHours,
+          distanceKm
+        )
+      );
+      entries.push(
+        makeTimingEntry(
+          "caffeine",
+          "Cafeína (~100mg) — antes del puerto final",
+          Math.max(CAFFEINE_WINDOW_START_FRACTION, lastPass.distanceFraction - leadFraction),
+          durationHours,
+          distanceKm
+        )
+      );
+    } else {
+      const hasLateClimb = peakFraction != null && peakFraction >= LATE_CLIMB_MIN_FRACTION;
+      // Mountain routes: 45 minutes before the real elevation peak. Flat
+      // routes/Entreno Manual (no late climb to target): 45 minutes before the
+      // ride's own finish instead — either way never earlier than the 65%
+      // floor, which protects a short ride (or an early climb) from placing
+      // caffeine too soon and defeating the point of a late-ride alertness
+      // boost.
+      const fraction = hasLateClimb
+        ? Math.max(CAFFEINE_WINDOW_START_FRACTION, peakFraction - leadFraction)
+        : Math.max(CAFFEINE_WINDOW_START_FRACTION, 1 - leadFraction);
+      entries.push(
+        makeTimingEntry("caffeine", "Toma de cafeína (~100-200mg)", fraction, durationHours, distanceKm)
+      );
+    }
   }
 
   entries.sort((a, b) => a.atMinutes - b.atMinutes);
@@ -1258,8 +1448,17 @@ export type BaseBottleRecipe = {
  * afterward), so `totalCarbsG` is always `maltodextrinG + fructoseG`, never
  * a separately-rounded third figure that could drift from the other two by
  * a gram. */
-export function getBaseBottleRecipe(bottleSizeMl: number): BaseBottleRecipe {
-  const scale = bottleSizeMl / BASE_BOTTLE_ML;
+// "Adaptación Térmica Extrema — Frío" — below `EXTREME_COLD_THRESHOLD_C`,
+// the mandatory bottle concentration is reduced by this fraction (more of
+// the ride's carb target has to come from pocket food/gels instead), rather
+// than forcing down the usual full-strength mix in cold weather.
+export const COLD_WEATHER_CONCENTRATION_SCALE = 0.6;
+
+export function getBaseBottleRecipe(
+  bottleSizeMl: number,
+  concentrationScale: number = 1
+): BaseBottleRecipe {
+  const scale = (bottleSizeMl / BASE_BOTTLE_ML) * concentrationScale;
   const maltodextrinG = Math.round(BASE_BOTTLE_MALTODEXTRIN_G * scale);
   const fructoseG = Math.round(BASE_BOTTLE_FRUCTOSE_G * scale);
   return { maltodextrinG, fructoseG, totalCarbsG: maltodextrinG + fructoseG };
@@ -1287,15 +1486,37 @@ export function getBaseBottleRecipe(bottleSizeMl: number): BaseBottleRecipe {
  */
 export function getBottlePlan(
   recipe: HomeLabRecipe,
-  bottleSizeMl: number = DEFAULT_BOTTLE_SIZE_ML
+  bottleSizeMl: number = DEFAULT_BOTTLE_SIZE_ML,
+  options: {
+    /** "Adaptación Térmica Extrema — Frío": scales every fuel bottle's
+     * concentration down (`COLD_WEATHER_CONCENTRATION_SCALE`), which in turn
+     * needs more (weaker) bottles for the same total carb target — pushing
+     * more of the ride's carbs toward pocket food/gels instead of a fully
+     * concentrated bottle in cold weather. */
+    coldWeatherReduction?: boolean;
+    /** "Adaptación Térmica Extrema — Calor": guarantees at least this many
+     * of the resulting bottles are plain water, even when the recipe's own
+     * fuel-bottle count alone would already cover the fluid target — a
+     * genuinely hot ride needs a pure-water bottle in reserve for
+     * termorregulación/aclarado bucal, not just concentrate. */
+    minWaterBottles?: number;
+  } = {}
 ): BottlePlan {
-  const baseRecipe = getBaseBottleRecipe(bottleSizeMl);
+  const { coldWeatherReduction = false, minWaterBottles = 0 } = options;
+  const baseRecipe = getBaseBottleRecipe(
+    bottleSizeMl,
+    coldWeatherReduction ? COLD_WEATHER_CONCENTRATION_SCALE : 1
+  );
   // Zero only when pocket food already covers the whole carb target — no
   // fuel bottle needed at all in that case, just plain water/electrolytes.
   const fuelBottleCount =
     recipe.totalCarbsG > 0 ? Math.max(1, Math.ceil(recipe.totalCarbsG / baseRecipe.totalCarbsG)) : 0;
-  const totalBottles = Math.max(fuelBottleCount, Math.ceil(recipe.waterMl / bottleSizeMl));
-  const waterBottleCount = Math.max(0, totalBottles - fuelBottleCount);
+  let totalBottles = Math.max(fuelBottleCount, Math.ceil(recipe.waterMl / bottleSizeMl));
+  let waterBottleCount = Math.max(0, totalBottles - fuelBottleCount);
+  if (waterBottleCount < minWaterBottles) {
+    waterBottleCount = minWaterBottles;
+    totalBottles = fuelBottleCount + waterBottleCount;
+  }
 
   return {
     bottleSizeMl,
