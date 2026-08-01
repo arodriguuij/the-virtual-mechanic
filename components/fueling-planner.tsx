@@ -423,10 +423,12 @@ type PlanResult = {
   mountainPassesDetected: number;
 };
 
-// "Micro-Edición In-Situ de Capacidad de Bidón" — the standard capacities a
-// rider's bottles actually come in, offered as one-tap quick options rather
-// than a free-text field.
-const BOTTLE_CAPACITY_QUICK_OPTIONS = [500, 550, 750, 950, 1000];
+// "Micro-Edición In-Situ de Capacidad de Bidón" — "Estandarización
+// Unificada de Bidones": the app's 3 official capacities only (550/750/
+// 950ml) — 500/600/1000 were dropped outright, matching the same
+// standardization applied to the persisted `bottle_capacity_ml` selector
+// on `/perfil`.
+const BOTTLE_CAPACITY_QUICK_OPTIONS = [550, 750, 950];
 
 // "Micro-Gauges de 2px" — Card 03's own reference ceilings for how far each
 // metric's current value sits along its own real-world demand range, purely
@@ -584,7 +586,7 @@ function getBikeChecklistLines(
   bottleConfig: BottleConfigOption,
   bottlePlan: PlanResult["bottlePlan"]
 ): BikeChecklistLine[] {
-  const { fuelBottles, waterBottles, bottleSizeMl } = bottlePlan;
+  const { fuelBottles, waterBottles, bottleSizeMl, totalBottles } = bottlePlan;
   const maxOnBike = result.reloadStrategy?.startingBottleCount ?? bottlePlan.totalBottles;
   const lines: BikeChecklistLine[] = [];
 
@@ -604,7 +606,25 @@ function getBikeChecklistLines(
     });
   }
 
-  const waterBottlesOnBike = Math.min(waterBottles.count, Math.max(0, maxOnBike - mixBottleCount));
+  // "Corrección de Bug: Checklist con Solo Agua" — `waterBottles.count` is
+  // only the *residual* plain-water need beyond what a mix bottle's own
+  // liquid volume would already cover; it can legitimately be small or
+  // even 0 when the recipe's fuel bottle(s) alone already hold most of the
+  // ride's fluid target. That's the right cap for "1 Mix"/"Ambos Mix" (only
+  // recommend *extra* plain water beyond the mix bottle(s) actually on the
+  // bike) — but under "Solo agua" there's no mix bottle at all, so the
+  // athlete's real bottles are carrying the ride's *entire* fluid target,
+  // not just a residual on top of a bottle that doesn't exist. Using
+  // `waterBottles.count` there could under-count down to 0 even though the
+  // athlete clearly has real bottles configured, which is exactly what
+  // produced the reported "Sin bidones..." false negative. `totalBottles`
+  // (fuel + water combined, since a fuel bottle's own volume already
+  // counts toward the fluid target) is the ride's true total bottle need,
+  // so that — capped at the real cage count — is what "Solo agua" shows.
+  const waterBottlesOnBike =
+    bottleConfig === "water_only"
+      ? Math.min(totalBottles, maxOnBike)
+      : Math.min(waterBottles.count, Math.max(0, maxOnBike - mixBottleCount));
   if (waterBottlesOnBike > 0) {
     lines.push({
       key: "water",

@@ -12,7 +12,14 @@ const VALID_GUT_TRAINING_LEVELS = new Set<GutTrainingLevel>([
 ]);
 const VALID_ATHLETE_TYPES = new Set<AthleteType>(["diesel", "balanced", "explosive"]);
 const VALID_BOTTLE_COUNTS = new Set([1, 2]);
-const VALID_BOTTLE_CAPACITIES_ML = new Set([500, 600, 750, 950]);
+// "Estandarización Unificada de Bidones" — exactly 3 official capacities
+// (550/750/950ml), replacing the old 500/600/750/950 set. NOTE: this is
+// the *application-level* allowlist only — `athlete_profiles.bottle_
+// capacity_ml`'s own DB `CHECK` constraint still needs a manual Supabase
+// migration to actually accept `550` (and to stop accepting `500`/`600`)
+// before a save of any of these 3 values reliably round-trips; see this
+// repo's own commit history around this constant for the exact SQL.
+const VALID_BOTTLE_CAPACITIES_ML = new Set([550, 750, 950]);
 
 export async function POST(request: NextRequest) {
   const redirectWithError = (code: string) =>

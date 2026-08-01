@@ -696,8 +696,8 @@ export function getPocketFoodMilestones({
  * rider thinks in whole bottles, not milliliters, so the pacing guidance is
  * framed around finishing one full bottle rather than a vague sip count.
  * `bottleMl` is the athlete's own real `athlete_profiles.bottle_capacity_ml`
- * (500/600/750/950), not a fixed reference size — a rider running 950ml
- * bottles genuinely needs longer between refills than one running 500ml
+ * (550/750/950), not a fixed reference size — a rider running 950ml
+ * bottles genuinely needs longer between refills than one running 550ml
  * bottles at the same sweat rate, so hardcoding a single reference size
  * would silently mismatch the "1 bidón" the UI actually shows next to it.
  * `DEFAULT_HYDRATION_BOTTLE_ML` is only a fallback for a caller with no real
@@ -1441,13 +1441,17 @@ export type BaseBottleRecipe = {
 };
 
 /** Scales the base 44g/550ml dual recipe linearly to any real bottle
- * capacity — `athlete_profiles.bottle_capacity_ml` (500/600/750/950ml) or a
- * one-off custom volume. Each component is rounded independently (matching
- * the reference table this was specified against exactly: 750ml → 33g
- * malto + 27g fructose = 60g HC, not a rounding of 60g split 1.2:1
- * afterward), so `totalCarbsG` is always `maltodextrinG + fructoseG`, never
- * a separately-rounded third figure that could drift from the other two by
- * a gram. */
+ * capacity — `athlete_profiles.bottle_capacity_ml` (550/750/950ml, see
+ * "Estandarización Unificada de Bidones") or a one-off custom volume. Each
+ * component is rounded independently to 1 decimal place (matching the
+ * reference table this was specified against exactly: 750ml → 32.7g malto
+ * + 27.3g fructose = 60g HC; 950ml → 41.5g malto + 34.5g fructose = 76g HC,
+ * not a rounding of the total split 1.2:1 afterward), so `totalCarbsG` is
+ * always `maltodextrinG + fructoseG`, never a separately-rounded third
+ * figure that could drift from the other two. Whole-gram rounding was the
+ * original precision here; 1-decimal is what the current reference table
+ * asks for, and matters for 750/950ml specifically — at 550ml (scale = 1)
+ * both roundings agree (24g/20g exactly). */
 // "Adaptación Térmica Extrema — Frío" — below `EXTREME_COLD_THRESHOLD_C`,
 // the mandatory bottle concentration is reduced by this fraction (more of
 // the ride's carb target has to come from pocket food/gels instead), rather
@@ -1459,9 +1463,9 @@ export function getBaseBottleRecipe(
   concentrationScale: number = 1
 ): BaseBottleRecipe {
   const scale = (bottleSizeMl / BASE_BOTTLE_ML) * concentrationScale;
-  const maltodextrinG = Math.round(BASE_BOTTLE_MALTODEXTRIN_G * scale);
-  const fructoseG = Math.round(BASE_BOTTLE_FRUCTOSE_G * scale);
-  return { maltodextrinG, fructoseG, totalCarbsG: maltodextrinG + fructoseG };
+  const maltodextrinG = Math.round(BASE_BOTTLE_MALTODEXTRIN_G * scale * 10) / 10;
+  const fructoseG = Math.round(BASE_BOTTLE_FRUCTOSE_G * scale * 10) / 10;
+  return { maltodextrinG, fructoseG, totalCarbsG: Math.round((maltodextrinG + fructoseG) * 10) / 10 };
 }
 
 /**
@@ -1473,8 +1477,8 @@ export function getBaseBottleRecipe(
  * with plain water/electrolyte bottles. On a long ride this often implies
  * refilling the same one or two bottles multiple times from a support car/
  * musette rather than literally carrying every bottle at once.
- * `bottleSizeMl` is the athlete's own real bottle capacity (500/600/750/
- * 950ml — configured on their profile), not a fixed assumption. Whenever
+ * `bottleSizeMl` is the athlete's own real bottle capacity (550/750/950ml —
+ * configured on their profile), not a fixed assumption. Whenever
  * this pushes `totalBottles` above the athlete's real bottle-cage count,
  * `getReloadStrategy` below automatically forces the Ziploc reload plan.
  * Sodium is the one figure still derived from the *ride's own* target

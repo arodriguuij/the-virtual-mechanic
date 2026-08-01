@@ -107,22 +107,21 @@ export function PhysiologicalProfileForm({
     profile?.gut_training_level ?? null
   );
   const [bottleCount, setBottleCount] = useState(profile?.bottle_count ?? 2);
-  // "Estandarización a Botella de 550ml" — 550ml is this app's internal
-  // *reference recipe* size (`BASE_BOTTLE_ML` in `lib/metabolic-engine.ts`,
-  // the fixed 44g HC dose the DIY mix is calibrated against), not a real,
-  // persistable `bottle_capacity_ml` value — that column's own DB `CHECK`
-  // constraint only allows 500/600/750/950 (see `VALID_BOTTLE_CAPACITIES_ML`
-  // in `app/api/athlete-profile/update/route.ts`), so defaulting this
-  // `<select>` to 550 would silently mismatch every real `<option>` it has
-  // and, if ever submitted, fail the DB write outright. Defaults to `750`
-  // instead — a real, already-valid option, and the column's own actual DB
-  // default (see CLAUDE.md's "Athlete profile" section) — so a new athlete
-  // no longer silently lands on the smaller `500` this form used to default
-  // to. Widening the DB constraint to also accept `550` as a genuine
-  // equipment size is a separate, real infra change this codebase has no
-  // migration tooling for — flag that to the user rather than quietly
-  // shipping a value the database would reject.
-  const [bottleCapacityMl, setBottleCapacityMl] = useState(profile?.bottle_capacity_ml ?? 750);
+  // "Estandarización Unificada de Bidones (550/750/950ml)" — 550ml is now
+  // both this app's internal *reference recipe* size (`BASE_BOTTLE_ML` in
+  // `lib/metabolic-engine.ts`, the fixed 44g HC dose the DIY mix is
+  // calibrated against) *and* the default real, persistable
+  // `bottle_capacity_ml` option, replacing the old 500/600/750/950 set —
+  // 500 and 600 are no longer offered anywhere in the app (see
+  // `VALID_BOTTLE_CAPACITIES_ML` in `app/api/athlete-profile/update/
+  // route.ts` and the `<option>`s below). **Requires a manual Supabase
+  // migration** — the DB column's own `CHECK` constraint still only allows
+  // the old 500/600/750/950 set as of this pass (no migration tooling
+  // exists in this repo to run it automatically), so until that constraint
+  // is widened to `IN (550, 750, 950)`, submitting the new default `550`
+  // will fail the DB write. Flagged transparently rather than silently
+  // shipping a value the live database would still reject.
+  const [bottleCapacityMl, setBottleCapacityMl] = useState(profile?.bottle_capacity_ml ?? 550);
   const [isSaltySweater, setIsSaltySweater] = useState(profile?.is_salty_sweater ?? false);
   const [touched, setTouched] = useState<Partial<Record<RequiredField, boolean>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -152,7 +151,7 @@ export function PhysiologicalProfileForm({
       sweatRate !== (profile?.sweat_rate ?? null) ||
       gutTrainingLevel !== (profile?.gut_training_level ?? null) ||
       bottleCount !== (profile?.bottle_count ?? 2) ||
-      bottleCapacityMl !== (profile?.bottle_capacity_ml ?? 750) ||
+      bottleCapacityMl !== (profile?.bottle_capacity_ml ?? 550) ||
       isSaltySweater !== (profile?.is_salty_sweater ?? false),
     [
       weight,
@@ -337,8 +336,7 @@ export function PhysiologicalProfileForm({
                   onChange={(e) => setBottleCapacityMl(Number(e.target.value))}
                   className={selectableProfileInputClass}
                 >
-                  <option value={500}>500 ml</option>
-                  <option value={600}>600 ml</option>
+                  <option value={550}>550 ml</option>
                   <option value={750}>750 ml</option>
                   <option value={950}>950 ml</option>
                 </select>
