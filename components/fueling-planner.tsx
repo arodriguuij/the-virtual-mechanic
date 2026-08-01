@@ -295,6 +295,20 @@ type PlanResult = {
     source: "dynamic" | "planning_default" | "seasonal_average";
     multiPointSample: boolean;
     lapseRateAdjustmentC: number;
+    /** Only present on a route with a significant climb (D+ ≥ 400m or a
+     * known summit ≥ 500m) — see `WeatherImpactCard`'s comparative "Base /
+     * Llanos" vs. "Cima del Puerto" cards. `null` on a flat route or
+     * Entreno Manual, where the single blended reading above is the whole
+     * story. */
+    altitude: {
+      base: { temperatureC: number; humidityPct: number; windSpeedKmh: number };
+      peak: {
+        temperatureC: number;
+        humidityPct: number;
+        windSpeedKmh: number;
+        elevationM: number | null;
+      };
+    } | null;
   };
   gutTraining: {
     isGutLimited: boolean;
@@ -1069,6 +1083,7 @@ export function FuelingPlanner({
                 peakLat: parsedGpx.peakLat,
                 peakLng: parsedGpx.peakLng,
                 peakDistanceFraction: parsedGpx.peakDistanceFraction,
+                peakElevationM: parsedGpx.peakElevationM,
                 intensity,
                 isTargetEvent,
                 pocketFood: pocketFoodPayload,
@@ -1768,6 +1783,7 @@ export function FuelingPlanner({
                   source={result.weather.source}
                   multiPointSample={result.weather.multiPointSample}
                   lapseRateAdjustmentC={result.weather.lapseRateAdjustmentC}
+                  altitude={result.weather.altitude}
                 />
               </div>
 
@@ -2055,7 +2071,7 @@ export function FuelingPlanner({
 
                   Also hidden whenever the *live* OBJETIVO/CUBIERTO/RESTANTE
                   pill above (Card 04) already shows the ride ~95%+ covered
-                  (`remainingCarbsG <= 10`) — `reloadStrategy` itself is
+                  (`remainingCarbsG <= 15`) — `reloadStrategy` itself is
                   frozen from the last "Calcular estrategia" click, so an
                   athlete who's since added enough pocket food or switched
                   to "Ambos Mix" would otherwise keep seeing a stale recharge
@@ -2063,7 +2079,7 @@ export function FuelingPlanner({
                   to recalculate just to dismiss it. */}
               {result.reloadStrategy &&
                 result.reloadStrategy.ziplocBagsCount > 0 &&
-                remainingCarbsG > 10 && (
+                remainingCarbsG > 15 && (
                 <details className="group rounded-sm border border-status-warning/40 bg-status-warning/10">
                   <summary className="flex list-none cursor-pointer items-center justify-between gap-2 p-3 [&::-webkit-details-marker]:hidden">
                     <span className="flex min-w-0 flex-col gap-1">

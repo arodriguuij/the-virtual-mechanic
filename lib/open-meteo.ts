@@ -47,6 +47,14 @@ export type RouteWeather = {
   // but is a real factor in perceived effort/thermal comfort the rider sees
   // in the weather badge.
   windSpeedKmhAvg: number;
+  /** The individual per-point reading behind the aggregate figures above, in
+   * the same order as the `points` array passed in — `null` at an index
+   * whose own request failed (see `getWeatherAtPoint`). Lets a caller with
+   * route-shaped input (e.g. the fueling planner's start/summit/finish
+   * 3-point sample) read back one specific point's own reading — the real
+   * sampled temperature at the route's actual highest point, say — rather
+   * than only the blended average/max across every sampled point. */
+  pointSamples: (PointSample | null)[];
 };
 
 type OpenMeteoHourlyResponse = {
@@ -59,7 +67,7 @@ type OpenMeteoHourlyResponse = {
   };
 };
 
-type PointSample = {
+export type PointSample = {
   humidity: number;
   temperatureC: number;
   rainMm: number;
@@ -152,6 +160,7 @@ export async function getWeatherForRoute(
     rainMm: isWet ? maxRain : 0,
     isWet,
     windSpeedKmhAvg,
+    pointSamples: results,
   };
 }
 

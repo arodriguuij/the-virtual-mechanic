@@ -25,6 +25,13 @@ export type ParsedGpxRoute = {
   peakLat: number | null;
   peakLng: number | null;
   peakDistanceFraction: number | null;
+  /** The peak point's own absolute elevation (meters above sea level) —
+   * already read from the track's `<ele>` data while scanning for the
+   * highest point, just not previously kept. Feeds the "cota máxima ≥ 500m"
+   * half of the altitude-differentiated weather threshold (see
+   * `POST /api/fueling/plan`). `null` alongside `peakLat`/`peakLng` when the
+   * file has no elevation data at all. */
+  peakElevationM: number | null;
   /** The full decoded track, for `RouteMapPreview` — a GPX file already has
    * every point in hand locally, no polyline decoding needed the way a
    * Strava route's `summaryPolyline` requires. */
@@ -111,6 +118,7 @@ export function parseGpxFile(xmlText: string, fileName: string): ParsedGpxRoute 
     endLng: end.lng,
     peakLat: peakIndex >= 0 ? points[peakIndex].lat : null,
     peakLng: peakIndex >= 0 ? points[peakIndex].lng : null,
+    peakElevationM: peakIndex >= 0 ? Math.round(peakEleM) : null,
     peakDistanceFraction:
       peakIndex >= 0 && distanceKm > 0
         ? Math.max(0, Math.min(1, cumulativeDistanceKm[peakIndex] / distanceKm))

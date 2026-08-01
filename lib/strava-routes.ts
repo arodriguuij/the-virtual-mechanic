@@ -84,6 +84,11 @@ export type RoutePeakPoint = {
   // estimate its pass-through time the same way `getRouteSamplePoints`
   // estimates time for its own control points.
   distanceFraction: number;
+  // The peak's own absolute elevation (meters above sea level) — already
+  // computed while scanning the altitude stream for the highest point, just
+  // not previously returned. Feeds the "cota máxima ≥ 500m" half of the
+  // altitude-differentiated weather threshold (see `POST /api/fueling/plan`).
+  elevationM: number;
 };
 
 // Unlike activity streams, Strava's route streams endpoint always returns
@@ -147,5 +152,10 @@ export async function fetchRoutePeakPoint(
   const point = latlng[peakIndex];
   if (!point) return null;
   const [lat, lng] = point;
-  return { lat, lng, distanceFraction: Math.max(0, Math.min(1, distanceFraction)) };
+  return {
+    lat,
+    lng,
+    distanceFraction: Math.max(0, Math.min(1, distanceFraction)),
+    elevationM: Math.round(peakAltitude),
+  };
 }

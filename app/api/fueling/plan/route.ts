@@ -6,6 +6,7 @@ import {
   getWeatherForDeparture,
   getWeatherForRoute,
   isBeyondForecastRange,
+  type PointSample,
 } from "@/lib/open-meteo";
 import { fetchRoutePeakPoint } from "@/lib/strava-routes";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
@@ -216,6 +217,17 @@ export async function POST(request: NextRequest) {
   // real peak point was found (Strava route streams, or a client-supplied
   // GPX peak), never for the elevation-gain lapse-rate approximation.
   let peakFractionForTimeline: number | null = null;
+  // The peak's own absolute elevation (m above sea level), when known — the
+  // "cota máxima" half of the altitude-differentiated weather threshold
+  // below. `null` whenever no real peak was resolved at all (no route/GPX
+  // peak data, or the Strava streams call failed).
+  let peakElevationM: number | null = null;
+  // The real per-point readings behind the 3-point sample above (start,
+  // summit, finish, in that order) — kept separately from the blended
+  // `temperatureC`/`humidityPct`/`windSpeedKmh` averages so the "Cima del
+  // Puerto" card below can show the summit's own real reading rather than a
+  // value diluted by the base-level points either side of it.
+  let routeSamplePoints: (PointSample | null)[] | null = null;
 
   // A GPX Híbrido upload already found its own elevation peak client-side
   // (it has per-point altitude, unlike a Strava route's summary polyline) and
@@ -225,6 +237,7 @@ export async function POST(request: NextRequest) {
   const clientPeakLng = typeof body.peakLng === "number" ? body.peakLng : null;
   const clientPeakFraction =
     typeof body.peakDistanceFraction === "number" ? body.peakDistanceFraction : null;
+  const clientPeakElevationM = typeof body.peakElevationM === "number" ? body.peakElevationM : null;
 
   if (startLat != null && startLng != null && departureIso) {
     // A departure planned further out than Open-Meteo's forecast horizon has
@@ -241,15 +254,21 @@ export async function POST(request: NextRequest) {
       }
     } else {
       if (endLat != null && endLng != null) {
-        let peak: { lat: number; lng: number; distanceFraction: number } | null =
+        let peak: { lat: number; lng: number; distanceFraction: number; elevationM: number | null } | null =
           clientPeakLat != null && clientPeakLng != null && clientPeakFraction != null
-            ? { lat: clientPeakLat, lng: clientPeakLng, distanceFraction: clientPeakFraction }
+            ? {
+                lat: clientPeakLat,
+                lng: clientPeakLng,
+                distanceFraction: clientPeakFraction,
+                elevationM: clientPeakElevationM,
+              }
             : null;
         if (!peak && routeId) {
           const accessToken = await getValidStravaAccessToken(supabase, userId);
           peak = accessToken ? await fetchRoutePeakPoint(accessToken, routeId) : null;
         }
         if (peak) {
+          peakElevationM = peak.elevationM;
           const start = new Date(departureIso);
           const durationMs = durationHours * 60 * 60 * 1000;
           const weather = await getWeatherForRoute([
@@ -269,6 +288,7 @@ export async function POST(request: NextRequest) {
             weatherSource = "dynamic";
             sampledAtRealAltitude = true;
             peakFractionForTimeline = peak.distanceFraction;
+            routeSamplePoints = weather.pointSamples;
           }
         }
       }
@@ -285,6 +305,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Snapshot of the base-level reading *before* the lapse-rate correction
+  // below overwrites `temperatureC` in place — needed by the "Base / Llanos"
+  // altitude card further down, whenever the 3-point sample above didn't
+  // already give us a real, independent base-vs-summit breakdown.
+  const preLapseTemperatureC = temperatureC;
+
   // Only a single start-coordinate sample silently assumes the whole route
   // sits at that altitude, overestimating temperature (and sweat/sodium
   // loss) on a route that climbs into the mountains — correct for that
@@ -296,6 +322,86 @@ export async function POST(request: NextRequest) {
     const adjustedTemperatureC = getLapseRateAdjustedTemperature(temperatureC, rideElevationGainM);
     lapseRateAdjustmentC = Math.round((adjustedTemperatureC - temperatureC) * 10) / 10;
     temperatureC = adjustedTemperatureC;
+  }
+
+  // "Impacto Térmico Diferenciado por Altitud" — a route with a real climb
+  // can have base/valley conditions meaningfully different from its actual
+  // summit, which the single blended `temperatureC` above (still what drives
+  // the fluid-loss calculation — a brief summit stretch shouldn't resize the
+  // *whole* ride's sweat-rate estimate) intentionally hides. Surfaced here as
+  // an explicit base-vs-peak comparison instead, whenever the climb is
+  // significant enough to matter: D+ ≥ 400m, or a known summit ≥ 500m above
+  // sea level (elevation gain alone can understate a genuinely high-altitude
+  // route that doesn't climb much *from its own already-high start*).
+  const ALTITUDE_ELEVATION_GAIN_THRESHOLD_M = 400;
+  const ALTITUDE_PEAK_ELEVATION_THRESHOLD_M = 500;
+  const hasSignificantClimb =
+    (rideElevationGainM ?? 0) >= ALTITUDE_ELEVATION_GAIN_THRESHOLD_M ||
+    (peakElevationM ?? 0) >= ALTITUDE_PEAK_ELEVATION_THRESHOLD_M;
+
+  let altitudeWeather: {
+    base: { temperatureC: number; humidityPct: number; windSpeedKmh: number };
+    peak: { temperatureC: number; humidityPct: number; windSpeedKmh: number; elevationM: number | null };
+  } | null = null;
+
+  if (hasSignificantClimb) {
+    const round1 = (n: number) => Math.round(n * 10) / 10;
+    // `routeSamplePoints` is always `[start, peak, finish]`, in that order —
+    // see the 3-point `getWeatherForRoute` call above.
+    const peakSample = routeSamplePoints?.[1] ?? null;
+    if (peakSample) {
+      const baseSamples = [routeSamplePoints![0], routeSamplePoints![2]].filter(
+        (s): s is NonNullable<typeof s> => s != null
+      );
+      // Both base points failed but the peak itself somehow succeeded — an
+      // edge case in practice (`getWeatherForRoute` already returned
+      // non-null, meaning at least one of the 3 points worked), but falls
+      // back to the peak's own reading rather than leaving "base" empty.
+      const baseTemperatureC = baseSamples.length > 0
+        ? baseSamples.reduce((sum, s) => sum + s.temperatureC, 0) / baseSamples.length
+        : peakSample.temperatureC;
+      const baseHumidityPct = baseSamples.length > 0
+        ? baseSamples.reduce((sum, s) => sum + s.humidity, 0) / baseSamples.length
+        : peakSample.humidity;
+      const baseWindSpeedKmh = baseSamples.length > 0
+        ? baseSamples.reduce((sum, s) => sum + s.windSpeedKmh, 0) / baseSamples.length
+        : peakSample.windSpeedKmh;
+      altitudeWeather = {
+        base: {
+          temperatureC: round1(baseTemperatureC),
+          humidityPct: round1(baseHumidityPct),
+          windSpeedKmh: round1(baseWindSpeedKmh),
+        },
+        peak: {
+          temperatureC: round1(peakSample.temperatureC),
+          humidityPct: round1(peakSample.humidity),
+          windSpeedKmh: round1(peakSample.windSpeedKmh),
+          elevationM: peakElevationM,
+        },
+      };
+    } else if (rideElevationGainM != null) {
+      // No real per-point summit reading (no route/GPX peak resolved, or its
+      // own weather request failed) — reuse the same elevation-gain lapse-
+      // rate approximation already applied to `temperatureC` above
+      // (`-0.65°C per 100m`, see `getLapseRateAdjustedTemperature`), just
+      // surfaced as its own explicit peak figure rather than only folded
+      // into the single blended `temperatureC`. Lapse rate only corrects
+      // temperature — humidity/wind are shared between both cards here.
+      const peakTemperatureC = getLapseRateAdjustedTemperature(preLapseTemperatureC, rideElevationGainM);
+      altitudeWeather = {
+        base: {
+          temperatureC: round1(preLapseTemperatureC),
+          humidityPct: round1(humidityPct),
+          windSpeedKmh: round1(windSpeedKmh),
+        },
+        peak: {
+          temperatureC: round1(peakTemperatureC),
+          humidityPct: round1(humidityPct),
+          windSpeedKmh: round1(windSpeedKmh),
+          elevationM: peakElevationM,
+        },
+      };
+    }
   }
 
   const gutTarget = getGutCappedCarbTarget(
@@ -327,6 +433,7 @@ export async function POST(request: NextRequest) {
     bottlePlan,
     durationHours,
     distanceKm: rideDistanceKm,
+    fluidLossMlPerHour,
     maxBottlesOnBike: athleteProfile.bottle_count,
   });
   const nutritionMilestones = getPocketFoodMilestones({
@@ -392,6 +499,11 @@ export async function POST(request: NextRequest) {
       source: weatherSource,
       multiPointSample: sampledAtRealAltitude,
       lapseRateAdjustmentC,
+      // "Impacto Térmico Diferenciado por Altitud" — only present on a route
+      // with a significant climb (D+ ≥ 400m or a known summit ≥ 500m), see
+      // `hasSignificantClimb` above. `null` for a flat route/Entreno Manual,
+      // in which case the single blended reading above is the whole story.
+      altitude: altitudeWeather,
     },
     gutTraining: {
       isGutLimited: gutTarget.isGutLimited,

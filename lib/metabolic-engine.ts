@@ -1207,10 +1207,17 @@ export const HYPERTONIC_THRESHOLD_PCT = 12;
 // column default, kept as a literal here so this file has no dependency on
 // the DB schema.
 const DEFAULT_BOTTLE_SIZE_ML = 750;
-// 8% carb concentration keeps a comfortable margin below the ~10-12%
-// threshold widely cited for hypertonic-solution gastric distress/delayed
-// emptying — a safety-first cap, not the maximum theoretically tolerable.
-const MAX_BOTTLE_CARB_CONCENTRATION = 0.08;
+// 8.5% carb concentration — the midpoint of the 8-9% range real isotonic
+// dual-transporter (maltodextrin + fructose) mixes safely support, per the
+// dual-transport osmolarity research this recipe is already built on (see
+// `getMaltodextrinFraction` above): combining SGLT1 (glucose/maltodextrin)
+// and GLUT5 (fructose) transporters raises the practical concentration
+// ceiling versus a single-transporter (glucose-only) mix, which is what the
+// previous, more conservative flat 8% cap was really sized for. Still keeps
+// a comfortable margin below the ~10-12% threshold widely cited for
+// hypertonic-solution gastric distress/delayed emptying — a safety-first
+// cap, not the maximum theoretically tolerable.
+const MAX_BOTTLE_CARB_CONCENTRATION = 0.085;
 // Independent of gut comfort, plain maltodextrin/fructose powder simply
 // stops fully dissolving in cold water above roughly this concentration —
 // a hard physical ceiling, not a preference. Always less restrictive than
@@ -1342,20 +1349,27 @@ const MAX_PRACTICAL_ZIPLOC_BAGS = 4;
  * at all. Fuel bottles get priority for the limited cage slots (they carry
  * something a fountain can't replace); any slots left over go to water.
  * The reload dose reuses the same per-bottle fuel-bottle figures from
- * `getBottlePlan` (already capped at the safe 8% concentration), so the
+ * `getBottlePlan` (already capped at the safe concentration), so the
  * sachet mixes into a fresh bottle exactly like the ones prepared at the
  * start. The reload point is estimated as the moment the starting bottles
- * would run dry, assuming roughly even consumption across the ride.
+ * — every cage slot mounted at departure, fuel and water alike, since both
+ * carry drinkable liquid — would actually run dry at the athlete's real
+ * fluid consumption rate.
  */
 export function getReloadStrategy({
   bottlePlan,
   durationHours,
   distanceKm,
+  fluidLossMlPerHour,
   maxBottlesOnBike = DEFAULT_MAX_BOTTLES_ON_BIKE,
 }: {
   bottlePlan: BottlePlan;
   durationHours: number;
   distanceKm: number | null;
+  /** The athlete's real fluid-loss rate (ml/h) — what actually paces the
+   * starting bottles running dry, see the `reloadAtKm`/`reloadAtHours`
+   * bug-fix note below. */
+  fluidLossMlPerHour: number;
   maxBottlesOnBike?: number;
 }): ReloadStrategy | null {
   if (bottlePlan.totalBottles <= maxBottlesOnBike) return null;
@@ -1366,7 +1380,25 @@ export function getReloadStrategy({
   const startingWaterBottleCount = Math.min(bottlePlan.waterBottles.count, remainingCageSlots);
   const extraWaterBottles = bottlePlan.waterBottles.count - startingWaterBottleCount;
 
-  const reloadAtFraction = maxBottlesOnBike / bottlePlan.totalBottles;
+  // Bug fix: the reload point used to be estimated as
+  // `maxBottlesOnBike / bottlePlan.totalBottles` of the ride's duration/
+  // distance — a fraction of *bottle count*, which conflates concentrated
+  // fuel bottles (sized by carb concentration, not fluid volume) with plain
+  // water bottles and silently skews the estimate whenever the recipe needs
+  // many small fuel bottles (e.g. a 500ml bottle at a high carb target).
+  // Verified live: a 108km ride on 2×500ml starting bottles at a real
+  // ~0.99L/h sweat rate flagged a reload at ~Km 26 under the old formula —
+  // less than a third of the way to when 2 full 500ml bottles (1.0L) would
+  // actually run dry at that rate. Fixed to size the reload point off the
+  // real total liquid volume mounted at departure (every starting cage,
+  // whether it holds mix or plain water) against the athlete's actual
+  // fluid-loss rate, exactly like `getHydrationIntervalMinutes` already
+  // paces a single-bottle sip reminder the same way.
+  const startingCapacityMl = maxBottlesOnBike * bottlePlan.bottleSizeMl;
+  const hoursUntilBottlesEmpty =
+    fluidLossMlPerHour > 0 ? startingCapacityMl / fluidLossMlPerHour : durationHours;
+  const reloadAtHoursClamped = Math.min(durationHours, hoursUntilBottlesEmpty);
+  const avgSpeedKmh = distanceKm != null && durationHours > 0 ? distanceKm / durationHours : null;
 
   return {
     startingFuelBottleCount,
@@ -1380,8 +1412,8 @@ export function getReloadStrategy({
     },
     waterRefillCount: extraWaterBottles,
     waterRefillLiters: Math.round(((extraWaterBottles * bottlePlan.bottleSizeMl) / 1000) * 10) / 10,
-    reloadAtKm: distanceKm != null ? Math.round(distanceKm * reloadAtFraction * 10) / 10 : null,
-    reloadAtHours: Math.round(durationHours * reloadAtFraction * 100) / 100,
+    reloadAtKm: avgSpeedKmh != null ? Math.round(reloadAtHoursClamped * avgSpeedKmh * 10) / 10 : null,
+    reloadAtHours: Math.round(reloadAtHoursClamped * 100) / 100,
     isImpractical: extraFuelBottles > MAX_PRACTICAL_ZIPLOC_BAGS,
   };
 }
