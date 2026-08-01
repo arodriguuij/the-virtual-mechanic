@@ -2538,8 +2538,7 @@ export function FuelingPlanner({
               "h-11 w-full text-sm",
               isProfileComplete
                 ? bronzeCtaButtonClass
-                : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-sm bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
-            )}
+                : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"            )}
           >
             {isProfileComplete ? (
               <>
