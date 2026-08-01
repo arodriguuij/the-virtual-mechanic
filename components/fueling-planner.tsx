@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Beaker,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
@@ -2316,69 +2315,62 @@ export function FuelingPlanner({
                   `min-width: auto` grid items get otherwise), so a long
                   number/tooltip trigger can never push this card past the
                   viewport edge on a narrow phone. */}
-              {/* "Código de Color en Métricas" — each of the 4 tiles gets its
-                  own subtle background/border tint plus a matching accent on
-                  its label, so the four read as distinct, consistently
-                  recognizable anchors at a glance instead of four identical
-                  porcelain boxes: Duración stays a neutral slate/zinc tone
-                  (no physiological quantity of its own), Carbohidratos is
-                  amber (energy), Hidratación is sky (water), Sodio is
-                  emerald (minerals). The big numeric value stays bold
-                  neutral-900 in every tile — this app's own convention for
-                  numeric readouts — only the label/border/background carry
-                  the color, so legibility isn't traded for the color code. */}
+              {/* "Instrumental Técnico" (PNS editorial pass) — the 4 tiles
+                  used to each carry their own pastel Material-Design tint
+                  (amber/sky/emerald) plus a matching border — replaced
+                  outright with one uniform porcelain surface and plain
+                  laboratory-notation labels (HC/H₂O/Na⁺/TIME) instead of
+                  color-coding, matching the same "instrumental de
+                  precisión" read as a Coggan power-profile chart rather
+                  than a consumer health app. The big numeric value stays
+                  bold `zinc-900` in every tile, now `font-mono` end to end
+                  (label included) — a technical readout, not a dashboard
+                  stat card. */}
               <div className="grid grid-cols-2 gap-3 *:min-w-0">
-                <div className="flex flex-col gap-1 rounded-lg border border-zinc-200/70 bg-zinc-50 p-3">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600">
-                    Duración
+                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
+                  <span className="font-mono text-[10px] tracking-widest text-zinc-400 uppercase">
+                    TIME · Duración
                   </span>
-                  <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
+                  <span className="font-mono text-xl font-bold tracking-tight text-zinc-900 tabular-nums sm:text-2xl">
                     {formatHoursMinutes(result.durationHours)}
                   </span>
                 </div>
-                <div className="relative flex flex-col gap-1 overflow-visible rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <div className="relative flex flex-col gap-1 overflow-visible rounded-lg bg-[#F8F7F5] p-3">
                   <span className="flex items-center gap-1">
-                    <Zap className="size-3 shrink-0 text-amber-700" />
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-amber-900">
-                      Carbohidratos
+                    <span className="font-mono text-[10px] tracking-widest text-zinc-400 uppercase">
+                      HC · Carbohidratos
                     </span>
                     <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
                   </span>
-                  <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
+                  <span className="font-mono text-xl font-bold tracking-tight text-zinc-900 tabular-nums sm:text-2xl">
                     {result.carbsGPerHour}
-                    <span className="ml-1 text-xs font-normal text-neutral-500">g/h</span>
+                    <span className="ml-1 text-xs font-normal text-zinc-400">g/h</span>
                   </span>
-                  <span className="font-mono text-[11px] text-neutral-500">
+                  <span className="font-mono text-[11px] text-zinc-500">
                     Total: {result.totalRideCarbsG} g
                   </span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-lg border border-sky-200 bg-sky-50 p-3">
-                  <span className="flex items-center gap-1">
-                    <Droplet className="size-3 shrink-0 text-sky-700" />
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-sky-900">
-                      Hidratación
-                    </span>
+                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
+                  <span className="font-mono text-[10px] tracking-widest text-zinc-400 uppercase">
+                    H₂O · Hidratación
                   </span>
-                  <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
+                  <span className="font-mono text-xl font-bold tracking-tight text-zinc-900 tabular-nums sm:text-2xl">
                     {result.fluidLossMlPerHour}
-                    <span className="ml-1 text-xs font-normal text-neutral-500">ml/h</span>
+                    <span className="ml-1 text-xs font-normal text-zinc-400">ml/h</span>
                   </span>
-                  <span className="font-mono text-[11px] text-neutral-500">
+                  <span className="font-mono text-[11px] text-zinc-500">
                     Total: {(totalFluidMl / 1000).toFixed(1)} L
                   </span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                  <span className="flex items-center gap-1">
-                    <Beaker className="size-3 shrink-0 text-emerald-700" />
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-900">
-                      Sodio
-                    </span>
+                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
+                  <span className="font-mono text-[10px] tracking-widest text-zinc-400 uppercase">
+                    Na⁺ · Sodio
                   </span>
-                  <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
+                  <span className="font-mono text-xl font-bold tracking-tight text-zinc-900 tabular-nums sm:text-2xl">
                     {result.sodiumMgPerHour}
-                    <span className="ml-1 text-xs font-normal text-neutral-500">mg/h</span>
+                    <span className="ml-1 text-xs font-normal text-zinc-400">mg/h</span>
                   </span>
-                  <span className="font-mono text-[11px] text-neutral-500">
+                  <span className="font-mono text-[11px] text-zinc-500">
                     Total: {totalSodiumMg} mg
                   </span>
                 </div>
@@ -2405,8 +2397,8 @@ export function FuelingPlanner({
                   understands *why* the numbers below look different from a
                   normal-weather calculation. */}
               {result.thermalAdaptation.isExtremeCold && (
-                <div className="mt-3 flex items-start gap-2 rounded-sm border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
-                  <Snowflake className="mt-0.5 size-3.5 shrink-0 text-sky-600" />
+                <div className="mt-3 flex items-start gap-2 rounded-sm bg-[#F8F7F5] px-3 py-2 text-xs text-zinc-600">
+                  <Snowflake className="mt-0.5 size-3.5 shrink-0 text-zinc-500" />
                   <span>
                     Frío extremo (&lt;8°C) — prioriza comida sólida/geles en bolsillo (hasta un
                     70-80% del objetivo) y hemos reducido la concentración del bidón para evitar
@@ -2734,16 +2726,16 @@ export function FuelingPlanner({
               </span>
 
               {/* Nivel 1 · Héroe — "Fórmula de Laboratorio." The one dark,
-                  high-contrast "Obsidian" card in this section, matching
-                  this app's own established hero-card treatment (`#343334`
-                  fill, `#FD5A08` bright accent — see "PNS premium redesign"
-                  in this app's own design history) — reserved for exactly
-                  this kind of "read this number first" moment. Sized to
-                  the athlete's real bottle capacity ("Receta Base Dual" —
-                  44g HC/550ml, scaled via `getBaseBottleRecipe`), plus a
-                  collapsible scoop-equivalence breakdown for anyone without
-                  a scale. */}
-              <div className="rounded-xl bg-[#343334] p-4 text-white">
+                  high-contrast "Obsidian" card in this section — reserved
+                  for exactly this kind of "read this number first" moment.
+                  Fill stepped from an earlier `#343334` to the literal PNS
+                  palette's own "Carbón/Obsidiana" `#181818` (the editorial
+                  refinement pass's exact hex), `#FD5A08` bright accent
+                  unchanged. Sized to the athlete's real bottle capacity
+                  ("Receta Base Dual" — 44g HC/550ml, scaled via
+                  `getBaseBottleRecipe`), plus a collapsible scoop-
+                  equivalence breakdown for anyone without a scale. */}
+              <div className="rounded-xl bg-[#181818] p-4 text-white">
                 <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-widest text-white/50 uppercase">
                   <FlaskConical className="size-3.5 shrink-0" />
                   Fórmula de laboratorio · bidón {displayBottlePlan!.bottleSizeMl}ml
@@ -2836,9 +2828,10 @@ export function FuelingPlanner({
 
               {/* Nivel 2 · Checklist de Salida — "ticket" formatting: a
                   crisp white card with a dashed perforation between
-                  sub-sections and a checkmark bullet per line, replacing
-                  the old flat "•" list inside a same-gray-as-everything
-                  porcelain box. Driven by the same bottle config +
+                  sub-sections and a plain technical dash ("—") bullet per
+                  line, replacing the old flat "•" list inside a same-gray-
+                  as-everything porcelain box. Driven by the same bottle
+                  config +
                   pocket-food state as the balance pill in Card 04, so it's
                   never out of sync with what CUBIERTO/RESTANTE currently
                   shows — see `getBikeChecklistLines`/`getWaterPlanLines`/
@@ -2876,10 +2869,19 @@ export function FuelingPlanner({
                             {section.icon}
                             {section.title}:
                           </span>
+                          {/* "Ticket de Expedición / Manifest" — a plain
+                              technical dash bullet (no check-icon affordance
+                              this isn't a to-do list) matching the dashed
+                              perforation separating each sub-section above. */}
                           <ul className="flex flex-col gap-1.5">
                             {section.lines.map((line) => (
                               <li key={line} className="flex items-start gap-1.5">
-                                <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-terracotta" />
+                                <span
+                                  aria-hidden
+                                  className="mt-0.5 shrink-0 font-mono text-zinc-400"
+                                >
+                                  —
+                                </span>
                                 <span>{line}</span>
                               </li>
                             ))}

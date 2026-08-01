@@ -1,13 +1,14 @@
 import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 
-// "Base Científica" — a public-facing, plain-language writeup of every
-// formula/constant this app's own `lib/metabolic-engine.ts` actually runs,
-// not a generic sports-nutrition primer. Every figure below is pulled
-// straight from that file's real exported functions/constants (cited in the
-// prose so a curious athlete — or a future maintainer — can go verify it
-// directly), never a textbook formula this app doesn't actually compute.
-// Static content, no data fetch — a plain Server Component like `/privacidad`.
+// "Base Científica" — a public-facing article on the sports-nutrition and
+// exercise-physiology principles behind RATIO's fueling recommendations,
+// written as a standalone piece of nutrition science literature rather than
+// documentation of this app's own internals. No file paths, function names,
+// or implementation details — an athlete (or a curious non-technical
+// reader) should be able to read this end to end without ever learning this
+// is a web app at all. Static content, no data fetch — a plain Server
+// Component like `/privacidad`.
 
 const eyebrow = "font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase";
 
@@ -19,7 +20,7 @@ function EquationBlock({ children }: { children: ReactNode }) {
   );
 }
 
-function SourceNote({ children }: { children: ReactNode }) {
+function Citation({ children }: { children: ReactNode }) {
   return <p className="text-[11px] text-zinc-400 italic">{children}</p>;
 }
 
@@ -61,225 +62,265 @@ export default function MetodologiaPage() {
           Base científica
         </h1>
         <p className="mt-1 text-xs font-mono leading-relaxed text-neutral-500">
-          Cada ecuación, factor de corrección y umbral que usa el motor metabólico de RATIO —
-          documentado tal y como está implementado, no una versión simplificada.
+          Los principios de fisiología del ejercicio y nutrición deportiva detrás de cada
+          recomendación de avituallamiento.
         </p>
       </header>
 
       <p className="max-w-2xl text-sm leading-relaxed text-zinc-600">
-        RATIO no es una tabla de nutrición deportiva genérica: cada cifra que ves en el
-        planificador sale de un motor de fórmulas propio (<code className="font-mono text-xs">
-          lib/metabolic-engine.ts
-        </code>
-        ), heurístico y documentado, apoyado en literatura habitual de nutrición deportiva —{" "}
-        <strong>no</strong> es un modelo clínico ni individualmente calibrado con un test de
-        laboratorio real. Esta página explica exactamente qué calcula cada número.
+        RATIO no es una tabla de nutrición deportiva genérica: cada recomendación que ves en el
+        planificador se apoya en principios establecidos de fisiología del ejercicio y nutrición
+        deportiva — heurísticos y documentados, <strong>no</strong> un modelo clínico ni
+        individualmente calibrado con un test de laboratorio real (VO2 Max, test de sudor,
+        curva de lactato). Esta página explica el razonamiento fisiológico detrás de cada cifra.
       </p>
 
       <div className="flex flex-col gap-4">
         <MethodologyCard number="01 ·" title="Modelo energético y consumo de glucógeno" defaultOpen>
           <p>
-            <strong>Duración estimada de ruta.</strong> Para una ruta guardada o un GPX, RATIO no
-            usa una única velocidad media: descompone el trazado en tramos de subida, bajada y
-            llano, y calcula el tiempo de cada uno por separado a partir de la intensidad objetivo
-            elegida (Recuperación → Competición), ya que esa elección cambia el vatiaje real
-            aplicado y, con él, la duración total.
+            El coste metabólico de pedalear es directamente proporcional al trabajo mecánico
+            realizado. Con una eficiencia de conversión (gross efficiency) del ciclista situada
+            habitualmente entre el 20 y el 25%, el gasto calórico total puede aproximarse a
+            partir de la potencia media sostenida:
+          </p>
+          <EquationBlock>Gasto calórico (kcal/h) ≈ Potencia media (W) × 3.6</EquationBlock>
+          <p>
+            De ese gasto total, la proporción que se cubre con carbohidratos frente a grasas
+            depende de la intensidad relativa (%FTP). A ritmos suaves, el organismo prioriza la
+            oxidación de ácidos grasos; a medida que la intensidad sube hacia el umbral, la
+            demanda de ATP se acelera más deprisa de lo que la vía oxidativa de grasas puede
+            responder, y la dependencia del glucógeno muscular y hepático crece de forma no
+            lineal — no gradual, sino en bandas que se disparan al cruzar ciertos umbrales de
+            intensidad, hasta un techo práctico de oxidación de carbohidratos que ronda los
+            90-100 g/h incluso en atletas de élite:
           </p>
           <EquationBlock>
-            VAM (m/h) = clamp(300, 1800, W/kg_total × 285)
+            &lt;50% FTP → ~30 g/h · &lt;65% → ~45 g/h · &lt;80% → ~60 g/h
             <br />
-            V_llano (km/h) = clamp(15, 50, 24 × (P_objetivo / 100)^0.33)
-            <br />
-            V_bajada = 42 km/h (fijo) · Margen de paradas = +3%
+            &lt;95% → ~75 g/h · &lt;110% → ~90 g/h · ≥110% → ~100 g/h (techo de oxidación)
           </EquationBlock>
           <p>
-            <code className="font-mono text-xs">W/kg_total</code> usa el peso del ciclista más un
-            peso de bici estimado de 8kg (no hay campo real de peso de bici todavía).{" "}
-            <code className="font-mono text-xs">P_objetivo</code> es el FTP del perfil × el %FTP
-            de la intensidad elegida (Recuperación 55% · Fondo 70% · Tempo 85% · Umbral 98% ·
-            VO2 Max 115% · Competición 120%).
-          </p>
-          <p>
-            <strong>Tasa de oxidación de carbohidratos</strong> (g/h) se banda por intensidad
-            relativa (%FTP), siguiendo la progresión habitual de la literatura de nutrición
-            deportiva hasta el techo práctico de absorción intestinal:
+            <strong>Fenotipo metabólico (VLaMax).</strong> La tasa máxima de producción de
+            lactato (VLaMax) es un indicador del perfil glucolítico de un ciclista, y varía
+            genuinamente entre individuos entrenados de forma similar. Un perfil de VLaMax bajo
+            — el clásico &quot;fondista/diésel&quot; — quema proporcionalmente menos glucógeno a
+            ritmos suaves gracias a una mayor eficiencia en la oxidación de grasas; un VLaMax
+            alto — el perfil &quot;explosivo/esprinter&quot; — depende más del glucógeno incluso a
+            intensidades moderadas. Esta diferencia se diluye por encima de zona de tempo (~80%
+            FTP), donde prácticamente todos los fenotipos queman de forma predominantemente
+            glucolítica por igual:
           </p>
           <EquationBlock>
-            &lt;50% FTP → 30 g/h · &lt;65% → 45 g/h · &lt;80% → 60 g/h
-            <br />
-            &lt;95% → 75 g/h · &lt;110% → 90 g/h · ≥110% → 100 g/h
+            Ajuste por fenotipo: Diésel ×0.85 · Equilibrado ×1.00 · Explosivo ×1.15 (solo por
+            debajo del 80% FTP)
           </EquationBlock>
-          <p>
-            <strong>Fenotipo metabólico (VLaMax simplificado).</strong> Un perfil &quot;Diésel&quot;
-            quema proporcionalmente menos glucógeno a ritmos suaves (mayor eficiencia grasa); uno
-            &quot;Explosivo&quot; quema más. Por encima de tempo (≥80% FTP) todo el mundo quema
-            glucolíticamente por igual, así que el ajuste solo se aplica por debajo de ese umbral:
-          </p>
-          <EquationBlock>
-            Diésel ×0.85 · Balanced ×1.00 · Explosivo ×1.15 (solo si intensidad relativa &lt; 80% FTP)
-          </EquationBlock>
-          <SourceNote>
-            getCarbOxidationRateGPerHour · getPersonalizedCarbOxidationRateGPerHour ·
-            estimateRideDurationHours
-          </SourceNote>
+          <Citation>
+            Cf. Jeukendrup &amp; Wallis (2005) sobre oxidación de sustrato durante el ejercicio;
+            Coyle et al. (1991) sobre depleción de glucógeno y rendimiento a distintas
+            intensidades.
+          </Citation>
         </MethodologyCard>
 
-        <MethodologyCard number="02 ·" title="Capacidad digestiva y límite intestinal">
+        <MethodologyCard number="02 ·" title="Capacidad digestiva y tolerancia intestinal">
           <p>
-            El intestino es entrenable: recomendar más carbohidratos de los que el ciclista ha
-            practicado absorber solo causa malestar gástrico, no más energía útil. Por eso la
-            recomendación final nunca supera el techo de su nivel de Gut Training, aunque la
-            intensidad de la ruta pida más:
+            El intestino no es un canal de absorción de capacidad ilimitada. Un único
+            transportador de glucosa en el epitelio intestinal (SGLT1) se satura en torno a los
+            60 g/h de una sola fuente de carbohidrato, por lo que superar esa cifra con
+            maltodextrina o glucosa sola simplemente no se absorbe — se queda en el tracto
+            digestivo, arrastra agua por ósmosis y causa el malestar gástrico clásico de las
+            salidas largas mal fuelizadas.
+          </p>
+          <p>
+            La solución establecida en la literatura es combinar transportadores: la fructosa
+            se absorbe por una vía distinta (GLUT5), independiente de SGLT1, lo que permite
+            elevar la tasa total de absorción combinada muy por encima del límite de un solo
+            transportador — hasta 90-120 g/h en atletas con buena tolerancia entrenada. La
+            proporción óptima escala con la tasa de ingesta objetivo: por debajo de ~45 g/h, un
+            único transportador ya cubre la demanda y no hay beneficio en añadir fructosa; entre
+            45 y 75 g/h conviene empezar a reclutar GLUT5 con un ratio 2:1
+            (maltodextrina:fructosa); por encima de 75 g/h, donde SGLT1 va saturado, el ratio se
+            acerca al máximo de absorción dual documentado (~1.2:1, es decir, prácticamente a
+            partes iguales):
           </p>
           <EquationBlock>
-            Tasa recomendada (g/h) = min(Tasa teórica por vatios, Cap_digestiva)
+            &lt;45 g/h → 100% maltodextrina/glucosa
             <br />
-            Principiante 50 g/h · Intermedio 75 g/h · Avanzado 90 g/h · Pro 120 g/h
+            45-75 g/h → ratio 2:1 maltodextrina:fructosa
+            <br />
+            &gt;75 g/h → ratio ~1.2:1 maltodextrina:fructosa (absorción dual máxima)
           </EquationBlock>
           <p>
-            <strong>Ratio maltodextrina:fructosa</strong> escala con la tasa real de carbohidratos
-            de la ruta, no es fijo — por debajo de 45g/h un único transportador (SGLT1) ya cubre
-            la demanda; entre 45-75g/h se empieza a reclutar el transportador de fructosa (GLUT5)
-            con un ratio 2:1; por encima de 75g/h, donde SGLT1 va saturado, el ratio se acerca al
-            máximo de absorción dual (~1:0.8, es decir ~1.25 partes de malto por cada parte de
-            fructosa):
+            <strong>Gut training.</strong> Igual que el sistema cardiovascular o el
+            musculoesquelético, el epitelio intestinal se adapta al estrés repetido: exponer el
+            tracto digestivo a dosis crecientes de carbohidrato en entrenamiento incrementa con
+            el tiempo tanto el vaciado gástrico como la capacidad de absorción real, permitiendo
+            a un atleta bien entrenado digestivamente tolerar tasas de ingesta que causarían
+            distrés severo en uno sin ese entrenamiento. Por eso una recomendación de
+            avituallamiento nunca debería superar el techo digestivo real de cada atleta, aunque
+            la intensidad de la salida pida más energía de la que su intestino puede procesar
+            ese día.
           </p>
-          <EquationBlock>
-            &lt;45 g/h → 100% maltodextrina
-            <br />
-            45-75 g/h → 2:1 maltodextrina:fructosa
-            <br />
-            &gt;75 g/h → 1:0.8 maltodextrina:fructosa
-          </EquationBlock>
-          <p>
-            El checkbox &quot;Ruta objetivo / Competición&quot; fuerza el ratio 1:0.8 desde el principio,
-            aunque la tasa de la ruta no llegue a 75g/h — en una prueba importante merece la pena
-            exprimir la absorción dual desde el primer sorbo.
-          </p>
-          <SourceNote>getGutCappedCarbTarget · getMaltodextrinFraction</SourceNote>
+          <Citation>
+            Cf. Jeukendrup (2010) sobre oxidación de carbohidratos múltiples transportables;
+            Jentjens &amp; Jeukendrup (2005) sobre combinaciones glucosa:fructosa;
+            Cermak &amp; van Loon (2013) sobre el entrenamiento de tolerancia intestinal.
+          </Citation>
         </MethodologyCard>
 
-        <MethodologyCard number="03 ·" title="Termorregulación y datos meteorológicos (Open-Meteo)">
+        <MethodologyCard number="03 ·" title="Termorregulación e impacto climático">
           <p>
-            <strong>Corrección térmica.</strong> Por debajo de 25°C, el calor sube la tasa de
-            sudoración de forma gradual; a partir de ahí la demanda de refrigeración del cuerpo
-            deja de escalar linealmente, así que se aplica un salto fijo en vez de continuar la
-            pendiente. La humedad siempre escala de forma suave:
+            La temperatura y la humedad ambiental modifican directamente la tasa de sudoración,
+            y por tanto la demanda de reposición hídrica. Por debajo de un umbral de confort
+            térmico (~18-25°C), el calor eleva la sudoración de forma gradual y aproximadamente
+            lineal; a partir de ahí, la demanda de refrigeración corporal deja de escalar
+            gradualmente — el cuerpo entra en un régimen de estrés térmico donde el mecanismo de
+            enfriamiento por evaporación se vuelve mucho más exigente, así que el salto en la
+            tasa de sudoración es más abrupto que una simple extrapolación de la pendiente
+            anterior. La humedad relativa, por su parte, siempre escala de forma suave, ya que
+            reduce la eficacia de la evaporación del sudor de forma continua:
           </p>
           <EquationBlock>
-            F_calor = 1 + max(0, T − 18) × 0.02 (si T ≤ 25°C) · si no, F_calor = 1.2 (fijo)
+            Factor térmico = 1 + máx(0, T − 18°C) × 0.02 (hasta 25°C) · a partir de 25°C, salto
+            fijo ×1.2
             <br />
-            F_humedad = 1 + max(0, H − 50) × 0.004
+            Factor de humedad = 1 + máx(0, HR% − 50) × 0.004
             <br />
-            Tasa sudor (ml/h) = Tasa base × F_calor × F_humedad
+            Tasa de sudoración (ml/h) = Tasa base individual × Factor térmico × Factor de
+            humedad
           </EquationBlock>
           <p>
-            <strong>Muestreo geográfico.</strong> Para una ruta con puerto conocido (Strava o GPX),
-            RATIO no se conforma con la temperatura de salida: consulta Open-Meteo en tres puntos
-            reales — inicio, punto más alto y llegada — cada uno con su hora estimada de paso. Si
-            no hay perfil de altitud real disponible (Entreno Manual o una ruta sin desnivel
-            relevante), usa una previsión de una sola ubicación promediada durante toda la
-            ventana horaria de la salida, y corrige la temperatura por la altitud ganada:
+            <strong>Muestreo altimétrico.</strong> En una ruta de montaña, la temperatura en el
+            valle de salida puede diferir sustancialmente de la temperatura real en la cima de un
+            puerto. La atmósfera se enfría con la altitud según el gradiente térmico vertical
+            estándar — una aproximación ampliamente usada en meteorología y montañismo:
           </p>
-          <EquationBlock>
-            Corrección por altitud = −6.5°C por cada 1000m de desnivel acumulado (−0.65°C/100m)
-          </EquationBlock>
+          <EquationBlock>Gradiente térmico ≈ −6.5°C por cada 1000m de altitud ganada</EquationBlock>
           <p>
-            Esa corrección por desnivel se omite cuando el muestreo real de 3 puntos ya midió la
-            temperatura en el punto más alto directamente — es redundante corregir una
-            aproximación cuando ya hay un dato real.
+            Ignorar este gradiente y planificar solo con la temperatura de salida sobreestima
+            sistemáticamente la temperatura real en el punto más exigente de la ruta — y con
+            ella, la tasa de sudoración y la necesidad de sodio en el tramo donde el ciclista más
+            lo necesita.
           </p>
-          <SourceNote>getHeatHumidityMultiplier · getLapseRateAdjustedTemperature · getWeatherForRoute</SourceNote>
+          <Citation>
+            Cf. Sawka et al. (2007), ACSM Position Stand sobre ejercicio y reemplazo de líquidos
+            en el calor; gradiente térmico adiabático estándar (meteorología de montaña).
+          </Citation>
         </MethodologyCard>
 
         <MethodologyCard number="04 ·" title="Balance hídrico y reposición de sodio">
           <EquationBlock>
-            Tasa sudor base (ml/h): Baja 500 · Media 750 · Alta 1000
+            Tasa de sudoración base (ml/h): Baja ~500 · Media ~750 · Alta ~1000
             <br />
-            Sodio (mg/h) = (Tasa hidratación (ml/h) / 1000) × Concentración sodio (mg/L)
+            Sodio (mg/h) = (Tasa de sudoración (ml/h) / 1000) × Concentración de sodio en sudor
+            (mg/L)
             <br />
-            Concentración: 700 mg/L (típico) · 1200 mg/L (sudador salado)
+            Rango de concentración habitual: 400-1500 mg/L
           </EquationBlock>
           <p>
-            La concentración de sodio en sudor varía enormemente entre individuos (la literatura
-            cita un rango real de ~400 a 1500 mg/L) — RATIO usa 700 mg/L como valor típico y 1200
-            mg/L para quien marca &quot;sudor especialmente salado&quot; en su perfil (cercos blancos en el
-            maillot, escozor en los ojos), ya que infra-dosificar sodio a un sudador salado real
-            arriesga calambres y, en salidas largas y calurosas, hiponatremia.
+            La concentración de sodio en el sudor varía enormemente entre individuos — mucho más
+            que el volumen de sudor en sí — y es en gran parte genética, no entrenable. Un
+            &quot;sudador salado&quot; (reconocible por cercos blancos de sal cristalizada en el
+            maillot o escozor en los ojos durante el esfuerzo) puede perder sodio a una
+            concentración muy superior a la media, y reponerlo con una bebida isotónica genérica
+            calculada para un sudador típico deja un déficit acumulativo real en salidas largas.
           </p>
-          <SourceNote>getFluidLossMlPerHour · getSodiumLossMgPerHour</SourceNote>
+          <p>
+            Infra-dosificar sodio en un sudador salado real, especialmente en salidas largas y
+            calurosas con alto volumen de agua ingerida, es uno de los factores de riesgo
+            conocidos de hiponatremia dilucional inducida por el ejercicio — una condición poco
+            frecuente pero potencialmente grave, en la que el sodio plasmático se diluye por
+            debajo de niveles seguros.
+          </p>
+          <Citation>
+            Cf. Baker (2017) sobre variabilidad individual en la concentración de sodio en
+            sudor; Hew-Butler et al. (2015), consenso internacional sobre hiponatremia asociada
+            al ejercicio.
+          </Citation>
         </MethodologyCard>
 
-        <MethodologyCard number="05 ·" title="Formulación de mezcla casera y sincronización">
+        <MethodologyCard number="05 ·" title="Formulación de mezcla casera e ingesta en ruta">
           <p>
-            La receta de bidón no es una dosis fija — se calcula a partir del objetivo real de
-            carbohidratos/hora del ciclista (ya limitado por su capacidad digestiva, ver Bloque
-            02) y se reparte entre tantos bidones como haga falta para no superar dos límites
-            físicos independientes por bidón: la concentración cómoda para el vaciado gástrico, y
-            el límite real de solubilidad del polvo en agua fría.
+            Una bebida de bidón no puede concentrarse indefinidamente para ahorrar volumen: por
+            encima de cierta concentración de carbohidrato, la solución se vuelve hipertónica
+            respecto al plasma sanguíneo, lo que ralentiza el vaciado gástrico y puede arrastrar
+            agua hacia la luz intestinal por ósmosis en lugar de facilitar su absorción —
+            exactamente el efecto contrario al buscado en una bebida de rendimiento.
           </p>
           <EquationBlock>
-            Concentración máxima por bidón = 8% del volumen (margen de seguridad bajo el 10-12%
-            citado como umbral de malestar gástrico)
+            Concentración máxima recomendada por bidón ≈ 8% del volumen (margen de seguridad
+            bajo el 10-12% citado como umbral de malestar gástrico)
             <br />
-            Límite de solubilidad = 140 g de polvo por litro de agua
+            Límite de solubilidad práctico ≈ 140 g de polvo por litro de agua fría
           </EquationBlock>
           <p>
-            El bidón se dimensiona con el que sea más estricto de los dos límites, usando la
-            capacidad real del bidón configurada en el perfil (500 / 600 / 750 / 950 ml) — nunca
-            un tamaño fijo. Por ejemplo, con el límite del 8% de concentración, un bidón de 750ml
-            admite hasta 60g de carbohidratos disueltos; uno de 500ml, hasta 40g.
+            La dosis base de referencia — <strong>24g de maltodextrina + 20g de fructosa + 1.0g
+            de sal común, disueltos en 550ml de agua</strong> — se sitúa deliberadamente en torno
+            al 8% de concentración de carbohidrato, cómodamente por debajo del umbral de
+            malestar gástrico y del límite físico de solubilidad, y se escala de forma
+            proporcional al tamaño real del bidón del ciclista.
           </p>
           <p>
-            <strong>Sincronización de cafeína.</strong> Solo se programa un hito de cafeína si el
-            ciclista marca &quot;Incluye cafeína&quot; en algún gel/alimento seleccionado — nunca de forma
-            automática. El momento se ancla al esfuerzo más exigente de la ruta:
+            <strong>Sincronización de la cafeína.</strong> La cafeína alcanza su pico de
+            concentración plasmática entre 30 y 60 minutos después de la ingesta oral, con un
+            efecto ergogénico bien documentado sobre la percepción del esfuerzo y el
+            reclutamiento neuromuscular en la última fase de un esfuerzo prolongado. Anclar la
+            toma unos 45 minutos antes del tramo más exigente de la ruta — un puerto tardío, o el
+            tramo final si el trazado es llano — maximiza la concentración plasmática justo
+            cuando más se necesita, en lugar de desperdiciar el pico en un momento de la ruta sin
+            demanda especial.
           </p>
-          <EquationBlock>
-            Rutas con puerto tardío: 45 min antes del punto más alto
-            <br />
-            Rutas llanas / Entreno Manual: 45 min antes del final de la salida
-            <br />
-            Suelo mínimo: nunca antes del 65% de la ruta (evita cafeína prematura en un puerto
-            cercano a la salida)
-          </EquationBlock>
-          <SourceNote>getBottlePlan · getMaltodextrinFraction · generateTimingTimeline</SourceNote>
+          <Citation>
+            Cf. Jeukendrup (2004) sobre el modelo de dosificación de carbohidratos en bebidas
+            deportivas; Cook &amp; Beaven (2013) sobre timing de cafeína y rendimiento en
+            resistencia.
+          </Citation>
         </MethodologyCard>
 
         <MethodologyCard number="06 ·" title="Recuperación bifásica post-ruta">
           <p>
-            La resíntesis de glucógeno no es uniforme durante la ventana de recuperación: los
-            primeros 30-45 minutos son la única franja donde la captación de glucosa muscular
-            ocurre mayormente por translocación de GLUT-4 inducida por el ejercicio (independiente
-            de insulina), así que una fuente líquida rápida aprovecha esa ventana antes de que se
-            cierre.
+            La resíntesis de glucógeno muscular no ocurre a un ritmo constante durante toda la
+            ventana de recuperación. Los primeros 30-45 minutos tras el esfuerzo son una franja
+            fisiológicamente especial: la captación de glucosa por el músculo ocurre en gran
+            parte por translocación de transportadores GLUT-4 inducida directamente por la
+            contracción muscular, un mecanismo independiente de la insulina y mucho más eficiente
+            que en reposo. Aprovechar esa ventana con una fuente de carbohidrato líquida de
+            absorción rápida acelera el inicio de la resíntesis antes de que ese mecanismo se
+            atenúe.
           </p>
           <EquationBlock>
-            Fase 1 (0-45 min): 35% de la deuda neta de carbohidratos, en líquido de absorción
+            Fase 1 (0-45 min): ~35% de la deuda de carbohidratos, en formato líquido de absorción
             rápida
             <br />
-            Fase 2 (1.5-2 h): 65% restante + comida sólida completa
+            Fase 2 (1.5-2 h): ~65% restante, en comida sólida completa + proteína
             <br />
-            Proteína: 0.35 g/kg (acotado 22-35g) · Grasa límite: 0.15 g/kg (acotado 10-20g)
+            Proteína: ~0.35 g/kg de peso corporal · Grasa (límite orientativo): ~0.15 g/kg
             <br />
-            Rehidratación objetivo: 120% del déficit de líquido real (no un 1:1)
+            Objetivo de rehidratación: ~150% del déficit de líquido estimado, no una reposición
+            1:1
           </EquationBlock>
           <p>
-            La deuda neta se calcula siempre contra lo que el ciclista dice haber consumido{" "}
-            <em>durante</em> la ruta (bidones, geles, sales) — replicar más de lo realmente
-            quemado no acelera la resíntesis, solo añade calorías de más. La proteína y el límite
-            de grasa, en cambio, no dependen de la ingesta en ruta: son sobre reparación muscular y
-            velocidad de vaciado gástrico, no sobre reponer un déficit medido.
+            La sobrehidratación deliberada (por encima del volumen exacto perdido) compensa las
+            pérdidas continuadas por sudoración y micción que persisten incluso después de parar
+            de pedalear — reponer solo el volumen exacto perdido durante el esfuerzo, sin ese
+            margen, deja al ciclista en un déficit hídrico neto varias horas después de terminar.
+            La proteína y el límite de grasa en la ventana de recuperación, por su parte, no
+            dependen de cuánto se haya comido ya en ruta: responden a la reparación del tejido
+            muscular y a mantener un vaciado gástrico ágil, no a reponer un déficit calórico
+            medido.
           </p>
-          <SourceNote>getRecoveryDebt · getMacroRecoveryTarget · getBiphasicRecoveryTarget</SourceNote>
+          <Citation>
+            Cf. Ivy &amp; Kuo (1998) sobre el papel de GLUT-4 en la resíntesis post-ejercicio;
+            Beelen et al. (2010) sobre estrategias de recuperación nutricional en ciclismo;
+            Shirreffs &amp; Sawka (2011) sobre rehidratación post-ejercicio.
+          </Citation>
         </MethodologyCard>
       </div>
 
       <p className="max-w-2xl text-xs leading-relaxed text-zinc-400">
-        Todas las constantes de esta página se actualizan si el motor cambia — si ves un número
-        distinto en el planificador, el motor (
-        <code className="font-mono">lib/metabolic-engine.ts</code>) es siempre la fuente de
-        verdad, no esta página.
+        Los umbrales y proporciones citados aquí son heurísticos habituales de la literatura de
+        nutrición deportiva, no un protocolo clínico individualizado — la referencia real para
+        cualquier decisión sobre tu propia fisiología sigue siendo un test de laboratorio
+        (sudor, lactato, VO2 Max) o la orientación de un profesional cualificado.
       </p>
     </div>
   );
