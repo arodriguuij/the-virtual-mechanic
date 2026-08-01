@@ -54,6 +54,12 @@ export type ParsedGpxRoute = {
    * every point in hand locally, no polyline decoding needed the way a
    * Strava route's `summaryPolyline` requires. */
   points: [number, number][];
+  /** Every usable `{distanceFraction, elevationM}` point along the track,
+   * for `ElevationSparkline` — the exact same array `detectMountainPasses`
+   * above already builds internally, just also returned here so the caller
+   * doesn't need a second pass over `points` to reconstruct it. `[]` under
+   * the same "no usable elevation data" condition as `mountainPasses`. */
+  elevationProfile: { distanceFraction: number; elevationM: number }[];
 };
 
 type TrackPoint = { lat: number; lng: number; eleM: number | null };
@@ -162,5 +168,6 @@ export function parseGpxFile(xmlText: string, fileName: string): ParsedGpxRoute 
         : null,
     mountainPasses,
     points: points.map((p): [number, number] => [p.lat, p.lng]),
+    elevationProfile,
   };
 }

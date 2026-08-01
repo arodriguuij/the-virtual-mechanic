@@ -704,7 +704,7 @@ export function getPocketFoodMilestones({
  * bottle size on hand. Floored at a sane minimum so a pathologically high
  * fluid-loss rate can't collapse the interval to an unreadable "every
  * 1 min." */
-const DEFAULT_HYDRATION_BOTTLE_ML = 500;
+const DEFAULT_HYDRATION_BOTTLE_ML = 550;
 const HYDRATION_INTERVAL_MIN_MINUTES = 5;
 
 /**

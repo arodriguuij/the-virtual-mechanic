@@ -107,7 +107,22 @@ export function PhysiologicalProfileForm({
     profile?.gut_training_level ?? null
   );
   const [bottleCount, setBottleCount] = useState(profile?.bottle_count ?? 2);
-  const [bottleCapacityMl, setBottleCapacityMl] = useState(profile?.bottle_capacity_ml ?? 500);
+  // "Estandarización a Botella de 550ml" — 550ml is this app's internal
+  // *reference recipe* size (`BASE_BOTTLE_ML` in `lib/metabolic-engine.ts`,
+  // the fixed 44g HC dose the DIY mix is calibrated against), not a real,
+  // persistable `bottle_capacity_ml` value — that column's own DB `CHECK`
+  // constraint only allows 500/600/750/950 (see `VALID_BOTTLE_CAPACITIES_ML`
+  // in `app/api/athlete-profile/update/route.ts`), so defaulting this
+  // `<select>` to 550 would silently mismatch every real `<option>` it has
+  // and, if ever submitted, fail the DB write outright. Defaults to `750`
+  // instead — a real, already-valid option, and the column's own actual DB
+  // default (see CLAUDE.md's "Athlete profile" section) — so a new athlete
+  // no longer silently lands on the smaller `500` this form used to default
+  // to. Widening the DB constraint to also accept `550` as a genuine
+  // equipment size is a separate, real infra change this codebase has no
+  // migration tooling for — flag that to the user rather than quietly
+  // shipping a value the database would reject.
+  const [bottleCapacityMl, setBottleCapacityMl] = useState(profile?.bottle_capacity_ml ?? 750);
   const [isSaltySweater, setIsSaltySweater] = useState(profile?.is_salty_sweater ?? false);
   const [touched, setTouched] = useState<Partial<Record<RequiredField, boolean>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -137,7 +152,7 @@ export function PhysiologicalProfileForm({
       sweatRate !== (profile?.sweat_rate ?? null) ||
       gutTrainingLevel !== (profile?.gut_training_level ?? null) ||
       bottleCount !== (profile?.bottle_count ?? 2) ||
-      bottleCapacityMl !== (profile?.bottle_capacity_ml ?? 500) ||
+      bottleCapacityMl !== (profile?.bottle_capacity_ml ?? 750) ||
       isSaltySweater !== (profile?.is_salty_sweater ?? false),
     [
       weight,

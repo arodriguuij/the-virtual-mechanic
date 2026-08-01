@@ -30,6 +30,7 @@ import { stripEmoji } from "@/lib/gpx-export";
 import { parseGpxFile, type ParsedGpxRoute } from "@/lib/gpx-import";
 import { decodePolyline } from "@/lib/polyline";
 import { refreshStravaRoutes } from "@/lib/strava-actions";
+import { ElevationSparkline } from "@/components/elevation-sparkline";
 import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
 import { InfoTooltip } from "@/components/info-tooltip";
@@ -426,6 +427,31 @@ type PlanResult = {
 // rider's bottles actually come in, offered as one-tap quick options rather
 // than a free-text field.
 const BOTTLE_CAPACITY_QUICK_OPTIONS = [500, 550, 750, 950, 1000];
+
+// "Micro-Gauges de 2px" — Card 03's own reference ceilings for how far each
+// metric's current value sits along its own real-world demand range, purely
+// illustrative (a visual "how hot is this ride" read, not a second copy of
+// the actual computed figure above it). Each ceiling is grounded in a real
+// constraint already established elsewhere in this app rather than a bare
+// guess: carbs at 100g/h is the practical gut-absorption ceiling
+// `getCarbOxidationRateGPerHour` (`lib/metabolic-engine.ts`) already bands
+// every intensity against; duration/fluid/sodium ceilings are a generous
+// "hardest realistic single-day effort" reference (an ultra-distance
+// gran fondo, worst-case heat) so a normal ride's bar sits comfortably
+// short of full, not pinned at 100% by default.
+const DURATION_GAUGE_MAX_HOURS = 8;
+const CARB_DEMAND_GAUGE_MAX_G_PER_HOUR = 100;
+const FLUID_DEMAND_GAUGE_MAX_ML_PER_HOUR = 1500;
+const SODIUM_DEMAND_GAUGE_MAX_MG_PER_HOUR = 2000;
+
+function MicroGauge({ pct }: { pct: number }) {
+  const clamped = Math.max(0, Math.min(100, pct));
+  return (
+    <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-zinc-200" aria-hidden>
+      <div className="h-full bg-[#6E6658]" style={{ width: `${clamped}%` }} />
+    </div>
+  );
+}
 
 // "Configuración de bidones" — a lightweight planning preference, not a
 // parameter that re-drives `getBottlePlan`'s own GI/solubility-capped math
@@ -2034,6 +2060,16 @@ export function FuelingPlanner({
               className="mt-0 rounded-none"
             />
           )}
+          {/* "Perfil Altimétrico (Sparkline SVG)" — a GPX file already has
+              its own elevation profile locally (see `ElevationSparkline`'s
+              own doc comment for why Strava-route mode doesn't get one
+              here too), so this renders directly under the map with zero
+              extra cost the instant a file's parsed. */}
+          {mode === "gpx" && parsedGpx && parsedGpx.elevationProfile.length >= 2 && (
+            <div className="border-t border-zinc-100 bg-white px-4 pt-2 pb-1">
+              <ElevationSparkline points={parsedGpx.elevationProfile} />
+            </div>
+          )}
         </div>
 
         {/* PASO 02 · Condiciones de la salida — Intensidad Objetivo (Sub-
@@ -2395,6 +2431,7 @@ export function FuelingPlanner({
                   <span className="font-mono text-xl font-bold tracking-tight text-zinc-900 tabular-nums sm:text-2xl">
                     {formatHoursMinutes(result.durationHours)}
                   </span>
+                  <MicroGauge pct={(result.durationHours / DURATION_GAUGE_MAX_HOURS) * 100} />
                 </div>
                 <div className="relative flex flex-col gap-1 overflow-visible rounded-lg bg-[#F8F7F5] p-3">
                   <span className="flex items-center gap-1">
@@ -2410,6 +2447,7 @@ export function FuelingPlanner({
                   <span className="font-mono text-[11px] text-zinc-500">
                     Total: {result.totalRideCarbsG} g
                   </span>
+                  <MicroGauge pct={(result.carbsGPerHour / CARB_DEMAND_GAUGE_MAX_G_PER_HOUR) * 100} />
                 </div>
                 <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
                   <span className="font-mono text-[10px] tracking-widest text-zinc-400 uppercase">
@@ -2422,6 +2460,7 @@ export function FuelingPlanner({
                   <span className="font-mono text-[11px] text-zinc-500">
                     Total: {(totalFluidMl / 1000).toFixed(1)} L
                   </span>
+                  <MicroGauge pct={(result.fluidLossMlPerHour / FLUID_DEMAND_GAUGE_MAX_ML_PER_HOUR) * 100} />
                 </div>
                 <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
                   <span className="font-mono text-[10px] tracking-widest text-zinc-400 uppercase">
@@ -2434,6 +2473,7 @@ export function FuelingPlanner({
                   <span className="font-mono text-[11px] text-zinc-500">
                     Total: {totalSodiumMg} mg
                   </span>
+                  <MicroGauge pct={(result.sodiumMgPerHour / SODIUM_DEMAND_GAUGE_MAX_MG_PER_HOUR) * 100} />
                 </div>
               </div>
 
@@ -2522,33 +2562,47 @@ export function FuelingPlanner({
                 </div>
               )}
 
-              {/* Píldora Fija de Balance en Tiempo Real — sticky within this
-                  card as the athlete scrolls through the bottle-config
-                  selector and the pocket-food inventory below, so OBJETIVO/
-                  CUBIERTO/RESTANTE stays on screen instead of requiring a
-                  scroll back up. Recomputes instantly from
-                  `coveredCarbsG`/`remainingCarbsG` (pure client-side
-                  arithmetic, reacting to *both* the bottle selector and
-                  every pocket-food stepper) — no network round-trip, no
-                  need to press "Calcular" again just to see the coverage
-                  change. `top-16 lg:top-4` clears the mobile sticky header
-                  (`sticky top-0 z-40`, ~64px tall, `lg:hidden`) so the pill
+              {/* Píldora Fija de Balance en Tiempo Real — "Sticky HUD Bar"
+                  (Garmin/Wahoo dark display), sticky within this card as
+                  the athlete scrolls through the bottle-config selector and
+                  the pocket-food inventory below, so OBJETIVO/CUBIERTO/
+                  RESTANTE stays on screen instead of requiring a scroll
+                  back up. Recomputes instantly from `coveredCarbsG`/
+                  `remainingCarbsG` (pure client-side arithmetic, reacting
+                  to *both* the bottle selector and every pocket-food
+                  stepper) — no network round-trip, no need to press
+                  "Calcular" again just to see the coverage change.
+                  `top-16 lg:top-4` clears the mobile sticky header
+                  (`sticky top-0 z-40`, ~64px tall, `lg:hidden`) so the bar
                   never renders underneath it; desktop has no such header,
-                  so it sticks close to the viewport's own top instead. A
-                  later "Sticky Bar" spec literally asked for `top-0` here —
-                  deliberately not applied: a flat `top-0` would put the
-                  pill right back underneath the mobile header, the exact
-                  bug `top-16` was added (and verified live) to fix, so this
-                  keeps the breakpoint-aware offset and only takes the
-                  z-index bump (`z-10` → `z-20`) from that request, giving
-                  the pill more headroom above other in-card content
-                  without reopening the header-overlap regression. */}
-              <div className="sticky top-16 z-20 mb-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg bg-[#F8F7F5]/95 px-3 py-2 text-center font-mono text-[11px] font-semibold tracking-wide text-zinc-700 shadow-sm backdrop-blur-sm sm:text-xs lg:top-4">
-                <span>OBJETIVO: {result.totalRideCarbsG}g HC</span>
-                <span className="text-zinc-300">|</span>
-                <span className="text-status-good">CUBIERTO: {coveredCarbsG}g HC</span>
-                <span className="text-zinc-300">|</span>
-                <span className={remainingCarbsG > 0 ? "text-status-warning" : "text-status-good"}>
+                  so it sticks close to the viewport's own top instead — a
+                  literal `top-0` was explicitly asked for once, then the
+                  same spec's own follow-up explicitly reconfirmed keeping
+                  this breakpoint-aware offset instead, precisely to avoid
+                  reopening that already-fixed header-overlap regression.
+                  `#18181B`/`text-white`/`text-emerald-400` are deliberate
+                  one-off literals, not this app's usual porcelain/
+                  `--terracotta` tokens — a dark ciclocomputador HUD is a
+                  categorically different visual register from the rest of
+                  this light-editorial app, the one other place that
+                  register was ever used (Card 05's old "Dosis Ejecutiva"
+                  hero) having since moved into the checklist. RESTANTE is
+                  the "live" metric: bright white while there's still a gap
+                  to close, technical emerald the instant it hits 0 (fully
+                  covered) — OBJETIVO/CUBIERTO both stay a muted
+                  `text-zinc-400`, so RESTANTE is unambiguously the one
+                  number this display wants your eye on. */}
+              <div className="sticky top-16 z-20 mb-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl border border-zinc-800 bg-[#18181B] px-3 py-2 text-center font-mono text-[11px] font-semibold tracking-wide shadow-sm backdrop-blur-sm sm:text-xs lg:top-4">
+                <span className="text-zinc-400">OBJETIVO: {result.totalRideCarbsG}g HC</span>
+                <span className="text-zinc-700">|</span>
+                <span className="text-zinc-400">CUBIERTO: {coveredCarbsG}g HC</span>
+                <span className="text-zinc-700">|</span>
+                <span
+                  className={cn(
+                    "font-bold",
+                    remainingCarbsG > 0 ? "text-white" : "text-emerald-400"
+                  )}
+                >
                   RESTANTE: {remainingCarbsG}g HC
                 </span>
               </div>
