@@ -1,7 +1,17 @@
-import { Mountain, Thermometer, Wind } from "lucide-react";
+import { Mountain, Thermometer, TriangleAlert, Wind } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { cn } from "@/lib/utils";
+
 const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
+
+// "Clima Inteligente con Alerta por Rangos" — a flat gray tile treats 32°C
+// exactly like 18°C, even though the athlete's real thermal stress at those
+// two readings is nothing alike. Past these thresholds, the relevant tile
+// switches to a warm/alert tint with an explicit label, instead of relying
+// on the athlete to notice the raw number and judge it themselves.
+const HEAT_ALERT_THRESHOLD_C = 30;
+const WIND_ALERT_THRESHOLD_KMH = 20;
 
 export type AltitudeWeather = {
   base: {
@@ -20,30 +30,58 @@ export type AltitudeWeather = {
 
 /** One Temp/Viento/Humedad stat tile — shared by the single-card layout
  * (no significant climb) and each half of the base-vs-cima comparison
- * (a real climb) below, so the two layouts render pixel-identical tiles. */
+ * (a real climb) below, so the two layouts render pixel-identical tiles.
+ * `alertLabel` (only ever passed for Temp/Viento, never Humedad) switches
+ * the tile to a warm amber tint and renders as its own line below `caption`
+ * — both can coexist (e.g. a "cima" tile showing "+6°C vs. valle" *and*
+ * "Calor extremo" at once), rather than one replacing the other. */
 function WeatherStatTile({
   label,
   icon,
   value,
   caption,
+  alertLabel,
 }: {
   label: string;
   icon?: ReactNode;
   value: string;
   caption?: string;
+  alertLabel?: string;
 }) {
+  const alert = Boolean(alertLabel);
   return (
-    <div className="flex min-w-0 flex-col gap-0.5 rounded-md border border-badge-border bg-badge px-2 py-1.5">
-      <span className="flex items-center gap-1 text-[10px] font-mono tracking-wider text-neutral-500 uppercase truncate">
+    <div
+      className={cn(
+        "flex min-w-0 flex-col gap-0.5 rounded-md border px-2 py-1.5",
+        alert ? "border-amber-200 bg-amber-100/60" : "border-badge-border bg-badge"
+      )}
+    >
+      <span
+        className={cn(
+          "flex items-center gap-1 text-[10px] font-mono tracking-wider uppercase truncate",
+          alert ? "text-amber-700" : "text-neutral-500"
+        )}
+      >
         {icon}
         <span className="truncate">{label}</span>
       </span>
-      <span className="truncate text-xs font-bold font-mono text-neutral-900 tabular-nums sm:text-sm">
+      <span
+        className={cn(
+          "truncate text-xs font-bold font-mono tabular-nums sm:text-sm",
+          alert ? "text-amber-900" : "text-neutral-900"
+        )}
+      >
         {value}
       </span>
       {caption && (
         <span className="block text-[9px] font-mono font-normal text-neutral-400 truncate">
           {caption}
+        </span>
+      )}
+      {alertLabel && (
+        <span className="flex items-center gap-1 text-[9px] font-mono font-semibold text-amber-700 truncate">
+          <TriangleAlert className="size-2.5 shrink-0" />
+          {alertLabel}
         </span>
       )}
     </div>
@@ -142,11 +180,17 @@ export function WeatherImpactCard({
                 label="Temp."
                 icon={<Thermometer className="size-3 shrink-0" />}
                 value={`${altitude.base.temperatureC}°C`}
+                alertLabel={
+                  altitude.base.temperatureC >= HEAT_ALERT_THRESHOLD_C ? "Calor extremo" : undefined
+                }
               />
               <WeatherStatTile
                 label="Viento"
                 icon={<Wind className="size-3 shrink-0" />}
                 value={`${altitude.base.windSpeedKmh} km/h`}
+                alertLabel={
+                  altitude.base.windSpeedKmh >= WIND_ALERT_THRESHOLD_KMH ? "Viento fuerte" : undefined
+                }
               />
               <WeatherStatTile label="Humedad" value={`${altitude.base.humidityPct}%`} />
             </div>
@@ -163,11 +207,17 @@ export function WeatherImpactCard({
                 icon={<Thermometer className="size-3 shrink-0" />}
                 value={`${altitude.peak.temperatureC}°C`}
                 caption={`${Math.round((altitude.peak.temperatureC - altitude.base.temperatureC) * 10) / 10}°C vs. valle`}
+                alertLabel={
+                  altitude.peak.temperatureC >= HEAT_ALERT_THRESHOLD_C ? "Calor extremo" : undefined
+                }
               />
               <WeatherStatTile
                 label="Viento"
                 icon={<Wind className="size-3 shrink-0" />}
                 value={`${altitude.peak.windSpeedKmh} km/h`}
+                alertLabel={
+                  altitude.peak.windSpeedKmh >= WIND_ALERT_THRESHOLD_KMH ? "Viento fuerte" : undefined
+                }
               />
               <WeatherStatTile label="Humedad" value={`${altitude.peak.humidityPct}%`} />
             </div>
@@ -184,11 +234,19 @@ export function WeatherImpactCard({
                 ? `máx ${temperatureMaxC}°C`
                 : undefined
             }
+            // Alerts off the worst-case reading (the max, when one exists),
+            // not just the primary displayed value — a tile showing a mild
+            // "24°C" with a "máx 32°C" caption is still real heat stress
+            // somewhere on the ride, and shouldn't read as a cool one.
+            alertLabel={
+              (temperatureMaxC ?? temperatureC) >= HEAT_ALERT_THRESHOLD_C ? "Calor extremo" : undefined
+            }
           />
           <WeatherStatTile
             label="Viento"
             icon={<Wind className="size-3 shrink-0" />}
             value={`${windSpeedKmh} km/h`}
+            alertLabel={windSpeedKmh >= WIND_ALERT_THRESHOLD_KMH ? "Viento fuerte" : undefined}
           />
           <WeatherStatTile label="Humedad" value={`${humidityPct}%`} />
         </div>

@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  Beaker,
   CalendarDays,
+  CheckCircle2,
   ChevronDown,
   Coffee,
   Droplet,
@@ -98,6 +100,16 @@ const POCKET_FOOD_TYPES: PocketFoodItemType[] = [
 const GEL_DOSE_TYPES: PocketFoodItemType[] = ["gel_small", "gel_standard", "gel_high"];
 const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = [...POCKET_FOOD_TYPES, ...GEL_DOSE_TYPES];
 const MAX_POCKET_FOOD_QTY = 6;
+
+// "Optimización de Densidad en Simulador" — the 4 real catalog items shown
+// by default in Card 04 before "+ Mostrar más alimentos" is tapped (the
+// Ziploc reload dose is the 5th habitual item the audit named, rendered
+// separately since it isn't a `PocketFoodItemType` — see `ziplocDoseActive`
+// above). Chosen for being the most common real purchases/carries this app
+// already points the athlete toward: Refresco/Bollería (the café-stop
+// items "Paradas previstas en ruta" suggests), Plátano (the default solid),
+// and Gel estándar (the default gel dose).
+const DEFAULT_VISIBLE_POCKET_FOOD_TYPES: PocketFoodItemType[] = ["soda", "pastry", "banana", "gel_standard"];
 const MAX_CUSTOM_CARBS_G = 500;
 
 // Offline fallback for "en medio de un puerto sin cobertura" — the last
@@ -586,13 +598,16 @@ function getCafeteriaStopSuggestion(carbsG: number): string {
 type CafeteriaStopCount = 0 | 1 | 2;
 
 // "Botones de Selección Rápida" — no sub-menus, one tap picks the whole
-// plan. "1 Parada" is marked "(Sugerido)" since a single well-placed stop
-// is the simplest plan that still fully resolves any deficit, regardless
-// of size — 2 stops is the *more* deliberate, opt-in choice for whoever
-// wants the load spread out.
+// plan. The "(Sugerido)" suffix on "1 Parada" was dropped outright (not
+// abbreviated) — "Bug Fix de Botones e Inputs" found it truncating to
+// "1 Parada (Sug..." on a real iPhone, since the label had to share a
+// 3-column row with "Sin paradas"/"2 Paradas" with no room to spare. A
+// single well-placed stop is still the simplest plan that fully resolves
+// any deficit regardless of size, but that reasoning now lives only in
+// this comment, not in on-screen copy that doesn't fit.
 const CAFETERIA_STOP_COUNT_OPTIONS: { value: CafeteriaStopCount; label: string }[] = [
   { value: 0, label: "Sin paradas" },
-  { value: 1, label: "1 Parada (Sugerido)" },
+  { value: 1, label: "1 Parada" },
   { value: 2, label: "2 Paradas" },
 ];
 
@@ -954,6 +969,14 @@ export function FuelingPlanner({
   // customized it on a previous visit (see the effect below).
   const [activePantryTypes, setActivePantryTypes] = useState<PocketFoodItemType[]>(ALL_POCKET_FOOD_TYPES);
   const [pantryModalOpen, setPantryModalOpen] = useState(false);
+  // "Optimización de Densidad" — 11 steppers at once was real choice-overload
+  // fatigue on a real phone, mid-kitchen-prep. Collapsed to the handful of
+  // habitual items by default (`DEFAULT_VISIBLE_POCKET_FOOD_TYPES` below,
+  // plus the Ziploc dose row, which is never gated by this), with the rest
+  // one tap away via "+ Mostrar más alimentos" rather than gone entirely —
+  // nothing in "Editar mi despensa" changes because of this, it's purely a
+  // display-density preference layered on top of it.
+  const [showAllPocketFood, setShowAllPocketFood] = useState(false);
   // "Estrategia nutricional" (Óptimo/Mi Inventario/Híbrido) was removed
   // entirely from this UI — "Reestructuración Integral de Resultados"
   // collapsed it and the bottle-config selector down to one always-visible,
@@ -1207,6 +1230,20 @@ export function FuelingPlanner({
   // last gel after checking it can't leave a stale `includeCaffeine: true`
   // scheduling a caffeine milestone with no real caffeine source behind it.
   const hasGelSelected = GEL_DOSE_TYPES.some((type) => (pocketFood[type] ?? 0) > 0);
+
+  // "Optimización de Densidad" — collapsed by default to the habitual set
+  // (`DEFAULT_VISIBLE_POCKET_FOOD_TYPES`), but an item the athlete already
+  // gave a quantity to (e.g. added via "Mostrar más," then collapsed the
+  // list again) never disappears — hiding an active selection would read as
+  // it silently zeroing out, even though it'd still count toward CUBIERTO.
+  const activePocketFoodTypes = ALL_POCKET_FOOD_TYPES.filter((type) => activePantryTypes.includes(type));
+  const visiblePocketFoodTypes = activePocketFoodTypes.filter(
+    (type) =>
+      showAllPocketFood ||
+      DEFAULT_VISIBLE_POCKET_FOOD_TYPES.includes(type) ||
+      (pocketFood[type] ?? 0) > 0
+  );
+  const hiddenPocketFoodCount = activePocketFoodTypes.length - visiblePocketFoodTypes.length;
 
   // "Modo Cobertura Limitada" — if the athlete opens the app with no
   // connection at all (mid-climb, no signal), load the last strategy that
@@ -2143,9 +2180,10 @@ export function FuelingPlanner({
                     {formatHoursMinutes(result.durationHours)}
                   </span>
                 </div>
-                <div className="relative flex flex-col gap-1 overflow-visible rounded-lg border border-amber-200/70 bg-amber-50/60 p-3">
+                <div className="relative flex flex-col gap-1 overflow-visible rounded-lg border border-amber-200 bg-amber-50 p-3">
                   <span className="flex items-center gap-1">
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-amber-700">
+                    <Zap className="size-3 shrink-0 text-amber-700" />
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-amber-900">
                       Carbohidratos
                     </span>
                     <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
@@ -2158,9 +2196,12 @@ export function FuelingPlanner({
                     Total: {result.totalRideCarbsG} g
                   </span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-lg border border-sky-200/70 bg-sky-50/60 p-3">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-sky-700">
-                    Hidratación
+                <div className="flex flex-col gap-1 rounded-lg border border-sky-200 bg-sky-50 p-3">
+                  <span className="flex items-center gap-1">
+                    <Droplet className="size-3 shrink-0 text-sky-700" />
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-sky-900">
+                      Hidratación
+                    </span>
                   </span>
                   <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
                     {result.fluidLossMlPerHour}
@@ -2170,9 +2211,12 @@ export function FuelingPlanner({
                     Total: {(totalFluidMl / 1000).toFixed(1)} L
                   </span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-lg border border-emerald-200/70 bg-emerald-50/60 p-3">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-700">
-                    Sodio
+                <div className="flex flex-col gap-1 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <span className="flex items-center gap-1">
+                    <Beaker className="size-3 shrink-0 text-emerald-700" />
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-900">
+                      Sodio
+                    </span>
                   </span>
                   <span className="font-mono text-lg font-bold text-neutral-900 tabular-nums sm:text-xl">
                     {result.sodiumMgPerHour}
@@ -2302,7 +2346,7 @@ export function FuelingPlanner({
                   </p>
                 )}
                 <div className="grid grid-cols-1 gap-0 md:grid-cols-2 md:gap-x-4 md:gap-y-0">
-                  {ALL_POCKET_FOOD_TYPES.filter((type) => activePantryTypes.includes(type)).map((type) => (
+                  {visiblePocketFoodTypes.map((type) => (
                     <PocketFoodStepperRow
                       key={type}
                       label={pocketFoodName(type)}
@@ -2353,6 +2397,25 @@ export function FuelingPlanner({
                     </div>
                   </div>
                 </div>
+                {/* "+ Mostrar más alimentos" — the catalog's own remaining
+                    items (whatever real "Editar mi despensa" doesn't
+                    already narrow it to) stay one tap away rather than
+                    gone, collapsing back down once toggled a second time. */}
+                {(hiddenPocketFoodCount > 0 || showAllPocketFood) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllPocketFood((prev) => !prev)}
+                    className="mt-1 flex w-full cursor-pointer items-center justify-center gap-1 py-1.5 font-mono text-[11px] font-semibold tracking-wide text-terracotta uppercase transition-colors hover:text-terracotta-hover"
+                  >
+                    <ChevronDown
+                      className={cn(
+                        "size-3.5 shrink-0 transition-transform duration-150",
+                        showAllPocketFood && "rotate-180"
+                      )}
+                    />
+                    {showAllPocketFood ? "Mostrar menos" : `Mostrar más alimentos (${hiddenPocketFoodCount})`}
+                  </button>
+                )}
                 {/* A modifier on whatever gel(s) are already selected, not a
                     4th gel-catalog entry — only shown once a real gel dose
                     is picked, and unmounting it (rather than just disabling
@@ -2409,89 +2472,52 @@ export function FuelingPlanner({
             />
 
             {/* 🎴 Tarjeta 3 · 05 · Pauta de ingesta y receta ("Al Grano") —
-                the dynamic ingestion timeline as the hero (top priority
-                reading in ruta), a concise executive per-bottle dose, and a
-                checklist of what to actually grab before rolling out.
-                Descargar GPX / Exportar a Garmin, the GPS-alert explainer,
-                and every "Copiar"/"Enviar a WhatsApp" export button were
-                all removed outright (see the master spec) — the athlete
-                screenshots this card if they want to save or share it. The
-                reload-strategy and carb-loading accordions (when
-                applicable) stay — they're real, conditional *nutrition*
-                content, not an export mechanism. */}
+                "Jerarquía Visual Radical": 3 visually distinct tiers instead
+                of 4 identical gray boxes, answering the two questions an
+                athlete actually has at this point in 3 seconds — "¿qué echo
+                en el bidón?" (Nivel 1, the recipe) and "¿qué me meto en el
+                maillot?" (Nivel 2, the checklist) — before the supplementary
+                pacing detail (Nivel 3, the timeline). Descargar GPX /
+                Exportar a Garmin, the GPS-alert explainer, and every
+                "Copiar"/"Enviar a WhatsApp" export button were all removed
+                outright (see the master spec) — the athlete screenshots
+                this card if they want to save or share it. */}
             <div className="flex flex-col gap-3 rounded-xl border-0 bg-white p-4 shadow-none">
               <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
                 05 · Pauta de ingesta y receta
               </span>
 
-              {/* Cronograma Dinámico de Ingesta — hero section, always
-                  visible (not a collapsible accordion like every other
-                  block below it) — this is the one thing an athlete needs
-                  to read at a glance mid-ruta. */}
-              <div className="rounded-sm bg-[#F8F7F5] p-3">
-                <span className={eyebrow}>Cronograma dinámico de ingesta</span>
-                <p className="mt-2 flex items-center gap-1.5 text-sm text-neutral-700">
-                  <Droplet className="size-3.5 shrink-0 text-neutral-500" />
-                  Beber 1 bidón (~{result.bottlePlan.bottleSizeMl} ml) cada{" "}
-                  <span className="font-mono font-semibold text-neutral-900">
-                    {result.timingTimeline.hydrationIntervalMinutes} min
-                  </span>
-                </p>
-                {mergedTimelineEntries.length > 0 && (
-                  <ol className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
-                    {mergedTimelineEntries.map((entry) => (
-                      <li key={entry.key} className="flex items-center gap-1.5">
-                        {entry.icon === "solid" && (
-                          <Utensils className="size-3.5 shrink-0 text-neutral-500" />
-                        )}
-                        {entry.icon === "gel" && <Zap className="size-3.5 shrink-0 text-neutral-500" />}
-                        {entry.icon === "caffeine" && (
-                          <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
-                        )}
-                        {entry.icon === "cafeteria" && (
-                          <Coffee className="size-3.5 shrink-0 text-neutral-500" />
-                        )}
-                        <span className="font-mono text-xs text-neutral-500">
-                          {entry.approx ? "~" : ""}
-                          {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
-                        </span>
-                        {entry.label}
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-
-              {/* Dosis Ejecutiva para Mezcla Casera — the concise per-bottle
-                  number the athlete actually mixes at the kitchen counter,
-                  sized to their real bottle capacity ("Receta Base Dual" —
-                  44g HC/550ml, 24g Malto + 20g Fructosa, scaled linearly to
-                  whatever `bottleSizeMl` actually is via
-                  `getBaseBottleRecipe`), plus a collapsible scoop-
-                  equivalence breakdown for anyone without a scale. The
-                  checklist below (`getBikeChecklistLines`) now repeats
-                  these same grams inline on its own "En bici" line too —
-                  no longer avoided as duplication, since "Receta Base
-                  Dual" asked for the checklist itself to be immediately
-                  actionable without scrolling back up to this box. */}
-              <div className="rounded-sm bg-[#F8F7F5] p-3">
-                <span className={eyebrow}>
-                  Dosis ejecutiva para mezcla casera (por bidón {result.bottlePlan.bottleSizeMl}ml)
+              {/* Nivel 1 · Héroe — "Fórmula de Laboratorio." The one dark,
+                  high-contrast "Obsidian" card in this section, matching
+                  this app's own established hero-card treatment (`#343334`
+                  fill, `#FD5A08` bright accent — see "PNS premium redesign"
+                  in this app's own design history) — reserved for exactly
+                  this kind of "read this number first" moment. Sized to
+                  the athlete's real bottle capacity ("Receta Base Dual" —
+                  44g HC/550ml, scaled via `getBaseBottleRecipe`), plus a
+                  collapsible scoop-equivalence breakdown for anyone without
+                  a scale. */}
+              <div className="rounded-xl bg-[#343334] p-4 text-white">
+                <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-widest text-white/50 uppercase">
+                  <FlaskConical className="size-3.5 shrink-0" />
+                  Fórmula de laboratorio · bidón {result.bottlePlan.bottleSizeMl}ml
                 </span>
                 {result.bottlePlan.fuelBottles.count > 0 ? (
-                  <p className="mt-1.5 font-mono text-sm font-semibold text-neutral-900">
-                    {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g Malto +{" "}
-                    {result.bottlePlan.fuelBottles.fructoseGPerBottle}g Fructosa +{" "}
-                    {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g Sal / bidón (
-                    {result.bottlePlan.bottleSizeMl}ml)
+                  <p className="mt-2 font-mono text-lg leading-snug font-bold text-[#FD5A08] tabular-nums sm:text-xl">
+                    {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g{" "}
+                    <span className="text-sm font-normal text-white/70">Malto</span> +{" "}
+                    {result.bottlePlan.fuelBottles.fructoseGPerBottle}g{" "}
+                    <span className="text-sm font-normal text-white/70">Fructosa</span> +{" "}
+                    {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g{" "}
+                    <span className="text-sm font-normal text-white/70">Sal</span>
                   </p>
                 ) : (
-                  <p className="mt-1.5 text-sm text-neutral-600">
+                  <p className="mt-2 text-sm text-white/80">
                     Cobertura completa vía comida de bolsillo — no necesitas mezcla en bidón.
                   </p>
                 )}
                 {result.bottlePlan.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
-                  <div className="mt-2 flex items-start gap-2 border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
+                  <div className="mt-3 flex items-start gap-2 border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
                     <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
                     <span>
                       Solución hipertónica ({result.bottlePlan.fuelBottles.concentrationPct}% &gt;{" "}
@@ -2500,12 +2526,12 @@ export function FuelingPlanner({
                   </div>
                 )}
                 {result.bottlePlan.fuelBottles.count > 0 && (
-                  <details className="group mt-2">
-                    <summary className="flex cursor-pointer list-none items-center gap-1 font-mono text-xs font-medium text-zinc-600 transition-colors duration-150 hover:text-zinc-900 [&::-webkit-details-marker]:hidden">
+                  <details className="group mt-3">
+                    <summary className="flex cursor-pointer list-none items-center gap-1 font-mono text-xs font-medium text-white/60 transition-colors duration-150 hover:text-white [&::-webkit-details-marker]:hidden">
                       <ChevronDown className="size-3.5 shrink-0 transition-transform duration-150 group-open:rotate-180" />
                       Ver equivalencias en cazos
                     </summary>
-                    <div className="mt-2 flex flex-col gap-1 border-t border-zinc-200 pt-2 text-xs text-neutral-600">
+                    <div className="mt-2 flex flex-col gap-1 border-t border-white/15 pt-2 text-xs text-white/70">
                       <p>
                         Maltodextrina: {result.bottlePlan.fuelBottles.maltodextrinGPerBottle}g (~
                         {fuelBottleMeasures!.maltodextrinScoops} cazos)
@@ -2518,7 +2544,7 @@ export function FuelingPlanner({
                         Sal común: {getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle)}g (~
                         {fuelBottleMeasures!.saltTeaspoons} cdta.)
                       </p>
-                      <p className="text-[10px] text-neutral-400">
+                      <p className="text-[10px] text-white/40">
                         *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g de
                         sal.
                       </p>
@@ -2527,46 +2553,12 @@ export function FuelingPlanner({
                 )}
               </div>
 
-              {/* "Estrategia de recarga en ruta" — the old automatic
-                  red/warning-toned Ziploc accordion — has been removed
-                  outright, per "Eliminación Definitiva de la Tarjeta
-                  Roja." Its function is now covered naturally by the
-                  athlete's own "Dosis de recarga Mix (Ziploc)" selections
-                  in the pocket-food inventory above (same per-dose grams,
-                  same checklist line under "En bolsillo / maillot" — see
-                  `pocketChecklistLines`), a self-serve declaration rather
-                  than an app-imposed reload count. `result.reloadStrategy`
-                  itself is untouched server-side — `getWaterPlanLines`
-                  right below still reads its `waterRefillCount`/
-                  `waterRefillLiters` for the unrelated plain-water fountain
-                  refill note, which this removal doesn't affect. */}
-
-              {result.carbLoading && (
-                <details className="rounded-sm bg-[#F8F7F5] px-3 py-2.5">
-                  <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-700 uppercase">
-                    <CalendarDays className="size-3.5 shrink-0" />
-                    Estrategia de carga día −1 · {result.carbLoading.minCarbsG}-
-                    {result.carbLoading.maxCarbsG}g HC
-                  </summary>
-                  <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-600">
-                    {result.carbLoading.guidelines.map((guideline) => (
-                      <p key={guideline}>• {guideline}</p>
-                    ))}
-                  </div>
-                </details>
-              )}
-
-              {/* "Alerta de Déficit Pendiente de Cubrir" — its own
-                  standalone box, sitting *above* the checklist rather than
-                  nested inside it (a previous pass had it as a small
-                  trailing line inside the checklist's own porcelain box;
-                  moved out and given real visual weight since a live
-                  déficit is a genuine "don't roll out yet" concern, not a
-                  footnote). Purely reactive: once the athlete closes the
-                  gap from Card 04 (a café/gasolinera stop, or enough extra
-                  pocket food), `remainingCarbsG` collapses to 0 and this
-                  disappears entirely — no separate "is a stop planned"
-                  check needed. */}
+              {/* "Alerta de Déficit Pendiente de Cubrir" — sits directly
+                  under the hero recipe, since it's the reason that recipe
+                  alone might not be enough. Purely reactive: once the
+                  athlete closes the gap from Card 04 (a café/gasolinera
+                  stop, or enough extra pocket food), `remainingCarbsG`
+                  collapses to 0 and this disappears entirely. */}
               {remainingCarbsG > 15 && (
                 <div className="flex items-start gap-2 rounded-sm border border-status-warning/40 bg-status-warning/10 p-3">
                   <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
@@ -2584,19 +2576,20 @@ export function FuelingPlanner({
                 </div>
               )}
 
-              {/* Checklist de Preparación para Llevar — the "what to
-                  physically grab" summary, driven by the same bottle
-                  config + pocket-food state as the balance pill above, so
-                  it's never out of sync with what CUBIERTO/RESTANTE is
-                  currently showing. Split into labeled sub-sections (En
-                  bici / En bolsillo / Plan de Paradas en Ruta / Plan de
-                  agua en ruta) rather than one flat list, so a
-                  fountain-refill note never reads as a physical bottle to
-                  carry from home — see `getBikeChecklistLines`/
-                  `getWaterPlanLines`/`getCafeteriaStopChecklistLines`
-                  above. */}
-              <div className="rounded-sm bg-[#F8F7F5] p-3">
-                <span className={eyebrow}>Checklist de preparación para llevar</span>
+              {/* Nivel 2 · Checklist de Salida — "ticket" formatting: a
+                  crisp white card with a dashed perforation between
+                  sub-sections and a checkmark bullet per line, replacing
+                  the old flat "•" list inside a same-gray-as-everything
+                  porcelain box. Driven by the same bottle config +
+                  pocket-food state as the balance pill in Card 04, so it's
+                  never out of sync with what CUBIERTO/RESTANTE currently
+                  shows — see `getBikeChecklistLines`/`getWaterPlanLines`/
+                  `getCafeteriaStopChecklistLines` above. */}
+              <div className="rounded-lg border border-zinc-200 bg-white p-4">
+                <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-widest text-zinc-500 uppercase">
+                  <CheckCircle2 className="size-3.5 shrink-0" />
+                  Checklist de salida
+                </span>
                 {bikeChecklistLines.length === 0 &&
                 pocketChecklistLines.length === 0 &&
                 waterPlanChecklistLines.length === 0 &&
@@ -2606,58 +2599,128 @@ export function FuelingPlanner({
                   </p>
                 ) : (
                   <div className="mt-2 flex flex-col gap-2.5 text-sm text-neutral-700">
-                    {bikeChecklistLines.length > 0 && (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-semibold text-neutral-600">
-                          En bici (portabidones):
-                        </span>
-                        <ul className="flex flex-col gap-1">
-                          {bikeChecklistLines.map((line) => (
-                            <li key={line}>• {line}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {pocketChecklistLines.length > 0 && (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-semibold text-neutral-600">
-                          En bolsillo / maillot:
-                        </span>
-                        <ul className="flex flex-col gap-1">
-                          {pocketChecklistLines.map((line) => (
-                            <li key={line}>• {line}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {cafeteriaChecklistLines.length > 0 && (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-semibold text-neutral-600">
-                          Plan de paradas en ruta:
-                        </span>
-                        <ul className="flex flex-col gap-1">
-                          {cafeteriaChecklistLines.map((line) => (
-                            <li key={line}>• {line}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {waterPlanChecklistLines.length > 0 && (
-                      <div className="flex flex-col gap-1">
-                        <span className="flex items-center gap-1.5 text-xs font-semibold text-neutral-600">
-                          <Droplet className="size-3.5 shrink-0" />
-                          Plan de agua en ruta:
-                        </span>
-                        <ul className="flex flex-col gap-1">
-                          {waterPlanChecklistLines.map((line) => (
-                            <li key={line}>• {line}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    {[
+                      { title: "En bici (portabidones)", lines: bikeChecklistLines, icon: null },
+                      { title: "En bolsillo / maillot", lines: pocketChecklistLines, icon: null },
+                      { title: "Plan de paradas en ruta", lines: cafeteriaChecklistLines, icon: null },
+                      { title: "Plan de agua en ruta", lines: waterPlanChecklistLines, icon: <Droplet className="size-3.5 shrink-0" /> },
+                    ]
+                      .filter((section) => section.lines.length > 0)
+                      .map((section, i) => (
+                        <div
+                          key={section.title}
+                          className={cn(
+                            "flex flex-col gap-1",
+                            i > 0 && "border-t border-dashed border-zinc-200 pt-2.5"
+                          )}
+                        >
+                          <span className="flex items-center gap-1.5 text-xs font-semibold text-neutral-600">
+                            {section.icon}
+                            {section.title}:
+                          </span>
+                          <ul className="flex flex-col gap-1.5">
+                            {section.lines.map((line) => (
+                              <li key={line} className="flex items-start gap-1.5">
+                                <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-terracotta" />
+                                <span>{line}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
                   </div>
                 )}
               </div>
+
+              {/* Nivel 3 · Pauta Temporal — a genuine vertical timeline (a
+                  connecting rail + a dot per entry) instead of a flat
+                  icon+label list, for the supplementary "when" detail once
+                  Niveles 1-2 have already answered "qué." The recurring
+                  hydration-interval line sits above the rail, since it's a
+                  standing reminder rather than a single point in time the
+                  way every other entry is. */}
+              <div className="rounded-sm bg-[#F8F7F5] p-3">
+                <span className={eyebrow}>Cronograma dinámico de ingesta</span>
+                <p className="mt-2 flex items-center gap-1.5 text-sm text-neutral-700">
+                  <Droplet className="size-3.5 shrink-0 text-neutral-500" />
+                  Beber 1 bidón (~{result.bottlePlan.bottleSizeMl} ml) cada{" "}
+                  <span className="font-mono font-semibold text-neutral-900">
+                    {result.timingTimeline.hydrationIntervalMinutes} min
+                  </span>
+                </p>
+                {mergedTimelineEntries.length > 0 && (
+                  <ol className="mt-3 flex flex-col">
+                    {mergedTimelineEntries.map((entry, i) => (
+                      <li key={entry.key} className="relative flex gap-2.5 pb-3 last:pb-0">
+                        {i < mergedTimelineEntries.length - 1 && (
+                          <span
+                            aria-hidden
+                            className="absolute top-3 left-1.25 h-full w-px bg-zinc-300"
+                          />
+                        )}
+                        <span
+                          aria-hidden
+                          className="relative z-10 mt-1 size-2.75 shrink-0 rounded-full border-2 border-terracotta bg-white"
+                        />
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="font-mono text-[10px] text-neutral-500">
+                            {entry.approx ? "~" : ""}
+                            {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
+                          </span>
+                          <span className="flex items-center gap-1.5 text-sm text-neutral-700">
+                            {entry.icon === "solid" && (
+                              <Utensils className="size-3.5 shrink-0 text-neutral-500" />
+                            )}
+                            {entry.icon === "gel" && (
+                              <Zap className="size-3.5 shrink-0 text-neutral-500" />
+                            )}
+                            {entry.icon === "caffeine" && (
+                              <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
+                            )}
+                            {entry.icon === "cafeteria" && (
+                              <Coffee className="size-3.5 shrink-0 text-neutral-500" />
+                            )}
+                            {entry.label}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+
+              {/* "Estrategia de recarga en ruta" — the old automatic
+                  red/warning-toned Ziploc accordion — has been removed
+                  outright, per "Eliminación Definitiva de la Tarjeta
+                  Roja." Its function is now covered naturally by the
+                  athlete's own "Dosis de recarga Mix (Ziploc)" selections
+                  in the pocket-food inventory above (same per-dose grams,
+                  same checklist line under "En bolsillo / maillot" — see
+                  `pocketChecklistLines`), a self-serve declaration rather
+                  than an app-imposed reload count. `result.reloadStrategy`
+                  itself is untouched server-side — `getWaterPlanLines`
+                  above still reads its `waterRefillCount`/
+                  `waterRefillLiters` for the unrelated plain-water fountain
+                  refill note, which this removal doesn't affect. */}
+
+              {/* Estrategia de carga día −1 — supplementary, occasional
+                  content (only rendered on a long/target-event ride), kept
+                  outside the 3-tier structure above rather than forced
+                  into one of the named tiers. */}
+              {result.carbLoading && (
+                <details className="rounded-sm bg-[#F8F7F5] px-3 py-2.5">
+                  <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-700 uppercase">
+                    <CalendarDays className="size-3.5 shrink-0" />
+                    Estrategia de carga día −1 · {result.carbLoading.minCarbsG}-
+                    {result.carbLoading.maxCarbsG}g HC
+                  </summary>
+                  <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-600">
+                    {result.carbLoading.guidelines.map((guideline) => (
+                      <p key={guideline}>• {guideline}</p>
+                    ))}
+                  </div>
+                </details>
+              )}
             </div>
           </div>
         )}

@@ -24,13 +24,18 @@ import { cn } from "@/lib/utils";
  * tooltip widen itself past the default `max-w-xs` without affecting the
  * single-line callers that don't pass it.
  *
- * Icon and panel styling ("Unificación Global de Iconos de Tooltip") is the
- * one deliberate exception to this app's own porcelain/white card palette —
- * a dark `zinc-900` panel reads as a distinct, universal "help" affordance
- * rather than another content card, and `HelpCircle` (not `Info`) is the
- * one icon every tooltip trigger in the app now shares — see
- * `components/fueling-context-tooltip.tsx` for the other (and only other)
- * call site sharing this exact treatment.
+ * `HelpCircle` (not `Info`) is the one icon every tooltip trigger in the
+ * app shares — see `components/fueling-context-tooltip.tsx` for the other
+ * (and only other) call site sharing this exact treatment.
+ *
+ * **Panel: clean white, not dark.** "Unificación Global de Iconos de
+ * Tooltip" originally gave this a dark `zinc-900` panel deliberately, as
+ * the one exception to this app's porcelain/white palette. Reversed by a
+ * later UX audit — on a real phone that dark panel read as "invasive,"
+ * covering close to half the screen and darkening the surrounding card far
+ * more than a short explainer warrants. Now `bg-white shadow-xl border
+ * border-zinc-200 text-zinc-800 rounded-xl`, matching this app's own card
+ * system instead of standing apart from it.
  */
 export function InfoTooltip({
   label,
@@ -69,7 +74,7 @@ export function InfoTooltip({
       <span
         role="tooltip"
         className={cn(
-          "pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 max-w-xs -translate-x-1/2 rounded-sm border-0 bg-zinc-900 p-3 font-mono text-xs font-normal tracking-normal text-white normal-case shadow-lg transition-opacity duration-150",
+          "pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 max-w-xs -translate-x-1/2 rounded-xl border border-zinc-200 bg-white p-4 font-mono text-xs font-normal tracking-normal text-zinc-800 normal-case shadow-xl transition-opacity duration-150",
           open ? "opacity-100" : "opacity-0",
           panelClassName
         )}

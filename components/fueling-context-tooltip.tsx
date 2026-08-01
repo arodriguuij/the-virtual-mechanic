@@ -16,7 +16,9 @@ import { getCarbRatioContextNote } from "@/lib/metabolic-engine";
  * scrolls, matching `components/info-tooltip.tsx`'s own treatment — the
  * only other tooltip trigger in the app, kept in sync by hand since this one
  * predates `InfoTooltip` and takes a derived note rather than a static one,
- * so it isn't a candidate to just delegate to that shared component.
+ * so it isn't a candidate to just delegate to that shared component. Panel
+ * styling (clean white, not dark — see `InfoTooltip`'s own doc comment for
+ * why) is kept in sync by hand too.
  */
 export function FuelingContextTooltips({ carbsGPerHour }: { carbsGPerHour: number }) {
   const note = getCarbRatioContextNote(carbsGPerHour);
@@ -48,7 +50,7 @@ export function FuelingContextTooltips({ carbsGPerHour }: { carbsGPerHour: numbe
       <span
         role="tooltip"
         className={cn(
-          "pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 max-w-xs -translate-x-1/2 rounded-sm border-0 bg-zinc-900 p-3 font-mono text-xs text-white shadow-lg transition-opacity duration-150",
+          "pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 max-w-xs -translate-x-1/2 rounded-xl border border-zinc-200 bg-white p-4 font-mono text-xs text-zinc-800 shadow-xl transition-opacity duration-150",
           open ? "opacity-100" : "opacity-0"
         )}
       >
