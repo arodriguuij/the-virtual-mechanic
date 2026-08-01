@@ -829,7 +829,21 @@ function DeparturePicker({
         // it also renders via the shared `fieldClass`/`selectableFieldClass`
         // pair (both white), so matching that real sibling exactly is what
         // keeps the two fields' borders/fill genuinely identical.
-        <div className="w-full max-w-full min-w-0 box-border">
+        //
+        // A follow-up report found the overflow still reproducing on real
+        // mobile Safari despite all of the above — the underlying cause is
+        // that Safari's internal day/month/year segments can render past
+        // their own box's CSS width regardless of `box-sizing`/`min-width`
+        // (a known engine quirk, not something any width/min-width value
+        // can fully constrain from the outside). `overflow-hidden` on the
+        // wrapper is the belt-and-suspenders backstop: it guarantees the
+        // rendered box can never visually break the card's right edge no
+        // matter what width Safari's shadow DOM insists on internally. This
+        // is safe specifically because the native date *picker* itself
+        // (the wheel/calendar overlay a tap opens) is OS chrome rendered
+        // outside normal document flow — like a `<select>`'s own dropdown —
+        // so clipping this wrapper's box never clips that overlay too.
+        <div className="w-full max-w-full min-w-0 overflow-hidden box-border">
           <input
             type="date"
             aria-label="Fecha de salida"
@@ -997,11 +1011,6 @@ export function FuelingPlanner({
   // electrolyte-only band and the deficit/gut-cap warnings below suppress
   // themselves accordingly (see `result.trainLow`).
   const [trainLow, setTrainLow] = useState(false);
-  // "Calibrador Rápido de Vatios Estimados" — every target watts figure
-  // here is FTP-derived, never a real potenciómetro reading, so this lets
-  // the athlete nudge the target ±10% for a drafted/tailwind-assisted (or
-  // headwind-slowed) effort.
-  const [intensityCalibrationPct, setIntensityCalibrationPct] = useState<-10 | 0 | 10>(0);
   const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
   const [customCarbsG, setCustomCarbsG] = useState(0);
   // "Incluye cafeína" — a modifier on whatever gel(s) are already selected,
@@ -1423,7 +1432,6 @@ export function FuelingPlanner({
     departureLocal,
     isTargetEvent,
     trainLow,
-    intensityCalibrationPct,
   ]);
 
   function setPocketFoodQty(type: PocketFoodItemType, qty: number) {
@@ -1511,7 +1519,6 @@ export function FuelingPlanner({
               pocketFood: pocketFoodPayload,
               fuelingMode,
               trainLow,
-              intensityCalibrationPct,
             }
           : mode === "gpx" && parsedGpx
             ? {
@@ -1542,7 +1549,6 @@ export function FuelingPlanner({
                 pocketFood: pocketFoodPayload,
                 fuelingMode,
                 trainLow,
-                intensityCalibrationPct,
               }
             : {
                 mode: "quick",
@@ -1557,7 +1563,6 @@ export function FuelingPlanner({
                 pocketFood: pocketFoodPayload,
                 fuelingMode,
                 trainLow,
-                intensityCalibrationPct,
               };
 
       const res = await fetch("/api/fueling/plan", {
@@ -2033,38 +2038,6 @@ export function FuelingPlanner({
               </p>
             </div>
           )}
-
-          {/* "Strava sin Potenciómetro (Vatios Estimados)" — every target
-              watts figure this planner computes is derived from the
-              athlete's own FTP, never a real potenciómetro reading (this
-              app has no Strava power-meter data to plan a *future* ride
-              against), so this badge is always relevant, not gated by
-              mode. The 3 calibration buttons nudge the target ±10% for a
-              drafted/tailwind-assisted (or headwind-slowed) effort. */}
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-sm border border-zinc-200/70 bg-zinc-50 px-3 py-2">
-            <TriangleAlert className="size-3.5 shrink-0 text-zinc-500" />
-            <span className="min-w-0 flex-1 text-[11px] text-zinc-600">
-              Vatios objetivo estimados a partir de tu FTP (no medidos por potenciómetro). Calibra
-              si vas a rueda o con viento a favor.
-            </span>
-            <div className="flex shrink-0 gap-1">
-              {([-10, 0, 10] as const).map((pct) => (
-                <button
-                  key={pct}
-                  type="button"
-                  onClick={() => setIntensityCalibrationPct(pct)}
-                  className={cn(
-                    "rounded-sm border px-2 py-1 font-mono text-[10px] font-semibold shadow-none transition-colors duration-150",
-                    pct === intensityCalibrationPct
-                      ? "border-transparent bg-terracotta text-white"
-                      : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
-                  )}
-                >
-                  {pct === 0 ? "Base Strava" : `${pct > 0 ? "+" : ""}${pct}%`}
-                </button>
-              ))}
-            </div>
-          </div>
 
           {/* Paradas previstas en ruta — relocated here from Card 04
               ("Reubicación de Paradas al Paso 02"): a café/gasolinera stop
