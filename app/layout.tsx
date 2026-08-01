@@ -75,12 +75,29 @@ export const metadata: Metadata = {
 // request: the header itself stays white (its own shadow is what separates
 // it from the page now, not a matching status-bar tone), but the status
 // bar syncs with the canvas beneath it instead.
+//
+// `viewportFit: "cover"` is what actually lets this app's own canvas paint
+// underneath iOS Safari's safe-area insets (the notch/status-bar strip at
+// top, the home-indicator strip at bottom) instead of Safari filling those
+// strips with its own default white — `themeColor` alone only recolors
+// Safari's own floating chrome, it doesn't extend this app's content behind
+// it. Without this, the two porcelain tones (this app's `#F8F7F5` content
+// area vs. whatever Safari's chrome renders in those insets) can still show
+// a visible seam even when `themeColor` is set correctly. No `env(safe-
+// area-inset-*)` padding has been added to any fixed-position UI yet (the
+// bottom-fixed `Toast` component, `components/toast.tsx`, is the one
+// element that could end up flush against the home-indicator strip once
+// content extends under it) — flagged here rather than silently expanding
+// this change's scope; add that padding if a toast is ever reported
+// sitting too close to the bottom edge on a real notched/home-indicator
+// device.
 export const viewport: Viewport = {
   themeColor: "#F8F7F5",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
 };
 
 // Structured data (schema.org WebApplication) for Google's rich-result
