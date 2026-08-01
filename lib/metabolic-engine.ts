@@ -157,7 +157,7 @@ export type AthleteType = "diesel" | "balanced" | "explosive";
 
 export const athleteTypeLabels: Record<AthleteType, string> = {
   diesel: "Diésel / Escalador de Fondo",
-  balanced: "Balanced / Todoterreno",
+  balanced: "Balanceado / Neutro",
   explosive: "Explosivo / Esprinter / BTT",
 };
 

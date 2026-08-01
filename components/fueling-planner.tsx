@@ -514,23 +514,30 @@ function getBottleCarbsContributionG(
   }
 }
 
+/** One "En bici" checklist row — `kind` lets the caller special-case the
+ * mix-bottle row with an inline "[ Ver en cazos ]" reveal (see Card 05's
+ * "Checklist de salida" render below) while every other row (plain water,
+ * a Maurten/Beta Fuel sachet bidón) renders as plain text, same as every
+ * other checklist section in this card. */
+type BikeChecklistLine = { key: string; kind: "mix" | "water" | "gel_ultra"; text: string };
+
 /** Tarjeta 05's "Checklist de preparación para llevar" — what to physically
  * grab before rolling out, split into "En bici" (bottles, driven by the
  * same `bottleConfig` preference the balance pill reacts to) and "En
  * bolsillo" (whatever pocket-food quantities are currently selected).
  *
  * The mix bottle's own line now spells out its exact scaled recipe
- * ("Bidón de 550ml (24g Malto + 20g Fructosa + 1.0g Sal)") — "Receta Base
- * Dual" asked for the checklist itself to carry the real grams rather than
- * pointing back at the "Dosis ejecutiva" box above for them, so an athlete
- * mixing straight from this list doesn't need to scroll up to find the
- * numbers. `fuelBottles.maltodextrinGPerBottle`/`fructoseGPerBottle` are
- * always the fixed `getBaseBottleRecipe` dose for the athlete's real bottle
- * size (see `lib/metabolic-engine.ts`); the salt figure is still the real
- * per-bottle sodium split (`fuelBottles.sodiumMgPerBottle`, driven by the
- * athlete's own sweat rate/salty-sweater flag), not a fixed table value —
- * sodium loss is genuinely athlete-specific in a way the carb dose
- * intentionally isn't.
+ * ("Bidón de 550ml (con Mezcla Casera: 24g Malto + 20g Fructosa + 1.0g
+ * Sal)") — "Eliminación de la Caja Negra 'Dosis Ejecutiva'" moved this
+ * card's entire recipe disclosure here, so an athlete mixing straight from
+ * this list doesn't need a separate hero box above it for the numbers.
+ * `fuelBottles.maltodextrinGPerBottle`/`fructoseGPerBottle` are always the
+ * fixed `getBaseBottleRecipe` dose for the athlete's real bottle size (see
+ * `lib/metabolic-engine.ts`); the salt figure is still the real per-bottle
+ * sodium split (`fuelBottles.sodiumMgPerBottle`, driven by the athlete's
+ * own sweat rate/salty-sweater flag), not a fixed table value — sodium
+ * loss is genuinely athlete-specific in a way the carb dose intentionally
+ * isn't.
  *
  * The bottle count listed here is capped at what actually fits in the
  * athlete's real cages (`reloadStrategy.startingBottleCount` whenever the
@@ -540,15 +547,20 @@ function getBottleCarbsContributionG(
  * this list could show more physical bottles than a bike has cages for
  * (e.g. "3x Bidón (Agua / Electrolitos)" on a 2-cage bike) — any water need
  * beyond that cap is a fountain refill, not a bottle to carry from home,
- * and is listed separately by `getWaterPlanLines` below instead. */
+ * and is listed separately by `getWaterPlanLines` below instead.
+ *
+ * The "Productos Comerciales de Alta Densidad" sachet prep line (a
+ * Maurten/Beta Fuel 80g HC sachet dissolved into its own bottle) used to
+ * live inside the removed hero box; it belongs here too now, since it's
+ * just another bottle to prepare before rolling out. */
 function getBikeChecklistLines(
   result: PlanResult,
   bottleConfig: BottleConfigOption,
   bottlePlan: PlanResult["bottlePlan"]
-): string[] {
+): BikeChecklistLine[] {
   const { fuelBottles, waterBottles, bottleSizeMl } = bottlePlan;
   const maxOnBike = result.reloadStrategy?.startingBottleCount ?? bottlePlan.totalBottles;
-  const lines: string[] = [];
+  const lines: BikeChecklistLine[] = [];
 
   let mixBottleCount = 0;
   if (bottleConfig !== "water_only" && fuelBottles.count > 0) {
@@ -557,17 +569,33 @@ function getBikeChecklistLines(
     // (`result.athleteBottleCount`, 1 or 2), not a hardcoded 2 — capped at
     // `maxOnBike` so this can never exceed what's actually mounted.
     mixBottleCount = Math.min(bottleConfig === "one_mix" ? 1 : result.athleteBottleCount, maxOnBike);
-    lines.push(
-      `${mixBottleCount}x Bidón de ${bottleSizeMl}ml (${fuelBottles.maltodextrinGPerBottle}g Malto + ${
+    lines.push({
+      key: "mix",
+      kind: "mix",
+      text: `${mixBottleCount}x Bidón de ${bottleSizeMl}ml (con Mezcla Casera: ${fuelBottles.maltodextrinGPerBottle}g Malto + ${
         fuelBottles.fructoseGPerBottle
-      }g Fructosa + ${getTableSaltGrams(fuelBottles.sodiumMgPerBottle)}g Sal)`
-    );
+      }g Fructosa + ${getTableSaltGrams(fuelBottles.sodiumMgPerBottle)}g Sal)`,
+    });
   }
 
   const waterBottlesOnBike = Math.min(waterBottles.count, Math.max(0, maxOnBike - mixBottleCount));
   if (waterBottlesOnBike > 0) {
-    lines.push(`${waterBottlesOnBike}x Bidón de ${bottleSizeMl}ml (Solo Agua)`);
+    lines.push({
+      key: "water",
+      kind: "water",
+      text: `${waterBottlesOnBike}x Bidón de ${bottleSizeMl}ml (Solo Agua)`,
+    });
   }
+
+  const gelUltraCount = result.pocketFood.gel_ultra ?? 0;
+  if (gelUltraCount > 0) {
+    lines.push({
+      key: "gel_ultra",
+      kind: "gel_ultra",
+      text: `${gelUltraCount}x Bidón con 1 Sobre comercial de 80g HC (Maurten / Beta Fuel) + 500ml de agua`,
+    });
+  }
+
   return lines;
 }
 
@@ -576,14 +604,27 @@ function getBikeChecklistLines(
  * available at a fountain — see `getReloadStrategy`'s own
  * `waterRefillCount`/`waterRefillLiters`), so it's listed here as a
  * fountain-refill action rather than as a phantom bottle in the "En bici"
- * checklist above or folded into the powder-reload accordion. */
+ * checklist above or folded into the powder-reload accordion.
+ *
+ * "Neutralidad Absoluta en el Plan de Agua en Ruta" — a plain, direct
+ * `Recarga de agua en ruta: N recarga(s) de ~Xml/L` line, no parenthetical
+ * qualifiers. `waterRefillLiters` is the *total* across every refill
+ * (`extraWaterBottles * bottleSizeMl`, see `getReloadStrategy` in
+ * `lib/metabolic-engine.ts`) — displayed in ml under 1L (matching a single
+ * refill's own bottle-size volume 1:1, e.g. "1 recarga de ~550ml" for one
+ * 550ml refill) and in L above that, rather than always showing a bare
+ * "0.55L" that reads awkwardly at small volumes. */
 function getWaterPlanLines(result: PlanResult): string[] {
   const reload = result.reloadStrategy;
   if (!reload || reload.waterRefillCount <= 0) return [];
+  const volumeLabel =
+    reload.waterRefillLiters < 1
+      ? `${Math.round(reload.waterRefillLiters * 1000)}ml`
+      : `${reload.waterRefillLiters}L`;
   return [
-    `Paradas de recarga de agua en fuente: ${reload.waterRefillCount} recarga${
+    `Recarga de agua en ruta: ${reload.waterRefillCount} recarga${
       reload.waterRefillCount > 1 ? "s" : ""
-    } (~${reload.waterRefillLiters}L de agua en fuentes/puntos de agua)`,
+    } de ~${volumeLabel}`,
   ];
 }
 
@@ -880,8 +921,45 @@ function DeparturePicker({
 // actually delivers this ride, see `ziplocDoseGramsPerUnit`), not a fixed
 // `pocketFoodCarbsG` catalog constant a `type` lookup could resolve on its
 // own the way every real catalog item's row still can.
+// "Insignias Técnicas de Producto" — a plain monospace category tag next to
+// each pocket-food row's name, in place of the emoji this app already
+// strips at render time (`pocketFoodName()`/`stripEmoji`, see above) — a
+// terse `[ GEL ]`/`[ SÓLIDO ]`/`[ LÍQUIDO ]`/`[ FÓRMULA ]` reads as
+// technical/editorial rather than decorative, matching this app's
+// established "no icons, no emoji, just typography" convention for this
+// one UI surface. Kept as presentation-only classification local to this
+// component, not a physiology concern `lib/metabolic-engine.ts` needs to
+// know about.
+type PocketFoodCategory = "GEL" | "SÓLIDO" | "LÍQUIDO" | "FÓRMULA";
+
+const POCKET_FOOD_CATEGORY: Record<PocketFoodItemType, PocketFoodCategory> = {
+  soda: "LÍQUIDO",
+  pastry: "SÓLIDO",
+  banana: "SÓLIDO",
+  energy_bar: "SÓLIDO",
+  rice_cake: "SÓLIDO",
+  dates: "SÓLIDO",
+  gummies: "SÓLIDO",
+  gel_small: "GEL",
+  gel_standard: "GEL",
+  gel_high: "GEL",
+  // Dissolved into a bottle rather than eaten, same bucket as the Ziploc
+  // reload dose below — both are a powder/sachet mixed into liquid, not a
+  // gel squeezed straight from its own pouch.
+  gel_ultra: "FÓRMULA",
+};
+
+function PocketFoodCategoryBadge({ category }: { category: PocketFoodCategory }) {
+  return (
+    <span className="mr-1.5 inline-block shrink-0 rounded-sm bg-zinc-100 px-1 py-0.5 align-middle font-mono text-[9px] font-semibold tracking-wider text-zinc-500 uppercase">
+      [{category}]
+    </span>
+  );
+}
+
 function PocketFoodStepperRow({
   label,
+  category,
   carbsG,
   ariaLabel,
   qty,
@@ -889,6 +967,7 @@ function PocketFoodStepperRow({
   disabled = false,
 }: {
   label: string;
+  category?: PocketFoodCategory;
   carbsG: number;
   ariaLabel: string;
   qty: number;
@@ -922,6 +1001,7 @@ function PocketFoodStepperRow({
       )}
     >
       <span className="text-sm text-neutral-900">
+        {category && <PocketFoodCategoryBadge category={category} />}
         {label}
         <span className="ml-1.5 font-mono text-xs text-neutral-500">{carbsG}g HC</span>
       </span>
@@ -1056,6 +1136,12 @@ export function FuelingPlanner({
   // below for the client-side recompute this drives.
   const [bottleCapacityOverrideMl, setBottleCapacityOverrideMl] = useState<number | null>(null);
   const [bottleCapacityEditorOpen, setBottleCapacityEditorOpen] = useState(false);
+  // "Eliminación de la Caja Negra 'Dosis Ejecutiva'" — the scoop-equivalence
+  // breakdown that used to live inside Card 05's hero box now surfaces as an
+  // inline reveal directly under the checklist's own mix-bottle line
+  // instead ("[ Ver en cazos ]"), so this one boolean replaces what used to
+  // be a plain `<details>` element's own native open state.
+  const [showBikeScoops, setShowBikeScoops] = useState(false);
   // "Planificación de Paradas en Ruta" — a third, opportunistic coverage
   // source alongside bottles and pocket food: 0 (zero-friction default), 1,
   // or 2 café/gasolinera/fuente stops. A plain count is deliberately the
@@ -1422,6 +1508,7 @@ export function FuelingPlanner({
     setCustomCarbsG(0);
     setBottleCapacityOverrideMl(null);
     setBottleCapacityEditorOpen(false);
+    setShowBikeScoops(false);
   }, [
     mode,
     selectedRouteId,
@@ -1589,6 +1676,7 @@ export function FuelingPlanner({
       // applies to this new one.
       setBottleCapacityOverrideMl(null);
       setBottleCapacityEditorOpen(false);
+      setShowBikeScoops(false);
       try {
         localStorage.setItem(LAST_FUELING_STRATEGY_KEY, JSON.stringify(data));
       } catch {
@@ -1674,7 +1762,7 @@ export function FuelingPlanner({
                     : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                 )}
               >
-                <span className={segmentedButtonLabelClass}>Ruta / GPX</span>
+                <span className={segmentedButtonLabelClass}>Strava / GPX</span>
               </button>
               <button
                 type="button"
@@ -2446,8 +2534,16 @@ export function FuelingPlanner({
                   change. `top-16 lg:top-4` clears the mobile sticky header
                   (`sticky top-0 z-40`, ~64px tall, `lg:hidden`) so the pill
                   never renders underneath it; desktop has no such header,
-                  so it sticks close to the viewport's own top instead. */}
-              <div className="sticky top-16 z-10 mb-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg bg-[#F8F7F5]/95 px-3 py-2 text-center font-mono text-[11px] font-semibold tracking-wide text-zinc-700 shadow-sm backdrop-blur-sm sm:text-xs lg:top-4">
+                  so it sticks close to the viewport's own top instead. A
+                  later "Sticky Bar" spec literally asked for `top-0` here —
+                  deliberately not applied: a flat `top-0` would put the
+                  pill right back underneath the mobile header, the exact
+                  bug `top-16` was added (and verified live) to fix, so this
+                  keeps the breakpoint-aware offset and only takes the
+                  z-index bump (`z-10` → `z-20`) from that request, giving
+                  the pill more headroom above other in-card content
+                  without reopening the header-overlap regression. */}
+              <div className="sticky top-16 z-20 mb-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg bg-[#F8F7F5]/95 px-3 py-2 text-center font-mono text-[11px] font-semibold tracking-wide text-zinc-700 shadow-sm backdrop-blur-sm sm:text-xs lg:top-4">
                 <span>OBJETIVO: {result.totalRideCarbsG}g HC</span>
                 <span className="text-zinc-300">|</span>
                 <span className="text-status-good">CUBIERTO: {coveredCarbsG}g HC</span>
@@ -2561,6 +2657,7 @@ export function FuelingPlanner({
                     <PocketFoodStepperRow
                       key={type}
                       label={pocketFoodName(type)}
+                      category={POCKET_FOOD_CATEGORY[type]}
                       carbsG={POCKET_FOOD_CARBS_G[type]}
                       ariaLabel={pocketFoodLabels[type]}
                       qty={pocketFood[type] ?? 0}
@@ -2580,6 +2677,7 @@ export function FuelingPlanner({
                   {ziplocDoseActive && (
                     <PocketFoodStepperRow
                       label="Dosis de recarga Mix (Ziploc)"
+                      category="FÓRMULA"
                       carbsG={ziplocDoseGramsPerUnit}
                       ariaLabel="Dosis de recarga Mix (Ziploc)"
                       qty={ziplocDoseCount}
@@ -2682,106 +2780,42 @@ export function FuelingPlanner({
               }}
             />
 
-            {/* 🎴 Tarjeta 3 · 05 · Pauta de ingesta y receta ("Al Grano") —
-                "Jerarquía Visual Radical": 3 visually distinct tiers instead
-                of 4 identical gray boxes, answering the two questions an
-                athlete actually has at this point in 3 seconds — "¿qué echo
-                en el bidón?" (Nivel 1, the recipe) and "¿qué me meto en el
-                maillot?" (Nivel 2, the checklist) — before the supplementary
-                pacing detail (Nivel 3, the timeline). Descargar GPX /
-                Exportar a Garmin, the GPS-alert explainer, and every
-                "Copiar"/"Enviar a WhatsApp" export button were all removed
-                outright (see the master spec) — the athlete screenshots
-                this card if they want to save or share it. */}
-            <div className="flex flex-col gap-3 rounded-xl border-0 bg-white p-4 shadow-none">
+            {/* 🎴 Tarjeta 3 · 05 · Cronograma y checklist de salida —
+                "Eliminación Definitiva de la Caja Negra 'Dosis Ejecutiva'":
+                the dark Obsidian hero box that used to open this card (the
+                fixed recipe figure + scoop-equivalence accordion + sachet
+                prep line) is gone outright, not just restyled — every
+                figure it carried now lives inside the Checklist's own "En
+                bici" section below (see `getBikeChecklistLines`), the one
+                place an athlete would actually look for "what do I mix/
+                carry," rather than a second, disconnected box above it.
+                2 direct blocks now, in this order: the Cronograma (when to
+                eat/drink) first, then the Checklist (what to bring) —
+                matching the literal spec's own numbered "1. Cronograma... 2.
+                Checklist..." order. The déficit alert (real, reactive data)
+                and the occasional carb-loading module both stay as their
+                own conditional overlays around those 2 blocks, same as
+                before. Descargar GPX / Exportar a Garmin, the GPS-alert
+                explainer, and every "Copiar"/"Enviar a WhatsApp" export
+                button were all removed outright in an earlier pass — the
+                athlete screenshots this card if they want to save or share
+                it. The dashed top border ("Estética Ticket/Manifiesto")
+                marks the whole card as a single expedition ticket, echoing
+                the same dashed perforation the Checklist's own
+                sub-sections already use internally. */}
+            <div className="flex flex-col gap-3 rounded-xl border-0 border-t border-dashed border-t-zinc-300 bg-white p-4 shadow-none">
               <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-                05 · Pauta de ingesta y receta
+                05 · Cronograma y checklist de salida
               </span>
 
-              {/* Nivel 1 · Héroe — "Fórmula de Laboratorio." The one dark,
-                  high-contrast "Obsidian" card in this section — reserved
-                  for exactly this kind of "read this number first" moment.
-                  Fill stepped from an earlier `#343334` to the literal PNS
-                  palette's own "Carbón/Obsidiana" `#181818` (the editorial
-                  refinement pass's exact hex), `#FD5A08` bright accent
-                  unchanged. Sized to the athlete's real bottle capacity
-                  ("Receta Base Dual" — 44g HC/550ml, scaled via
-                  `getBaseBottleRecipe`), plus a collapsible scoop-
-                  equivalence breakdown for anyone without a scale. */}
-              <div className="rounded-xl bg-[#181818] p-4 text-white">
-                <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-widest text-white/50 uppercase">
-                  <FlaskConical className="size-3.5 shrink-0" />
-                  Fórmula de laboratorio · bidón {displayBottlePlan!.bottleSizeMl}ml
-                </span>
-                {displayBottlePlan!.fuelBottles.count > 0 ? (
-                  <p className="mt-2 font-mono text-lg leading-snug font-bold text-[#FD5A08] tabular-nums sm:text-xl">
-                    {displayBottlePlan!.fuelBottles.maltodextrinGPerBottle}g{" "}
-                    <span className="text-sm font-normal text-white/70">Malto</span> +{" "}
-                    {displayBottlePlan!.fuelBottles.fructoseGPerBottle}g{" "}
-                    <span className="text-sm font-normal text-white/70">Fructosa</span> +{" "}
-                    {getTableSaltGrams(displayBottlePlan!.fuelBottles.sodiumMgPerBottle)}g{" "}
-                    <span className="text-sm font-normal text-white/70">Sal</span>
-                  </p>
-                ) : (
-                  <p className="mt-2 text-sm text-white/80">
-                    Cobertura completa vía comida de bolsillo — no necesitas mezcla en bidón.
-                  </p>
-                )}
-                {/* "Productos Comerciales de Alta Densidad" — a Maurten/Beta
-                    Fuel sachet is dissolved directly into a bottle, not
-                    eaten from the pocket, so it gets its own preparation
-                    line whenever the athlete has selected one. */}
-                {(result.pocketFood.gel_ultra ?? 0) > 0 && (
-                  <p className="mt-2 text-sm text-white/80">
-                    Prepara {result.pocketFood.gel_ultra}x Bidón con 1 Sobre comercial de 80g HC
-                    (Maurten / Beta Fuel) + 500ml de agua.
-                  </p>
-                )}
-                {displayBottlePlan!.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
-                  <div className="mt-3 flex items-start gap-2 border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
-                    <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
-                    <span>
-                      Solución hipertónica ({displayBottlePlan!.fuelBottles.concentrationPct}% &gt;{" "}
-                      {HYPERTONIC_THRESHOLD_PCT}%) — añade agua o traslada carga a comida de bolsillo.
-                    </span>
-                  </div>
-                )}
-                {displayBottlePlan!.fuelBottles.count > 0 && (
-                  <details className="group mt-3">
-                    <summary className="flex cursor-pointer list-none items-center gap-1 font-mono text-xs font-medium text-white/60 transition-colors duration-150 hover:text-white [&::-webkit-details-marker]:hidden">
-                      <ChevronDown className="size-3.5 shrink-0 transition-transform duration-150 group-open:rotate-180" />
-                      Ver equivalencias en cazos
-                    </summary>
-                    <div className="mt-2 flex flex-col gap-1 border-t border-white/15 pt-2 text-xs text-white/70">
-                      <p>
-                        Maltodextrina: {displayBottlePlan!.fuelBottles.maltodextrinGPerBottle}g (~
-                        {fuelBottleMeasures!.maltodextrinScoops} cazos)
-                      </p>
-                      <p>
-                        Fructosa: {displayBottlePlan!.fuelBottles.fructoseGPerBottle}g (~
-                        {fuelBottleMeasures!.fructoseScoops} cazos)
-                      </p>
-                      <p>
-                        Sal común: {getTableSaltGrams(displayBottlePlan!.fuelBottles.sodiumMgPerBottle)}g
-                        (~{fuelBottleMeasures!.saltTeaspoons} cdta.)
-                      </p>
-                      <p className="text-[10px] text-white/40">
-                        *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g de
-                        sal.
-                      </p>
-                    </div>
-                  </details>
-                )}
-              </div>
-
-              {/* "Alerta de Déficit Pendiente de Cubrir" — sits directly
-                  under the hero recipe, since it's the reason that recipe
-                  alone might not be enough. Purely reactive: once the
-                  athlete closes the gap from Card 04 (a café/gasolinera
-                  stop, or enough extra pocket food), `remainingCarbsG`
-                  collapses to 0 and this disappears entirely. Suppressed
-                  under Train Low — a remaining "déficit" there is the whole
-                  point of the session, not something to warn about. */}
+              {/* "Alerta de Déficit Pendiente de Cubrir" — the reason the
+                  checklist's own recipe might not be enough on its own.
+                  Purely reactive: once the athlete closes the gap from Card
+                  04 (a café/gasolinera stop, or enough extra pocket food),
+                  `remainingCarbsG` collapses to 0 and this disappears
+                  entirely. Suppressed under Train Low — a remaining
+                  "déficit" there is the whole point of the session, not
+                  something to warn about. */}
               {remainingCarbsG > 15 && !result.trainLow && (
                 <div className="flex items-start gap-2 rounded-sm border border-status-warning/40 bg-status-warning/10 p-3">
                   <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
@@ -2799,76 +2833,9 @@ export function FuelingPlanner({
                 </div>
               )}
 
-              {/* Nivel 2 · Checklist de Salida — "ticket" formatting: a
-                  crisp white card with a dashed perforation between
-                  sub-sections and a plain technical dash ("—") bullet per
-                  line, replacing the old flat "•" list inside a same-gray-
-                  as-everything porcelain box. Driven by the same bottle
-                  config +
-                  pocket-food state as the balance pill in Card 04, so it's
-                  never out of sync with what CUBIERTO/RESTANTE currently
-                  shows — see `getBikeChecklistLines`/`getWaterPlanLines`/
-                  `getCafeteriaStopChecklistLines` above. */}
-              <div className="rounded-lg border border-zinc-200 bg-white p-4">
-                <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-widest text-zinc-500 uppercase">
-                  <CheckCircle2 className="size-3.5 shrink-0" />
-                  Checklist de salida
-                </span>
-                {bikeChecklistLines.length === 0 &&
-                pocketChecklistLines.length === 0 &&
-                waterPlanChecklistLines.length === 0 &&
-                cafeteriaChecklistLines.length === 0 ? (
-                  <p className="mt-2 text-sm text-neutral-500">
-                    Sin bidones ni comida de bolsillo seleccionados todavía.
-                  </p>
-                ) : (
-                  <div className="mt-2 flex flex-col gap-2.5 text-sm text-neutral-700">
-                    {[
-                      { title: "En bici (portabidones)", lines: bikeChecklistLines, icon: null },
-                      { title: "En bolsillo / maillot", lines: pocketChecklistLines, icon: null },
-                      { title: "Plan de paradas en ruta", lines: cafeteriaChecklistLines, icon: null },
-                      { title: "Plan de agua en ruta", lines: waterPlanChecklistLines, icon: <Droplet className="size-3.5 shrink-0" /> },
-                    ]
-                      .filter((section) => section.lines.length > 0)
-                      .map((section, i) => (
-                        <div
-                          key={section.title}
-                          className={cn(
-                            "flex flex-col gap-1",
-                            i > 0 && "border-t border-dashed border-zinc-200 pt-2.5"
-                          )}
-                        >
-                          <span className="flex items-center gap-1.5 text-xs font-semibold text-neutral-600">
-                            {section.icon}
-                            {section.title}:
-                          </span>
-                          {/* "Ticket de Expedición / Manifest" — a plain
-                              technical dash bullet (no check-icon affordance
-                              this isn't a to-do list) matching the dashed
-                              perforation separating each sub-section above. */}
-                          <ul className="flex flex-col gap-1.5">
-                            {section.lines.map((line) => (
-                              <li key={line} className="flex items-start gap-1.5">
-                                <span
-                                  aria-hidden
-                                  className="mt-0.5 shrink-0 font-mono text-zinc-400"
-                                >
-                                  —
-                                </span>
-                                <span>{line}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Nivel 3 · Pauta Temporal — a genuine vertical timeline (a
-                  connecting rail + a dot per entry) instead of a flat
-                  icon+label list, for the supplementary "when" detail once
-                  Niveles 1-2 have already answered "qué." The recurring
+              {/* Bloque 1 · Cronograma Dinámico de Ingesta — a genuine
+                  vertical timeline (a connecting rail + a dot per entry)
+                  instead of a flat icon+label list. The recurring
                   hydration-interval line sits above the rail, since it's a
                   standing reminder rather than a single point in time the
                   way every other entry is. */}
@@ -2931,6 +2898,143 @@ export function FuelingPlanner({
                       </li>
                     ))}
                   </ol>
+                )}
+              </div>
+
+              {/* Bloque 2 · Checklist de Preparación para Llevar — "ticket"
+                  formatting: a crisp white card with a dashed perforation
+                  between sub-sections and a plain technical dash ("—")
+                  bullet per line. Driven by the same bottle config +
+                  pocket-food state as the balance pill in Card 04, so it's
+                  never out of sync with what CUBIERTO/RESTANTE currently
+                  shows — see `getBikeChecklistLines`/`getWaterPlanLines`/
+                  `getCafeteriaStopChecklistLines` above. "En bici" renders
+                  specially (not through the generic string-list map below)
+                  since its mix-bottle row alone carries an inline
+                  "[ Ver en cazos ]" reveal and the hypertonic-concentration
+                  warning — both used to live in the removed hero box,
+                  neither is a plain checklist string. */}
+              <div className="rounded-lg border border-zinc-200 bg-white p-4">
+                <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-widest text-zinc-500 uppercase">
+                  <CheckCircle2 className="size-3.5 shrink-0" />
+                  Checklist de salida
+                </span>
+                {bikeChecklistLines.length === 0 &&
+                pocketChecklistLines.length === 0 &&
+                waterPlanChecklistLines.length === 0 &&
+                cafeteriaChecklistLines.length === 0 ? (
+                  <p className="mt-2 text-sm text-neutral-500">
+                    Sin bidones ni comida de bolsillo seleccionados todavía.
+                  </p>
+                ) : (
+                  <div className="mt-2 flex flex-col gap-2.5 text-sm text-neutral-700">
+                    {bikeChecklistLines.length > 0 && (
+                      <div className="flex flex-col gap-1">
+                        <span className="flex items-center gap-1.5 text-xs font-semibold text-neutral-600">
+                          En bici (portabidones):
+                        </span>
+                        <ul className="flex flex-col gap-1.5">
+                          {bikeChecklistLines.map((line) => (
+                            <li key={line.key} className="flex flex-col gap-1.5">
+                              <div className="flex items-start gap-1.5">
+                                <span aria-hidden className="mt-0.5 shrink-0 font-mono text-zinc-400">
+                                  —
+                                </span>
+                                <span>
+                                  {line.text}
+                                  {line.kind === "mix" && (
+                                    <>
+                                      {" "}
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowBikeScoops((v) => !v)}
+                                        className="font-mono text-[11px] font-medium text-terracotta underline-offset-2 hover:underline"
+                                      >
+                                        [ {showBikeScoops ? "▲" : "▼"} Ver en cazos ]
+                                      </button>
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+                              {/* Hypertonic-concentration warning, attached
+                                  directly under the mix-bottle line it's
+                                  actually about — see "Bottle architecture &
+                                  osmolarity control" (`lib/metabolic-engine.
+                                  ts`) for why this can fire at all; under
+                                  every currently-supported bottle size it's
+                                  a defense-in-depth check, not something
+                                  routinely seen. */}
+                              {line.kind === "mix" &&
+                                displayBottlePlan!.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
+                                  <div className="ml-4.5 flex items-start gap-1.5 rounded-sm border border-status-warning/40 bg-status-warning/10 px-2.5 py-1.5 text-xs text-status-warning">
+                                    <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                                    <span>
+                                      Solución hipertónica ({displayBottlePlan!.fuelBottles.concentrationPct}% &gt;{" "}
+                                      {HYPERTONIC_THRESHOLD_PCT}%) — añade agua o traslada carga a comida de
+                                      bolsillo.
+                                    </span>
+                                  </div>
+                                )}
+                              {line.kind === "mix" && showBikeScoops && (
+                                <div className="ml-4.5 flex flex-col gap-1 rounded-sm bg-[#F8F7F5] p-2.5 text-xs text-neutral-600">
+                                  <p>
+                                    Maltodextrina: {displayBottlePlan!.fuelBottles.maltodextrinGPerBottle}g (~
+                                    {fuelBottleMeasures!.maltodextrinScoops} cazos)
+                                  </p>
+                                  <p>
+                                    Fructosa: {displayBottlePlan!.fuelBottles.fructoseGPerBottle}g (~
+                                    {fuelBottleMeasures!.fructoseScoops} cazos)
+                                  </p>
+                                  <p>
+                                    Sal común: {getTableSaltGrams(displayBottlePlan!.fuelBottles.sodiumMgPerBottle)}g
+                                    (~{fuelBottleMeasures!.saltTeaspoons} cdta.)
+                                  </p>
+                                  <p className="text-[10px] text-neutral-400">
+                                    *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g
+                                    de sal.
+                                  </p>
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {[
+                      { title: "En bolsillo / maillot", lines: pocketChecklistLines, icon: null },
+                      { title: "Plan de paradas en ruta", lines: cafeteriaChecklistLines, icon: null },
+                      { title: "Plan de agua en ruta", lines: waterPlanChecklistLines, icon: <Droplet className="size-3.5 shrink-0" /> },
+                    ]
+                      .filter((section) => section.lines.length > 0)
+                      .map((section) => (
+                        <div
+                          key={section.title}
+                          className="flex flex-col gap-1 border-t border-dashed border-zinc-200 pt-2.5"
+                        >
+                          <span className="flex items-center gap-1.5 text-xs font-semibold text-neutral-600">
+                            {section.icon}
+                            {section.title}:
+                          </span>
+                          {/* "Ticket de Expedición / Manifest" — a plain
+                              technical dash bullet (no check-icon affordance
+                              this isn't a to-do list) matching the dashed
+                              perforation separating each sub-section above. */}
+                          <ul className="flex flex-col gap-1.5">
+                            {section.lines.map((line) => (
+                              <li key={line} className="flex items-start gap-1.5">
+                                <span
+                                  aria-hidden
+                                  className="mt-0.5 shrink-0 font-mono text-zinc-400"
+                                >
+                                  —
+                                </span>
+                                <span>{line}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                  </div>
                 )}
               </div>
 

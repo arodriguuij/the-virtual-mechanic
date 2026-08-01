@@ -223,11 +223,24 @@ export default async function Home({
           >
             Pre-ruta
           </TabsTrigger>
+          {/* "Deshabilitación Temporaria de Pestaña Post-Ruta" — early users
+              should be funneled exclusively into Pre-Ruta for now. `disabled`
+              is base-ui's own real prop on `Tabs.Tab` (not a stripped
+              onClick/href), so this is a genuine, keyboard-safe inert state —
+              it can never be selected via click, Enter, or arrow-key
+              navigation, and `TabsTrigger`'s own shared styles already carry
+              `disabled:pointer-events-none disabled:cursor-not-allowed
+              disabled:opacity-50`. The dimmed `text-zinc-400` here is layered
+              on top of that shared opacity, not a replacement for it. */}
           <TabsTrigger
             value="post-ride"
-            className="flex-none font-mono text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
+            disabled
+            className="flex-none gap-0 font-mono text-[11px] font-semibold tracking-widest text-zinc-400 uppercase select-none"
           >
             Post-ruta
+            <span className="ml-1.5 inline-flex items-center rounded-sm border border-zinc-200/60 bg-zinc-100 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-wider text-zinc-500 uppercase">
+              Próx
+            </span>
           </TabsTrigger>
         </TabsList>
 

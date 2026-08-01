@@ -12,6 +12,11 @@ const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 up
 // on the athlete to notice the raw number and judge it themselves.
 const HEAT_ALERT_THRESHOLD_C = 30;
 const WIND_ALERT_THRESHOLD_KMH = 20;
+// "Alertas Cromáticas Reactivas" — humidity had no threshold of its own
+// before; a Humedad tile stayed the neutral porcelain tint no matter how
+// high the real reading was, unlike Temp./Viento which already switch to
+// the amber alert treatment above their own thresholds.
+const HUMIDITY_ALERT_THRESHOLD_PCT = 75;
 
 export type AltitudeWeather = {
   base: {
@@ -192,7 +197,13 @@ export function WeatherImpactCard({
                   altitude.base.windSpeedKmh >= WIND_ALERT_THRESHOLD_KMH ? "Viento fuerte" : undefined
                 }
               />
-              <WeatherStatTile label="Humedad" value={`${altitude.base.humidityPct}%`} />
+              <WeatherStatTile
+                label="Humedad"
+                value={`${altitude.base.humidityPct}%`}
+                alertLabel={
+                  altitude.base.humidityPct >= HUMIDITY_ALERT_THRESHOLD_PCT ? "Humedad alta" : undefined
+                }
+              />
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
@@ -219,7 +230,13 @@ export function WeatherImpactCard({
                   altitude.peak.windSpeedKmh >= WIND_ALERT_THRESHOLD_KMH ? "Viento fuerte" : undefined
                 }
               />
-              <WeatherStatTile label="Humedad" value={`${altitude.peak.humidityPct}%`} />
+              <WeatherStatTile
+                label="Humedad"
+                value={`${altitude.peak.humidityPct}%`}
+                alertLabel={
+                  altitude.peak.humidityPct >= HUMIDITY_ALERT_THRESHOLD_PCT ? "Humedad alta" : undefined
+                }
+              />
             </div>
           </div>
         </div>
@@ -248,7 +265,11 @@ export function WeatherImpactCard({
             value={`${windSpeedKmh} km/h`}
             alertLabel={windSpeedKmh >= WIND_ALERT_THRESHOLD_KMH ? "Viento fuerte" : undefined}
           />
-          <WeatherStatTile label="Humedad" value={`${humidityPct}%`} />
+          <WeatherStatTile
+            label="Humedad"
+            value={`${humidityPct}%`}
+            alertLabel={humidityPct >= HUMIDITY_ALERT_THRESHOLD_PCT ? "Humedad alta" : undefined}
+          />
         </div>
       )}
 
