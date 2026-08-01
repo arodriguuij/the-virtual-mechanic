@@ -923,21 +923,37 @@ function DeparturePicker({
         // their own box's CSS width regardless of `box-sizing`/`min-width`
         // (a known engine quirk, not something any width/min-width value
         // can fully constrain from the outside). `overflow-hidden` on the
-        // wrapper is the belt-and-suspenders backstop: it guarantees the
+        // wrapper is a belt-and-suspenders backstop: it guarantees the
         // rendered box can never visually break the card's right edge no
         // matter what width Safari's shadow DOM insists on internally. This
         // is safe specifically because the native date *picker* itself
         // (the wheel/calendar overlay a tap opens) is OS chrome rendered
         // outside normal document flow — like a `<select>`'s own dropdown —
         // so clipping this wrapper's box never clips that overlay too.
-        <div className="w-full max-w-full min-w-0 overflow-hidden box-border">
+        //
+        // A second follow-up report ("Aug 1, 2026" visibly breaking the
+        // card's right edge) means even that clip wasn't the whole story —
+        // every fix up to here constrains this element only *relative* to
+        // its own parent chain (`w-full`/`max-w-full`, both percentages),
+        // which is only as reliable as every ancestor between here and the
+        // viewport also resolving its own width correctly. `max-w-[calc(
+        // 100vw-4rem)]` replaces that relative ceiling with an *absolute*
+        // one anchored directly to the true viewport width, immune to any
+        // percentage-resolution or native shadow-DOM sizing quirk further
+        // up the tree — `4rem` (64px) matches this exact nesting's real
+        // horizontal padding on mobile (`<main>`'s own `px-4` in
+        // `components/dashboard-shell.tsx` + this card's own `p-4`, 16px +
+        // 16px per side). Applied to both the wrapper *and* the input
+        // itself, since either alone left room for the other to still
+        // compute its own width against a bad ancestor value.
+        <div className="w-full max-w-[calc(100vw-4rem)] min-w-0 overflow-hidden box-border">
           <input
             type="date"
             aria-label="Fecha de salida"
             min={todayIsoDate()}
             value={customDate}
             onChange={(e) => onCustomDateChange(e.target.value)}
-            className={cn(fieldClass, "w-full max-w-full min-w-0 box-border")}
+            className={cn(fieldClass, "w-full max-w-[calc(100vw-4rem)] min-w-0 box-border")}
           />
         </div>
       )}
