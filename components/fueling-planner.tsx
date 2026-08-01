@@ -2,7 +2,7 @@
 
 import {
   CalendarDays,
-  CheckCircle2,
+  Check,
   ChevronDown,
   Coffee,
   Droplet,
@@ -218,6 +218,13 @@ const segmentedButtonLabelClass = "block w-full truncate";
 // change to the shared radius scale.
 const obsidianCtaButtonClass =
   "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#18181B] px-4 font-mono text-sm font-bold tracking-wider text-white uppercase shadow-sm transition-colors duration-150 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#18181B]";
+// Card 05 ("Manifiesto de Salida") — the one dark-surface card in the
+// results flow, so every subtitle inside it (Cadencia de Hidratación,
+// Equipamiento y Bici, Comida de Bolsillo, Paradas en Ruta, Plan de Agua
+// en Ruta) shares this exact class rather than each carrying its own
+// near-identical string — "todos los subtítulos comparten exactamente el
+// mismo estilo visual" is trivially true when they're all one constant.
+const manifestSubtitleClass = "font-mono text-[11px] tracking-widest text-zinc-400 uppercase";
 // "Salida" quick-select: a day pill (Hoy/Mañana) plus a plain hour `<select>`
 // replaces the old `datetime-local` input — that native control's per-browser
 // chrome (and iOS Safari's multi-segment month/day/year/hour/minute/AM-PM
@@ -487,15 +494,20 @@ function MicroGauge({ pct }: { pct: number }) {
   );
 }
 
-/** "Race Day Manifest" checklist row — a tactile monospace `[ ]`/`[✓]`
- * toggle in place of a plain dash bullet. Purely a physical prep aid (tick
+/** "Manifiesto de Salida" checklist row — a real square checkbox (not
+ * bracket text) matching Card 05's own dark "Display Táctico" palette:
+ * `border-zinc-600 bg-zinc-800/50` at rest, filling solid `bg-emerald-500`
+ * with a white check mark once ticked. Purely a physical prep aid (tick
  * off gear as it's actually packed into pockets/cages); toggling it has no
  * effect on any figure elsewhere in the card — the underlying line content
  * is still fully re-derived from `result`/`bottleConfig`/pocket food, this
  * is just a checked/unchecked overlay on top of it. `children` (not a
  * plain `text` string) so call sites that need a nested reveal button or
  * warning block under one line (the mix-bottle row's "[ Ver en cazos ]"
- * and hypertonic warning) can still attach it without a second component. */
+ * and hypertonic warning) can still attach it without a second component.
+ * Only ever rendered on Card 05's dark surface, so its text color
+ * (`text-zinc-100`) is a fixed light tone, not this app's usual
+ * light-background `text-neutral-*` convention. */
 function ChecklistCheckboxLine({
   checked,
   onToggle,
@@ -508,20 +520,27 @@ function ChecklistCheckboxLine({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-1.5">
+    <div className="flex items-start gap-2.5">
       <button
         type="button"
         onClick={onToggle}
         aria-pressed={checked}
         aria-label={ariaLabel}
         className={cn(
-          "mt-0.5 shrink-0 cursor-pointer font-mono text-xs font-semibold transition-colors",
-          checked ? "text-terracotta" : "text-zinc-400 hover:text-zinc-600"
+          "mt-0.5 flex size-4.5 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-colors",
+          checked ? "border-emerald-500 bg-emerald-500" : "border-zinc-600 bg-zinc-800/50 hover:border-zinc-500"
         )}
       >
-        {checked ? "[✓]" : "[ ]"}
+        {checked && <Check className="size-3 text-zinc-950" strokeWidth={3} />}
       </button>
-      <span className={cn(checked && "text-zinc-400 line-through decoration-zinc-300")}>{children}</span>
+      <span
+        className={cn(
+          "text-sm font-medium",
+          checked ? "text-zinc-500 line-through decoration-zinc-600" : "text-zinc-100"
+        )}
+      >
+        {children}
+      </span>
     </div>
   );
 }
@@ -3035,32 +3054,29 @@ export function FuelingPlanner({
               }}
             />
 
-            {/* 🎴 Tarjeta 3 · 05 · Cronograma y checklist de salida —
-                "Eliminación Definitiva de la Caja Negra 'Dosis Ejecutiva'":
-                the dark Obsidian hero box that used to open this card (the
-                fixed recipe figure + scoop-equivalence accordion + sachet
-                prep line) is gone outright, not just restyled — every
-                figure it carried now lives inside the Checklist's own "En
-                bici" section below (see `getBikeChecklistLines`), the one
-                place an athlete would actually look for "what do I mix/
-                carry," rather than a second, disconnected box above it.
-                2 direct blocks now, in this order: the Cronograma (when to
-                eat/drink) first, then the Checklist (what to bring) —
-                matching the literal spec's own numbered "1. Cronograma... 2.
-                Checklist..." order. The déficit alert (real, reactive data)
-                and the occasional carb-loading module both stay as their
-                own conditional overlays around those 2 blocks, same as
-                before. Descargar GPX / Exportar a Garmin, the GPS-alert
-                explainer, and every "Copiar"/"Enviar a WhatsApp" export
-                button were all removed outright in an earlier pass — the
-                athlete screenshots this card if they want to save or share
-                it. The dashed top border ("Estética Ticket/Manifiesto")
-                marks the whole card as a single expedition ticket, echoing
-                the same dashed perforation the Checklist's own
-                sub-sections already use internally. */}
-            <div className="flex flex-col gap-3 rounded-xl border-0 border-t border-dashed border-t-zinc-300 bg-white p-4 shadow-none">
-              <span className="font-mono text-xs font-bold tracking-wider text-zinc-500 uppercase">
-                05 // Race Day Manifest
+            {/* 🎴 Tarjeta 3 · 05 · Manifiesto de Salida — "100% Español +
+                Estilo PNS": the one dark-surface card in the results flow,
+                a deliberate tactical departure from Cards 03/04's white
+                "tarjeta madre" fill — obsidian black (`#18181B`, matching
+                every other active/primary surface this app now uses — see
+                "Unificación de Negro Obsidiana"), a thin low-contrast
+                `border-zinc-800`, and the same `rounded-xl` frame/padding
+                as the two cards above it. No dashed borders anywhere in
+                this card anymore (the old "ticket/manifiesto" perforation
+                aesthetic is gone outright, not just recolored) — every
+                internal section is its own bordered dark sub-box or simply
+                separated by the parent's own `gap-4`, and every subtitle in
+                the card (`manifestSubtitleClass`) shares one exact typographic
+                style. Still 2 core blocks in order — Cronograma (when to
+                eat/drink) then Equipamiento (what to bring) — with the
+                déficit alert and carb-loading module as their own
+                conditional overlays around them, same structure as before,
+                just restyled and unified. The athlete screenshots this card
+                if they want to save or share it — no export button lives
+                here. */}
+            <div className="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-[#18181B] p-4 shadow-none">
+              <span className="font-mono text-xs font-bold tracking-wider text-zinc-400 uppercase">
+                05 · Manifiesto de salida
               </span>
 
               {/* "Alerta de Déficit Pendiente de Cubrir" — the reason the
@@ -3070,16 +3086,18 @@ export function FuelingPlanner({
                   `remainingCarbsG` collapses to 0 and this disappears
                   entirely. Suppressed under Train Low — a remaining
                   "déficit" there is the whole point of the session, not
-                  something to warn about. */}
+                  something to warn about. Dark-amber treatment matching
+                  this card's own tactical palette rather than the app's
+                  usual light `bg-status-warning/10` warning tone. */}
               {remainingCarbsG > 15 && !result.trainLow && (
-                <div className="flex items-start gap-2 rounded-sm border border-status-warning/40 bg-status-warning/10 p-3">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
+                <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-950/30 p-4">
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" />
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs font-semibold tracking-wide text-status-warning uppercase">
+                    <span className="text-xs font-bold tracking-wide text-amber-400 uppercase">
                       Alerta de déficit pendiente de cubrir
                     </span>
-                    <p className="text-sm text-neutral-700">
-                      Te faltan <span className="font-semibold text-status-warning">{remainingCarbsG}g HC</span>{" "}
+                    <p className="text-sm text-amber-200/90">
+                      Te faltan <span className="font-semibold text-amber-300">{remainingCarbsG}g HC</span>{" "}
                       para alcanzar tu objetivo de la ruta. Te recomendamos activar &quot;Paradas
                       previstas en ruta&quot; (Tarjeta 02) o añadir más comida al bolsillo en la
                       Tarjeta 04 para evitar la pájara.
@@ -3088,25 +3106,20 @@ export function FuelingPlanner({
                 </div>
               )}
 
-              {/* Bloque 1 · Cronograma Dinámico de Ingesta — "Barra de
-                  Telemetría de Alto Contraste": the flat porcelain block
-                  this used to be is now a dark Garmin/Wahoo-style HUD
-                  (`bg-[#18181B]`, matching Card 04's own sticky balance
-                  pill so both dark surfaces in this flow read as one
-                  consistent "instrument panel" language), leading with the
-                  one number that matters mid-ride — how often to drink —
-                  at a genuinely large size, with the calculated clock marks
+              {/* Bloque 1 · Display Táctico de Hidratación — a nested
+                  near-black box (`bg-black/40` over the card's own
+                  `#18181B`, `border-white/10`) inside the already-dark
+                  card, leading with the one number that matters mid-ride —
+                  how often to drink — with the calculated clock marks
                   underneath as a quick reference strip. The detailed
                   solid/gel/caffeine milestone rail below it is unchanged in
-                  substance, just restyled for the dark background. */}
-              <div className="rounded-xl bg-[#18181B] p-4 text-white shadow-sm">
-                <span className="font-mono text-[10px] tracking-widest text-zinc-400 uppercase">
-                  Cadencia de hidratación
-                </span>
-                <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm text-zinc-300">
+                  substance. */}
+              <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+                <span className={manifestSubtitleClass}>Cadencia de hidratación</span>
+                <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm text-zinc-300">
                   <Droplet className="size-3.5 shrink-0 self-center text-zinc-400" />
                   Beber 1 bidón (~{displayBottlePlan!.bottleSizeMl} ml) cada
-                  <span className="font-mono text-2xl font-bold text-white">
+                  <span className="font-mono text-xl font-bold text-white">
                     {result.timingTimeline.hydrationIntervalMinutes} min
                   </span>
                 </p>
@@ -3128,7 +3141,7 @@ export function FuelingPlanner({
                   </p>
                 )}
                 {mergedTimelineEntries.length > 0 && (
-                  <ol className="mt-3 flex flex-col border-t border-zinc-800 pt-3">
+                  <ol className="mt-3 flex flex-col border-t border-white/10 pt-3">
                     {mergedTimelineEntries.map((entry, i) => (
                       <li key={entry.key} className="relative flex gap-2.5 pb-3 last:pb-0">
                         {i < mergedTimelineEntries.length - 1 && (
@@ -3139,7 +3152,7 @@ export function FuelingPlanner({
                         )}
                         <span
                           aria-hidden
-                          className="relative z-10 mt-1 size-2.75 shrink-0 rounded-full border-2 border-terracotta bg-[#18181B]"
+                          className="relative z-10 mt-1 size-2.75 shrink-0 rounded-full border-2 border-terracotta bg-black"
                         />
                         <div className="flex min-w-0 flex-col gap-0.5">
                           <span className="font-mono text-[10px] text-zinc-500">
@@ -3166,145 +3179,131 @@ export function FuelingPlanner({
                 )}
               </div>
 
-              {/* Bloque 2 · "Ticket de Carga de Equipamiento" — the perforated
-                  separator (`border-t border-dashed`) now marks the boundary
-                  between the dark HUD above and this section directly,
-                  rather than the checklist sitting in its own bordered box
-                  — one continuous manifest, not two stacked cards. Driven by
-                  the same bottle config + pocket-food state as the balance
-                  pill in Card 04, so it's never out of sync with what
-                  CUBIERTO/RESTANTE currently shows — see
+              {/* Bloque 2 · Equipamiento y Agua — no wrapping "Cargo &
+                  Equipment"/umbrella header anymore: each real category
+                  (bici, bolsillo, paradas, agua) is its own top-level
+                  `manifestSubtitleClass` subtitle, separated purely by the
+                  parent's own `gap-4` rather than a dashed divider. Driven
+                  by the same bottle config + pocket-food state as the
+                  balance pill in Card 04, so it's never out of sync with
+                  what CUBIERTO/RESTANTE currently shows — see
                   `getBikeChecklistLines`/`getWaterPlanLines`/
-                  `getCafeteriaStopChecklistLines` above. "En bici" renders
-                  specially (not through the generic string-list map below)
-                  since its mix-bottle row alone carries an inline
-                  "[ Ver en cazos ]" reveal and the hypertonic-concentration
-                  warning — both used to live in the removed hero box,
-                  neither is a plain checklist string. Every line now renders
-                  through `ChecklistCheckboxLine` — a tactile `[ ]`/`[✓]`
-                  toggle in place of the old plain dash bullet, purely a
-                  physical prep aid with zero effect on any figure here. */}
-              <div className="border-t border-dashed border-zinc-300 pt-4">
-                <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-widest text-zinc-500 uppercase">
-                  <CheckCircle2 className="size-3.5 shrink-0" />
-                  Cargo &amp; Equipment
-                </span>
-                {bikeChecklistLines.length === 0 &&
-                pocketChecklistLines.length === 0 &&
-                waterPlanChecklistLines.length === 0 &&
-                cafeteriaChecklistLines.length === 0 ? (
-                  <p className="mt-2 text-sm text-neutral-500">
-                    Sin bidones ni comida de bolsillo seleccionados todavía.
-                  </p>
-                ) : (
-                  <div className="mt-2 flex flex-col gap-2.5 text-sm text-neutral-700">
-                    {bikeChecklistLines.length > 0 && (
-                      <div className="flex flex-col gap-1">
-                        <span className="flex items-center gap-1.5 text-xs font-semibold text-neutral-600">
-                          En bici (portabidones):
-                        </span>
-                        <ul className="flex flex-col gap-1.5">
-                          {bikeChecklistLines.map((line) => (
-                            <li key={line.key} className="flex flex-col gap-1.5">
-                              <ChecklistCheckboxLine
-                                checked={checkedChecklistKeys.has(`bike-${line.key}`)}
-                                onToggle={() => toggleChecklistKey(`bike-${line.key}`)}
-                                ariaLabel={line.text}
-                              >
-                                {line.text}
-                                {line.kind === "mix" && (
-                                  <>
-                                    {" "}
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShowBikeScoops((v) => !v);
-                                      }}
-                                      className="font-mono text-[11px] font-medium text-terracotta underline-offset-2 hover:underline"
-                                    >
-                                      [ {showBikeScoops ? "▲" : "▼"} Ver en cazos ]
-                                    </button>
-                                  </>
-                                )}
-                              </ChecklistCheckboxLine>
-                              {/* Hypertonic-concentration warning, attached
-                                  directly under the mix-bottle line it's
-                                  actually about — see "Bottle architecture &
-                                  osmolarity control" (`lib/metabolic-engine.
-                                  ts`) for why this can fire at all; under
-                                  every currently-supported bottle size it's
-                                  a defense-in-depth check, not something
-                                  routinely seen. */}
-                              {line.kind === "mix" &&
-                                displayBottlePlan!.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
-                                  <div className="ml-6 flex items-start gap-1.5 rounded-sm border border-status-warning/40 bg-status-warning/10 px-2.5 py-1.5 text-xs text-status-warning">
-                                    <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
-                                    <span>
-                                      Solución hipertónica ({displayBottlePlan!.fuelBottles.concentrationPct}% &gt;{" "}
-                                      {HYPERTONIC_THRESHOLD_PCT}%) — añade agua o traslada carga a comida de
-                                      bolsillo.
-                                    </span>
-                                  </div>
-                                )}
-                              {line.kind === "mix" && showBikeScoops && (
-                                <div className="ml-6 flex flex-col gap-1 rounded-sm bg-[#F8F7F5] p-2.5 text-xs text-neutral-600">
-                                  <p>
-                                    Maltodextrina: {displayBottlePlan!.fuelBottles.maltodextrinGPerBottle}g (~
-                                    {fuelBottleMeasures!.maltodextrinScoops} cazos)
-                                  </p>
-                                  <p>
-                                    Fructosa: {displayBottlePlan!.fuelBottles.fructoseGPerBottle}g (~
-                                    {fuelBottleMeasures!.fructoseScoops} cazos)
-                                  </p>
-                                  <p>
-                                    Sal común: {getTableSaltGrams(displayBottlePlan!.fuelBottles.sodiumMgPerBottle)}g
-                                    (~{fuelBottleMeasures!.saltTeaspoons} cdta.)
-                                  </p>
-                                  <p className="text-[10px] text-neutral-400">
-                                    *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g
-                                    de sal.
-                                  </p>
+                  `getCafeteriaStopChecklistLines` above. "Equipamiento y
+                  bici" renders specially (not through the generic
+                  string-list map below) since its mix-bottle row alone
+                  carries an inline "[ Ver en cazos ]" reveal and the
+                  hypertonic-concentration warning. Every line renders
+                  through `ChecklistCheckboxLine` — a real square checkbox,
+                  purely a physical prep aid with zero effect on any figure
+                  here. */}
+              {bikeChecklistLines.length === 0 &&
+              pocketChecklistLines.length === 0 &&
+              waterPlanChecklistLines.length === 0 &&
+              cafeteriaChecklistLines.length === 0 ? (
+                <p className="text-sm text-zinc-500">
+                  Sin bidones ni comida de bolsillo seleccionados todavía.
+                </p>
+              ) : (
+                <>
+                  {bikeChecklistLines.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      <span className={manifestSubtitleClass}>Equipamiento y bici</span>
+                      <ul className="flex flex-col gap-2.5">
+                        {bikeChecklistLines.map((line) => (
+                          <li key={line.key} className="flex flex-col gap-1.5">
+                            <ChecklistCheckboxLine
+                              checked={checkedChecklistKeys.has(`bike-${line.key}`)}
+                              onToggle={() => toggleChecklistKey(`bike-${line.key}`)}
+                              ariaLabel={line.text}
+                            >
+                              {line.text}
+                              {line.kind === "mix" && (
+                                <>
+                                  {" "}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowBikeScoops((v) => !v);
+                                    }}
+                                    className="font-mono text-[11px] font-medium text-terracotta underline-offset-2 hover:underline"
+                                  >
+                                    [ {showBikeScoops ? "▲" : "▼"} Ver en cazos ]
+                                  </button>
+                                </>
+                              )}
+                            </ChecklistCheckboxLine>
+                            {/* Hypertonic-concentration warning, attached
+                                directly under the mix-bottle line it's
+                                actually about — see "Bottle architecture &
+                                osmolarity control" (`lib/metabolic-engine.
+                                ts`) for why this can fire at all; under
+                                every currently-supported bottle size it's
+                                a defense-in-depth check, not something
+                                routinely seen. Dark-amber to match this
+                                card's own alert palette. */}
+                            {line.kind === "mix" &&
+                              displayBottlePlan!.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
+                                <div className="ml-7 flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-950/30 px-2.5 py-1.5 text-xs text-amber-200/90">
+                                  <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-400" />
+                                  <span>
+                                    Solución hipertónica ({displayBottlePlan!.fuelBottles.concentrationPct}% &gt;{" "}
+                                    {HYPERTONIC_THRESHOLD_PCT}%) — añade agua o traslada carga a comida de
+                                    bolsillo.
+                                  </span>
                                 </div>
                               )}
+                            {line.kind === "mix" && showBikeScoops && (
+                              <div className="ml-7 flex flex-col gap-1 rounded-lg border border-white/10 bg-black/40 p-2.5 text-xs text-zinc-400">
+                                <p>
+                                  Maltodextrina: {displayBottlePlan!.fuelBottles.maltodextrinGPerBottle}g (~
+                                  {fuelBottleMeasures!.maltodextrinScoops} cazos)
+                                </p>
+                                <p>
+                                  Fructosa: {displayBottlePlan!.fuelBottles.fructoseGPerBottle}g (~
+                                  {fuelBottleMeasures!.fructoseScoops} cazos)
+                                </p>
+                                <p>
+                                  Sal común: {getTableSaltGrams(displayBottlePlan!.fuelBottles.sodiumMgPerBottle)}g
+                                  (~{fuelBottleMeasures!.saltTeaspoons} cdta.)
+                                </p>
+                                <p className="text-[10px] text-zinc-500">
+                                  *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g
+                                  de sal.
+                                </p>
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {[
+                    { title: "Comida de bolsillo", lines: pocketChecklistLines },
+                    { title: "Paradas en ruta", lines: cafeteriaChecklistLines },
+                    { title: "Plan de agua en ruta", lines: waterPlanChecklistLines },
+                  ]
+                    .filter((section) => section.lines.length > 0)
+                    .map((section) => (
+                      <div key={section.title} className="flex flex-col gap-2">
+                        <span className={manifestSubtitleClass}>{section.title}</span>
+                        <ul className="flex flex-col gap-2.5">
+                          {section.lines.map((line, i) => (
+                            <li key={line}>
+                              <ChecklistCheckboxLine
+                                checked={checkedChecklistKeys.has(`${section.title}-${i}`)}
+                                onToggle={() => toggleChecklistKey(`${section.title}-${i}`)}
+                                ariaLabel={line}
+                              >
+                                {line}
+                              </ChecklistCheckboxLine>
                             </li>
                           ))}
                         </ul>
                       </div>
-                    )}
-                    {[
-                      { title: "En bolsillo / maillot", lines: pocketChecklistLines, icon: null },
-                      { title: "Plan de paradas en ruta", lines: cafeteriaChecklistLines, icon: null },
-                      { title: "Plan de agua en ruta", lines: waterPlanChecklistLines, icon: <Droplet className="size-3.5 shrink-0" /> },
-                    ]
-                      .filter((section) => section.lines.length > 0)
-                      .map((section) => (
-                        <div
-                          key={section.title}
-                          className="flex flex-col gap-1 border-t border-dashed border-zinc-200 pt-2.5"
-                        >
-                          <span className="flex items-center gap-1.5 text-xs font-semibold text-neutral-600">
-                            {section.icon}
-                            {section.title}:
-                          </span>
-                          <ul className="flex flex-col gap-1.5">
-                            {section.lines.map((line, i) => (
-                              <li key={line}>
-                                <ChecklistCheckboxLine
-                                  checked={checkedChecklistKeys.has(`${section.title}-${i}`)}
-                                  onToggle={() => toggleChecklistKey(`${section.title}-${i}`)}
-                                  ariaLabel={line}
-                                >
-                                  {line}
-                                </ChecklistCheckboxLine>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
+                    ))}
+                </>
+              )}
 
               {/* "Estrategia de recarga en ruta" — the old automatic
                   red/warning-toned Ziploc accordion — has been removed
@@ -3312,7 +3311,7 @@ export function FuelingPlanner({
                   Roja." Its function is now covered naturally by the
                   athlete's own "Dosis de recarga Mix (Ziploc)" selections
                   in the pocket-food inventory above (same per-dose grams,
-                  same checklist line under "En bolsillo / maillot" — see
+                  same checklist line under "Comida de bolsillo" — see
                   `pocketChecklistLines`), a self-serve declaration rather
                   than an app-imposed reload count. `result.reloadStrategy`
                   itself is untouched server-side — `getWaterPlanLines`
@@ -3322,16 +3321,17 @@ export function FuelingPlanner({
 
               {/* Estrategia de carga día −1 — supplementary, occasional
                   content (only rendered on a long/target-event ride), kept
-                  outside the 3-tier structure above rather than forced
-                  into one of the named tiers. */}
+                  outside the tiers above rather than forced into one of
+                  them. Restyled to the same dark nested-box treatment as
+                  the hydration HUD above. */}
               {result.carbLoading && (
-                <details className="rounded-sm bg-[#F8F7F5] px-3 py-2.5">
-                  <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-700 uppercase">
+                <details className="rounded-xl border border-white/10 bg-black/40 px-3 py-2.5">
+                  <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-zinc-300 uppercase">
                     <CalendarDays className="size-3.5 shrink-0" />
                     Estrategia de carga día −1 · {result.carbLoading.minCarbsG}-
                     {result.carbLoading.maxCarbsG}g HC
                   </summary>
-                  <div className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-600">
+                  <div className="mt-2 flex flex-col gap-1.5 text-sm text-zinc-400">
                     {result.carbLoading.guidelines.map((guideline) => (
                       <p key={guideline}>• {guideline}</p>
                     ))}
