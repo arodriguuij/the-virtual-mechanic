@@ -6,9 +6,7 @@ import {
   Coffee,
   Droplet,
   FlaskConical,
-  Fuel,
   Lock,
-  MapPin,
   Pencil,
   RefreshCw,
   TriangleAlert,
@@ -746,14 +744,37 @@ function DeparturePicker({
         ))}
       </div>
       {dayMode === "custom" && (
-        <input
-          type="date"
-          aria-label="Fecha de salida"
-          min={todayIsoDate()}
-          value={customDate}
-          onChange={(e) => onCustomDateChange(e.target.value)}
-          className={fieldClass}
-        />
+        // "Corrección de Fecha Móvil" — iOS Safari's native `<input
+        // type="date">` renders an internal day/month/year shadow-DOM
+        // layout with its own intrinsic minimum content width, which a
+        // bare `w-full` (a percentage) doesn't override: the browser still
+        // takes `max(100%, that intrinsic min-content)`, so the field can
+        // render wider than its flex-column parent and overflow the card's
+        // right edge. `min-w-0` overrides the flex item's own default
+        // `min-width: auto` (which otherwise refuses to shrink below its
+        // content's natural size), `max-w-full` caps it against the
+        // wrapper regardless, and `box-sizing: border-box` (already
+        // Tailwind's Preflight default, restated here via `box-border` for
+        // an explicit, defensive guarantee) keeps the border/padding
+        // inside that width rather than adding to it. Applied to both the
+        // input itself and its own wrapping `<div>`, since either one
+        // alone left room for the shadow-DOM content to still force an
+        // overflow on a narrow phone. Kept on the shared `fieldClass`
+        // (white background, `px-4 py-2`) rather than switching to a
+        // one-off `bg-[#F8F7F5]`/`px-3` — the hour `<select>` right below
+        // it also renders via the shared `fieldClass`/`selectableFieldClass`
+        // pair (both white), so matching that real sibling exactly is what
+        // keeps the two fields' borders/fill genuinely identical.
+        <div className="w-full max-w-full min-w-0 box-border">
+          <input
+            type="date"
+            aria-label="Fecha de salida"
+            min={todayIsoDate()}
+            value={customDate}
+            onChange={(e) => onCustomDateChange(e.target.value)}
+            className={cn(fieldClass, "w-full max-w-full min-w-0 box-border")}
+          />
+        </div>
       )}
       <div className="relative">
         <select
@@ -774,13 +795,24 @@ function DeparturePicker({
   );
 }
 
+// Generalized off `PocketFoodItemType` (a plain `label`/`carbsG`/`ariaLabel`
+// triad instead) so the same row markup can also render the "Dosis de
+// recarga Mix (Ziploc)" item below — its per-unit grams are dynamic
+// (identical to whatever one fuel bottle at the athlete's own bottle size
+// actually delivers this ride, see `ziplocDoseGramsPerUnit`), not a fixed
+// `pocketFoodCarbsG` catalog constant a `type` lookup could resolve on its
+// own the way every real catalog item's row still can.
 function PocketFoodStepperRow({
-  type,
+  label,
+  carbsG,
+  ariaLabel,
   qty,
   onChange,
   disabled = false,
 }: {
-  type: PocketFoodItemType;
+  label: string;
+  carbsG: number;
+  ariaLabel: string;
   qty: number;
   onChange: (qty: number) => void;
   disabled?: boolean;
@@ -812,10 +844,8 @@ function PocketFoodStepperRow({
       )}
     >
       <span className="text-sm text-neutral-900">
-        {pocketFoodName(type)}
-        <span className="ml-1.5 font-mono text-xs text-neutral-500">
-          {POCKET_FOOD_CARBS_G[type]}g HC
-        </span>
+        {label}
+        <span className="ml-1.5 font-mono text-xs text-neutral-500">{carbsG}g HC</span>
       </span>
       {/* Compact, transparent, delineated stepper — a hairline
           `border-zinc-200` is what defines this control now (the prior
@@ -834,7 +864,7 @@ function PocketFoodStepperRow({
           onClick={() => onChange(qty - 1)}
           disabled={disabled}
           className="flex size-5 cursor-pointer items-center justify-center text-sm leading-none font-normal text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
-          aria-label={`Quitar ${pocketFoodLabels[type]}`}
+          aria-label={`Quitar ${ariaLabel}`}
         >
           −
         </button>
@@ -846,7 +876,7 @@ function PocketFoodStepperRow({
           onClick={() => onChange(qty + 1)}
           disabled={disabled}
           className="flex size-5 cursor-pointer items-center justify-center text-sm leading-none font-normal text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
-          aria-label={`Añadir ${pocketFoodLabels[type]}`}
+          aria-label={`Añadir ${ariaLabel}`}
         >
           +
         </button>
@@ -936,6 +966,28 @@ export function FuelingPlanner({
   // edit with zero extra wiring. Resets to `0` on every Paso 01/02 change,
   // same as `bottleConfig` (see the reset effect below).
   const [cafeteriaStopCount, setCafeteriaStopCount] = useState<CafeteriaStopCount>(0);
+  // "Dosis de recarga Mix (Ziploc)" — replaces the old automatic
+  // "Estrategia de recarga en ruta" red card: instead of the app *telling*
+  // the athlete they need N reload bags, they declare how many pre-measured
+  // mix doses they're actually carrying in their jersey, same self-serve
+  // convention as every other pocket-food item. Deliberately kept as its
+  // own state rather than folded into `pocketFood`/`PocketFoodItemType`:
+  // its per-unit grams are dynamic — always identical to whatever one fuel
+  // bottle at the athlete's own configured bottle size delivers *this
+  // ride* (see `ziplocDoseGramsPerUnit` below), not a fixed catalog
+  // constant the shared type (and its server-side validation) can hold.
+  // Same "client-only planning preference, never round-tripped to the
+  // server" convention as `bottleConfig`/`cafeteriaStopCount` above — a
+  // Ziploc bag is packaging for the *same* already-calculated recipe, not
+  // new nutrition that should shrink the server's own target on a
+  // recalculation (see `handleCalculate`'s `pocketFoodPayload` below,
+  // which deliberately never includes it). The *quantity* resets to `0` on
+  // every Paso 01/02 change, same as `bottleConfig`/`cafeteriaStopCount` —
+  // `ziplocDoseActive` (its own "Editar mi despensa" visibility) doesn't,
+  // matching `activePantryTypes`'s own session-long persistence rather
+  // than a per-calculation input.
+  const [ziplocDoseActive, setZiplocDoseActive] = useState(true);
+  const [ziplocDoseCount, setZiplocDoseCount] = useState(0);
   const [result, setResult] = useState<PlanResult | null>(null);
   // Tracks whether the athlete has *ever* successfully calculated a
   // strategy in this session — drives the CTA's label ("Calcular..." the
@@ -1007,20 +1059,14 @@ export function FuelingPlanner({
   // "Conversión Dinámica a Medidas Caseras" — recomputed from the last
   // calculated result whenever it changes; cheap pure arithmetic, no memo
   // needed. Card 05's "Dosis ejecutiva" is scoped to the per-bottle figure
-  // now (not the full recipe total), so only `fuelBottleMeasures`/
-  // `ziplocMeasures` below are still read.
+  // — the old "Estrategia de recarga en ruta" card (and its own
+  // `ziplocMeasures` scoop-equivalence figure) was removed outright, see
+  // "Dosis de recarga Mix (Ziploc)" above for its replacement.
   const fuelBottleMeasures = result
     ? calculateHouseholdMeasures({
         saltG: getTableSaltGrams(result.bottlePlan.fuelBottles.sodiumMgPerBottle),
         maltodextrinG: result.bottlePlan.fuelBottles.maltodextrinGPerBottle,
         fructoseG: result.bottlePlan.fuelBottles.fructoseGPerBottle,
-      })
-    : null;
-  const ziplocMeasures = result?.reloadStrategy
-    ? calculateHouseholdMeasures({
-        saltG: getTableSaltGrams(result.reloadStrategy.ziplocDose.sodiumMg),
-        maltodextrinG: result.reloadStrategy.ziplocDose.maltodextrinG,
-        fructoseG: result.reloadStrategy.ziplocDose.fructoseG,
       })
     : null;
 
@@ -1034,7 +1080,17 @@ export function FuelingPlanner({
   // this instantly, the same as tapping a pocket-food stepper +/- already
   // did, with zero network round-trip either way.
   const bottleCarbsContributionG = result ? getBottleCarbsContributionG(bottleConfig, result) : 0;
-  const bottlesAndPocketCoveredCarbsG = pocketFoodCarbsPreview + bottleCarbsContributionG;
+  // "Dosis de recarga Mix (Ziploc)" — always identical to what one fuel
+  // bottle at the athlete's *own* configured bottle size delivers this
+  // ride (`bottlePlan.bottleSizeMl` already comes from their real
+  // `athlete_profiles.bottle_capacity_ml`), so changing that profile field
+  // and recalculating updates this figure automatically with zero extra
+  // wiring — same reactive pattern as every other Card 04 coverage source.
+  const ziplocDoseGramsPerUnit = result
+    ? result.bottlePlan.fuelBottles.maltodextrinGPerBottle + result.bottlePlan.fuelBottles.fructoseGPerBottle
+    : 0;
+  const ziplocDoseCarbsG = ziplocDoseCount * ziplocDoseGramsPerUnit;
+  const bottlesAndPocketCoveredCarbsG = pocketFoodCarbsPreview + bottleCarbsContributionG + ziplocDoseCarbsG;
   // D_base — the whole reason "Planificación de Paradas en Ruta" exists:
   // the deficit still pending from bottles + pocket food *alone*, before
   // any café/gas-station stop is factored in. Deliberately re-derived on
@@ -1083,7 +1139,18 @@ export function FuelingPlanner({
   // as the balance pill above, read fresh on every render so the on-screen
   // list stays in sync with what's currently selected.
   const bikeChecklistLines = result ? getBikeChecklistLines(result, bottleConfig) : [];
-  const pocketChecklistLines = getPocketChecklistLines(pocketFood, customCarbsG);
+  // Ziploc reload doses aren't part of `pocketFood` (see the state comment
+  // above), so they don't come back out of `getPocketChecklistLines` for
+  // free — appended here instead, replacing the function of the old
+  // "Estrategia de recarga en ruta" card's own checklist line.
+  const pocketChecklistLines = [
+    ...getPocketChecklistLines(pocketFood, customCarbsG),
+    ...(ziplocDoseCount > 0
+      ? [
+          `${ziplocDoseCount}x Dosis de recarga Mix (Ziploc con ${ziplocDoseGramsPerUnit}g Malto/Fructosa)`,
+        ]
+      : []),
+  ];
   const waterPlanChecklistLines = result ? getWaterPlanLines(result) : [];
   const cafeteriaChecklistLines = getCafeteriaStopChecklistLines(cafeteriaStopPlans);
 
@@ -1195,7 +1262,8 @@ export function FuelingPlanner({
   // clear `result` for the result panel to disappear along with it. The
   // same trigger also resets Card 04's own downstream state (bottle
   // config back to "Solo Agua," planned café/gasolinera stops back to 0,
-  // every pocket-food quantity back to 0) —
+  // planned Ziploc reload doses back to 0, every pocket-food quantity back
+  // to 0) —
   // those figures were computed against the *old* target and would
   // otherwise silently carry over into a strategy they were never
   // actually chosen for. `isInitialInputRender` skips the very first run
@@ -1212,6 +1280,7 @@ export function FuelingPlanner({
     setResult(null);
     setBottleConfig(DEFAULT_BOTTLE_CONFIG);
     setCafeteriaStopCount(0);
+    setZiplocDoseCount(0);
     setPocketFood({});
     setCustomCarbsG(0);
   }, [
@@ -2216,7 +2285,7 @@ export function FuelingPlanner({
                     Editar mi despensa
                   </button>
                 </div>
-                {activePantryTypes.length === 0 && (
+                {activePantryTypes.length === 0 && !ziplocDoseActive && (
                   <p className="mb-2 text-xs text-neutral-500">
                     Sin alimentos activos — actívalos en &quot;Editar mi despensa&quot; para verlos aquí.
                   </p>
@@ -2225,11 +2294,34 @@ export function FuelingPlanner({
                   {ALL_POCKET_FOOD_TYPES.filter((type) => activePantryTypes.includes(type)).map((type) => (
                     <PocketFoodStepperRow
                       key={type}
-                      type={type}
+                      label={pocketFoodName(type)}
+                      carbsG={POCKET_FOOD_CARBS_G[type]}
+                      ariaLabel={pocketFoodLabels[type]}
                       qty={pocketFood[type] ?? 0}
                       onChange={(qty) => setPocketFoodQty(type, qty)}
                     />
                   ))}
+                  {/* "Dosis de recarga Mix (Ziploc)" — replaces the old
+                      automatic "Estrategia de recarga en ruta" red card:
+                      the athlete declares how many pre-measured mix doses
+                      they're carrying, and each one counts toward CUBIERTO
+                      exactly like any other pocket-food item. Not part of
+                      `ALL_POCKET_FOOD_TYPES`/the real catalog (its grams
+                      are dynamic, not a fixed constant — see
+                      `ziplocDoseGramsPerUnit` above), so it's gated by its
+                      own `ziplocDoseActive` flag rather than
+                      `activePantryTypes`. */}
+                  {ziplocDoseActive && (
+                    <PocketFoodStepperRow
+                      label="Dosis de recarga Mix (Ziploc)"
+                      carbsG={ziplocDoseGramsPerUnit}
+                      ariaLabel="Dosis de recarga Mix (Ziploc)"
+                      qty={ziplocDoseCount}
+                      onChange={(qty) =>
+                        setZiplocDoseCount(Math.max(0, Math.min(MAX_POCKET_FOOD_QTY, qty)))
+                      }
+                    />
+                  )}
                   <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-2 last:border-b-0">
                     <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
                       Personalizado
@@ -2288,6 +2380,21 @@ export function FuelingPlanner({
               activeTypes={activePantryTypes}
               onToggle={togglePantryItem}
               onSave={handleSavePantry}
+              extraItem={{
+                label: "Dosis de recarga Mix (Ziploc)",
+                carbsLabel: `~${ziplocDoseGramsPerUnit}g HC`,
+                active: ziplocDoseActive,
+                onToggle: () => {
+                  const nextActive = !ziplocDoseActive;
+                  setZiplocDoseActive(nextActive);
+                  // "Regla Crítica de Reseteo al Desmarcar" — same rule
+                  // every other despensa item already follows (see
+                  // `togglePantryItem` above): hiding the row zeroes its
+                  // quantity immediately so it can't keep silently
+                  // contributing to CUBIERTO once it's no longer visible.
+                  if (!nextActive) setZiplocDoseCount(0);
+                },
+              }}
             />
 
             {/* 🎴 Tarjeta 3 · 05 · Pauta de ingesta y receta ("Al Grano") —
@@ -2405,85 +2512,19 @@ export function FuelingPlanner({
                 )}
               </div>
 
-              {/* Only a genuine *fuel/powder* overflow warrants this
-                  warning-toned "Ziploc" accordion — an overflow that's
-                  purely plain water (the ride's total hydration need
-                  exceeding cage capacity even though the carb target is
-                  already fully covered) is never a reason to mix more
-                  powder, so it renders in the plain informational
-                  "Plan de agua en ruta" block below instead.
-
-                  Also hidden whenever the *live* OBJETIVO/CUBIERTO/RESTANTE
-                  pill above (Card 04) already shows the ride ~95%+ covered
-                  (`remainingCarbsG <= 15`) — `reloadStrategy` itself is
-                  frozen from the last "Calcular estrategia" click, so an
-                  athlete who's since added enough pocket food or switched
-                  to "Ambos Mix" would otherwise keep seeing a stale recharge
-                  warning for a gap they've already closed, without needing
-                  to recalculate just to dismiss it. */}
-              {result.reloadStrategy &&
-                result.reloadStrategy.ziplocBagsCount > 0 &&
-                remainingCarbsG > 15 && (
-                <details className="group rounded-sm border border-status-warning/40 bg-status-warning/10">
-                  <summary className="flex list-none cursor-pointer items-center justify-between gap-2 p-3 [&::-webkit-details-marker]:hidden">
-                    <span className="flex min-w-0 flex-col gap-1">
-                      <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-status-warning uppercase">
-                        <Fuel className="size-3.5 shrink-0" />
-                        Estrategia de recarga en ruta
-                      </span>
-                      <span className="text-sm font-semibold text-neutral-900">
-                        {result.reloadStrategy.startingFuelBottleCount} bidón
-                        {result.reloadStrategy.startingFuelBottleCount > 1 ? "es" : ""} de mezcla en
-                        bici + {result.reloadStrategy.ziplocBagsCount} dosis de recarga en maillot
-                      </span>
-                    </span>
-                    <ChevronDown className="size-4 shrink-0 text-status-warning transition-transform duration-150 group-open:rotate-180" />
-                  </summary>
-                  <div className="border-t border-status-warning/30 p-3 pt-2">
-                    <ol className="flex flex-col gap-1 text-sm text-neutral-700">
-                      <li>
-                        1. Inicio de ruta: {result.reloadStrategy.startingFuelBottleCount} bidón
-                        {result.reloadStrategy.startingFuelBottleCount > 1 ? "es" : ""} de mezcla
-                        preparado{result.reloadStrategy.startingFuelBottleCount > 1 ? "s" : ""} en el
-                        cuadro
-                        {result.reloadStrategy.startingWaterBottleCount > 0
-                          ? ` + ${result.reloadStrategy.startingWaterBottleCount} bidón${
-                              result.reloadStrategy.startingWaterBottleCount > 1 ? "es" : ""
-                            } de agua.`
-                          : "."}
-                      </li>
-                      <li>
-                        2. En el maillot: lleva {result.reloadStrategy.ziplocBagsCount} bolsita
-                        {result.reloadStrategy.ziplocBagsCount > 1 ? "s" : ""} Ziploc con{" "}
-                        {result.reloadStrategy.ziplocDose.maltodextrinG}g malto (~
-                        {ziplocMeasures!.maltodextrinScoops} cazos) +{" "}
-                        {result.reloadStrategy.ziplocDose.fructoseG}g fructosa (~
-                        {ziplocMeasures!.fructoseScoops} cazos) +{" "}
-                        {getTableSaltGrams(result.reloadStrategy.ziplocDose.sodiumMg)}g sal común (~
-                        {ziplocMeasures!.saltTeaspoons} cdta.) (dosis pre-medida por bidón).
-                      </li>
-                      <li className="flex items-center gap-1.5 font-medium text-neutral-900">
-                        <MapPin className="size-3.5 shrink-0" />
-                        Parada de recarga recomendada:{" "}
-                        {result.reloadStrategy.reloadAtKm != null
-                          ? `Km ${result.reloadStrategy.reloadAtKm}`
-                          : `Hora ${result.reloadStrategy.reloadAtHours}`}
-                      </li>
-                    </ol>
-                    {result.reloadStrategy.isImpractical && (
-                      <p className="mt-2 flex items-start gap-1.5 border-t border-status-warning/30 pt-2 text-xs text-status-warning">
-                        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
-                        {result.reloadStrategy.ziplocBagsCount} recargas en ruta no es un plan
-                        realista — con tus bidones de {result.bottlePlan.bottleSizeMl}ml, esta
-                        estrategia necesita más carbohidratos disueltos de los que puedes llevar
-                        cómodamente. Prueba con bidones de mayor capacidad o traslada más carga a
-                        comida sólida/geles (modo Híbrido u Óptimo).
-                      </p>
-                    )}
-                  </div>
-                </details>
-              )}
-
+              {/* "Estrategia de recarga en ruta" — the old automatic
+                  red/warning-toned Ziploc accordion — has been removed
+                  outright, per "Eliminación Definitiva de la Tarjeta
+                  Roja." Its function is now covered naturally by the
+                  athlete's own "Dosis de recarga Mix (Ziploc)" selections
+                  in the pocket-food inventory above (same per-dose grams,
+                  same checklist line under "En bolsillo / maillot" — see
+                  `pocketChecklistLines`), a self-serve declaration rather
+                  than an app-imposed reload count. `result.reloadStrategy`
+                  itself is untouched server-side — `getWaterPlanLines`
+                  right below still reads its `waterRefillCount`/
+                  `waterRefillLiters` for the unrelated plain-water fountain
+                  refill note, which this removal doesn't affect. */}
 
               {result.carbLoading && (
                 <details className="rounded-sm bg-[#F8F7F5] px-3 py-2.5">

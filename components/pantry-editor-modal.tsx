@@ -32,6 +32,14 @@ import { cn } from "@/lib/utils";
  * close button as siblings (`showCloseButton={false}` on `DialogContent`
  * turns off the absolute one), so the two can never overlap regardless of
  * title length in the future.
+ *
+ * **`extraItem`** — "Dosis de recarga Mix (Ziploc)" isn't a real
+ * `PocketFoodItemType` (its grams are dynamic per ride, not a fixed
+ * `pocketFoodCarbsG` catalog constant — see `components/fueling-planner.tsx`'s
+ * own `ziplocDoseGramsPerUnit`), so it can't just be added to `catalog`
+ * like every other item. This one optional row lets its own visibility
+ * toggle live in the same list without forcing the shared catalog type to
+ * accommodate a non-catalog entry.
  */
 export function PantryEditorModal({
   open,
@@ -40,6 +48,7 @@ export function PantryEditorModal({
   activeTypes,
   onToggle,
   onSave,
+  extraItem,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -47,6 +56,7 @@ export function PantryEditorModal({
   activeTypes: PocketFoodItemType[];
   onToggle: (type: PocketFoodItemType) => void;
   onSave: () => void;
+  extraItem?: { label: string; carbsLabel: string; active: boolean; onToggle: () => void };
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -90,6 +100,22 @@ export function PantryEditorModal({
               </li>
             );
           })}
+          {extraItem && (
+            <li>
+              <label className="flex cursor-pointer items-center gap-2.5 rounded-sm px-1 py-1.5 text-sm text-neutral-800 transition-colors duration-150 hover:bg-[#F8F7F5]">
+                <input
+                  type="checkbox"
+                  checked={extraItem.active}
+                  onChange={extraItem.onToggle}
+                  className="size-4 shrink-0 cursor-pointer accent-terracotta"
+                />
+                {extraItem.label}
+                <span className="ml-auto shrink-0 font-mono text-xs text-neutral-500">
+                  {extraItem.carbsLabel}
+                </span>
+              </label>
+            </li>
+          )}
         </ul>
         <button type="button" onClick={onSave} className={cn(primaryButtonClass, "mt-3 w-full")}>
           Guardar despensa
