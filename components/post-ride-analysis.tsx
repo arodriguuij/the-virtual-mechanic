@@ -473,6 +473,7 @@ export function PostRideAnalysis({
                 distanceKm={result.activity.distanceKm}
                 elevationGainM={result.activity.elevationGainM}
                 className="mt-0 rounded-none"
+                title="Sin datos GPS"
                 emptyMessage="Sin datos de trazado GPS para esta actividad."
               />
 

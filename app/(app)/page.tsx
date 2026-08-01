@@ -214,21 +214,21 @@ export default async function Home({
 
       <Tabs defaultValue="pre-ride">
         <TabsList variant="line" className="w-full justify-start border-b border-neutral-200">
-          {/* "Unificación de Negro Obsidiana" — the active-tab accent moved
-              off `--terracotta` to a literal `#18181B` (matching Card 01's
-              active mode toggle, Card 02's active date/stop pills, and the
-              CTA button below), so every "selected/primary" surface on this
-              page reads as one consistent obsidian-black language rather
-              than terracotta in some spots and black in others. Still the
-              shared `TabsTrigger`'s own `after:` pseudo-element underline
-              mechanic (see `components/ui/tabs.tsx`), just recolored —
-              `data-active:font-bold` is new, giving the active label real
-              weight on top of the color/underline change alone. */}
+          {/* "Normalización Tipográfica" — PNS-style sober typography: the
+              tabs used to read as a technical `font-mono`/uppercase/
+              tracking-widest label; now plain sentence-case `font-medium
+              text-sm` prose, matching this pass's broader "reduce the abuse
+              of uppercase blocks" direction. The obsidian-black active
+              accent itself (`#18181B`, matching Card 01's active mode
+              toggle, Card 02's active date/stop pills, and the CTA button
+              below) is unchanged — only the type treatment carrying it is.
+              Still the shared `TabsTrigger`'s own `after:` pseudo-element
+              underline mechanic (see `components/ui/tabs.tsx`). */}
           <TabsTrigger
             value="pre-ride"
-            className="flex-none font-mono text-[11px] font-semibold tracking-widest uppercase data-active:font-bold data-active:text-zinc-900 after:bg-[#18181B]"
+            className="flex-none text-sm font-medium data-active:font-semibold data-active:text-zinc-900 after:bg-[#18181B]"
           >
-            Pre-ruta
+            Pre ruta
           </TabsTrigger>
           {/* "Deshabilitación Temporaria de Pestaña Post-Ruta" — early users
               should be funneled exclusively into Pre-Ruta for now. `disabled`
@@ -242,11 +242,11 @@ export default async function Home({
           <TabsTrigger
             value="post-ride"
             disabled
-            className="flex-none gap-0 font-mono text-[11px] font-semibold tracking-widest text-zinc-400 uppercase select-none"
+            className="flex-none gap-0 text-sm font-medium text-zinc-400 select-none"
           >
-            Post-ruta
+            Post ruta
             <span className="ml-1.5 inline-flex items-center rounded-sm border border-zinc-200/60 bg-zinc-100 px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-wider text-zinc-500 uppercase">
-              Próx
+              Próximas
             </span>
           </TabsTrigger>
         </TabsList>

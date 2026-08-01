@@ -2,42 +2,52 @@
 
 import "leaflet/dist/leaflet.css";
 
-import { Locate } from "lucide-react";
+import { Compass, Locate, Upload } from "lucide-react";
 import { useEffect } from "react";
 import { MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
 
 import { cn } from "@/lib/utils";
 
-// CartoDB Positron — a soft, low-contrast, minimalist basemap (pale porcelain
-// land, muted blue water, faint gray roads/labels) rendered natively light,
-// not derived from a dark tile via a CSS filter. Replaces the earlier
-// "Strava Dark Mode Topo" experiment (OpenTopoMap +
-// `invert(100%) hue-rotate(180deg)`) outright — that approach worked, but a
-// filter-derived dark map is inherently a step removed from what it's
-// approximating; a genuinely light, Apple Maps/Mapbox-Light-style tile needs
-// no filter at all, which is simpler and reads cleaner against this app's own
-// porcelain canvas.
-const TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-// CartoDB's own required attribution wording for this tile set.
+// OpenTopoMap — a genuinely multi-hue outdoors/topographic basemap (natural
+// blue sea, green forest/vegetation, tan/brown elevation contour bands, high-
+// contrast road network), the "Strava-style" look this app's own PNS pass
+// asked for. Replaces the earlier CartoDB Positron tile (a soft, near-
+// monochrome porcelain-and-pale-blue basemap) — Positron reads as a clean,
+// minimal Apple-Maps-style backdrop but has none of the terrain color
+// information a rider actually wants when checking whether a route climbs
+// through mountains or hugs the coast. Rendered with **no CSS filter** —
+// unlike this app's earlier "Dark Vector HUD" experiment (which inverted
+// this same tile to fake a dark map), this pass wants OpenTopoMap's own
+// natural daylight palette as-is.
+const TILE_URL = "https://{a-c}.tile.opentopomap.org/{z}/{x}/{y}.png";
+// OpenTopoMap's own required attribution wording (CC-BY-SA), layered on top
+// of the underlying OSM/SRTM data attribution its own tiles are built from.
 const TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+  'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)';
 
-// This app's own bronze/taupe accent (`--terracotta`, `#6e6658`) — replaces
-// Strava's literal icon orange (`#FC5200`), which read as an off-brand,
-// neon-bright intrusion against RATIO's own sober, editorial PNS palette.
-// Kept as its own literal hex rather than a Tailwind class, since Leaflet's
-// `Polyline` `color` prop needs a plain string — but the value is the exact
-// same one `--terracotta` resolves to, so a future token refinement should
-// update this constant too. Reads as a clean, elegant accent against
-// Positron's pale, low-saturation basemap without competing with it the way
-// a neon brand color did.
-const ROUTE_LINE_COLOR = "#6E6658";
+// Obsidian black (`#18181B`) — this app's now-unified accent for every
+// active/primary surface (Cards 01/02/04's active selectors, the CTA) —
+// replaces the earlier muted bronze/taupe (`--terracotta`) route line: a
+// thin, high-contrast line reads more cleanly against OpenTopoMap's own
+// colorful, higher-detail terrain than the previous pale-basemap-tuned
+// bronze did. Kept as a literal hex rather than a Tailwind class, since
+// Leaflet's `Polyline` `color` prop needs a plain string.
+const ROUTE_LINE_COLOR = "#18181B";
 // A wider, softer, near-black line rendered directly underneath the route
 // itself — Leaflet's `Polyline` has no `box-shadow`-style prop of its own, so
 // stacking a second, more transparent stroke beneath the real one is the
-// standard way to fake one, giving the route a subtle sense of depth over the
-// pale terrain rather than sitting perfectly flat on it.
-const ROUTE_SHADOW_COLOR = "#1a1a1a";
+// standard way to fake one, giving the route a subtle sense of depth over
+// the busier topo terrain rather than sitting perfectly flat on it.
+const ROUTE_SHADOW_COLOR = "#000000";
+
+// "Estado Vacío del Mapa" — a generic regional backdrop for the dimmed
+// base-map empty state below, rather than a blank/undefined center. Palma
+// de Mallorca — the same locale this app's own worked examples throughout
+// its history use (Sa Calobra, Palma) — reads as a sensible, real "this is
+// what your map will look like" placeholder rather than an arbitrary
+// coordinate or a stretched-out world view.
+const EMPTY_STATE_CENTER: [number, number] = [39.5696, 2.6502];
+const EMPTY_STATE_ZOOM = 10;
 
 /** `MapContainer` itself has no "fit to route" concept — this runs once
  * per `points` change and asks the underlying Leaflet map instance
@@ -127,7 +137,9 @@ export function RouteMapPreview({
   distanceKm,
   elevationGainM,
   className,
+  title = "Sin ruta seleccionada",
   emptyMessage = "Selecciona una ruta o sube un archivo GPX para visualizar el trazado.",
+  onUploadClick,
 }: {
   points: [number, number][] | null;
   distanceKm: number | null;
@@ -137,17 +149,68 @@ export function RouteMapPreview({
    * (e.g. Post-Ride Analysis's 2-column telemetry layout) can drop the
    * top margin and pick its own height instead of the planner's default. */
   className?: string;
+  /** Empty-state modal card's own title line — overridden by Post-Ride
+   * Analysis (a completed ride with no synced GPS data reads differently
+   * from "you haven't picked a route yet"). */
+  title?: string;
   emptyMessage?: string;
+  /** Renders a "Subir archivo .GPX" action inside the empty-state card —
+   * only where the caller actually has an upload flow to open (the Fueling
+   * Planner's Ruta widget). Omitted entirely at every other call site
+   * (Post-Ride Analysis, the planner's own GPX-mode map, which can only
+   * ever render once a file is already parsed) rather than showing a
+   * button with nothing to do. */
+  onUploadClick?: () => void;
 }) {
   if (!points || points.length < 2) {
+    // "Estado Vacío del Mapa" — a real (decorative, non-interactive) base
+    // map dimmed via CSS filter, not a blank porcelain box or a dashed
+    // placeholder rectangle: the athlete sees the same map surface they'll
+    // get once a route is loaded, just muted, with a floating white card
+    // explaining what to do next.
     return (
       <div
         className={cn(
-          "mt-3 flex h-48 w-full items-center justify-center rounded-sm border border-dashed border-neutral-300 bg-neutral-50 px-6 text-center",
+          "relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-sm bg-white shadow-sm",
           className
         )}
       >
-        <p className="text-sm text-neutral-500">{emptyMessage}</p>
+        <div className="pointer-events-none absolute inset-0 grayscale contrast-75 opacity-40">
+          <MapContainer
+            className="h-full w-full"
+            center={EMPTY_STATE_CENTER}
+            zoom={EMPTY_STATE_ZOOM}
+            zoomControl={false}
+            attributionControl={false}
+            dragging={false}
+            scrollWheelZoom={false}
+            doubleClickZoom={false}
+            touchZoom={false}
+            boxZoom={false}
+            keyboard={false}
+          >
+            <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+          </MapContainer>
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center px-4">
+          <div className="mx-auto max-w-xs rounded-2xl border border-zinc-200/80 bg-white/95 p-5 text-center shadow-md backdrop-blur-md">
+            <div className="mx-auto mb-3 flex size-9 items-center justify-center rounded-full border border-zinc-200 bg-white shadow-sm">
+              <Compass className="size-4 text-zinc-600" strokeWidth={1} />
+            </div>
+            <p className="mb-1 font-mono text-xs font-bold tracking-wider text-zinc-800 uppercase">{title}</p>
+            <p className="mb-3 text-xs text-zinc-500">{emptyMessage}</p>
+            {onUploadClick && (
+              <button
+                type="button"
+                onClick={onUploadClick}
+                className="shadow-xs inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#18181B] px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-800"
+              >
+                <Upload className="size-3.5 shrink-0" />
+                Subir archivo .GPX
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -181,14 +244,14 @@ export function RouteMapPreview({
         zoomControl={false}
       >
         <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
-        {/* Shadow stroke first (wider, translucent dark), the real bronze/
-            taupe route drawn on top — gives the line a subtle sense of
-            depth over the pale terrain without needing a CSS filter. */}
+        {/* Shadow stroke first (wider, translucent dark), the real obsidian
+            route drawn on top — gives the line a subtle sense of depth over
+            the busier topo terrain without needing a CSS filter. */}
         <Polyline
           positions={points}
           pathOptions={{
             color: ROUTE_SHADOW_COLOR,
-            weight: 6,
+            weight: 4,
             opacity: 0.15,
             lineCap: "round",
             lineJoin: "round",
@@ -198,7 +261,7 @@ export function RouteMapPreview({
           positions={points}
           pathOptions={{
             color: ROUTE_LINE_COLOR,
-            weight: 3.5,
+            weight: 2,
             opacity: 1,
             lineCap: "round",
             lineJoin: "round",

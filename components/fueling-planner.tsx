@@ -159,13 +159,18 @@ function pocketFoodName(type: PocketFoodItemType): string {
   return stripEmoji(pocketFoodLabels[type]);
 }
 
-// Shared typography for Paso 02's grouped input labels (Intensidad Objetivo,
-// Fecha y hora de salida, Duración/Vatios) — homologated to one exact class
-// string so these read as one consistent family, distinct from the smaller/
-// looser-tracked eyebrow style reserved for stat readouts and data-block
-// labels elsewhere in this file (Ruta, Carbohidratos objetivo, etc. — a
-// different, unrelated concern this pass didn't touch).
-const formFieldLabelClass = "text-xs font-mono font-semibold tracking-wider text-zinc-500 uppercase";
+// "Normalización Tipográfica" — every field label in the planner (Ruta,
+// Intensidad objetivo, Fecha y hora de salida, Paradas previstas en ruta,
+// Configuración de bidones, Comida en bolsillo, Duración/Vatios) now shares
+// this one class, modeled on the fine, attenuated style the "Ruta" label
+// already carried before this pass — no more `uppercase`/`font-semibold`
+// shouting, and the labels' own source text is real sentence case
+// ("Intensidad objetivo," not "INTENSIDAD OBJETIVO"), which a CSS
+// `text-transform` used to override regardless. This used to be two
+// slightly different styles (a bolder/wider-tracked one for Paso 02's
+// grouped inputs, a smaller/looser-tracked one for Ruta/stat-block
+// eyebrows) — unified into one now that both are meant to read identically.
+const formFieldLabelClass = "text-xs font-mono text-zinc-500 tracking-wide";
 // Shared with every other field/button across the app (`lib/ui-classes.ts`) —
 // aliased to these file-local names since they're already used at every
 // input/select/date call site below.
@@ -204,24 +209,28 @@ const segmentedButtonClass =
 // centered exactly as before (there's no slack for `text-center` to act on
 // once the label is genuinely truncated).
 const segmentedButtonLabelClass = "block w-full truncate";
-// "Unificación de Negro Obsidiana" — the final "Calcular Estrategia
-// Nutricional" CTA is a deliberate, scoped one-off departure from the
-// shared `primaryButtonClass` token (still `bg-terracotta` everywhere
-// else — Copiar receta, Guardar cambios, Guardar consumo real, etc.):
-// this one button is meant to read as the single highest-weight action on
-// the whole screen, so it gets the same obsidian-black (`#18181B`) fill
-// as Card 01's active mode toggle, Card 02's active date/paradas pills,
-// and the active Pre-ruta tab, rather than the app's usual terracotta
-// accent. `rounded-xl` is a deliberate, explicit exception to this app's
-// otherwise-global `rounded-sm` control radius (same precedent as Card
-// 05's own `rounded-xl` result cards) — scoped to this one button, not a
-// change to the shared radius scale. No `uppercase` here (unlike every
-// other shared button token) — the label itself is real Title Case
-// ("Calcular Estrategia Nutricional"), and a CSS `text-transform` would
-// silently force it back to all-caps regardless of the source string's
-// actual casing.
-const obsidianCtaButtonClass =
-  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#18181B] px-4 font-mono text-sm font-bold tracking-wider text-white shadow-sm transition-colors duration-150 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#18181B]";
+// "Jerarquía de Color: Selectores vs. Acción Principal" — every selector/
+// toggle (Card 01's mode toggle, Card 02's date/paradas pills, Card 04's
+// bottle selectors, the active Pre-ruta tab) shares one obsidian-black
+// (`#18181B`) accent for "selected/active." The final "Calcular Estrategia
+// Nutricional" CTA deliberately does *not* share that color: it's the one
+// action on the whole screen, not a selection among options, so it gets its
+// own distinct Verde Oliva Táctico fill (`#222A23`, the same tone as Card
+// 03's own dark "Ficha Técnica" surface — visually tying the button that
+// produces the results to the card that displays them) rather than
+// blending into the same black every selector already uses. Still a
+// deliberate, scoped one-off departure from the shared `primaryButtonClass`
+// token (still `bg-terracotta` everywhere else — Copiar receta, Guardar
+// cambios, Guardar consumo real, etc.). `rounded-xl` is a deliberate,
+// explicit exception to this app's otherwise-global `rounded-sm` control
+// radius (same precedent as Card 05's own `rounded-xl` result cards) —
+// scoped to this one button, not a change to the shared radius scale. No
+// `uppercase` here (unlike every other shared button token) — the label
+// itself is real Title Case ("Calcular Estrategia Nutricional"), and a CSS
+// `text-transform` would silently force it back to all-caps regardless of
+// the source string's actual casing.
+const oliveCtaButtonClass =
+  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#222A23] px-4 font-mono text-sm font-bold tracking-wider text-white shadow-sm transition-colors duration-150 hover:bg-[#1A201B] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#222A23]";
 // Card 05 ("Manifiesto de Salida") — the one dark-surface card in the
 // results flow, so every subtitle inside it (Cadencia de Hidratación,
 // Equipamiento y Bici, Comida de Bolsillo, Paradas en Ruta, Plan de Agua
@@ -1941,7 +1950,7 @@ export function FuelingPlanner({
             prop specifically for this reason. */}
         <div className="overflow-hidden rounded-sm bg-white shadow-none">
           <div className="p-4 sm:p-6">
-            <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+            <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
               01 · Selección y origen de ruta
             </span>
 
@@ -2017,7 +2026,7 @@ export function FuelingPlanner({
                     {routes.length > 0 ? (
                       <div>
                         <div className="flex items-center justify-between gap-2">
-                          <label htmlFor="route" className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase">
+                          <label htmlFor="route" className={formFieldLabelClass}>
                             Ruta
                           </label>
                           <button
@@ -2228,6 +2237,7 @@ export function FuelingPlanner({
               distanceKm={selectedRoute?.distanceKm ?? null}
               elevationGainM={selectedRoute?.elevationGainM ?? null}
               className="mt-0 rounded-none"
+              onUploadClick={() => setGpxUploadOpen(true)}
             />
           )}
           {mode === "gpx" && (
@@ -2261,7 +2271,7 @@ export function FuelingPlanner({
             `mt-4`) is that same pass's "título numerado → primer campo"
             micro-spacing rule. */}
         <div className="rounded-sm bg-white p-4 sm:p-6 shadow-none">
-          <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+          <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
             02 · Condiciones de la salida
           </span>
 
@@ -2362,9 +2372,7 @@ export function FuelingPlanner({
               `getCafeteriaStopPlans` above), so the preview only has real
               entries once a strategy has actually been calculated. */}
           <div className="mt-4">
-            <span className="mb-2 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-              Paradas previstas en ruta
-            </span>
+            <span className={cn(formFieldLabelClass, "mb-2 block")}>Paradas previstas en ruta</span>
             <div className="grid grid-cols-3 gap-2 *:min-w-0">
               {CAFETERIA_STOP_COUNT_OPTIONS.map((opt) => (
                 <button
@@ -2519,7 +2527,7 @@ export function FuelingPlanner({
             className={cn(
               "h-11 w-full text-sm",
               isProfileComplete
-                ? obsidianCtaButtonClass
+                ? oliveCtaButtonClass
                 : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-sm bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
             )}
           >
@@ -2613,7 +2621,7 @@ export function FuelingPlanner({
                 own obsidian departure), not a change to the shared white
                 card system. */}
             <div className="rounded-xl border border-emerald-900/40 bg-[#222A23] p-4 shadow-none">
-              <span className="mb-3 block font-mono text-xs font-bold tracking-wider text-zinc-400 uppercase">
+              <span className="mb-3 block font-mono text-xs font-bold tracking-wider text-zinc-400">
                 03 · Metabolismo y objetivos calculados
               </span>
 
@@ -2787,7 +2795,7 @@ export function FuelingPlanner({
                 "pulsa Calcular de nuevo" footer note — "Al Grano": this
                 card is the interactive simulator, nothing else. */}
             <div className="rounded-xl border-0 bg-white p-4 shadow-none">
-              <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+              <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 04 · Simulador y configuración de avituallamiento
               </span>
 
@@ -2851,9 +2859,7 @@ export function FuelingPlanner({
               </div>
 
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-                  Configuración de bidones
-                </span>
+                <span className={formFieldLabelClass}>Configuración de bidones</span>
                 {/* "Micro-Edición In-Situ de Capacidad de Bidón" — a
                     display-only preview of a different bottle size than the
                     athlete's saved profile, re-scaling the per-bottle
@@ -2933,9 +2939,7 @@ export function FuelingPlanner({
                   editable. */}
               <div className="mt-4">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-                    Comida en bolsillo
-                  </span>
+                  <span className={formFieldLabelClass}>Comida en bolsillo</span>
                   <button
                     type="button"
                     onClick={() => setPantryModalOpen(true)}
@@ -3096,7 +3100,7 @@ export function FuelingPlanner({
                 if they want to save or share it — no export button lives
                 here. */}
             <div className="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-[#18181B] p-4 shadow-none">
-              <span className="font-mono text-xs font-bold tracking-wider text-zinc-400 uppercase">
+              <span className="font-mono text-xs font-bold tracking-wider text-zinc-400">
                 05 · Manifiesto de salida
               </span>
 
