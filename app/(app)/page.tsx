@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FuelingPlanner } from "@/components/fueling-planner";
@@ -103,9 +103,6 @@ function DashboardSectionSkeleton() {
 function FuelingPlannerSkeleton() {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Planificador de nutrición</CardTitle>
-      </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="grid grid-cols-3 gap-2">
           <div className="h-9 animate-pulse rounded-sm bg-neutral-100" />
@@ -217,9 +214,19 @@ export default async function Home({
 
       <Tabs defaultValue="pre-ride">
         <TabsList variant="line" className="w-full justify-start border-b border-neutral-200">
+          {/* "Unificación de Negro Obsidiana" — the active-tab accent moved
+              off `--terracotta` to a literal `#18181B` (matching Card 01's
+              active mode toggle, Card 02's active date/stop pills, and the
+              CTA button below), so every "selected/primary" surface on this
+              page reads as one consistent obsidian-black language rather
+              than terracotta in some spots and black in others. Still the
+              shared `TabsTrigger`'s own `after:` pseudo-element underline
+              mechanic (see `components/ui/tabs.tsx`), just recolored —
+              `data-active:font-bold` is new, giving the active label real
+              weight on top of the color/underline change alone. */}
           <TabsTrigger
             value="pre-ride"
-            className="flex-none font-mono text-[11px] font-semibold tracking-widest uppercase data-active:text-terracotta after:bg-terracotta"
+            className="flex-none font-mono text-[11px] font-semibold tracking-widest uppercase data-active:font-bold data-active:text-zinc-900 after:bg-[#18181B]"
           >
             Pre-ruta
           </TabsTrigger>

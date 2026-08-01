@@ -23,7 +23,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { stripEmoji } from "@/lib/gpx-export";
@@ -39,7 +39,6 @@ import { ProfileRequiredBanner } from "@/components/profile-required-banner";
 import {
   fieldClass,
   flatMobileCardClass,
-  primaryButtonClass,
   secondaryButtonClass,
   selectableFieldClass,
   selectChevronClass,
@@ -205,6 +204,20 @@ const segmentedButtonClass =
 // centered exactly as before (there's no slack for `text-center` to act on
 // once the label is genuinely truncated).
 const segmentedButtonLabelClass = "block w-full truncate";
+// "Unificación de Negro Obsidiana" — the final "Calcular estrategia
+// nutricional" CTA is a deliberate, scoped one-off departure from the
+// shared `primaryButtonClass` token (still `bg-terracotta` everywhere
+// else — Copiar receta, Guardar cambios, Guardar consumo real, etc.):
+// this one button is meant to read as the single highest-weight action on
+// the whole screen, so it gets the same obsidian-black (`#18181B`) fill
+// as Card 01's active mode toggle, Card 02's active date/paradas pills,
+// and the active Pre-ruta tab, rather than the app's usual terracotta
+// accent. `rounded-xl` is a deliberate, explicit exception to this app's
+// otherwise-global `rounded-sm` control radius (same precedent as Card
+// 05's own `rounded-xl` result cards) — scoped to this one button, not a
+// change to the shared radius scale.
+const obsidianCtaButtonClass =
+  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#18181B] px-4 font-mono text-sm font-bold tracking-wider text-white uppercase shadow-sm transition-colors duration-150 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#18181B]";
 // "Salida" quick-select: a day pill (Hoy/Mañana) plus a plain hour `<select>`
 // replaces the old `datetime-local` input — that native control's per-browser
 // chrome (and iOS Safari's multi-segment month/day/year/hour/minute/AM-PM
@@ -947,7 +960,7 @@ function DeparturePicker({
             className={cn(
               segmentedButtonClass,
               dayMode === opt.value
-                ? "border-transparent bg-terracotta text-white"
+                ? "border-transparent bg-[#18181B] text-white"
                 : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
             )}
           >
@@ -1872,24 +1885,16 @@ export function FuelingPlanner({
     // the one thing inside this component that genuinely needs corner
     // clipping — the Paso 01 map — already has its own *local*
     // `overflow-hidden` wrapper div, independent of this outer Card.
+    // "Unificación de Negro Obsidiana" — the "Planificador de nutrición"
+    // `CardTitle` that used to open this card is gone outright, not just
+    // restyled: the Pre-ruta/Post-ruta tabs immediately above it already
+    // name the section, so the subtitle was pure vertical redundancy on
+    // mobile. `Card`'s own `py-(--card-spacing)` still supplies the correct
+    // top gap above Paso 01 with no header present — `flatMobileCardClass`
+    // zeroes that spacing on mobile (so the card starts flush, which is
+    // exactly the tightened footprint this removal is for) and restores a
+    // real `--spacing(5)` gap at `sm:` and up, same as it always did.
     <Card className={cn(flatMobileCardClass, "overflow-visible")}>
-      <CardHeader>
-        {/* `text-xl font-semibold text-zinc-900` overrides `CardTitle`'s own
-            shared default (`text-sm font-bold uppercase tracking-wide`) —
-            this one card's title is elevated to read like a page-level `<h1>`
-            now that it houses the numbered 01/02/03 step structure below,
-            matching `/perfil`'s own heavier title treatment. `mb-3` on
-            mobile specifically (down from an earlier `mb-6`, part of the
-            "Jerarquía de Espaciado Editorial" ultracompact pass) is still
-            needed since `flatMobileCardClass` zeroes `--card-spacing` there
-            and would otherwise leave the title flush against Paso 01 below
-            it — `sm:` and up keeps `mb-0`, relying on the real gap
-            `--card-spacing` itself already provides, so the margin cancels
-            there to avoid doubling up. */}
-        <CardTitle className="mb-3 text-xl font-semibold tracking-normal text-zinc-900 normal-case sm:mb-0">
-          Planificador de nutrición
-        </CardTitle>
-      </CardHeader>
       <CardContent className="flex flex-col gap-6">
         {/* PASO 01 · Selección y origen de ruta — the mode toggle plus
             whichever source-specific fields that mode needs (Strava route
@@ -1928,7 +1933,7 @@ export function FuelingPlanner({
                 className={cn(
                   segmentedButtonClass,
                   mode === "route" || mode === "gpx"
-                    ? "border-transparent bg-terracotta text-white"
+                    ? "border-transparent bg-[#18181B] text-white"
                     : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                 )}
               >
@@ -1940,7 +1945,7 @@ export function FuelingPlanner({
                 className={cn(
                   segmentedButtonClass,
                   mode === "quick"
-                    ? "border-transparent bg-terracotta text-white"
+                    ? "border-transparent bg-[#18181B] text-white"
                     : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                 )}
               >
@@ -2340,7 +2345,7 @@ export function FuelingPlanner({
                   className={cn(
                     segmentedButtonClass,
                     cafeteriaStopCount === opt.value
-                      ? "border-transparent bg-terracotta text-white"
+                      ? "border-transparent bg-[#18181B] text-white"
                       : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                   )}
                 >
@@ -2485,7 +2490,7 @@ export function FuelingPlanner({
             className={cn(
               "w-full py-3.5 text-sm",
               isProfileComplete
-                ? primaryButtonClass
+                ? obsidianCtaButtonClass
                 : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-sm bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
             )}
           >
