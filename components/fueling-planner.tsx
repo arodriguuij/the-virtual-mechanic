@@ -3,6 +3,7 @@
 import {
   CalendarDays,
   ChevronDown,
+  Coffee,
   Droplet,
   FlaskConical,
   Fuel,
@@ -535,12 +536,15 @@ const CAFETERIA_STOP_LOW_THRESHOLD_G = 40;
 const CAFETERIA_STOP_MID_THRESHOLD_G = 80;
 
 /** "Helper de Equivalencias" — a plain-language, ready-to-order suggestion
- * for whatever grams the café/gas-station stop currently needs to cover,
- * so the athlete knows what to actually ask for instead of doing carb math
- * at the counter. Purely illustrative reference doses (a "refresco"/"bollo"/
- * "snack" isn't a precise figure any more than this app's other catalog
- * items are), same "not a real nutrition database" convention as
- * `pocketFoodCarbsG`. */
+ * for whatever grams a single café/gas-station stop currently needs to
+ * cover, so the athlete knows what to actually ask for instead of doing
+ * carb math at the counter. Purely illustrative reference doses (a
+ * "refresco"/"bollo"/"snack" isn't a precise figure any more than this
+ * app's other catalog items are), same "not a real nutrition database"
+ * convention as `pocketFoodCarbsG`. Applied per-stop (each stop's own
+ * share of the deficit), not once against the total — a 2-stop split of an
+ * 80g deficit should read as two separate, smaller suggestions (48g/32g),
+ * not one combined 80g one. */
 function getCafeteriaStopSuggestion(carbsG: number): string {
   if (carbsG <= CAFETERIA_STOP_LOW_THRESHOLD_G) {
     return "1 Refresco / Coca-Cola (35g HC) o 1 Bollo/Plátano";
@@ -551,18 +555,107 @@ function getCafeteriaStopSuggestion(carbsG: number): string {
   return "1 Refresco (35g) + 1 Bollo (35g) + 1 Snack/Fruta (30g HC)";
 }
 
-/** Tarjeta 05's own checklist line for an active café/gasolinera stop —
- * `[]` (no line at all) whenever the stop is off or would contribute
- * nothing (bottles + pocket food already cover the full objetivo on their
- * own), matching every other checklist helper's "nothing selected, nothing
- * shown" convention above. */
-function getCafeteriaStopChecklistLines(
-  enabled: boolean,
-  carbsG: number,
-  locationLabel: string
-): string[] {
-  if (!enabled || carbsG <= 0) return [];
-  return [`☕ Cafetería / Gasolinera en el ${locationLabel} para tomar ~${carbsG}g HC (refresco/bollo/snack).`];
+/** How many optional café/gasolinera/fuente stops the athlete has planned
+ * — `0` (the zero-friction default: no manual stop planning at all), `1`,
+ * or `2`. The "Gestión Avanzada de Paradas" brief floats a theoretical 3rd
+ * tier as a future ceiling, but gives no split formula for it — only 1 and
+ * 2 stops have a concrete algorithm (`CAFETERIA_STOP_FRACTIONS` below), so
+ * this stays at the two concretely-specified options rather than inventing
+ * a 3-way split with no real basis behind it. */
+type CafeteriaStopCount = 0 | 1 | 2;
+
+// "Botones de Selección Rápida" — no sub-menus, one tap picks the whole
+// plan. "1 Parada" is marked "(Sugerido)" since a single well-placed stop
+// is the simplest plan that still fully resolves any deficit, regardless
+// of size — 2 stops is the *more* deliberate, opt-in choice for whoever
+// wants the load spread out.
+const CAFETERIA_STOP_COUNT_OPTIONS: { value: CafeteriaStopCount; label: string }[] = [
+  { value: 0, label: "Sin paradas" },
+  { value: 1, label: "1 Parada (Sugerido)" },
+  { value: 2, label: "2 Paradas" },
+];
+
+// Where each stop sits along the route/duration, as a fraction of the
+// total — literal from the "Ubicación recomendada" figures in the spec. A
+// single stop's own spec gives a range ("≈50-60%"), not one number; 0.55
+// (the range's midpoint) is the one deterministic value actually needed to
+// place a Km/hour marker.
+const CAFETERIA_STOP_FRACTIONS: Record<1 | 2, number[]> = {
+  1: [0.55],
+  2: [0.35, 0.7],
+};
+// With 2 stops, the first absorbs the larger share of the deficit — more
+// time left for plasmatic absorption before the ride's harder final
+// stretch, per the spec's own "Algoritmo de Reparto Dinámico" rationale.
+const CAFETERIA_STOP_FIRST_OF_TWO_FRACTION = 0.6;
+
+export type CafeteriaStopPlan = {
+  /** 1-based, for display ("Parada 1", "Parada 2"). */
+  index: number;
+  carbsG: number;
+  atKm: number | null;
+  atHours: number;
+  suggestion: string;
+};
+
+/** "Algoritmo de Reparto Dinámico" — splits the pending deficit
+ * (`deficitG`, i.e. D_base — whatever bottles + pocket food alone still
+ * leave uncovered) across however many stops the athlete has planned,
+ * weighted so an earlier stop absorbs more of the load, and positions each
+ * one along the route/duration. Returns `[]` for `count === 0` or a
+ * fully-covered deficit (nothing left to distribute) — same "nothing
+ * selected, nothing shown" convention as every other checklist/plan helper
+ * in this file. Every share is derived so the stops always sum back to
+ * exactly `deficitG` (the second/last share is `deficitG` minus every
+ * already-rounded share before it, the same pattern `getHomeLabRecipe`
+ * uses for its own malto/fructose split) — independent rounding of each
+ * share could otherwise silently drift off the real total. `atKm` is
+ * `null` (never a fabricated distance) whenever the ride has no real
+ * distance at all — Entreno Manual — in which case `atHours` alone
+ * locates the stop. */
+function getCafeteriaStopPlans({
+  count,
+  deficitG,
+  distanceKm,
+  durationHours,
+}: {
+  count: CafeteriaStopCount;
+  deficitG: number;
+  distanceKm: number | null;
+  durationHours: number;
+}): CafeteriaStopPlan[] {
+  if (count === 0 || deficitG <= 0) return [];
+  const fractions = CAFETERIA_STOP_FRACTIONS[count];
+  const shares: number[] = [];
+  if (count === 1) {
+    shares.push(deficitG);
+  } else {
+    const firstShare = Math.round(deficitG * CAFETERIA_STOP_FIRST_OF_TWO_FRACTION);
+    shares.push(firstShare, deficitG - firstShare);
+  }
+
+  return fractions.map((fraction, i) => ({
+    index: i + 1,
+    carbsG: shares[i],
+    atKm: distanceKm != null ? Math.round(distanceKm * fraction) : null,
+    atHours: Math.round(durationHours * fraction * 100) / 100,
+    suggestion: getCafeteriaStopSuggestion(shares[i]),
+  }));
+}
+
+function getCafeteriaStopLocationLabel(plan: CafeteriaStopPlan): string {
+  return plan.atKm != null ? `Km ${plan.atKm}` : `Hora ${plan.atHours}`;
+}
+
+/** Tarjeta 05's own "Plan de Paradas en Ruta" checklist lines — one per
+ * planned stop, `[]` entirely when none are planned (or the deficit is
+ * already fully covered without one), matching every other checklist
+ * helper's "nothing selected, nothing shown" convention above. */
+function getCafeteriaStopChecklistLines(plans: CafeteriaStopPlan[]): string[] {
+  return plans.map(
+    (plan) =>
+      `${getCafeteriaStopLocationLabel(plan)}: Parada ${plan.index} (Cafetería/Gasolinera) para tomar ~${plan.carbsG}g HC.`
+  );
 }
 
 type DepartureDayMode = "today" | "tomorrow" | "custom";
@@ -812,15 +905,16 @@ export function FuelingPlanner({
   // most conservative assumption, and is what the reset effect below
   // returns it to on every Paso 01/02 change (see `DEFAULT_BOTTLE_CONFIG`).
   const [bottleConfig, setBottleConfig] = useState<BottleConfigOption>(DEFAULT_BOTTLE_CONFIG);
-  // "Parada en cafetería / Gasolinera" — a third, opportunistic coverage
-  // source alongside bottles and pocket food. A plain boolean is
-  // deliberately the *only* state this needs: how many grams it actually
-  // contributes is never stored, always re-derived fresh from whatever
-  // deficit bottles+pocket food still leave (see `cafeteriaStopCarbsG`
-  // below) — that's what makes it reactive to a later pocket-food/bottle
-  // edit with zero extra wiring. Resets to `false` on every Paso 01/02
-  // change, same as `bottleConfig` (see the reset effect below).
-  const [cafeteriaStopEnabled, setCafeteriaStopEnabled] = useState(false);
+  // "Planificación de Paradas en Ruta" — a third, opportunistic coverage
+  // source alongside bottles and pocket food: 0 (zero-friction default), 1,
+  // or 2 café/gasolinera/fuente stops. A plain count is deliberately the
+  // *only* state this needs: how many grams each stop actually contributes
+  // is never stored, always re-derived fresh from whatever deficit
+  // bottles+pocket food still leave (see `cafeteriaStopPlans` below) —
+  // that's what makes every stop reactive to a later pocket-food/bottle
+  // edit with zero extra wiring. Resets to `0` on every Paso 01/02 change,
+  // same as `bottleConfig` (see the reset effect below).
+  const [cafeteriaStopCount, setCafeteriaStopCount] = useState<CafeteriaStopCount>(0);
   const [result, setResult] = useState<PlanResult | null>(null);
   // Tracks whether the athlete has *ever* successfully calculated a
   // strategy in this session — drives the CTA's label ("Calcular..." the
@@ -920,46 +1014,49 @@ export function FuelingPlanner({
   // did, with zero network round-trip either way.
   const bottleCarbsContributionG = result ? getBottleCarbsContributionG(bottleConfig, result) : 0;
   const bottlesAndPocketCoveredCarbsG = pocketFoodCarbsPreview + bottleCarbsContributionG;
-  // D_base — "Parada en Cafetería / Gasolinera"'s whole reason to exist:
+  // D_base — the whole reason "Planificación de Paradas en Ruta" exists:
   // the deficit still pending from bottles + pocket food *alone*, before
   // any café/gas-station stop is factored in. Deliberately re-derived on
   // every render (not stored anywhere) so it's always the *current* gap —
-  // this is what makes the stop's own contribution below reactive to a
-  // later pocket-food/bottle edit with no extra event wiring at all: the
-  // stop doesn't remember "37g," it always recomputes "whatever's still
-  // missing right now."
+  // this is what makes every planned stop's own contribution below
+  // reactive to a later pocket-food/bottle edit with no extra event wiring
+  // at all: the stops don't remember "80g between the two of them," they
+  // always recompute "whatever's still missing right now" and re-split it.
   const cafeteriaStopDeficitG = result
     ? Math.max(0, result.totalRideCarbsG - bottlesAndPocketCoveredCarbsG)
     : 0;
-  // Enabling the stop credits exactly enough to close that gap — never a
-  // fixed manual figure — so CUBIERTO always reaches the full OBJETIVO
-  // (RESTANTE always reads 0g) the instant it's switched on, and tracks
-  // `cafeteriaStopDeficitG` down again automatically if the athlete then
-  // adds more pocket food underneath it.
-  const cafeteriaStopCarbsG = cafeteriaStopEnabled ? cafeteriaStopDeficitG : 0;
-  const coveredCarbsG = bottlesAndPocketCoveredCarbsG + cafeteriaStopCarbsG;
-  const remainingCarbsG = result ? Math.max(0, result.totalRideCarbsG - coveredCarbsG) : 0;
-  // Which bottle-config buttons Card 04 actually renders — see
-  // `getBottleConfigOptions` above for why a 1-cage athlete never sees
-  // "Ambos Mix" at all.
-  const bottleConfigOptions = result ? getBottleConfigOptions(result.athleteBottleCount) : TWO_CAGE_BOTTLE_CONFIG_OPTIONS;
-  // "≈50% de la ruta" — the estimated point along the ride where the
-  // athlete would realistically hit a café/gas station, used by both the
-  // Card 04 helper text and Card 05's checklist line below. Falls back to
-  // an elapsed-time marker (same "Km, else Hora" convention as
-  // `getReloadStrategy`'s own `reloadAtKm`/`reloadAtHours`) whenever no real
-  // distance is known — Entreno Manual has no route geometry at all.
+  // "≈50% de la ruta" (1 stop) / "≈35% y ≈70%" (2 stops) — the estimated
+  // point(s) along the ride where the athlete would realistically hit a
+  // café/gas station, real distance when the route/GPX has one, else an
+  // elapsed-time marker (same "Km, else Hora" convention as
+  // `getReloadStrategy`'s own `reloadAtKm`/`reloadAtHours`) — Entreno
+  // Manual has no route geometry at all.
   const cafeteriaStopDistanceKm =
     mode === "route"
       ? (selectedRoute?.distanceKm ?? null)
       : mode === "gpx"
         ? (parsedGpx?.distanceKm ?? null)
         : null;
-  const cafeteriaStopLocationLabel = result
-    ? cafeteriaStopDistanceKm != null
-      ? `Km ${Math.round(cafeteriaStopDistanceKm * 0.5)}`
-      : `Hora ${Math.round(result.durationHours * 0.5 * 100) / 100}`
-    : "";
+  const cafeteriaStopPlans = result
+    ? getCafeteriaStopPlans({
+        count: cafeteriaStopCount,
+        deficitG: cafeteriaStopDeficitG,
+        distanceKm: cafeteriaStopDistanceKm,
+        durationHours: result.durationHours,
+      })
+    : [];
+  // Planning any stops at all credits exactly enough, split across them,
+  // to close the full D_base gap — never a fixed manual figure — so
+  // CUBIERTO always reaches the full OBJETIVO (RESTANTE always reads 0g)
+  // the instant a stop count is picked, and the split re-adjusts
+  // automatically if the athlete then adds more pocket food underneath it.
+  const cafeteriaStopCarbsG = cafeteriaStopPlans.reduce((sum, plan) => sum + plan.carbsG, 0);
+  const coveredCarbsG = bottlesAndPocketCoveredCarbsG + cafeteriaStopCarbsG;
+  const remainingCarbsG = result ? Math.max(0, result.totalRideCarbsG - coveredCarbsG) : 0;
+  // Which bottle-config buttons Card 04 actually renders — see
+  // `getBottleConfigOptions` above for why a 1-cage athlete never sees
+  // "Ambos Mix" at all.
+  const bottleConfigOptions = result ? getBottleConfigOptions(result.athleteBottleCount) : TWO_CAGE_BOTTLE_CONFIG_OPTIONS;
 
   // Tarjeta 05's "Checklist de preparación para llevar" — same source data
   // as the balance pill above, read fresh on every render so the on-screen
@@ -967,11 +1064,35 @@ export function FuelingPlanner({
   const bikeChecklistLines = result ? getBikeChecklistLines(result, bottleConfig) : [];
   const pocketChecklistLines = getPocketChecklistLines(pocketFood, customCarbsG);
   const waterPlanChecklistLines = result ? getWaterPlanLines(result) : [];
-  const cafeteriaChecklistLines = getCafeteriaStopChecklistLines(
-    cafeteriaStopEnabled,
-    cafeteriaStopCarbsG,
-    cafeteriaStopLocationLabel
-  );
+  const cafeteriaChecklistLines = getCafeteriaStopChecklistLines(cafeteriaStopPlans);
+
+  // Card 05's "Cronograma Dinámico de Ingesta" merges the server-computed
+  // solid/gel/caffeine milestones (`result.timingTimeline.entries`, driven
+  // by pocket food alone) with the client-only café/gasolinera stops above
+  // — the server has no idea these stops exist at all, since they're a
+  // purely client-side planning preference, same "lightweight preference,
+  // no server round-trip" convention as the bottle-config selector. Both
+  // sources are re-sorted together by `atMinutes` so a stop takes its real
+  // chronological place in the sequence instead of always trailing at the
+  // end.
+  const mergedTimelineEntries = result
+    ? [
+        ...result.timingTimeline.entries.map((entry, i) => ({
+          key: `srv-${i}`,
+          atMinutes: entry.atMinutes,
+          atKm: entry.atKm,
+          icon: entry.type,
+          label: stripEmoji(entry.label),
+        })),
+        ...cafeteriaStopPlans.map((plan) => ({
+          key: `stop-${plan.index}`,
+          atMinutes: Math.round(plan.atHours * 60),
+          atKm: plan.atKm,
+          icon: "cafeteria" as const,
+          label: `Parada ${plan.index} · Cafetería / Gasolinera. Tomar ~${plan.carbsG}g HC (${plan.suggestion}).`,
+        })),
+      ].sort((a, b) => a.atMinutes - b.atMinutes)
+    : [];
 
   // The "Incluye cafeína" checkbox only makes sense once at least one gel
   // dose is actually selected — hidden otherwise, and its own checked state
@@ -1045,7 +1166,7 @@ export function FuelingPlanner({
   // the moment its own conditions are met again, so this just needs to
   // clear `result` for the result panel to disappear along with it. The
   // same trigger also resets Card 04's own downstream state (bottle
-  // config back to "Solo Agua," the cafetería/gasolinera stop back off,
+  // config back to "Solo Agua," planned café/gasolinera stops back to 0,
   // every pocket-food quantity back to 0) —
   // those figures were computed against the *old* target and would
   // otherwise silently carry over into a strategy they were never
@@ -1062,7 +1183,7 @@ export function FuelingPlanner({
     }
     setResult(null);
     setBottleConfig(DEFAULT_BOTTLE_CONFIG);
-    setCafeteriaStopEnabled(false);
+    setCafeteriaStopCount(0);
     setPocketFood({});
     setCustomCarbsG(0);
   }, [
@@ -1896,51 +2017,6 @@ export function FuelingPlanner({
               )}
             </div>
 
-            {/* Banner Recomendador Dinámico — only while a real carb gap
-                remains uncovered (`remainingCarbsG` already accounts for
-                the café/gasolinera stop below, so this collapses to
-                nothing the instant that stop — or enough extra pocket
-                food — actually closes the gap; no separate
-                `!cafeteriaStopEnabled` check needed). Deliberately no
-                upper-gram ceiling — a 110g deficit gets the exact same
-                banner as a 20g one, just a bigger number inside it. An
-                ultra-compact `<details>` disclosure (closed by default, one
-                line to scan) rather than an always-expanded block, matching
-                every other secondary-info accordion on this card. */}
-            {remainingCarbsG > 15 && (
-              <details className="group rounded-sm border border-status-warning/40 bg-status-warning/10">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-3 [&::-webkit-details-marker]:hidden">
-                  <span className="text-xs font-semibold text-status-warning">
-                    💡 Te quedan {remainingCarbsG}g HC por cubrir para evitar la pájara
-                  </span>
-                  <ChevronDown className="size-4 shrink-0 text-status-warning transition-transform duration-150 group-open:rotate-180" />
-                </summary>
-                <div className="border-t border-status-warning/30 p-3 pt-2 text-sm text-neutral-700">
-                  <p className="mb-2">
-                    Para completar tu objetivo de la ruta, te recomendamos una de estas 3 opciones en
-                    la Tarjeta 04:
-                  </p>
-                  <ol className="flex flex-col gap-2">
-                    <li>
-                      <span className="font-semibold text-neutral-900">
-                        ☕ 1. Parada en cafetería / gasolinera en ruta:
-                      </span>{" "}
-                      cubre tus {remainingCarbsG}g HC pendientes con un refresco, bollo, tostada,
-                      fruta o snack en ruta.
-                    </li>
-                    <li>
-                      <span className="font-semibold text-neutral-900">🎒 2. Dosis Ziploc en maillot:</span>{" "}
-                      lleva 1 bolsita con mezcla casera para recargar el bidón en fuente.
-                    </li>
-                    <li>
-                      <span className="font-semibold text-neutral-900">🍫 3. Añade más alimentos</span> de
-                      tu comida de bolsillo.
-                    </li>
-                  </ol>
-                </div>
-              </details>
-            )}
-
             {/* 🎴 Tarjeta 2 · 04 · Simulador y configuración de
                 avituallamiento — the bottle-role preference plus the
                 pocket-food inventory, rendered flat (no `<details>`
@@ -2081,43 +2157,60 @@ export function FuelingPlanner({
                 )}
               </div>
 
-              {/* Parada en Cafetería / Gasolinera — a third, opportunistic
+              {/* Planificación de Paradas en Ruta — a third, opportunistic
                   coverage source alongside bottles and pocket food above.
-                  A plain on/off toggle: the grams it contributes are never
-                  typed in by the athlete, always `cafeteriaStopDeficitG` —
-                  whatever bottles + pocket food still leave uncovered right
-                  now — so flipping it on always closes the *exact* current
-                  gap, and the label's own "(Xg HC)" figure re-adjusts
-                  live if a pocket-food stepper or the bottle selector above
-                  changes afterward, with zero extra event wiring (it's
-                  simply re-derived on every render, see
-                  `cafeteriaStopDeficitG` above). */}
-              <div className="mt-4 rounded-lg bg-[#F8F7F5] p-3">
-                <label className="flex cursor-pointer items-start justify-between gap-3">
-                  <span className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium text-neutral-900">
-                      Parada en cafetería / Gasolinera
-                      {cafeteriaStopEnabled && cafeteriaStopCarbsG > 0 && (
-                        <span className="ml-1 font-mono text-sm font-semibold text-status-good">
-                          ({cafeteriaStopCarbsG}g HC)
-                        </span>
+                  Zero-friction by default ("Sin paradas," 0 taps needed):
+                  picking 1 or 2 stops is the athlete's own opt-in choice,
+                  never something this UI pre-selects on their behalf. The
+                  grams each stop shows are never typed in — always
+                  `cafeteriaStopDeficitG` split across however many stops
+                  are picked (see `getCafeteriaStopPlans` above) — so
+                  switching from 1 to 2 stops (or editing pocket food/bottle
+                  config afterward) instantly re-derives every stop's own
+                  figure with zero extra event wiring. */}
+              <div className="mt-4">
+                <span className="mb-2 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+                  Planificación de paradas en ruta
+                </span>
+                <div className="grid grid-cols-3 gap-2 *:min-w-0">
+                  {CAFETERIA_STOP_COUNT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setCafeteriaStopCount(opt.value)}
+                      className={cn(
+                        segmentedButtonClass,
+                        cafeteriaStopCount === opt.value
+                          ? "border-transparent bg-terracotta text-white"
+                          : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                       )}
-                    </span>
-                    <span className="text-xs text-neutral-500">
-                      {cafeteriaStopEnabled
-                        ? cafeteriaStopCarbsG > 0
-                          ? `Sugerencia: ${getCafeteriaStopSuggestion(cafeteriaStopCarbsG)}`
-                          : "Tu objetivo ya está cubierto — no hace falta nada extra."
-                        : "Cubre automáticamente el déficit pendiente en un solo clic."}
-                    </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={cafeteriaStopEnabled}
-                    onChange={(e) => setCafeteriaStopEnabled(e.target.checked)}
-                    className="mt-0.5 size-4 shrink-0 cursor-pointer accent-terracotta"
-                  />
-                </label>
+                    >
+                      <span className={segmentedButtonLabelClass}>{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {cafeteriaStopPlans.length > 0 && (
+                  <div className="mt-2 flex flex-col divide-y divide-zinc-200 rounded-lg bg-[#F8F7F5] p-3">
+                    {cafeteriaStopPlans.map((plan) => (
+                      <div
+                        key={plan.index}
+                        className={cn("flex flex-col gap-0.5", plan.index > 1 && "pt-2.5")}
+                      >
+                        <span className="text-sm font-medium text-neutral-900">
+                          ☕ Parada {plan.index} ({getCafeteriaStopLocationLabel(plan)} · Cafetería/
+                          Gasolinera): ~{plan.carbsG}g HC
+                        </span>
+                        <span className="pl-4 text-xs text-neutral-500">└─ {plan.suggestion}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {cafeteriaStopCount > 0 && cafeteriaStopPlans.length === 0 && (
+                  <p className="mt-2 text-xs text-neutral-500">
+                    Tu objetivo ya está cubierto — no hace falta ninguna parada extra.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -2159,21 +2252,24 @@ export function FuelingPlanner({
                     {result.timingTimeline.hydrationIntervalMinutes} min
                   </span>
                 </p>
-                {result.timingTimeline.entries.length > 0 && (
+                {mergedTimelineEntries.length > 0 && (
                   <ol className="mt-2 flex flex-col gap-1.5 text-sm text-neutral-700">
-                    {result.timingTimeline.entries.map((entry, i) => (
-                      <li key={i} className="flex items-center gap-1.5">
-                        {entry.type === "solid" && (
+                    {mergedTimelineEntries.map((entry) => (
+                      <li key={entry.key} className="flex items-center gap-1.5">
+                        {entry.icon === "solid" && (
                           <Utensils className="size-3.5 shrink-0 text-neutral-500" />
                         )}
-                        {entry.type === "gel" && <Zap className="size-3.5 shrink-0 text-neutral-500" />}
-                        {entry.type === "caffeine" && (
+                        {entry.icon === "gel" && <Zap className="size-3.5 shrink-0 text-neutral-500" />}
+                        {entry.icon === "caffeine" && (
                           <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
+                        )}
+                        {entry.icon === "cafeteria" && (
+                          <Coffee className="size-3.5 shrink-0 text-neutral-500" />
                         )}
                         <span className="font-mono text-xs text-neutral-500">
                           {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
                         </span>
-                        {stripEmoji(entry.label)}
+                        {entry.label}
                       </li>
                     ))}
                   </ol>
@@ -2336,21 +2432,45 @@ export function FuelingPlanner({
                 </details>
               )}
 
+              {/* "Alerta de Déficit Pendiente de Cubrir" — its own
+                  standalone box, sitting *above* the checklist rather than
+                  nested inside it (a previous pass had it as a small
+                  trailing line inside the checklist's own porcelain box;
+                  moved out and given real visual weight since a live
+                  déficit is a genuine "don't roll out yet" concern, not a
+                  footnote). Purely reactive: once the athlete closes the
+                  gap from Card 04 (a café/gasolinera stop, or enough extra
+                  pocket food), `remainingCarbsG` collapses to 0 and this
+                  disappears entirely — no separate "is a stop planned"
+                  check needed. */}
+              {remainingCarbsG > 15 && (
+                <div className="flex items-start gap-2 rounded-sm border border-status-warning/40 bg-status-warning/10 p-3">
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" />
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-semibold tracking-wide text-status-warning uppercase">
+                      Alerta de déficit pendiente de cubrir
+                    </span>
+                    <p className="text-sm text-neutral-700">
+                      Te faltan <span className="font-semibold text-status-warning">{remainingCarbsG}g HC</span>{" "}
+                      para alcanzar tu objetivo de la ruta. Te recomendamos activar la &quot;Parada en
+                      cafetería / gasolinera&quot; o añadir más comida al bolsillo en la Tarjeta 04 para
+                      evitar la pájara.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Checklist de Preparación para Llevar — the "what to
                   physically grab" summary, driven by the same bottle
                   config + pocket-food state as the balance pill above, so
                   it's never out of sync with what CUBIERTO/RESTANTE is
                   currently showing. Split into labeled sub-sections (En
-                  bici / En bolsillo / Parada en ruta / Plan de agua en
-                  ruta) rather than one flat list, so a fountain-refill note
-                  never reads as a physical bottle to carry from home — see
-                  `getBikeChecklistLines`/`getWaterPlanLines`/
-                  `getCafeteriaStopChecklistLines` above. The déficit
-                  warning below is deliberately a separate, unconditional
-                  block rather than nested inside this "anything selected at
-                  all" branch — it must still appear even when every
-                  sub-section above is empty (an athlete who's picked
-                  nothing yet has the single largest deficit of all). */}
+                  bici / En bolsillo / Plan de Paradas en Ruta / Plan de
+                  agua en ruta) rather than one flat list, so a
+                  fountain-refill note never reads as a physical bottle to
+                  carry from home — see `getBikeChecklistLines`/
+                  `getWaterPlanLines`/`getCafeteriaStopChecklistLines`
+                  above. */}
               <div className="rounded-sm bg-[#F8F7F5] p-3">
                 <span className={eyebrow}>Checklist de preparación para llevar</span>
                 {bikeChecklistLines.length === 0 &&
@@ -2388,7 +2508,9 @@ export function FuelingPlanner({
                     )}
                     {cafeteriaChecklistLines.length > 0 && (
                       <div className="flex flex-col gap-1">
-                        <span className="text-xs font-semibold text-neutral-600">Parada en ruta:</span>
+                        <span className="text-xs font-semibold text-neutral-600">
+                          Plan de paradas en ruta:
+                        </span>
                         <ul className="flex flex-col gap-1">
                           {cafeteriaChecklistLines.map((line) => (
                             <li key={line}>• {line}</li>
@@ -2410,22 +2532,6 @@ export function FuelingPlanner({
                       </div>
                     )}
                   </div>
-                )}
-                {/* "Alerta de Déficit" — the checklist's own explicit,
-                    always-visible warning whenever the athlete hasn't
-                    activated the café/gasolinera stop (or added enough
-                    pocket food) to actually close the gap. Once either one
-                    does, `remainingCarbsG` collapses to 0 and this
-                    disappears with it — no separate "is the stop enabled"
-                    check needed, same reactive-by-construction pattern as
-                    the recommendation banner above Card 04. */}
-                {remainingCarbsG > 15 && (
-                  <p className="mt-2 flex items-start gap-1.5 border-t border-status-warning/30 pt-2 text-xs font-semibold text-status-warning">
-                    <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
-                    Alerta de déficit: Te faltan {remainingCarbsG}g HC por cubrir. Activa la parada en
-                    cafetería o añade más comida al bolsillo para evitar la pájara en los últimos
-                    kilómetros.
-                  </p>
                 )}
               </div>
             </div>
