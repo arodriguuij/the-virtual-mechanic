@@ -473,11 +473,18 @@ function getBottleCarbsContributionG(config: BottleConfigOption, result: PlanRes
  * same `bottleConfig` preference the balance pill reacts to) and "En
  * bolsillo" (whatever pocket-food quantities are currently selected).
  *
- * Deliberately names only the *container and its contents* ("Bidón de
- * 750ml (con Mezcla Casera)"), never the exact malto/fructosa/sal grams —
- * those already appear once, in full, in the "Dosis ejecutiva para mezcla
- * casera" box directly above this one; repeating the same grams here would
- * just be the same fact printed twice on the same card.
+ * The mix bottle's own line now spells out its exact scaled recipe
+ * ("Bidón de 550ml (24g Malto + 20g Fructosa + 1.0g Sal)") — "Receta Base
+ * Dual" asked for the checklist itself to carry the real grams rather than
+ * pointing back at the "Dosis ejecutiva" box above for them, so an athlete
+ * mixing straight from this list doesn't need to scroll up to find the
+ * numbers. `fuelBottles.maltodextrinGPerBottle`/`fructoseGPerBottle` are
+ * always the fixed `getBaseBottleRecipe` dose for the athlete's real bottle
+ * size (see `lib/metabolic-engine.ts`); the salt figure is still the real
+ * per-bottle sodium split (`fuelBottles.sodiumMgPerBottle`, driven by the
+ * athlete's own sweat rate/salty-sweater flag), not a fixed table value —
+ * sodium loss is genuinely athlete-specific in a way the carb dose
+ * intentionally isn't.
  *
  * The bottle count listed here is capped at what actually fits in the
  * athlete's real cages (`reloadStrategy.startingBottleCount` whenever the
@@ -500,7 +507,11 @@ function getBikeChecklistLines(result: PlanResult, bottleConfig: BottleConfigOpt
     // (`result.athleteBottleCount`, 1 or 2), not a hardcoded 2 — capped at
     // `maxOnBike` so this can never exceed what's actually mounted.
     mixBottleCount = Math.min(bottleConfig === "one_mix" ? 1 : result.athleteBottleCount, maxOnBike);
-    lines.push(`${mixBottleCount}x Bidón de ${bottleSizeMl}ml (con Mezcla Casera)`);
+    lines.push(
+      `${mixBottleCount}x Bidón de ${bottleSizeMl}ml (${fuelBottles.maltodextrinGPerBottle}g Malto + ${
+        fuelBottles.fructoseGPerBottle
+      }g Fructosa + ${getTableSaltGrams(fuelBottles.sodiumMgPerBottle)}g Sal)`
+    );
   }
 
   const waterBottlesOnBike = Math.min(waterBottles.count, Math.max(0, maxOnBike - mixBottleCount));
@@ -2453,12 +2464,16 @@ export function FuelingPlanner({
 
               {/* Dosis Ejecutiva para Mezcla Casera — the concise per-bottle
                   number the athlete actually mixes at the kitchen counter,
-                  sized to their real bottle capacity, plus a collapsible
-                  scoop-equivalence breakdown for anyone without a scale.
-                  This is the one place in the card where the exact
-                  malto/fructosa/sal grams are spelled out — the checklist
-                  below deliberately doesn't repeat them, see
-                  `getBikeChecklistLines`'s own doc comment. */}
+                  sized to their real bottle capacity ("Receta Base Dual" —
+                  44g HC/550ml, 24g Malto + 20g Fructosa, scaled linearly to
+                  whatever `bottleSizeMl` actually is via
+                  `getBaseBottleRecipe`), plus a collapsible scoop-
+                  equivalence breakdown for anyone without a scale. The
+                  checklist below (`getBikeChecklistLines`) now repeats
+                  these same grams inline on its own "En bici" line too —
+                  no longer avoided as duplication, since "Receta Base
+                  Dual" asked for the checklist itself to be immediately
+                  actionable without scrolling back up to this box. */}
               <div className="rounded-sm bg-[#F8F7F5] p-3">
                 <span className={eyebrow}>
                   Dosis ejecutiva para mezcla casera (por bidón {result.bottlePlan.bottleSizeMl}ml)

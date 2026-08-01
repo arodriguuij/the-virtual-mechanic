@@ -1215,11 +1215,11 @@ export type BottlePlan = {
 
 /** Widely-cited threshold above which a sports-drink concentration is
  * considered hypertonic enough to slow gastric emptying and risk GI
- * distress — independent of (and looser than) `MAX_BOTTLE_CARB_CONCENTRATION`
- * above, which already keeps every generated recipe well under this in
- * practice; this constant exists so the UI can surface the *actual* number
- * and warn explicitly rather than relying on that cap being invisible and
- * assumed. */
+ * distress — independent of (and looser than) `getBaseBottleRecipe`'s own
+ * fixed 8% concentration below, which already keeps every generated recipe
+ * well under this in practice; this constant exists so the UI can surface
+ * the *actual* number and warn explicitly rather than relying on that being
+ * invisible and assumed. */
 export const HYPERTONIC_THRESHOLD_PCT = 12;
 
 // Fallback bottle size when the athlete hasn't configured their real
@@ -1227,71 +1227,85 @@ export const HYPERTONIC_THRESHOLD_PCT = 12;
 // column default, kept as a literal here so this file has no dependency on
 // the DB schema.
 const DEFAULT_BOTTLE_SIZE_ML = 750;
-// 8.5% carb concentration — the midpoint of the 8-9% range real isotonic
-// dual-transporter (maltodextrin + fructose) mixes safely support, per the
-// dual-transport osmolarity research this recipe is already built on (see
-// `getMaltodextrinFraction` above): combining SGLT1 (glucose/maltodextrin)
-// and GLUT5 (fructose) transporters raises the practical concentration
-// ceiling versus a single-transporter (glucose-only) mix, which is what the
-// previous, more conservative flat 8% cap was really sized for. Still keeps
-// a comfortable margin below the ~10-12% threshold widely cited for
-// hypertonic-solution gastric distress/delayed emptying — a safety-first
-// cap, not the maximum theoretically tolerable.
-const MAX_BOTTLE_CARB_CONCENTRATION = 0.085;
-// Independent of gut comfort, plain maltodextrin/fructose powder simply
-// stops fully dissolving in cold water above roughly this concentration —
-// a hard physical ceiling, not a preference. Always less restrictive than
-// the GI-comfort cap above at every supported bottle size, but enforced as
-// its own explicit check anyway: a future change to the GI cap alone
-// shouldn't be able to silently produce an undissolvable bottle.
-const MAX_SOLUBILITY_G_PER_L = 140;
+
+// "Receta Base Dual" — the one reference DIY mix concentration this app
+// recommends for a single fuel bottle: 44g HC per 550ml (24g maltodextrin +
+// 20g fructose, a fixed 1.2:1 ratio), an 8% carbohydrate concentration
+// (44/550 = 0.08 g HC/ml) comfortably under the ~10-12% threshold widely
+// cited for hypertonic-solution GI distress (`HYPERTONIC_THRESHOLD_PCT`
+// above) and well under the point where maltodextrin/fructose powder stops
+// fully dissolving in cold water. Deliberately a *fixed* ratio, not the
+// ride's own intensity-tiered `getMaltodextrinFraction` split — this is
+// what one physically pre-measured bottle/Ziploc dose always contains once
+// mixed, independent of how hard the ride is; the ride's own carb rate only
+// ever decides *how many* of these standard doses are needed, never what's
+// in each one.
+const BASE_BOTTLE_ML = 550;
+const BASE_BOTTLE_MALTODEXTRIN_G = 24;
+const BASE_BOTTLE_FRUCTOSE_G = 20;
+
+export type BaseBottleRecipe = {
+  maltodextrinG: number;
+  fructoseG: number;
+  totalCarbsG: number;
+};
+
+/** Scales the base 44g/550ml dual recipe linearly to any real bottle
+ * capacity — `athlete_profiles.bottle_capacity_ml` (500/600/750/950ml) or a
+ * one-off custom volume. Each component is rounded independently (matching
+ * the reference table this was specified against exactly: 750ml → 33g
+ * malto + 27g fructose = 60g HC, not a rounding of 60g split 1.2:1
+ * afterward), so `totalCarbsG` is always `maltodextrinG + fructoseG`, never
+ * a separately-rounded third figure that could drift from the other two by
+ * a gram. */
+export function getBaseBottleRecipe(bottleSizeMl: number): BaseBottleRecipe {
+  const scale = bottleSizeMl / BASE_BOTTLE_ML;
+  const maltodextrinG = Math.round(BASE_BOTTLE_MALTODEXTRIN_G * scale);
+  const fructoseG = Math.round(BASE_BOTTLE_FRUCTOSE_G * scale);
+  return { maltodextrinG, fructoseG, totalCarbsG: maltodextrinG + fructoseG };
+}
 
 /**
  * "Arquitectura de Bidones" — splits the recipe's total carbs across as
- * many concentrated "fuel" bottles as needed to keep each one at or below
- * both `MAX_BOTTLE_CARB_CONCENTRATION` and the physical `MAX_SOLUBILITY_G_PER_L`
- * dissolution ceiling (whichever is stricter), then covers any remaining
- * fluid target with plain water/electrolyte bottles. On a long ride this
- * often implies refilling the same one or two bottles multiple times from a
- * support car/musette rather than literally carrying every bottle at once.
- * `bottleSizeMl` is the athlete's own real bottle capacity (500/600/750/950ml
- * — configured on their profile), not a fixed assumption. Whenever this
- * pushes `totalBottles` above the athlete's real bottle-cage count,
- * `getReloadStrategy` below automatically forces the Ziploc reload plan —
- * so a recipe that wouldn't fully dissolve in what's actually on the bike
- * never gets recommended at full concentration.
+ * many standard "fuel" bottles as needed, each one always dosed at the
+ * *fixed* `getBaseBottleRecipe` concentration for the athlete's real
+ * bottle size (never a proportional share of the ride's own total — see
+ * that function's own doc comment), then covers any remaining fluid target
+ * with plain water/electrolyte bottles. On a long ride this often implies
+ * refilling the same one or two bottles multiple times from a support car/
+ * musette rather than literally carrying every bottle at once.
+ * `bottleSizeMl` is the athlete's own real bottle capacity (500/600/750/
+ * 950ml — configured on their profile), not a fixed assumption. Whenever
+ * this pushes `totalBottles` above the athlete's real bottle-cage count,
+ * `getReloadStrategy` below automatically forces the Ziploc reload plan.
+ * Sodium is the one figure still derived from the *ride's own* target
+ * (`recipe.sodiumMg`, itself driven by the athlete's real sweat rate/
+ * salty-sweater flag — see `getSodiumLossMgPerHour`) divided evenly across
+ * however many bottles this now computes, rather than a fixed per-bottle
+ * salt figure — sodium loss is genuinely athlete- and duration-specific in
+ * a way the carb dose intentionally isn't.
  */
 export function getBottlePlan(
   recipe: HomeLabRecipe,
   bottleSizeMl: number = DEFAULT_BOTTLE_SIZE_ML
 ): BottlePlan {
-  const giComfortCapG = bottleSizeMl * MAX_BOTTLE_CARB_CONCENTRATION;
-  const solubilityCapG = (bottleSizeMl / 1000) * MAX_SOLUBILITY_G_PER_L;
-  const maxCarbsPerBottle = Math.min(giComfortCapG, solubilityCapG);
+  const baseRecipe = getBaseBottleRecipe(bottleSizeMl);
   // Zero only when pocket food already covers the whole carb target — no
   // fuel bottle needed at all in that case, just plain water/electrolytes.
   const fuelBottleCount =
-    recipe.totalCarbsG > 0 ? Math.max(1, Math.ceil(recipe.totalCarbsG / maxCarbsPerBottle)) : 0;
+    recipe.totalCarbsG > 0 ? Math.max(1, Math.ceil(recipe.totalCarbsG / baseRecipe.totalCarbsG)) : 0;
   const totalBottles = Math.max(fuelBottleCount, Math.ceil(recipe.waterMl / bottleSizeMl));
   const waterBottleCount = Math.max(0, totalBottles - fuelBottleCount);
-  const maltodextrinGPerBottle =
-    fuelBottleCount > 0 ? Math.round(recipe.maltodextrinG / fuelBottleCount) : 0;
-  const fructoseGPerBottle =
-    fuelBottleCount > 0 ? Math.round(recipe.fructoseG / fuelBottleCount) : 0;
 
   return {
     bottleSizeMl,
     fuelBottles: {
       count: fuelBottleCount,
-      maltodextrinGPerBottle,
-      fructoseGPerBottle,
+      maltodextrinGPerBottle: fuelBottleCount > 0 ? baseRecipe.maltodextrinG : 0,
+      fructoseGPerBottle: fuelBottleCount > 0 ? baseRecipe.fructoseG : 0,
       sodiumMgPerBottle: fuelBottleCount > 0 ? Math.round(recipe.sodiumMg / fuelBottleCount) : 0,
       concentrationPct:
-        fuelBottleCount > 0
-          ? Math.round(
-              ((maltodextrinGPerBottle + fructoseGPerBottle) / bottleSizeMl) * 100 * 10
-            ) / 10
-          : 0,
+        fuelBottleCount > 0 ? Math.round((baseRecipe.totalCarbsG / bottleSizeMl) * 100 * 10) / 10 : 0,
     },
     waterBottles: {
       count: waterBottleCount,
