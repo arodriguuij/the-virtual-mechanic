@@ -47,10 +47,23 @@ export function FuelingContextTooltips({ carbsGPerHour }: { carbsGPerHour: numbe
       >
         <HelpCircle className="size-3.5" />
       </button>
+      {/* "Corrección de Tooltip Cortado" — this trigger sits inside Card
+          03's *right*-hand Carbohidratos tile, so a centered popover
+          (`left-1/2 -translate-x-1/2`, the pattern `InfoTooltip` still
+          uses) extends past the right edge of a narrow phone screen before
+          it ever gets clipped/repositioned — there's no real Popover
+          primitive here with its own collision detection (see this app's
+          own "no Tooltip primitive exists in `components/ui`" convention),
+          so the fix is a purely CSS one: anchor the panel's own *right*
+          edge to the trigger (`right-0`) instead of centering it, so it
+          only ever grows leftward, and narrow it from `max-w-xs` (320px) to
+          `max-w-65` (260px) so that leftward growth stays comfortably
+          inside a 375-390px viewport even when the trigger itself sits
+          fairly far right. */}
       <span
         role="tooltip"
         className={cn(
-          "pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 max-w-xs -translate-x-1/2 rounded-xl border border-zinc-200 bg-white p-4 font-mono text-xs text-zinc-800 shadow-xl transition-opacity duration-150",
+          "pointer-events-none absolute right-0 bottom-full z-50 mb-2 max-w-65 rounded-xl border border-zinc-200 bg-white p-4 font-mono text-xs text-zinc-800 shadow-xl transition-opacity duration-150",
           open ? "opacity-100" : "opacity-0"
         )}
       >

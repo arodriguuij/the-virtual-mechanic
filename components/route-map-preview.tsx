@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 
-import { Compass, Locate, Upload } from "lucide-react";
+import { Locate } from "lucide-react";
 import { useEffect } from "react";
 import { MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
 
@@ -144,9 +144,7 @@ export function RouteMapPreview({
   distanceKm,
   elevationGainM,
   className,
-  title = "Sin ruta seleccionada",
-  emptyMessage = "Selecciona una ruta para comenzar.",
-  onUploadClick,
+  emptyMessage = "Selecciona una ruta para comenzar",
 }: {
   points: [number, number][] | null;
   distanceKm: number | null;
@@ -156,25 +154,22 @@ export function RouteMapPreview({
    * (e.g. Post-Ride Analysis's 2-column telemetry layout) can drop the
    * top margin and pick its own height instead of the planner's default. */
   className?: string;
-  /** Empty-state modal card's own title line — overridden by Post-Ride
-   * Analysis (a completed ride with no synced GPS data reads differently
-   * from "you haven't picked a route yet"). */
-  title?: string;
+  /** The empty-state pill's only text — overridden by Post-Ride Analysis
+   * (a completed ride with no synced GPS data reads differently from
+   * "you haven't picked a route yet"). */
   emptyMessage?: string;
-  /** Renders a "Subir archivo .GPX" action inside the empty-state card —
-   * only where the caller actually has an upload flow to open (the Fueling
-   * Planner's Ruta widget). Omitted entirely at every other call site
-   * (Post-Ride Analysis, the planner's own GPX-mode map, which can only
-   * ever render once a file is already parsed) rather than showing a
-   * button with nothing to do. */
-  onUploadClick?: () => void;
 }) {
   if (!points || points.length < 2) {
-    // "Estado Vacío del Mapa" — a real (decorative, non-interactive) base
-    // map dimmed via CSS filter, not a blank porcelain box or a dashed
-    // placeholder rectangle: the athlete sees the same map surface they'll
-    // get once a route is loaded, just muted, with a floating white card
-    // explaining what to do next.
+    // "Rediseño Reductivo del Estado Vacío" — a real (decorative,
+    // non-interactive) base map dimmed via CSS filter, not a blank
+    // porcelain box. This used to also carry a floating white card (an
+    // icon badge, a title, and a "Subir archivo .GPX" button) — removed
+    // outright per an explicit request for a purely minimal treatment: the
+    // dimmed map should stay the dominant visual, with nothing but a single
+    // small translucent pill of plain text floating over it. The upload
+    // entry point this button used to duplicate still exists as its own
+    // "+ Subir GPX" action above the map in Card 01 — nothing was lost by
+    // removing the redundant one here.
     return (
       <div
         className={cn(
@@ -199,30 +194,10 @@ export function RouteMapPreview({
             <TileLayer url={TILE_URL} subdomains={TILE_SUBDOMAINS} attribution={TILE_ATTRIBUTION} />
           </MapContainer>
         </div>
-        {/* "Micro-Píldora" — a compact glass chip, not a large opaque card:
-            the whole point of dimming the base map (rather than hiding it
-            behind a blank box) is for it to stay visible, which a bigger
-            card defeated. `max-w-[260px]` plus tight `p-4`/`text-[11px]`
-            sizing throughout keeps this small enough that the dimmed map
-            reads clearly around every edge of it. */}
-        <div className="absolute inset-0 flex items-center justify-center px-4">
-          <div className="mx-auto max-w-65 rounded-2xl border border-zinc-200/60 bg-white/85 p-4 text-center shadow-sm backdrop-blur-md">
-            <div className="mx-auto mb-2 flex size-8 items-center justify-center rounded-full border border-zinc-200 bg-white shadow-sm">
-              <Compass className="size-3.5 text-zinc-600" strokeWidth={1} />
-            </div>
-            <p className="font-mono text-[11px] font-bold tracking-wider text-zinc-800 uppercase">{title}</p>
-            <p className="my-1.5 text-[11px] text-zinc-500">{emptyMessage}</p>
-            {onUploadClick && (
-              <button
-                type="button"
-                onClick={onUploadClick}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#18181B] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-800"
-              >
-                <Upload className="size-3 shrink-0" />
-                Subir GPX
-              </button>
-            )}
-          </div>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+          <span className="rounded-full border border-zinc-200/60 bg-white/80 px-4 py-2 font-mono text-xs tracking-tight text-zinc-700 shadow-xs backdrop-blur-md">
+            {emptyMessage}
+          </span>
         </div>
       </div>
     );

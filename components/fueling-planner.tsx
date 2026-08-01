@@ -2049,24 +2049,26 @@ export function FuelingPlanner({
                             {refreshingRoutes ? "Sincronizando…" : "Recargar"}
                           </button>
                         </div>
-                        {/* The select's own background/native arrow render
-                            unconditionally — a refresh never swaps this control for
-                            a generic loading block. While `refreshingRoutes` is
-                            true, it's simply disabled with one muted placeholder
-                            option plus a micro-spinner overlaid to its own left of
-                            the chevron, so the control's shape never jumps. A
-                            porcelain `bg-[#F8F7F5]` fill (not this app's usual
-                            white `selectableFieldClass`) marks this one select as a
-                            sub-block nested *inside* the now-white card — zero
-                            border either way, matching this app's 100%-frameless
-                            convention. */}
+                        {/* "Unificación de Estilo en Input/Select de Ruta" —
+                            this select used to carry its own bespoke
+                            porcelain `bg-[#F8F7F5]`/`border-0` treatment,
+                            reading as visually distinct from every other
+                            select in the app (Card 02's Intensidad
+                            objetivo, Fecha y hora de salida, etc.). Now the
+                            exact same shared `selectableFieldClass` those
+                            use — white fill, thin `border-zinc-200/80`,
+                            border-color-only focus state — so this is
+                            genuinely the same design-system token, not a
+                            visually-matching one-off copy of it. The
+                            select's own background/native arrow still
+                            render unconditionally regardless of
+                            `refreshingRoutes` — a refresh never swaps this
+                            control for a generic loading block, just dims
+                            its text and overlays a spinner (below). */}
                         <div className="relative mt-1.5">
                           <select
                             id="route"
-                            className={cn(
-                              "w-full cursor-pointer appearance-none rounded-sm border-0 bg-[#F8F7F5] px-4 py-2 pr-9 text-sm font-sans text-zinc-900 transition-colors duration-150 hover:bg-[#F1EEE7] focus:outline-none focus:ring-1 focus:ring-terracotta",
-                              refreshingRoutes && "text-zinc-400"
-                            )}
+                            className={cn(selectableFieldClass, refreshingRoutes && "text-zinc-400")}
                             value={refreshingRoutes ? "__syncing" : selectedRouteId}
                             onChange={(e) => setSelectedRouteId(e.target.value)}
                             disabled={refreshingRoutes}
@@ -2246,7 +2248,6 @@ export function FuelingPlanner({
               distanceKm={selectedRoute?.distanceKm ?? null}
               elevationGainM={selectedRoute?.elevationGainM ?? null}
               className="mt-0"
-              onUploadClick={() => setGpxUploadOpen(true)}
             />
           )}
           {mode === "gpx" && (
