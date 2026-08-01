@@ -204,8 +204,8 @@ const segmentedButtonClass =
 // centered exactly as before (there's no slack for `text-center` to act on
 // once the label is genuinely truncated).
 const segmentedButtonLabelClass = "block w-full truncate";
-// "Unificación de Negro Obsidiana" — the final "Calcular estrategia
-// nutricional" CTA is a deliberate, scoped one-off departure from the
+// "Unificación de Negro Obsidiana" — the final "Calcular Estrategia
+// Nutricional" CTA is a deliberate, scoped one-off departure from the
 // shared `primaryButtonClass` token (still `bg-terracotta` everywhere
 // else — Copiar receta, Guardar cambios, Guardar consumo real, etc.):
 // this one button is meant to read as the single highest-weight action on
@@ -215,9 +215,13 @@ const segmentedButtonLabelClass = "block w-full truncate";
 // accent. `rounded-xl` is a deliberate, explicit exception to this app's
 // otherwise-global `rounded-sm` control radius (same precedent as Card
 // 05's own `rounded-xl` result cards) — scoped to this one button, not a
-// change to the shared radius scale.
+// change to the shared radius scale. No `uppercase` here (unlike every
+// other shared button token) — the label itself is real Title Case
+// ("Calcular Estrategia Nutricional"), and a CSS `text-transform` would
+// silently force it back to all-caps regardless of the source string's
+// actual casing.
 const obsidianCtaButtonClass =
-  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#18181B] px-4 font-mono text-sm font-bold tracking-wider text-white uppercase shadow-sm transition-colors duration-150 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#18181B]";
+  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#18181B] px-4 font-mono text-sm font-bold tracking-wider text-white shadow-sm transition-colors duration-150 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#18181B]";
 // Card 05 ("Manifiesto de Salida") — the one dark-surface card in the
 // results flow, so every subtitle inside it (Cadencia de Hidratación,
 // Equipamiento y Bici, Comida de Bolsillo, Paradas en Ruta, Plan de Agua
@@ -485,11 +489,17 @@ const CARB_DEMAND_GAUGE_MAX_G_PER_HOUR = 100;
 const FLUID_DEMAND_GAUGE_MAX_ML_PER_HOUR = 1500;
 const SODIUM_DEMAND_GAUGE_MAX_MG_PER_HOUR = 2000;
 
+// "Ficha Técnica de Laboratorio" (Card 03's own dark olive tile
+// restyle) — this component's only 4 call sites all live inside Card 03,
+// so its colors were restyled directly for that dark surface rather than
+// gaining a `dark`/light variant prop for a light-surface call site that
+// doesn't exist. Emerald-tinted fill (`bg-emerald-500/60`) on a low-opacity
+// white track, in place of the old terracotta-on-porcelain pairing.
 function MicroGauge({ pct }: { pct: number }) {
   const clamped = Math.max(0, Math.min(100, pct));
   return (
-    <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-zinc-200" aria-hidden>
-      <div className="h-full bg-[#6E6658]" style={{ width: `${clamped}%` }} />
+    <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-white/10" aria-hidden>
+      <div className="h-full bg-emerald-500/60" style={{ width: `${clamped}%` }} />
     </div>
   );
 }
@@ -2507,7 +2517,7 @@ export function FuelingPlanner({
                 : undefined
             }
             className={cn(
-              "w-full py-3.5 text-sm",
+              "h-11 w-full text-sm",
               isProfileComplete
                 ? obsidianCtaButtonClass
                 : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-sm bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
@@ -2519,8 +2529,8 @@ export function FuelingPlanner({
                 {loading
                   ? "Calculando…"
                   : hasCalculatedOnce
-                    ? "Re-calcular estrategia nutricional"
-                    : "Calcular estrategia nutricional"}
+                    ? "Re-calcular Estrategia Nutricional"
+                    : "Calcular Estrategia Nutricional"}
               </>
             ) : (
               <>
@@ -2592,9 +2602,18 @@ export function FuelingPlanner({
                 still lives in Card 05's "Cronograma dinámico de ingesta,"
                 and the per-bottle recipe lives in Card 05's own "Receta de
                 laboratorio casero," both computed from the athlete's real
-                Card 04 configuration instead of a premature preview. */}
-            <div className="rounded-xl border-0 bg-white p-4 shadow-none">
-              <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+                Card 04 configuration instead of a premature preview.
+
+                "Ficha Técnica de Laboratorio" (PNS Tactical Olive pass) —
+                this card became the second dark surface in the results
+                flow (after Card 05), a "Verde Oliva Táctico" instrument
+                panel (`bg-[#222A23]`, `border-emerald-900/40`) rather than
+                the flat white "tarjeta madre" every other card still uses —
+                a deliberate, scoped exception (same precedent as Card 05's
+                own obsidian departure), not a change to the shared white
+                card system. */}
+            <div className="rounded-xl border border-emerald-900/40 bg-[#222A23] p-4 shadow-none">
+              <span className="mb-3 block font-mono text-xs font-bold tracking-wider text-zinc-400 uppercase">
                 03 · Metabolismo y objetivos calculados
               </span>
 
@@ -2604,65 +2623,61 @@ export function FuelingPlanner({
                   `min-width: auto` grid items get otherwise), so a long
                   number/tooltip trigger can never push this card past the
                   viewport edge on a narrow phone. */}
-              {/* "Instrumental Técnico" (PNS editorial pass) — the 4 tiles
-                  used to each carry their own pastel Material-Design tint
-                  (amber/sky/emerald) plus a matching border — replaced
-                  outright with one uniform porcelain surface and plain
-                  laboratory-notation labels (HC/H₂O/Na⁺/TIME) instead of
-                  color-coding, matching the same "instrumental de
-                  precisión" read as a Coggan power-profile chart rather
-                  than a consumer health app. The big numeric value stays
-                  bold `zinc-900` in every tile, now `font-mono` end to end
-                  (label included) — a technical readout, not a dashboard
-                  stat card. */}
+              {/* "Instrumental Técnico," restyled for the dark olive card:
+                  each tile is now a nested near-black box
+                  (`bg-black/20 border-white/5`) rather than the old
+                  porcelain `#F8F7F5` fill, laboratory-notation labels
+                  (HC/H₂O/Na⁺/TIME) in a muted emerald-cream tone, and the
+                  big figure in pure white — "Cifras principales" per the
+                  PNS spec — instead of `zinc-900`. */}
               <div className="grid grid-cols-2 gap-3 *:min-w-0">
-                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
-                  <span className="font-mono text-[10px] tracking-widest text-zinc-400 uppercase">
+                <div className="flex flex-col gap-1 rounded-lg border border-white/5 bg-black/20 p-3">
+                  <span className="font-mono text-xs tracking-widest text-emerald-200/70 uppercase">
                     TIME · Duración
                   </span>
-                  <span className="font-mono text-xl font-bold tracking-tight text-zinc-900 tabular-nums sm:text-2xl">
+                  <span className="font-mono text-3xl font-bold tracking-tight text-white tabular-nums">
                     {formatHoursMinutes(result.durationHours)}
                   </span>
                   <MicroGauge pct={(result.durationHours / DURATION_GAUGE_MAX_HOURS) * 100} />
                 </div>
-                <div className="relative flex flex-col gap-1 overflow-visible rounded-lg bg-[#F8F7F5] p-3">
+                <div className="relative flex flex-col gap-1 overflow-visible rounded-lg border border-white/5 bg-black/20 p-3">
                   <span className="flex items-center gap-1">
-                    <span className="font-mono text-[10px] tracking-widest text-zinc-400 uppercase">
+                    <span className="font-mono text-xs tracking-widest text-emerald-200/70 uppercase">
                       HC · Carbohidratos
                     </span>
                     <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
                   </span>
-                  <span className="font-mono text-xl font-bold tracking-tight text-zinc-900 tabular-nums sm:text-2xl">
+                  <span className="font-mono text-3xl font-bold tracking-tight text-white tabular-nums">
                     {result.carbsGPerHour}
-                    <span className="ml-1 text-xs font-normal text-zinc-400">g/h</span>
+                    <span className="ml-1 text-xs font-normal text-zinc-500">g/h</span>
                   </span>
-                  <span className="font-mono text-[11px] text-zinc-500">
+                  <span className="font-mono text-[11px] text-zinc-400">
                     Total: {result.totalRideCarbsG} g
                   </span>
                   <MicroGauge pct={(result.carbsGPerHour / CARB_DEMAND_GAUGE_MAX_G_PER_HOUR) * 100} />
                 </div>
-                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
-                  <span className="font-mono text-[10px] tracking-widest text-zinc-400 uppercase">
+                <div className="flex flex-col gap-1 rounded-lg border border-white/5 bg-black/20 p-3">
+                  <span className="font-mono text-xs tracking-widest text-emerald-200/70 uppercase">
                     H₂O · Hidratación
                   </span>
-                  <span className="font-mono text-xl font-bold tracking-tight text-zinc-900 tabular-nums sm:text-2xl">
+                  <span className="font-mono text-3xl font-bold tracking-tight text-white tabular-nums">
                     {result.fluidLossMlPerHour}
-                    <span className="ml-1 text-xs font-normal text-zinc-400">ml/h</span>
+                    <span className="ml-1 text-xs font-normal text-zinc-500">ml/h</span>
                   </span>
-                  <span className="font-mono text-[11px] text-zinc-500">
+                  <span className="font-mono text-[11px] text-zinc-400">
                     Total: {(totalFluidMl / 1000).toFixed(1)} L
                   </span>
                   <MicroGauge pct={(result.fluidLossMlPerHour / FLUID_DEMAND_GAUGE_MAX_ML_PER_HOUR) * 100} />
                 </div>
-                <div className="flex flex-col gap-1 rounded-lg bg-[#F8F7F5] p-3">
-                  <span className="font-mono text-[10px] tracking-widest text-zinc-400 uppercase">
+                <div className="flex flex-col gap-1 rounded-lg border border-white/5 bg-black/20 p-3">
+                  <span className="font-mono text-xs tracking-widest text-emerald-200/70 uppercase">
                     Na⁺ · Sodio
                   </span>
-                  <span className="font-mono text-xl font-bold tracking-tight text-zinc-900 tabular-nums sm:text-2xl">
+                  <span className="font-mono text-3xl font-bold tracking-tight text-white tabular-nums">
                     {result.sodiumMgPerHour}
-                    <span className="ml-1 text-xs font-normal text-zinc-400">mg/h</span>
+                    <span className="ml-1 text-xs font-normal text-zinc-500">mg/h</span>
                   </span>
-                  <span className="font-mono text-[11px] text-zinc-500">
+                  <span className="font-mono text-[11px] text-zinc-400">
                     Total: {totalSodiumMg} mg
                   </span>
                   <MicroGauge pct={(result.sodiumMgPerHour / SODIUM_DEMAND_GAUGE_MAX_MG_PER_HOUR) * 100} />
@@ -2688,10 +2703,13 @@ export function FuelingPlanner({
                   informational (the actual recipe/sodium/bottle-plan
                   adjustments already happened server-side) so the athlete
                   understands *why* the numbers below look different from a
-                  normal-weather calculation. */}
+                  normal-weather calculation. Both restyled for the dark
+                  olive card — cold stays a neutral nested box, heat uses
+                  the same dark-amber alert treatment as every other
+                  warning in this card/Card 05. */}
               {result.thermalAdaptation.isExtremeCold && (
-                <div className="mt-3 flex items-start gap-2 rounded-sm bg-[#F8F7F5] px-3 py-2 text-xs text-zinc-600">
-                  <Snowflake className="mt-0.5 size-3.5 shrink-0 text-zinc-500" />
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-xs text-zinc-300">
+                  <Snowflake className="mt-0.5 size-3.5 shrink-0 text-zinc-400" />
                   <span>
                     Frío extremo (&lt;8°C) — prioriza comida sólida/geles en bolsillo (hasta un
                     70-80% del objetivo) y hemos reducido la concentración del bidón para evitar
@@ -2700,8 +2718,8 @@ export function FuelingPlanner({
                 </div>
               )}
               {result.thermalAdaptation.isExtremeHeat && (
-                <div className="mt-3 flex items-start gap-2 rounded-sm border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
-                  <Sun className="mt-0.5 size-3.5 shrink-0" />
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-2 text-xs text-amber-200/90">
+                  <Sun className="mt-0.5 size-3.5 shrink-0 text-amber-400" />
                   <span>
                     Calor sofocante (&gt;32°C) — sodio elevado a ≥900mg/L y reservamos al menos 1
                     bidón de agua pura para termorregulación/aclarado bucal.
@@ -2727,10 +2745,13 @@ export function FuelingPlanner({
                   tab keeps that protection while still answering "how do I
                   fix this." Suppressed under Train Low — a low intake by
                   design isn't a gut-capacity limitation worth warning
-                  about. */}
+                  about. Restyled to the same dark-amber alert treatment as
+                  every other warning box in this card. */}
               {result.gutTraining.isGutLimited && !result.trainLow && (
-                <div className="mt-3 flex flex-col gap-1.5 border border-status-warning/40 bg-status-warning/10 px-3 py-2.5 text-xs text-status-warning">
-                  <span className="font-semibold tracking-wide uppercase">Límite digestivo superado</span>
+                <div className="mt-3 flex flex-col gap-1.5 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-2.5 text-xs text-amber-200/90">
+                  <span className="font-bold tracking-wide text-amber-400 uppercase">
+                    Límite digestivo superado
+                  </span>
                   <p>
                     Esta ruta requiere ~{result.gutTraining.uncappedGPerHour} g/h de HC para un
                     rendimiento óptimo, pero tu tope actual configurado es de{" "}
@@ -2746,7 +2767,7 @@ export function FuelingPlanner({
                     href="/perfil#gut-training"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-0.5 w-fit font-mono font-semibold underline underline-offset-2 hover:text-status-warning/80"
+                    className="mt-0.5 w-fit font-mono font-semibold text-amber-300 underline underline-offset-2 hover:text-amber-200"
                   >
                     [ Ver cómo entrenar el intestino en Perfil ]
                   </a>
@@ -2870,7 +2891,7 @@ export function FuelingPlanner({
                       className={cn(
                         "rounded-sm border px-2.5 py-1 font-mono text-[11px] font-semibold shadow-none transition-colors duration-150",
                         displayBottlePlan?.bottleSizeMl === ml
-                          ? "border-transparent bg-terracotta text-white"
+                          ? "border-transparent bg-[#18181B] text-white"
                           : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                       )}
                     >
@@ -2897,7 +2918,7 @@ export function FuelingPlanner({
                     className={cn(
                       segmentedButtonClass,
                       bottleConfig === opt.value
-                        ? "border-transparent bg-terracotta text-white"
+                        ? "border-transparent bg-[#18181B] text-white"
                         : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                     )}
                   >

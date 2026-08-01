@@ -3,7 +3,12 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-const statLabel = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
+// "Ficha Técnica de Laboratorio" — this component's one call site is
+// Card 03's own dark olive tile (`components/fueling-planner.tsx`), so
+// every color here was restyled directly for that dark surface rather
+// than gaining a light/dark variant prop for a light-surface call site
+// that doesn't exist.
+const statLabel = "text-[10px] font-semibold tracking-widest text-emerald-200/70 uppercase";
 
 // "Clima Inteligente con Alerta por Rangos" — a flat gray tile treats 32°C
 // exactly like 18°C, even though the athlete's real thermal stress at those
@@ -58,13 +63,13 @@ function WeatherStatTile({
     <div
       className={cn(
         "flex min-w-0 flex-col gap-0.5 rounded-md border px-2 py-1.5",
-        alert ? "border-amber-200 bg-amber-100/60" : "border-badge-border bg-badge"
+        alert ? "border-amber-500/30 bg-amber-950/30" : "border-white/10 bg-black/30"
       )}
     >
       <span
         className={cn(
           "flex items-center gap-1 text-[10px] font-mono tracking-wider uppercase truncate",
-          alert ? "text-amber-700" : "text-neutral-500"
+          alert ? "text-amber-400" : "text-zinc-400"
         )}
       >
         {icon}
@@ -73,18 +78,18 @@ function WeatherStatTile({
       <span
         className={cn(
           "truncate text-xs font-bold font-mono tabular-nums sm:text-sm",
-          alert ? "text-amber-900" : "text-neutral-900"
+          alert ? "text-amber-200" : "text-white"
         )}
       >
         {value}
       </span>
       {caption && (
-        <span className="block text-[9px] font-mono font-normal text-neutral-400 truncate">
+        <span className="block text-[9px] font-mono font-normal text-zinc-500 truncate">
           {caption}
         </span>
       )}
       {alertLabel && (
-        <span className="flex items-center gap-1 text-[9px] font-mono font-semibold text-amber-700 truncate">
+        <span className="flex items-center gap-1 text-[9px] font-mono font-semibold text-amber-400 truncate">
           <TriangleAlert className="size-2.5 shrink-0" />
           {alertLabel}
         </span>
@@ -158,10 +163,10 @@ export function WeatherImpactCard({
         : "estimación genérica";
 
   return (
-    <div className="flex flex-col gap-3 rounded-sm bg-surface px-3 py-3">
+    <div className="flex flex-col gap-3 rounded-lg border border-white/5 bg-black/20 px-3 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className={statLabel}>Impacto térmico</span>
-        <span className="text-xs text-neutral-500">
+        <span className="text-xs text-zinc-400">
           {sourceLabel}
           {!altitude && lapseRateAdjustmentC !== 0 && (
             <span className="inline-flex items-center gap-1">
@@ -176,7 +181,7 @@ export function WeatherImpactCard({
       {altitude ? (
         <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-semibold tracking-widest text-neutral-500 uppercase">
+            <span className="text-[10px] font-semibold tracking-widest text-zinc-400 uppercase">
               Valle / Salida
               {altitude.base.elevationM != null && ` (${altitude.base.elevationM}m)`}
             </span>
@@ -207,7 +212,7 @@ export function WeatherImpactCard({
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <span className="flex items-center gap-1 text-[10px] font-semibold tracking-widest text-neutral-500 uppercase">
+            <span className="flex items-center gap-1 text-[10px] font-semibold tracking-widest text-zinc-400 uppercase">
               <Mountain className="size-3 shrink-0" />
               Cima del puerto
               {altitude.peak.elevationM != null && ` (${altitude.peak.elevationM}m)`}
@@ -274,7 +279,7 @@ export function WeatherImpactCard({
       )}
 
       {source === "seasonal_average" && (
-        <p className="text-[11px] text-neutral-500">
+        <p className="text-[11px] text-zinc-400">
           Clima estimado mediante medias históricas estacionales — la fecha elegida está
           fuera del rango de previsión en vivo (14 días).
         </p>
