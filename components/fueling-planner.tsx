@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -89,6 +89,26 @@ function formatHoursMinutes(hours: number): string {
   return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
+/** "Race Day Manifest" hydration HUD — the recurring `HH:MMh` marks under
+ * the big "cada N min" figure (e.g. "00:33h — 01:06h — 01:39h"), a plain
+ * multiplication table of the hydration interval capped at
+ * `HYDRATION_MARK_LIMIT` entries (or the ride's own duration, whichever is
+ * shorter) — a 6h ride at a 20min interval has 18 real intervals, and this
+ * is a quick-glance strip, not the full "Cronograma dinámico" timeline
+ * below it, which already lists every real milestone individually. */
+const HYDRATION_MARK_LIMIT = 5;
+function getHydrationMarks(intervalMinutes: number, durationHours: number): string[] {
+  if (intervalMinutes <= 0 || durationHours <= 0) return [];
+  const totalMinutes = Math.round(durationHours * 60);
+  const marks: string[] = [];
+  for (let m = intervalMinutes; m <= totalMinutes && marks.length < HYDRATION_MARK_LIMIT; m += intervalMinutes) {
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    marks.push(`${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}h`);
+  }
+  return marks;
+}
+
 // "Refresco"/"Bollería" lead the list — the two real-world café/gasolinera
 // purchases the "Paradas previstas en ruta" section (Card 02) points the
 // athlete toward, so they're the first thing visible in Card 04's inventory
@@ -140,13 +160,12 @@ function pocketFoodName(type: PocketFoodItemType): string {
   return stripEmoji(pocketFoodLabels[type]);
 }
 
-const eyebrow = "text-[10px] font-mono uppercase tracking-widest text-zinc-500";
 // Shared typography for Paso 02's grouped input labels (Intensidad Objetivo,
 // Fecha y hora de salida, Duración/Vatios) — homologated to one exact class
-// string so these read as one consistent family instead of `eyebrow`'s
-// smaller/looser-tracked style, which stays reserved for stat readouts and
-// data-block eyebrows elsewhere in this file (Ruta, Carbohidratos objetivo,
-// etc. — a different, unrelated concern this pass didn't touch).
+// string so these read as one consistent family, distinct from the smaller/
+// looser-tracked eyebrow style reserved for stat readouts and data-block
+// labels elsewhere in this file (Ruta, Carbohidratos objetivo, etc. — a
+// different, unrelated concern this pass didn't touch).
 const formFieldLabelClass = "text-xs font-mono font-semibold tracking-wider text-zinc-500 uppercase";
 // Shared with every other field/button across the app (`lib/ui-classes.ts`) —
 // aliased to these file-local names since they're already used at every
@@ -455,6 +474,45 @@ function MicroGauge({ pct }: { pct: number }) {
   );
 }
 
+/** "Race Day Manifest" checklist row — a tactile monospace `[ ]`/`[✓]`
+ * toggle in place of a plain dash bullet. Purely a physical prep aid (tick
+ * off gear as it's actually packed into pockets/cages); toggling it has no
+ * effect on any figure elsewhere in the card — the underlying line content
+ * is still fully re-derived from `result`/`bottleConfig`/pocket food, this
+ * is just a checked/unchecked overlay on top of it. `children` (not a
+ * plain `text` string) so call sites that need a nested reveal button or
+ * warning block under one line (the mix-bottle row's "[ Ver en cazos ]"
+ * and hypertonic warning) can still attach it without a second component. */
+function ChecklistCheckboxLine({
+  checked,
+  onToggle,
+  ariaLabel,
+  children,
+}: {
+  checked: boolean;
+  onToggle: () => void;
+  ariaLabel: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-1.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={checked}
+        aria-label={ariaLabel}
+        className={cn(
+          "mt-0.5 shrink-0 cursor-pointer font-mono text-xs font-semibold transition-colors",
+          checked ? "text-terracotta" : "text-zinc-400 hover:text-zinc-600"
+        )}
+      >
+        {checked ? "[✓]" : "[ ]"}
+      </button>
+      <span className={cn(checked && "text-zinc-400 line-through decoration-zinc-300")}>{children}</span>
+    </div>
+  );
+}
+
 // "Configuración de bidones" — a lightweight planning preference, not a
 // parameter that re-drives `getBottlePlan`'s own GI/solubility-capped math
 // server-side (that engine already computes the real, optimal bottle split
@@ -600,9 +658,12 @@ function getBikeChecklistLines(
     lines.push({
       key: "mix",
       kind: "mix",
-      text: `${mixBottleCount}x Bidón de ${bottleSizeMl}ml (con Mezcla Casera: ${fuelBottles.maltodextrinGPerBottle}g Malto + ${
-        fuelBottles.fructoseGPerBottle
-      }g Fructosa + ${getTableSaltGrams(fuelBottles.sodiumMgPerBottle)}g Sal)`,
+      // "Race Day Manifest" — the explicit Malto/Fructosa/Sal formula used
+      // to sit right in this line's own text; trimmed to a clean
+      // `Nx Bidón de Xml (con Mezcla Casera)` so the checklist scans as a
+      // manifest, not a recipe card — the real grams only surface one tap
+      // away via "[ Ver en cazos ]" below, unchanged.
+      text: `${mixBottleCount}x Bidón de ${bottleSizeMl}ml (con Mezcla Casera)`,
     });
   }
 
@@ -946,6 +1007,25 @@ function DeparturePicker({
         // 16px per side). Applied to both the wrapper *and* the input
         // itself, since either alone left room for the other to still
         // compute its own width against a bad ancestor value.
+        //
+        // A third follow-up report, still on real iOS Safari, traced this to
+        // its actual root cause rather than another sizing ceiling: WebKit
+        // renders this input's day/month/year value through its own
+        // internal `::-webkit-date-and-time-value` pseudo-element, which
+        // carries its own default intrinsic width/margin that every
+        // `width`/`max-width` value set on the *input itself* simply doesn't
+        // reach — those constrain the input's own box, not the shadow
+        // pseudo-element painted inside it. `appearance-none` (dropping
+        // WebKit's default chrome around the field) plus explicit
+        // `[&::-webkit-date-and-time-value]:...` Tailwind arbitrary
+        // variants — a no-op on every non-WebKit browser, since the
+        // pseudo-element selector itself simply doesn't match there — reset
+        // that inner value to `w-full`/`m-0`/`text-left` so it's finally
+        // constrained by the *same* box the outer width rules above already
+        // pin to the viewport. `app/globals.css` carries the same reset as
+        // a plain-CSS fallback (see the `input[type="date"]` rule there) in
+        // case a future refactor moves this input outside Tailwind's own
+        // arbitrary-variant reach.
         <div className="w-full max-w-[calc(100vw-4rem)] min-w-0 overflow-hidden box-border">
           <input
             type="date"
@@ -953,7 +1033,11 @@ function DeparturePicker({
             min={todayIsoDate()}
             value={customDate}
             onChange={(e) => onCustomDateChange(e.target.value)}
-            className={cn(fieldClass, "w-full max-w-[calc(100vw-4rem)] min-w-0 box-border")}
+            className={cn(
+              fieldClass,
+              "block w-full max-w-[calc(100vw-4rem)] min-w-0 box-border appearance-none",
+              "[&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:w-full [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:p-0 [&::-webkit-date-and-time-value]:text-left"
+            )}
           />
         </div>
       )}
@@ -983,45 +1067,15 @@ function DeparturePicker({
 // actually delivers this ride, see `ziplocDoseGramsPerUnit`), not a fixed
 // `pocketFoodCarbsG` catalog constant a `type` lookup could resolve on its
 // own the way every real catalog item's row still can.
-// "Insignias Técnicas de Producto" — a plain monospace category tag next to
-// each pocket-food row's name, in place of the emoji this app already
-// strips at render time (`pocketFoodName()`/`stripEmoji`, see above) — a
-// terse `[ GEL ]`/`[ SÓLIDO ]`/`[ LÍQUIDO ]`/`[ FÓRMULA ]` reads as
-// technical/editorial rather than decorative, matching this app's
-// established "no icons, no emoji, just typography" convention for this
-// one UI surface. Kept as presentation-only classification local to this
-// component, not a physiology concern `lib/metabolic-engine.ts` needs to
-// know about.
-type PocketFoodCategory = "GEL" | "SÓLIDO" | "LÍQUIDO" | "FÓRMULA";
-
-const POCKET_FOOD_CATEGORY: Record<PocketFoodItemType, PocketFoodCategory> = {
-  soda: "LÍQUIDO",
-  pastry: "SÓLIDO",
-  banana: "SÓLIDO",
-  energy_bar: "SÓLIDO",
-  rice_cake: "SÓLIDO",
-  dates: "SÓLIDO",
-  gummies: "SÓLIDO",
-  gel_small: "GEL",
-  gel_standard: "GEL",
-  gel_high: "GEL",
-  // Dissolved into a bottle rather than eaten, same bucket as the Ziploc
-  // reload dose below — both are a powder/sachet mixed into liquid, not a
-  // gel squeezed straight from its own pouch.
-  gel_ultra: "FÓRMULA",
-};
-
-function PocketFoodCategoryBadge({ category }: { category: PocketFoodCategory }) {
-  return (
-    <span className="mr-1.5 inline-block shrink-0 rounded-sm bg-zinc-100 px-1 py-0.5 align-middle font-mono text-[9px] font-semibold tracking-wider text-zinc-500 uppercase">
-      [{category}]
-    </span>
-  );
-}
-
+// "Limpieza de Badges Redundantes" — this row used to lead with a
+// `[ GEL ]`/`[ SÓLIDO ]`/`[ LÍQUIDO ]`/`[ FÓRMULA ]` category tag before the
+// item's own name; removed outright (not just visually — the whole
+// `PocketFoodCategory` classification/lookup is gone) so the product name
+// gets the full available width and the eye lands on it immediately rather
+// than on a bracketed label first. The carb figure stays, in the same
+// muted monospace it already had.
 function PocketFoodStepperRow({
   label,
-  category,
   carbsG,
   ariaLabel,
   qty,
@@ -1029,7 +1083,6 @@ function PocketFoodStepperRow({
   disabled = false,
 }: {
   label: string;
-  category?: PocketFoodCategory;
   carbsG: number;
   ariaLabel: string;
   qty: number;
@@ -1062,10 +1115,14 @@ function PocketFoodStepperRow({
         disabled && "opacity-50"
       )}
     >
-      <span className="text-sm text-neutral-900">
-        {category && <PocketFoodCategoryBadge category={category} />}
-        {label}
-        <span className="ml-1.5 font-mono text-xs text-neutral-500">{carbsG}g HC</span>
+      {/* No category badge anymore — the name gets the full available
+          width. `truncate` (not `whitespace-normal`) on the name itself so
+          a long title like "Dosis de recarga Mix (Ziploc)" stays on one
+          line rather than wrapping the row taller; the carb figure is
+          `shrink-0` so it's never what gets squeezed. */}
+      <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+        <span className="min-w-0 truncate text-sm text-neutral-900">{label}</span>
+        <span className="shrink-0 font-mono text-xs text-zinc-500">{carbsG}g HC</span>
       </span>
       {/* Compact, transparent, delineated stepper — a hairline
           `border-zinc-200` is what defines this control now (the prior
@@ -1232,6 +1289,22 @@ export function FuelingPlanner({
   // instead ("[ Ver en cazos ]"), so this one boolean replaces what used to
   // be a plain `<details>` element's own native open state.
   const [showBikeScoops, setShowBikeScoops] = useState(false);
+  // "Race Day Manifest" checklist — a plain tactile `[ ]`/`[✓]` toggle per
+  // line, purely a physical prep aid (ticking off gear as it's actually
+  // packed) with zero effect on any calculation. A `Set` of line keys
+  // rather than per-line boolean state, since the checklist itself is
+  // fully re-derived from `result`/`bottleConfig`/pocket food on every
+  // render — resetting per calculation would be surprising mid-prep, so
+  // this deliberately persists across a recalculation instead (only a
+  // fresh page load clears it).
+  const [checkedChecklistKeys, setCheckedChecklistKeys] = useState<Set<string>>(new Set());
+  const toggleChecklistKey = (key: string) =>
+    setCheckedChecklistKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   // "Planificación de Paradas en Ruta" — a third, opportunistic coverage
   // source alongside bottles and pocket food: 0 (zero-friction default), 1,
   // or 2 café/gasolinera/fuente stops. A plain count is deliberately the
@@ -1486,6 +1559,13 @@ export function FuelingPlanner({
           approx: true,
         })),
       ].sort((a, b) => a.atMinutes - b.atMinutes)
+    : [];
+
+  // "Race Day Manifest" HUD's quick-reference clock-mark strip — see
+  // `getHydrationMarks`'s own doc comment for why this is capped rather
+  // than listing every real interval on a long ride.
+  const hydrationMarks = result
+    ? getHydrationMarks(result.timingTimeline.hydrationIntervalMinutes, result.durationHours)
     : [];
 
   // The "Incluye cafeína" checkbox only makes sense once at least one gel
@@ -2829,7 +2909,6 @@ export function FuelingPlanner({
                     <PocketFoodStepperRow
                       key={type}
                       label={pocketFoodName(type)}
-                      category={POCKET_FOOD_CATEGORY[type]}
                       carbsG={POCKET_FOOD_CARBS_G[type]}
                       ariaLabel={pocketFoodLabels[type]}
                       qty={pocketFood[type] ?? 0}
@@ -2849,7 +2928,6 @@ export function FuelingPlanner({
                   {ziplocDoseActive && (
                     <PocketFoodStepperRow
                       label="Dosis de recarga Mix (Ziploc)"
-                      category="FÓRMULA"
                       carbsG={ziplocDoseGramsPerUnit}
                       ariaLabel="Dosis de recarga Mix (Ziploc)"
                       qty={ziplocDoseCount}
@@ -2976,8 +3054,8 @@ export function FuelingPlanner({
                 the same dashed perforation the Checklist's own
                 sub-sections already use internally. */}
             <div className="flex flex-col gap-3 rounded-xl border-0 border-t border-dashed border-t-zinc-300 bg-white p-4 shadow-none">
-              <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-                05 · Cronograma y checklist de salida
+              <span className="font-mono text-xs font-bold tracking-wider text-zinc-500 uppercase">
+                05 // Race Day Manifest
               </span>
 
               {/* "Alerta de Déficit Pendiente de Cubrir" — the reason the
@@ -3005,64 +3083,74 @@ export function FuelingPlanner({
                 </div>
               )}
 
-              {/* Bloque 1 · Cronograma Dinámico de Ingesta — a genuine
-                  vertical timeline (a connecting rail + a dot per entry)
-                  instead of a flat icon+label list. The recurring
-                  hydration-interval line sits above the rail, since it's a
-                  standing reminder rather than a single point in time the
-                  way every other entry is. */}
-              <div className="rounded-sm bg-[#F8F7F5] p-3">
-                <span className={eyebrow}>Cronograma dinámico de ingesta</span>
-                <p className="mt-2 flex items-center gap-1.5 text-sm text-neutral-700">
-                  <Droplet className="size-3.5 shrink-0 text-neutral-500" />
-                  Beber 1 bidón (~{displayBottlePlan!.bottleSizeMl} ml) cada{" "}
-                  <span className="font-mono font-semibold text-neutral-900">
+              {/* Bloque 1 · Cronograma Dinámico de Ingesta — "Barra de
+                  Telemetría de Alto Contraste": the flat porcelain block
+                  this used to be is now a dark Garmin/Wahoo-style HUD
+                  (`bg-[#18181B]`, matching Card 04's own sticky balance
+                  pill so both dark surfaces in this flow read as one
+                  consistent "instrument panel" language), leading with the
+                  one number that matters mid-ride — how often to drink —
+                  at a genuinely large size, with the calculated clock marks
+                  underneath as a quick reference strip. The detailed
+                  solid/gel/caffeine milestone rail below it is unchanged in
+                  substance, just restyled for the dark background. */}
+              <div className="rounded-xl bg-[#18181B] p-4 text-white shadow-sm">
+                <span className="font-mono text-[10px] tracking-widest text-zinc-400 uppercase">
+                  Cadencia de hidratación
+                </span>
+                <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm text-zinc-300">
+                  <Droplet className="size-3.5 shrink-0 self-center text-zinc-400" />
+                  Beber 1 bidón (~{displayBottlePlan!.bottleSizeMl} ml) cada
+                  <span className="font-mono text-2xl font-bold text-white">
                     {result.timingTimeline.hydrationIntervalMinutes} min
                   </span>
                 </p>
+                {hydrationMarks.length > 0 && (
+                  <p className="mt-1.5 font-mono text-[11px] tracking-wide text-zinc-500">
+                    {hydrationMarks.join("  —  ")}
+                  </p>
+                )}
                 {/* "Sensibilidad a Cafeína e Horario Nocturno" — the server
                     already dropped every caffeine milestone below when the
                     estimated arrival lands at/after 18:30 local; this is
                     just the visible explanation for why none show up even
                     though a gel with caffeine was selected. */}
                 {result.caffeineSuppressed && (
-                  <p className="mt-2 flex items-start gap-1.5 text-xs text-neutral-500">
-                    <Moon className="mt-0.5 size-3.5 shrink-0 text-neutral-400" />
+                  <p className="mt-3 flex items-start gap-1.5 text-xs text-zinc-500">
+                    <Moon className="mt-0.5 size-3.5 shrink-0 text-zinc-600" />
                     Cafeína omitida automáticamente por el horario de llegada estimado (≥18:30h)
                     para proteger tu descanso nocturno.
                   </p>
                 )}
                 {mergedTimelineEntries.length > 0 && (
-                  <ol className="mt-3 flex flex-col">
+                  <ol className="mt-3 flex flex-col border-t border-zinc-800 pt-3">
                     {mergedTimelineEntries.map((entry, i) => (
                       <li key={entry.key} className="relative flex gap-2.5 pb-3 last:pb-0">
                         {i < mergedTimelineEntries.length - 1 && (
                           <span
                             aria-hidden
-                            className="absolute top-3 left-1.25 h-full w-px bg-zinc-300"
+                            className="absolute top-3 left-1.25 h-full w-px bg-zinc-700"
                           />
                         )}
                         <span
                           aria-hidden
-                          className="relative z-10 mt-1 size-2.75 shrink-0 rounded-full border-2 border-terracotta bg-white"
+                          className="relative z-10 mt-1 size-2.75 shrink-0 rounded-full border-2 border-terracotta bg-[#18181B]"
                         />
                         <div className="flex min-w-0 flex-col gap-0.5">
-                          <span className="font-mono text-[10px] text-neutral-500">
+                          <span className="font-mono text-[10px] text-zinc-500">
                             {entry.approx ? "~" : ""}
                             {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
                           </span>
-                          <span className="flex items-center gap-1.5 text-sm text-neutral-700">
+                          <span className="flex items-center gap-1.5 text-sm text-zinc-300">
                             {entry.icon === "solid" && (
-                              <Utensils className="size-3.5 shrink-0 text-neutral-500" />
+                              <Utensils className="size-3.5 shrink-0 text-zinc-500" />
                             )}
-                            {entry.icon === "gel" && (
-                              <Zap className="size-3.5 shrink-0 text-neutral-500" />
-                            )}
+                            {entry.icon === "gel" && <Zap className="size-3.5 shrink-0 text-zinc-500" />}
                             {entry.icon === "caffeine" && (
-                              <FlaskConical className="size-3.5 shrink-0 text-neutral-500" />
+                              <FlaskConical className="size-3.5 shrink-0 text-zinc-500" />
                             )}
                             {entry.icon === "cafeteria" && (
-                              <Coffee className="size-3.5 shrink-0 text-neutral-500" />
+                              <Coffee className="size-3.5 shrink-0 text-zinc-500" />
                             )}
                             {entry.label}
                           </span>
@@ -3073,23 +3161,28 @@ export function FuelingPlanner({
                 )}
               </div>
 
-              {/* Bloque 2 · Checklist de Preparación para Llevar — "ticket"
-                  formatting: a crisp white card with a dashed perforation
-                  between sub-sections and a plain technical dash ("—")
-                  bullet per line. Driven by the same bottle config +
-                  pocket-food state as the balance pill in Card 04, so it's
-                  never out of sync with what CUBIERTO/RESTANTE currently
-                  shows — see `getBikeChecklistLines`/`getWaterPlanLines`/
+              {/* Bloque 2 · "Ticket de Carga de Equipamiento" — the perforated
+                  separator (`border-t border-dashed`) now marks the boundary
+                  between the dark HUD above and this section directly,
+                  rather than the checklist sitting in its own bordered box
+                  — one continuous manifest, not two stacked cards. Driven by
+                  the same bottle config + pocket-food state as the balance
+                  pill in Card 04, so it's never out of sync with what
+                  CUBIERTO/RESTANTE currently shows — see
+                  `getBikeChecklistLines`/`getWaterPlanLines`/
                   `getCafeteriaStopChecklistLines` above. "En bici" renders
                   specially (not through the generic string-list map below)
                   since its mix-bottle row alone carries an inline
                   "[ Ver en cazos ]" reveal and the hypertonic-concentration
                   warning — both used to live in the removed hero box,
-                  neither is a plain checklist string. */}
-              <div className="rounded-lg border border-zinc-200 bg-white p-4">
+                  neither is a plain checklist string. Every line now renders
+                  through `ChecklistCheckboxLine` — a tactile `[ ]`/`[✓]`
+                  toggle in place of the old plain dash bullet, purely a
+                  physical prep aid with zero effect on any figure here. */}
+              <div className="border-t border-dashed border-zinc-300 pt-4">
                 <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-widest text-zinc-500 uppercase">
                   <CheckCircle2 className="size-3.5 shrink-0" />
-                  Checklist de salida
+                  Cargo &amp; Equipment
                 </span>
                 {bikeChecklistLines.length === 0 &&
                 pocketChecklistLines.length === 0 &&
@@ -3108,26 +3201,28 @@ export function FuelingPlanner({
                         <ul className="flex flex-col gap-1.5">
                           {bikeChecklistLines.map((line) => (
                             <li key={line.key} className="flex flex-col gap-1.5">
-                              <div className="flex items-start gap-1.5">
-                                <span aria-hidden className="mt-0.5 shrink-0 font-mono text-zinc-400">
-                                  —
-                                </span>
-                                <span>
-                                  {line.text}
-                                  {line.kind === "mix" && (
-                                    <>
-                                      {" "}
-                                      <button
-                                        type="button"
-                                        onClick={() => setShowBikeScoops((v) => !v)}
-                                        className="font-mono text-[11px] font-medium text-terracotta underline-offset-2 hover:underline"
-                                      >
-                                        [ {showBikeScoops ? "▲" : "▼"} Ver en cazos ]
-                                      </button>
-                                    </>
-                                  )}
-                                </span>
-                              </div>
+                              <ChecklistCheckboxLine
+                                checked={checkedChecklistKeys.has(`bike-${line.key}`)}
+                                onToggle={() => toggleChecklistKey(`bike-${line.key}`)}
+                                ariaLabel={line.text}
+                              >
+                                {line.text}
+                                {line.kind === "mix" && (
+                                  <>
+                                    {" "}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowBikeScoops((v) => !v);
+                                      }}
+                                      className="font-mono text-[11px] font-medium text-terracotta underline-offset-2 hover:underline"
+                                    >
+                                      [ {showBikeScoops ? "▲" : "▼"} Ver en cazos ]
+                                    </button>
+                                  </>
+                                )}
+                              </ChecklistCheckboxLine>
                               {/* Hypertonic-concentration warning, attached
                                   directly under the mix-bottle line it's
                                   actually about — see "Bottle architecture &
@@ -3138,7 +3233,7 @@ export function FuelingPlanner({
                                   routinely seen. */}
                               {line.kind === "mix" &&
                                 displayBottlePlan!.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
-                                  <div className="ml-4.5 flex items-start gap-1.5 rounded-sm border border-status-warning/40 bg-status-warning/10 px-2.5 py-1.5 text-xs text-status-warning">
+                                  <div className="ml-6 flex items-start gap-1.5 rounded-sm border border-status-warning/40 bg-status-warning/10 px-2.5 py-1.5 text-xs text-status-warning">
                                     <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
                                     <span>
                                       Solución hipertónica ({displayBottlePlan!.fuelBottles.concentrationPct}% &gt;{" "}
@@ -3148,7 +3243,7 @@ export function FuelingPlanner({
                                   </div>
                                 )}
                               {line.kind === "mix" && showBikeScoops && (
-                                <div className="ml-4.5 flex flex-col gap-1 rounded-sm bg-[#F8F7F5] p-2.5 text-xs text-neutral-600">
+                                <div className="ml-6 flex flex-col gap-1 rounded-sm bg-[#F8F7F5] p-2.5 text-xs text-neutral-600">
                                   <p>
                                     Maltodextrina: {displayBottlePlan!.fuelBottles.maltodextrinGPerBottle}g (~
                                     {fuelBottleMeasures!.maltodextrinScoops} cazos)
@@ -3187,20 +3282,16 @@ export function FuelingPlanner({
                             {section.icon}
                             {section.title}:
                           </span>
-                          {/* "Ticket de Expedición / Manifest" — a plain
-                              technical dash bullet (no check-icon affordance
-                              this isn't a to-do list) matching the dashed
-                              perforation separating each sub-section above. */}
                           <ul className="flex flex-col gap-1.5">
-                            {section.lines.map((line) => (
-                              <li key={line} className="flex items-start gap-1.5">
-                                <span
-                                  aria-hidden
-                                  className="mt-0.5 shrink-0 font-mono text-zinc-400"
+                            {section.lines.map((line, i) => (
+                              <li key={line}>
+                                <ChecklistCheckboxLine
+                                  checked={checkedChecklistKeys.has(`${section.title}-${i}`)}
+                                  onToggle={() => toggleChecklistKey(`${section.title}-${i}`)}
+                                  ariaLabel={line}
                                 >
-                                  —
-                                </span>
-                                <span>{line}</span>
+                                  {line}
+                                </ChecklistCheckboxLine>
                               </li>
                             ))}
                           </ul>

@@ -205,6 +205,34 @@
     background-color: var(--terracotta);
     color: #ffffff;
   }
+
+  /* iOS Safari `<input type="date">` overflow — plain-CSS fallback for the
+     same reset applied via Tailwind arbitrary variants directly on
+     `DeparturePicker`'s date input (`components/fueling-planner.tsx`).
+     WebKit paints the day/month/year value through its own internal
+     `::-webkit-date-and-time-value` pseudo-element, which carries its own
+     intrinsic width/margin unreachable by any `width`/`max-width` set on
+     the input's own box — that's the actual root cause of a real-device
+     report of this field overflowing its card on the right, which every
+     earlier width/max-width-only fix (relative, then viewport-absolute)
+     left unresolved. Scoped to `input[type="date"]` globally rather than
+     a one-off class, since any future date input in this app would hit
+     the identical WebKit quirk. */
+  input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  input[type="date"]::-webkit-date-and-time-value {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    text-align: left;
+  }
 }
 
 /* "Breathing" logo animation for the loading screens (`app/loading.tsx`,
