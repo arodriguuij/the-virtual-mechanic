@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, FlaskConical } from "lucide-react";
 import { useMemo, useState, type FocusEvent } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -436,7 +436,7 @@ export function PhysiologicalProfileForm({
         </CardContent>
       </Card>
 
-      <Card className="overflow-visible">
+      <Card id="gut-training" className="overflow-visible">
         <CardContent className="flex flex-col gap-4">
           <span className={cn(cardNumberHeading, "flex items-center")}>
             03 · Adaptación digestiva
@@ -456,6 +456,75 @@ export function PhysiologicalProfileForm({
             onGroupBlur={() => markTouched("gutTrainingLevel")}
             invalid={gutTrainingInvalid}
           />
+
+          {/* "Módulo Educativo de Gut Training" — the Fueling Planner's own
+              "Límite digestivo superado" warning links here
+              (`/perfil#gut-training`) precisely because raising the level
+              above isn't a settings tweak that instantly unlocks more
+              absorption — it only moves once the athlete has actually put
+              in the weeks of progressive gut training this explains. A
+              `<details>` accordion, closed by default, matching this app's
+              existing convention for supplementary/optional reading (see
+              "Estrategia de carga día −1" in the Fueling Planner) — this is
+              context for the curious, not something every visit to
+              `/perfil` needs to show expanded. `FlaskConical` stands in for
+              the "🧪" the brief used in its own heading — this app's
+              established "no emoji, technical typography/vector icons
+              instead" convention applies to section headings too, not just
+              food-catalog rows. */}
+          <details className="group rounded-lg bg-[#F8F7F5] p-3.5">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-neutral-700 [&::-webkit-details-marker]:hidden">
+              <FlaskConical className="size-3.5 shrink-0 text-terracotta" />
+              <span className="flex-1">¿Cómo entrenar tu capacidad digestiva (Gut Training)?</span>
+              <ChevronDown className="size-3.5 shrink-0 text-neutral-400 transition-transform duration-150 group-open:rotate-180" />
+            </summary>
+            <div className="mt-3 flex flex-col gap-3 border-t border-dashed border-zinc-300 pt-3 text-sm text-neutral-600">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold tracking-wide text-neutral-700 uppercase">
+                  Fisiología básica
+                </span>
+                <p>
+                  La absorción de carbohidratos en el intestino depende de transportadores
+                  específicos: <strong>SGLT1</strong> para glucosa/maltodextrina y{" "}
+                  <strong>GLUT5</strong> para fructosa. Ambos son adaptables — se multiplican con
+                  la exposición repetida, igual que el músculo responde al entrenamiento — por
+                  eso la capacidad digestiva sube con la práctica, no con la forma física.
+                </p>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-semibold tracking-wide text-neutral-700 uppercase">
+                  Protocolo progresivo (6-8 semanas)
+                </span>
+                <ol className="flex flex-col gap-1.5">
+                  <li>
+                    <span className="font-mono text-xs font-semibold text-neutral-800">
+                      Semanas 1-2:
+                    </span>{" "}
+                    incrementa tu ingesta en salidas Z2 a 60-70 g/h usando un ratio 2:1 o 1:0.8
+                    (malto:fructosa).
+                  </li>
+                  <li>
+                    <span className="font-mono text-xs font-semibold text-neutral-800">
+                      Semanas 3-4:
+                    </span>{" "}
+                    sube a 80 g/h incorporando mezclas de malto/fructosa en entrenamientos
+                    clave.
+                  </li>
+                  <li>
+                    <span className="font-mono text-xs font-semibold text-neutral-800">
+                      Semanas 5-6+:
+                    </span>{" "}
+                    ensayos a 90-100 g/h en salidas simuladas de intensidad de carrera.
+                  </li>
+                </ol>
+              </div>
+              <p className="border-t border-dashed border-zinc-300 pt-3 text-xs text-neutral-500">
+                <strong className="text-neutral-700">Consejo práctico:</strong> sube tu nivel de
+                Adaptación Digestiva aquí arriba solo cuando hayas completado con éxito 3-4
+                salidas en ruta al nuevo ritmo objetivo sin molestias estomacales — no antes.
+              </p>
+            </div>
+          </details>
         </CardContent>
       </Card>
 

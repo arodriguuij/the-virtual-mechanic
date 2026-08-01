@@ -1137,6 +1137,34 @@ export function FuelingPlanner({
   // electrolyte-only band and the deficit/gut-cap warnings below suppress
   // themselves accordingly (see `result.trainLow`).
   const [trainLow, setTrainLow] = useState(false);
+  // "Reglas de Incompatibilidad Fisiológica" — Train Low (a deliberate
+  // low-glycogen-availability session) is only physiologically sound at an
+  // easy aerobic pace; riding it hard on an empty tank risks real muscle
+  // catabolism, not just a slower ride. Incompatible with a target-event/
+  // competition ride outright (that's the one scenario where carbs are
+  // least optional) and with any intensity at/above Tempo (Z3) — only
+  // Recuperación (Z1) and Fondo Aeróbico (Z2) stay compatible, matching
+  // this exact toggle's own "solo electrolitos, para estimular oxidación
+  // de grasas" framing, which only makes physiological sense at an easy
+  // aerobic pace to begin with.
+  const trainLowIncompatible =
+    isTargetEvent || (intensity !== "" && intensity !== "recovery" && intensity !== "endurance");
+  // The checkbox is `disabled` whenever incompatible, so `trainLow` itself
+  // can only ever be *set* to `true` while compatible — but it can still
+  // *hold* a stale `true` from before intensity/"Ruta objetivo" changed
+  // underneath it (e.g. picking Z2, checking this, then switching to
+  // Z4 — raw `trainLow` never gets touched by that intensity change).
+  // `trainLowEffective` is what every real consumer (the checkbox's own
+  // `checked`, the request body, `handleCalculate`) reads instead of raw
+  // `trainLow` directly, so it "se desmarca de inmediato" the moment it
+  // becomes incompatible with zero risk of silently sending a stale
+  // `trainLow: true` the UI itself no longer shows as checked. A `useEffect`
+  // that called `setTrainLow(false)` here was the first approach, reverted
+  // in favor of this plain derived value once React's own exhaustive-deps/
+  // "no setState-in-effect" lint rule flagged it as an unnecessary
+  // synchronous state sync — deriving avoids the extra render pass a
+  // corrective effect would otherwise cost.
+  const trainLowEffective = trainLow && !trainLowIncompatible;
   const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
   const [customCarbsG, setCustomCarbsG] = useState(0);
   // "Incluye cafeína" — a modifier on whatever gel(s) are already selected,
@@ -1651,7 +1679,7 @@ export function FuelingPlanner({
               isTargetEvent,
               pocketFood: pocketFoodPayload,
               fuelingMode,
-              trainLow,
+              trainLow: trainLowEffective,
             }
           : mode === "gpx" && parsedGpx
             ? {
@@ -1681,7 +1709,7 @@ export function FuelingPlanner({
                 isTargetEvent,
                 pocketFood: pocketFoodPayload,
                 fuelingMode,
-                trainLow,
+                trainLow: trainLowEffective,
               }
             : {
                 mode: "quick",
@@ -1695,7 +1723,7 @@ export function FuelingPlanner({
                 isTargetEvent,
                 pocketFood: pocketFoodPayload,
                 fuelingMode,
-                trainLow,
+                trainLow: trainLowEffective,
               };
 
       const res = await fetch("/api/fueling/plan", {
@@ -2278,22 +2306,46 @@ export function FuelingPlanner({
               deliberate low-carb-availability session; checking this
               overrides the usual intensity-driven carb target with a fixed
               0-25g/h electrolyte-only floor (`result.trainLow`), while
-              hydration/sodium stay at their normal, full targets. */}
+              hydration/sodium stay at their normal, full targets.
+              "Reglas de Incompatibilidad Fisiológica" — disabled outright
+              (real `disabled`, not just a visual dim) whenever
+              `trainLowIncompatible`; `checked`/the request body both read
+              `trainLowEffective` (see its own doc comment above) rather
+              than raw `trainLow`, so the box reads as unchecked and nothing
+              incompatible is ever sent the instant intensity/"Ruta
+              objetivo" makes this incompatible — with no corrective effect
+              needed. */}
           <div className="mt-3 border-t border-zinc-100 pt-3">
-            <label className="flex cursor-pointer items-center gap-2 font-mono text-xs text-zinc-600">
+            <label
+              className={cn(
+                "flex items-center gap-2 font-mono text-xs",
+                trainLowIncompatible
+                  ? "cursor-not-allowed text-zinc-400"
+                  : "cursor-pointer text-zinc-600"
+              )}
+            >
               <input
                 type="checkbox"
-                checked={trainLow}
+                checked={trainLowEffective}
+                disabled={trainLowIncompatible}
                 onChange={(e) => setTrainLow(e.target.checked)}
-                className="size-3.5 cursor-pointer accent-terracotta"
+                className="size-3.5 accent-terracotta disabled:cursor-not-allowed"
               />
               Modo Eficiencia Metabólica (Train Low / Ayunas)
             </label>
-            {trainLow && (
-              <p className="mt-1.5 text-[11px] text-neutral-500">
-                Fija el objetivo de carbohidratos en 0-25g/h (solo electrolitos) para estimular
-                la oxidación de grasas — hidratación y sodio no se ven afectados.
+            {trainLowIncompatible ? (
+              <p className="mt-1.5 text-[11px] text-neutral-400">
+                El modo en ayunas (Train Low) solo es compatible con intensidades aeróbicas
+                suaves (Z1-Z2). En alta intensidad o competición, los carbohidratos son
+                indispensables para proteger tu masa muscular y rendimiento.
               </p>
+            ) : (
+              trainLowEffective && (
+                <p className="mt-1.5 text-[11px] text-neutral-500">
+                  Fija el objetivo de carbohidratos en 0-25g/h (solo electrolitos) para
+                  estimular la oxidación de grasas — hidratación y sodio no se ven afectados.
+                </p>
+              )
             )}
           </div>
         </div>
@@ -2537,18 +2589,48 @@ export function FuelingPlanner({
                 </div>
               )}
 
-              {/* Plain informational text, deliberately not a navigable
-                  link — a mid-form click to "/perfil" would abandon
-                  whatever the athlete has already configured in this
-                  planner. Suppressed under Train Low — a low intake by
+              {/* "Ajuste del Modal de Límite Digestivo" — the old copy
+                  ("Puedes aumentar tu capacidad digestiva en la pestaña
+                  Perfil") read as if flipping a number in a settings form
+                  is what raises real absorption capacity, which isn't
+                  true — the cap only ever moves by actually training the
+                  gut's own SGLT1/GLUT5 transporters over weeks, not by
+                  editing a field. Reworded to state plainly *why* the
+                  pauta was capped (protecting the athlete from real GI
+                  distress) and point at the actual mechanism (the Gut
+                  Training protocol) instead of implying a quick fix.
+                  The "Ver cómo entrenar..." link opens `/perfil` in a new
+                  tab (`target="_blank"`) rather than navigating away in
+                  this one — the reasoning documented here previously (a
+                  same-tab click would abandon whatever the athlete has
+                  already configured in this planner) still holds; a new
+                  tab keeps that protection while still answering "how do I
+                  fix this." Suppressed under Train Low — a low intake by
                   design isn't a gut-capacity limitation worth warning
                   about. */}
               {result.gutTraining.isGutLimited && !result.trainLow && (
-                <p className="mt-3 border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
-                  Tu intestino está limitado a {result.gutTraining.gutCapGPerHour} g/h (esta ruta
-                  pediría {result.gutTraining.uncappedGPerHour} g/h). Puedes aumentar tu capacidad
-                  digestiva en la pestaña Perfil &gt; Capacidad Digestiva.
-                </p>
+                <div className="mt-3 flex flex-col gap-1.5 border border-status-warning/40 bg-status-warning/10 px-3 py-2.5 text-xs text-status-warning">
+                  <span className="font-semibold tracking-wide uppercase">Límite digestivo superado</span>
+                  <p>
+                    Esta ruta requiere ~{result.gutTraining.uncappedGPerHour} g/h de HC para un
+                    rendimiento óptimo, pero tu tope actual configurado es de{" "}
+                    {result.gutTraining.gutCapGPerHour} g/h. RATIO Velo ha limitado tu pauta a{" "}
+                    {result.gutTraining.gutCapGPerHour} g/h para evitar problemas
+                    gastrointestinales en ruta.
+                  </p>
+                  <p>
+                    Para absorber tasas más altas sin molestias, necesitas seguir un protocolo de
+                    Entrenamiento Intestinal (Gut Training).
+                  </p>
+                  <a
+                    href="/perfil#gut-training"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-0.5 w-fit font-mono font-semibold underline underline-offset-2 hover:text-status-warning/80"
+                  >
+                    [ Ver cómo entrenar el intestino en Perfil ]
+                  </a>
+                </div>
               )}
             </div>
 
