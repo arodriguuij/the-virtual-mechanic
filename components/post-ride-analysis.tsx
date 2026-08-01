@@ -454,7 +454,12 @@ export function PostRideAnalysis({
                 metric values (unlike every other numeric readout in this
                 app) — a one-off exception matching Strava's own plain-sans
                 numeral display. */}
-            <div className="overflow-hidden rounded-sm border-0 bg-white shadow-none">
+            {/* `rounded-xl` (up from this app's usual `rounded-sm`) matches
+                `RouteMapPreview`'s own new `rounded-xl` corners — see that
+                component's doc comment — so the map's bottom edge clips
+                cleanly against this wrapper instead of a smaller radius
+                flattening it back down. */}
+            <div className="overflow-hidden rounded-xl border-0 bg-white shadow-none">
               <div className="px-4 pt-4">
                 <h3 className="mb-1 text-xl font-bold tracking-tight text-zinc-900">
                   {result.activity.name}
@@ -472,7 +477,7 @@ export function PostRideAnalysis({
                 points={result.activity.points}
                 distanceKm={result.activity.distanceKm}
                 elevationGainM={result.activity.elevationGainM}
-                className="mt-0 rounded-none"
+                className="mt-0"
                 title="Sin datos GPS"
                 emptyMessage="Sin datos de trazado GPS para esta actividad."
               />

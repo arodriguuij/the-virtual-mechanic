@@ -8,47 +8,43 @@ import { MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
 
 import { cn } from "@/lib/utils";
 
-// OpenTopoMap — a genuinely multi-hue outdoors/topographic basemap (natural
-// blue sea, green forest/vegetation, tan/brown elevation contour bands, high-
-// contrast road network), the "Strava-style" look this app's own PNS pass
-// asked for. Replaces the earlier CartoDB Positron tile (a soft, near-
-// monochrome porcelain-and-pale-blue basemap) — Positron reads as a clean,
-// minimal Apple-Maps-style backdrop but has none of the terrain color
-// information a rider actually wants when checking whether a route climbs
-// through mountains or hugs the coast. Rendered with **no CSS filter** —
-// unlike this app's earlier "Dark Vector HUD" experiment (which inverted
-// this same tile to fake a dark map), this pass wants OpenTopoMap's own
-// natural daylight palette as-is.
-// `{a-c}` (a hyphenated inline range) isn't a placeholder Leaflet's own
-// `TileLayer` URL-template parser understands — it only substitutes tokens
-// it explicitly knows about (`{z}`/`{x}/`{y}`/`{s}`/`{r}`), and `{s}`
-// specifically expects a *separate* `subdomains` prop listing the letters
-// to round-robin through, not the range spelled out inline in the URL
-// itself. Left as `{a-c}`, every tile request literally requested the
-// path `/{a-c}.tile.../...`, which Leaflet's template engine rejected
-// outright with "No value provided for variable {a-c}" before a single
-// tile could load — crashing the whole Dashboard on mount, not just
-// degrading the basemap.
-const TILE_URL = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png";
-const TILE_SUBDOMAINS = "abc";
-// OpenTopoMap's own required attribution wording (CC-BY-SA), layered on top
-// of the underlying OSM/SRTM data attribution its own tiles are built from.
+// CartoDB Voyager — a light, "Apple Maps / Strava Light"-style basemap with
+// natural but soft colors (blue water, muted green terrain, a clear
+// high-contrast road network) and fast-loading raster tiles. Replaces the
+// earlier OpenTopoMap tile — OpenTopoMap's own dense contour-line styling
+// read as busier/heavier than the clean, minimal look this app's PNS pass
+// actually wants; Voyager keeps real terrain color information (unlike the
+// even-flatter CartoDB Positron this app used before that) without
+// OpenTopoMap's topographic clutter. Rendered with no CSS filter — this is
+// meant to be used as-is, in its own natural daylight palette.
+//
+// `{s}` is Leaflet's own subdomain-substitution token — it must be paired
+// with a *separate* `subdomains` prop listing the letters to round-robin
+// through; a hyphenated inline range like `{a-c}` spelled directly into the
+// URL isn't a token Leaflet's template parser recognizes at all, and threw
+// "No value provided for variable {a-c}" before a single tile could load,
+// crashing the whole Dashboard on mount (a real regression hit and fixed
+// with the previous tile provider) — kept as an explicit `subdomains` prop
+// here too, rather than relying on Leaflet's own default, to guard against
+// the same mistake recurring.
+const TILE_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+const TILE_SUBDOMAINS = "abcd";
+// CartoDB's own required attribution wording for this tile set.
 const TILE_ATTRIBUTION =
-  'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)';
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
 // Obsidian black (`#18181B`) — this app's now-unified accent for every
-// active/primary surface (Cards 01/02/04's active selectors, the CTA) —
-// replaces the earlier muted bronze/taupe (`--terracotta`) route line: a
-// thin, high-contrast line reads more cleanly against OpenTopoMap's own
-// colorful, higher-detail terrain than the previous pale-basemap-tuned
-// bronze did. Kept as a literal hex rather than a Tailwind class, since
-// Leaflet's `Polyline` `color` prop needs a plain string.
+// active/primary surface (Cards 01/02/04's active selectors, the active
+// tab) — the route line's own accent, reading cleanly against Voyager's
+// light, soft-colored terrain. Kept as a literal hex rather than a
+// Tailwind class, since Leaflet's `Polyline` `color` prop needs a plain
+// string.
 const ROUTE_LINE_COLOR = "#18181B";
 // A wider, softer, near-black line rendered directly underneath the route
 // itself — Leaflet's `Polyline` has no `box-shadow`-style prop of its own, so
 // stacking a second, more transparent stroke beneath the real one is the
 // standard way to fake one, giving the route a subtle sense of depth over
-// the busier topo terrain rather than sitting perfectly flat on it.
+// the terrain rather than sitting perfectly flat on it.
 const ROUTE_SHADOW_COLOR = "#000000";
 
 // "Estado Vacío del Mapa" — a generic regional backdrop for the dimmed
@@ -149,7 +145,7 @@ export function RouteMapPreview({
   elevationGainM,
   className,
   title = "Sin ruta seleccionada",
-  emptyMessage = "Selecciona una ruta o sube un archivo GPX para visualizar el trazado.",
+  emptyMessage = "Selecciona una ruta para comenzar.",
   onUploadClick,
 }: {
   points: [number, number][] | null;
@@ -182,7 +178,7 @@ export function RouteMapPreview({
     return (
       <div
         className={cn(
-          "relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-sm bg-white shadow-sm",
+          "relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-xl bg-white shadow-sm",
           className
         )}
       >
@@ -203,21 +199,27 @@ export function RouteMapPreview({
             <TileLayer url={TILE_URL} subdomains={TILE_SUBDOMAINS} attribution={TILE_ATTRIBUTION} />
           </MapContainer>
         </div>
+        {/* "Micro-Píldora" — a compact glass chip, not a large opaque card:
+            the whole point of dimming the base map (rather than hiding it
+            behind a blank box) is for it to stay visible, which a bigger
+            card defeated. `max-w-[260px]` plus tight `p-4`/`text-[11px]`
+            sizing throughout keeps this small enough that the dimmed map
+            reads clearly around every edge of it. */}
         <div className="absolute inset-0 flex items-center justify-center px-4">
-          <div className="mx-auto max-w-xs rounded-2xl border border-zinc-200/80 bg-white/95 p-5 text-center shadow-md backdrop-blur-md">
-            <div className="mx-auto mb-3 flex size-9 items-center justify-center rounded-full border border-zinc-200 bg-white shadow-sm">
-              <Compass className="size-4 text-zinc-600" strokeWidth={1} />
+          <div className="mx-auto max-w-65 rounded-2xl border border-zinc-200/60 bg-white/85 p-4 text-center shadow-sm backdrop-blur-md">
+            <div className="mx-auto mb-2 flex size-8 items-center justify-center rounded-full border border-zinc-200 bg-white shadow-sm">
+              <Compass className="size-3.5 text-zinc-600" strokeWidth={1} />
             </div>
-            <p className="mb-1 font-mono text-xs font-bold tracking-wider text-zinc-800 uppercase">{title}</p>
-            <p className="mb-3 text-xs text-zinc-500">{emptyMessage}</p>
+            <p className="font-mono text-[11px] font-bold tracking-wider text-zinc-800 uppercase">{title}</p>
+            <p className="my-1.5 text-[11px] text-zinc-500">{emptyMessage}</p>
             {onUploadClick && (
               <button
                 type="button"
                 onClick={onUploadClick}
-                className="shadow-xs inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#18181B] px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-800"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#18181B] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-800"
               >
-                <Upload className="size-3.5 shrink-0" />
-                Subir archivo .GPX
+                <Upload className="size-3 shrink-0" />
+                Subir GPX
               </button>
             )}
           </div>
@@ -236,13 +238,14 @@ export function RouteMapPreview({
       className={cn(
         // No border — this app's 100%-frameless pass differentiates every
         // container purely by background/shadow, never a hairline outline.
-        // `overflow-hidden` still does real work here beyond clipping the
-        // Leaflet tiles to `rounded-sm`: a caller embedding this flush inside
-        // its own already-rounded card (see the Fueling Planner's Ruta
-        // widget) overrides this component's own `rounded-sm`/`mt-3` via the
-        // `className` merge below, letting the *parent* card's corners do
-        // the clipping instead.
-        "relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-sm bg-white shadow-sm",
+        // `overflow-hidden` clips the Leaflet tiles to `rounded-xl` on
+        // every corner, including this component's own top corners — every
+        // call site now keeps its default `rounded-xl` rather than
+        // flattening it to `rounded-none` to bleed into a parent card's own
+        // rounding (the earlier "full-bleed photo in a card" convention),
+        // so the map always reads as its own fully rounded, self-contained
+        // box regardless of what it's embedded inside.
+        "relative z-0 isolate mt-3 h-48 w-full overflow-hidden rounded-xl bg-white shadow-sm",
         className
       )}
     >

@@ -214,14 +214,16 @@ const segmentedButtonLabelClass = "block w-full truncate";
 // bottle selectors, the active Pre-ruta tab) shares one obsidian-black
 // (`#18181B`) accent for "selected/active." The final "Calcular Estrategia
 // Nutricional" CTA deliberately does *not* share that color: it's the one
-// action on the whole screen, not a selection among options, so it gets its
-// own distinct Verde Oliva Táctico fill (`#222A23`, the same tone as Card
-// 03's own dark "Ficha Técnica" surface — visually tying the button that
-// produces the results to the card that displays them) rather than
-// blending into the same black every selector already uses. Still a
-// deliberate, scoped one-off departure from the shared `primaryButtonClass`
-// token (still `bg-terracotta` everywhere else — Copiar receta, Guardar
-// cambios, Guardar consumo real, etc.). `rounded-xl` is a deliberate,
+// action on the whole screen, not a selection among options. An intermediate
+// pass gave it Card 03's own Verde Oliva (`#222A23`) instead — reverted
+// once that tone read as too close to obsidian black at a glance, defeating
+// the whole point of a distinct "execute" color. Bronce Táctico PNS
+// (`#8C6D46`, hover `#785C3A`) replaces it: a warm, clearly distinct accent
+// that can't be confused with any selector's black fill. Still a deliberate,
+// scoped one-off departure from the shared `primaryButtonClass` token
+// (still `bg-terracotta` everywhere else — Copiar receta, Guardar cambios,
+// Guardar consumo real, etc. — a *different* bronze/taupe token, `--terracotta`,
+// not literally the same hex as this one-off). `rounded-xl` is a deliberate,
 // explicit exception to this app's otherwise-global `rounded-sm` control
 // radius (same precedent as Card 05's own `rounded-xl` result cards) —
 // scoped to this one button, not a change to the shared radius scale. No
@@ -229,8 +231,8 @@ const segmentedButtonLabelClass = "block w-full truncate";
 // itself is real Title Case ("Calcular Estrategia Nutricional"), and a CSS
 // `text-transform` would silently force it back to all-caps regardless of
 // the source string's actual casing.
-const oliveCtaButtonClass =
-  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#222A23] px-4 font-mono text-sm font-bold tracking-wider text-white shadow-sm transition-colors duration-150 hover:bg-[#1A201B] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#222A23]";
+const bronzeCtaButtonClass =
+  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#8C6D46] px-4 font-mono text-sm font-bold tracking-wider text-white shadow-sm transition-colors duration-150 hover:bg-[#785C3A] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#8C6D46]";
 // Card 05 ("Manifiesto de Salida") — the one dark-surface card in the
 // results flow, so every subtitle inside it (Cadencia de Hidratación,
 // Equipamiento y Bici, Comida de Bolsillo, Paradas en Ruta, Plan de Agua
@@ -1937,18 +1939,25 @@ export function FuelingPlanner({
         {/* PASO 01 · Selección y origen de ruta — the mode toggle plus
             whichever source-specific fields that mode needs (Strava route
             select + map, manual duration/watts, or a GPX upload + map). Full
-            white "tarjeta madre" (`bg-white`, zero border, zero shadow,
-            `rounded-sm`) matching `/perfil`'s own numbered-card convention —
-            see the `01 ·`/`02 ·`/`03 ·` eyebrow labels throughout this
-            component. The map itself still bleeds edge-to-edge: the
-            label/select/dropzone portion keeps its own `p-4 sm:p-6` padding,
-            but `RouteMapPreview` is a direct sibling with none of its own,
-            so it touches this card's own left/right/bottom boundary —
-            `overflow-hidden` on the outer card clips the map's rectangular
-            Leaflet container to match `rounded-sm`; `RouteMapPreview`'s own
-            default `mt-3`/`rounded-sm` are overridden via its `className`
-            prop specifically for this reason. */}
-        <div className="overflow-hidden rounded-sm bg-white shadow-none">
+            white "tarjeta madre" (`bg-white`, zero border, zero shadow)
+            matching `/perfil`'s own numbered-card convention — see the
+            `01 ·`/`02 ·`/`03 ·` eyebrow labels throughout this component.
+            The map sits flush against this card's own left/right/bottom
+            edges (the label/select/dropzone portion above it keeps its own
+            `p-4 sm:p-6` padding, but `RouteMapPreview` is a direct sibling
+            with none of its own) — `RouteMapPreview` now renders its own
+            `rounded-xl` on every corner rather than bleeding flush into the
+            parent's rounding (the earlier "full-bleed photo in a card"
+            convention, dropped once a rounded top edge was explicitly
+            requested), so this wrapper's own radius was bumped to match —
+            see the comment on this `div` below. */}
+        {/* `rounded-xl` here (up from this app's usual `rounded-sm`) is a
+            deliberate, scoped exception matching the map's own new
+            `rounded-xl` corners (see `RouteMapPreview`) — both containers
+            share one radius now so the map's bottom corners clip cleanly
+            against this wrapper's own `overflow-hidden` instead of a
+            smaller radius flattening them back down. */}
+        <div className="overflow-hidden rounded-xl bg-white shadow-none">
           <div className="p-4 sm:p-6">
             <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
               01 · Selección y origen de ruta
@@ -2236,7 +2245,7 @@ export function FuelingPlanner({
               points={selectedRoutePoints}
               distanceKm={selectedRoute?.distanceKm ?? null}
               elevationGainM={selectedRoute?.elevationGainM ?? null}
-              className="mt-0 rounded-none"
+              className="mt-0"
               onUploadClick={() => setGpxUploadOpen(true)}
             />
           )}
@@ -2245,7 +2254,7 @@ export function FuelingPlanner({
               points={parsedGpx?.points ?? null}
               distanceKm={parsedGpx?.distanceKm ?? null}
               elevationGainM={parsedGpx?.elevationGainM ?? null}
-              className="mt-0 rounded-none"
+              className="mt-0"
             />
           )}
           {/* "Perfil Altimétrico (Sparkline SVG)" — a GPX file already has
@@ -2527,7 +2536,7 @@ export function FuelingPlanner({
             className={cn(
               "h-11 w-full text-sm",
               isProfileComplete
-                ? oliveCtaButtonClass
+                ? bronzeCtaButtonClass
                 : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-sm bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
             )}
           >

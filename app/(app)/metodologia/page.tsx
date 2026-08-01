@@ -58,7 +58,12 @@ export default function MetodologiaPage() {
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <h1 className="text-xl font-bold font-mono text-neutral-900 uppercase tracking-tight sm:text-2xl">
+        {/* "Normalización Tipográfica" — sentence case, no `uppercase`
+            transform, matching the same de-shouting pass already applied to
+            the tabs/card titles/field labels elsewhere in the app. Scoped
+            to this page's own `<h1>` string, not Historial/Estadísticas,
+            which still share this exact literal class and weren't named. */}
+        <h1 className="text-xl font-bold font-mono text-neutral-900 tracking-tight sm:text-2xl">
           Base científica
         </h1>
         <p className="mt-1 text-xs font-mono leading-relaxed text-neutral-500">

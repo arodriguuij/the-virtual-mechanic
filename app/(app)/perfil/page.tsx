@@ -152,7 +152,13 @@ export default async function PerfilPage({
           title→first-card gap doesn't affect the cards' own separation
           from each other. */}
       <header>
-        <h1 className="text-xl font-bold font-mono text-neutral-900 uppercase tracking-tight sm:text-2xl">
+        {/* "Normalización Tipográfica" — sentence case, no `uppercase`
+            transform, matching the same de-shouting pass already applied to
+            the tabs/card titles/field labels elsewhere in the app. This is
+            a scoped change to this page's own `<h1>` string, not the
+            Historial/Estadísticas pages, which still share this exact
+            literal class and weren't named in that pass. */}
+        <h1 className="text-xl font-bold font-mono text-neutral-900 tracking-tight sm:text-2xl">
           Perfil fisiológico
         </h1>
         <p className="text-xs font-mono text-neutral-500 mt-1 leading-relaxed">
