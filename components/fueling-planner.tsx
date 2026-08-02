@@ -39,6 +39,7 @@ import { ProfileRequiredBanner } from "@/components/profile-required-banner";
 import {
   fieldClass,
   flatMobileCardClass,
+  formFieldLabelClass,
   secondaryButtonClass,
   selectableFieldClass,
   selectChevronClass,
@@ -161,16 +162,11 @@ function pocketFoodName(type: PocketFoodItemType): string {
 
 // "Normalización Tipográfica" — every field label in the planner (Ruta,
 // Intensidad objetivo, Fecha y hora de salida, Paradas previstas en ruta,
-// Configuración de bidones, Comida en bolsillo, Duración/Vatios) now shares
-// this one class, modeled on the fine, attenuated style the "Ruta" label
-// already carried before this pass — no more `uppercase`/`font-semibold`
-// shouting, and the labels' own source text is real sentence case
-// ("Intensidad objetivo," not "INTENSIDAD OBJETIVO"), which a CSS
-// `text-transform` used to override regardless. This used to be two
-// slightly different styles (a bolder/wider-tracked one for Paso 02's
-// grouped inputs, a smaller/looser-tracked one for Ruta/stat-block
-// eyebrows) — unified into one now that both are meant to read identically.
-const formFieldLabelClass = "text-xs font-mono text-zinc-500 tracking-wide";
+// Configuración de bidones, Comida en bolsillo, Duración/Vatios) shares
+// `formFieldLabelClass`, imported from `lib/ui-classes.ts` — centralized
+// there (not a local const here) specifically so the Physiological Profile
+// form's own field labels can share this exact same definition byte-for-byte
+// rather than an independent, same-looking copy that could drift apart.
 // Shared with every other field/button across the app (`lib/ui-classes.ts`) —
 // aliased to these file-local names since they're already used at every
 // input/select/date call site below.

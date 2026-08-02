@@ -22,14 +22,26 @@ import {
 } from "@/lib/metabolic-engine";
 import {
   fieldClass,
+  formFieldLabelClass,
   primaryButtonClass,
   selectableFieldClass,
   selectChevronClass,
 } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
-const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
-const cardNumberHeading = "font-mono text-xs font-bold tracking-widest text-neutral-500 uppercase";
+// "Homogeneización Visual" — both `eyebrow` (field labels) and
+// `cardNumberHeading` (the "01 ·"/"02 ·"/"03 ·" section titles) now match
+// the Dashboard's Fueling Planner byte-for-byte, so the two surfaces are
+// visually indistinguishable rather than two independently-tuned "close
+// enough" styles. `eyebrow` is an alias for the shared, centralized
+// `formFieldLabelClass` (`lib/ui-classes.ts`) rather than a second local
+// copy of the same string — kept under its old local name here since every
+// call site below already refers to it as `eyebrow`. `cardNumberHeading`
+// stays a local const (not centralized) since Estadísticas/Historial still
+// use their own, different `cardNumberHeading` value — this pass only
+// targets Perfil, not those two mid-rebuild routes.
+const eyebrow = formFieldLabelClass;
+const cardNumberHeading = "font-mono text-xs font-semibold tracking-wider text-zinc-500";
 
 const errorTextClass = "mt-1 font-mono text-[11px] text-red-500";
 const invalidFieldClass = "border-red-500 focus:border-red-500 focus:ring-red-500";

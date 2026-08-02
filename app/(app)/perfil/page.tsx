@@ -4,19 +4,20 @@ import { Suspense } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { PhysiologicalProfileForm } from "@/components/physiological-profile-form";
 import { getAthleteProfile, getStravaAthleteWeightKg } from "@/lib/dashboard-data";
-import { fieldClass, primaryButtonClass } from "@/lib/ui-classes";
+import { fieldClass, formFieldLabelClass, primaryButtonClass } from "@/lib/ui-classes";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const eyebrow = "text-[10px] font-semibold tracking-widest text-neutral-600 uppercase";
-// Distinct from the generic `eyebrow` above — this page's three numbered
-// section headers ("01 · MÉTRICAS...") read as a technical step sequence,
-// which is what earns them the monospace treatment; every other card title
-// in this app stays in the plain geometric sans (see CLAUDE.md's "Code
-// style" section on `font-mono` being reserved for numeric readouts and,
-// now, this one numbered-header exception).
-const cardNumberHeading = "font-mono text-xs font-bold tracking-widest text-neutral-500 uppercase";
+// "Homogeneización Visual" — this skeleton must mirror the real form's own
+// label/card-title styling exactly (this app's "a loading fallback must
+// mirror the real eventual shape" convention), so both consts here match
+// `components/physiological-profile-form.tsx`'s own `eyebrow`/
+// `cardNumberHeading` byte-for-byte — which in turn now match the
+// Dashboard's Fueling Planner (see that file's own `formFieldLabelClass`
+// import and its local "01 ·"-style card eyebrow).
+const eyebrow = formFieldLabelClass;
+const cardNumberHeading = "font-mono text-xs font-semibold tracking-wider text-zinc-500";
 
 // Shared with every other field/button across the app (`lib/ui-classes.ts`).
 const profileInputClass = fieldClass;

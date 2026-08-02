@@ -68,6 +68,18 @@ export const selectableFieldClass =
 export const selectChevronClass =
   "pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-zinc-400";
 
+/** Every plain-text field label in the Dashboard's Fueling Planner (Ruta,
+ * Intensidad objetivo, Fecha y hora de salida, Paradas previstas en ruta,
+ * Configuración de bidones, Comida en bolsillo, Duración/Vatios) and the
+ * Physiological Profile form (Peso, FTP, Fenotipo metabólico, Tasa de
+ * sudoración, etc.) — centralized here specifically so both surfaces share
+ * one literal definition instead of two independent, same-looking consts
+ * that could silently drift apart. Fine, attenuated style — no
+ * `uppercase`/`font-semibold` shouting, and the labels' own source text is
+ * real sentence case ("Peso (kg)," not "PESO (KG)"), which a CSS
+ * `text-transform` would otherwise override regardless. */
+export const formFieldLabelClass = "text-xs font-mono text-zinc-500 tracking-wide";
+
 /** A small data-pill — weather readouts, Gut Training level, and other
  * short label+value chips that read as a distinct "tag" rather than a
  * full stat block. */
