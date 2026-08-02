@@ -276,37 +276,38 @@ const INTENSITY_SELECT_OPTIONS: { value: IntensityLevel; label: string }[] = [
   { value: "competition", label: "Competición / Carrera" },
 ];
 
-// "Colores Strava por Zona" — each zone's title/indicator picks up the same
-// blue→green→amber→orange→red→purple gradation Strava's own power-zone
-// chips use, so the athlete can pattern-match a zone by color at a glance
-// instead of reading every label. The description text stays a neutral
-// `text-zinc-500` regardless of zone — only the zone name itself is
-// color-coded, so the color scale doesn't fight the panel's own legibility.
+// "Monocromo/Bronce" — a brief rainbow-per-zone pass (blue→green→amber→
+// orange→red→purple) read as too loud/playful for this app's sober PNS
+// palette; reverted to a quiet, technical monochrome instead. Z1-Z4 stay
+// plain `text-zinc-900`, and only Z5-Z7/Competición — the genuine
+// "maximum effort" zones — pick up the app's own Bronce Táctico accent
+// (`#70685b`, the same color every active selector state already uses)
+// as the one deliberate highlight, rather than a 6-color gradient.
 const INTENSITY_ZONE_TOOLTIP_NOTE = (
   <div className="space-y-1.5 text-left text-xs font-mono text-zinc-500">
     <p>
-      <strong className="text-sky-600">Recuperación (Z1):</strong> &lt;55% FTP (Gasto
-      glucogénico mínimo, oxidación de grasas).
+      <strong className="font-bold text-zinc-900">Recuperación (Z1):</strong> &lt;55% FTP
+      (Gasto glucogénico mínimo, oxidación de grasas).
     </p>
     <p>
-      <strong className="text-emerald-600">Fondo Aeróbico (Z2):</strong> 55-75% FTP (Ritmo
-      base, consumo moderado de glucógeno).
+      <strong className="font-bold text-zinc-900">Fondo Aeróbico (Z2):</strong> 55-75% FTP
+      (Ritmo base, consumo moderado de glucógeno).
     </p>
     <p>
-      <strong className="text-amber-600">Tempo / Sweetspot (Z3):</strong> 76-90% FTP (Ritmo
-      exigente sostenible, consumo alto).
+      <strong className="font-bold text-zinc-900">Tempo / Sweetspot (Z3):</strong> 76-90% FTP
+      (Ritmo exigente sostenible, consumo alto).
     </p>
     <p>
-      <strong className="text-orange-600">Umbral (Z4):</strong> 91-105% FTP (Series al
-      límite, consumo glucogénico elevado).
+      <strong className="font-bold text-zinc-900">Umbral (Z4):</strong> 91-105% FTP (Series
+      al límite, consumo glucogénico elevado).
     </p>
     <p>
-      <strong className="text-rose-600">Intervalos / VO2 Max (Z5-Z7):</strong> &gt;106% FTP
-      (Series explosivas de alta intensidad).
+      <strong className="font-bold text-[#70685b]">Intervalos / VO2 Max (Z5-Z7):</strong>{" "}
+      &gt;106% FTP (Series explosivas de alta intensidad).
     </p>
     <p>
-      <strong className="text-purple-600">Competición / Carrera:</strong> Variabilidad alta
-      y máximo vaciado metabólico.
+      <strong className="font-bold text-[#70685b]">Competición / Carrera:</strong>{" "}
+      Variabilidad alta y máximo vaciado metabólico.
     </p>
   </div>
 );
@@ -3135,12 +3136,14 @@ export function FuelingPlanner({
                   treatment, matching every other alert box in Cards 03-05
                   now that the dark tactical palette is gone. */}
               {remainingCarbsG > 15 && !result.trainLow && (
-                <div className="rounded-xl border border-amber-200/80 bg-amber-50/80 p-3.5 text-amber-900 shadow-xs">
-                  <span className="mb-1 flex items-center gap-1.5 font-mono text-xs font-bold tracking-wider text-amber-900 uppercase">
-                    <TriangleAlert className="size-3.5 shrink-0 text-amber-600" />
-                    Alerta de déficit pendiente de cubrir
-                  </span>
-                  <p className="font-mono text-xs leading-relaxed text-amber-900/90">
+                <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3.5 shadow-xs">
+                  <div className="mb-1 flex items-center gap-2">
+                    <TriangleAlert className="size-4 shrink-0 text-amber-700" />
+                    <span className="font-mono text-xs font-bold tracking-wider text-amber-900 uppercase">
+                      Alerta de déficit pendiente de cubrir
+                    </span>
+                  </div>
+                  <p className="pl-6 font-mono text-xs leading-relaxed text-amber-900/90">
                     Te faltan <span className="font-semibold text-amber-800">{remainingCarbsG}g HC</span>{" "}
                     para alcanzar tu objetivo de la ruta. Te recomendamos activar &quot;Paradas
                     previstas en ruta&quot; (Tarjeta 02) o añadir más comida al bolsillo en la
