@@ -181,7 +181,7 @@ export function WeatherImpactCard({
             one concise, still-dynamic line, since `sourceLabel` already
             names the altimetry-based Open-Meteo forecast itself and this
             app never silently discards real computed data. */}
-        <p className="mb-3 font-mono text-[11px] tracking-tight text-zinc-400">
+        <p className="mb-1 font-mono text-[11px] tracking-tight text-zinc-400">
           {sourceLabel}
           {!altitude && lapseRateAdjustmentC !== 0 && (
             <span className="inline-flex items-center gap-1">
