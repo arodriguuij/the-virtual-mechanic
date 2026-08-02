@@ -14,6 +14,7 @@ import {
   athleteTypeLabels,
   getWkgBarPercentage,
   getWkgCategory,
+  getWkgLevelIndex,
   sweatRateDescriptions,
   sweatRateLabels,
   type AthleteType,
@@ -42,6 +43,21 @@ import { cn } from "@/lib/utils";
 // targets Perfil, not those two mid-rebuild routes.
 const eyebrow = formFieldLabelClass;
 const cardNumberHeading = "font-mono text-xs font-semibold tracking-wider text-zinc-500";
+
+// "Escala Progresiva Bronce" — the W/kg scale bar's 4 fill colors (gray to
+// Bronce Táctico) and the matching text color for the value/label readout
+// above it, indexed by `getWkgLevelIndex(wkg)` so the bar segment, the
+// dot's outline, and the "4.39 W/kg · Competitivo / Elite" text can never
+// disagree about which of the 4 levels the athlete is currently in.
+const WKG_LEVEL_FILL_CLASSES = ["bg-zinc-200", "bg-zinc-400", "bg-zinc-600", "bg-[#70685b]"];
+const WKG_LEVEL_TEXT_CLASSES = ["text-zinc-500", "text-zinc-600", "text-zinc-800", "text-[#70685b]"];
+const WKG_LEVEL_RING_CLASSES = ["ring-zinc-300", "ring-zinc-400", "ring-zinc-500", "ring-[#70685b]"];
+const WKG_LEVEL_BAND_TITLES = [
+  "Bajo (<2.8 W/kg)",
+  "Medio-Bajo (2.8-3.5 W/kg)",
+  "Medio-Alto (3.5-4.2 W/kg)",
+  "Élite / Máximo (≥4.2 W/kg)",
+];
 
 const errorTextClass = "mt-1 font-mono text-[11px] text-red-500";
 const invalidFieldClass = "border-red-500 focus:border-red-500 focus:ring-red-500";
@@ -154,6 +170,7 @@ export function PhysiologicalProfileForm({
   const wkg = weightValid && ftpValid ? Number(ftp) / Number(weight) : 0;
   const wkgCategory = wkg > 0 ? getWkgCategory(wkg) : null;
   const wkgBarPercentage = wkg > 0 ? getWkgBarPercentage(wkg) : 0;
+  const wkgLevelIndex = wkg > 0 ? getWkgLevelIndex(wkg) : 0;
 
   const hasChanges = useMemo(
     () =>
@@ -208,8 +225,8 @@ export function PhysiologicalProfileForm({
     >
       <Card className="overflow-visible">
         <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-col gap-3 pb-1">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <span className={cardNumberHeading}>01 · Métricas físicas y equipamiento</span>
               {/* Read-only W/kg readout — FTP ÷ Peso, recalculated live from
                   the two controlled inputs directly below, never its own
@@ -223,20 +240,40 @@ export function PhysiologicalProfileForm({
                   without the container. `flex-wrap` on the parent row still
                   lets this drop to its own line below the (longer) eyebrow
                   label on a narrow phone instead of both squeezing onto one
-                  forced row. */}
+                  forced row — the row's own `gap-3` (up from `gap-2`) gives
+                  that wrapped mobile line real breathing room from the
+                  eyebrow above it, not just a bare line-wrap. "Color
+                  Dinámico" — both the value and the level label now share
+                  `WKG_LEVEL_TEXT_CLASSES[wkgLevelIndex]`, the same gray-to-
+                  Bronce-Táctico progression the scale bar below uses, so a
+                  reading like "4.39 W/kg · Competitivo / Elite" renders in
+                  `#70685b` the instant it crosses into the top level. */}
               {wkgCategory && (
-                <div className="flex shrink-0 items-center gap-1.5 font-mono text-xs whitespace-nowrap text-zinc-800">
-                  <span className="font-bold text-zinc-900">{wkg.toFixed(2)} W/kg</span>
-                  <span className="text-zinc-400">·</span>
-                  <span className="text-zinc-500">{wkgCategory.label}</span>
+                <div
+                  className={cn(
+                    "flex shrink-0 items-center gap-1.5 font-mono text-xs whitespace-nowrap",
+                    WKG_LEVEL_TEXT_CLASSES[wkgLevelIndex]
+                  )}
+                >
+                  <span className="font-bold">{wkg.toFixed(2)} W/kg</span>
+                  <span className="text-zinc-300">·</span>
+                  <span>{wkgCategory.label}</span>
                 </div>
               )}
             </div>
-            {/* Micro-graduated scale bar — a thin, five-band gradient
-                (Principiante → Pro/Excepcional across the same 1.5-5.5 W/kg
-                spectrum `getWkgCategory` bands into labels) with a small
-                dark notch marking the athlete's own live position
-                (`getWkgBarPercentage`). Deliberately not one of this app's
+            {/* Micro-graduated scale bar — "Escala Progresiva Bronce": 4
+                equal segments (not `getWkgCategory`'s own 6 named bands)
+                colored gray-to-Bronce-Táctico via `WKG_LEVEL_FILL_CLASSES`,
+                split at that same function's real 2.8/3.5/4.2 W/kg
+                thresholds (see `getWkgLevelIndex`) so "Competitivo / Elite"
+                and "Pro / Excepcional" — both ≥4.2 — land in the one bronze
+                top segment together. The notch marking the athlete's own
+                live position (`getWkgBarPercentage`, a continuous 1.5-5.5
+                W/kg placement independent of the 4 discrete color segments)
+                keeps its solid dark fill for visibility against every
+                segment color, but its outline ring now tracks the same
+                active level tone (`WKG_LEVEL_RING_CLASSES`) instead of a
+                fixed neutral ring. Deliberately not one of this app's
                 `rounded-sm` selector/card/button shapes — a progress-bar
                 track, styled `rounded-full` like every other track/pill in
                 the app, reactive on every keystroke since it's derived from
@@ -244,14 +281,19 @@ export function PhysiologicalProfileForm({
             {wkgCategory && (
               <div className="relative w-full pt-1">
                 <div className="flex h-1.5 w-full divide-x divide-white overflow-hidden rounded-full bg-zinc-100">
-                  <div className="w-1/5 bg-zinc-200/60" title="Principiante (<2.0)" />
-                  <div className="w-1/5 bg-zinc-200/80" title="Recreacional (2.0-2.8)" />
-                  <div className="w-1/5 bg-zinc-300/80" title="Intermedio (2.8-3.5)" />
-                  <div className="w-1/5 bg-zinc-400/80" title="Avanzado (3.5-4.2)" />
-                  <div className="w-1/5 bg-zinc-500/80" title="Elite / Pro (>4.2)" />
+                  {WKG_LEVEL_FILL_CLASSES.map((fillClass, i) => (
+                    <div
+                      key={i}
+                      className={cn("w-1/4", fillClass)}
+                      title={WKG_LEVEL_BAND_TITLES[i]}
+                    />
+                  ))}
                 </div>
                 <div
-                  className="absolute top-0.5 -ml-1 h-2.5 w-2 rounded-sm bg-zinc-900 shadow-sm transition-all duration-300"
+                  className={cn(
+                    "absolute top-0.5 -ml-1 h-2.5 w-2 rounded-sm bg-zinc-900 shadow-sm ring-2 ring-offset-1 ring-offset-white transition-all duration-300",
+                    WKG_LEVEL_RING_CLASSES[wkgLevelIndex]
+                  )}
                   style={{ left: `${wkgBarPercentage}%` }}
                 />
               </div>

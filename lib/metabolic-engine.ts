@@ -1792,3 +1792,19 @@ export function getWkgBarPercentage(wkg: number): number {
   const raw = ((wkg - WKG_BAR_MIN) / (WKG_BAR_MAX - WKG_BAR_MIN)) * 100;
   return Math.min(Math.max(raw, 0), 100);
 }
+
+/**
+ * Collapses `getWkgCategory`'s 6 named bands into the 4 color levels the
+ * Physiological Profile form's scale bar renders (Bajo/Medio-Bajo/
+ * Medio-Alto/Élite-Máximo, gray-to-bronze) — reuses that function's own
+ * real thresholds (2.8/3.5/4.2 W/kg) rather than inventing new round-number
+ * cutoffs, so "Competitivo / Elite" and "Pro / Excepcional" (both ≥4.2)
+ * land in the same top level, and the bar/label/value readout can never
+ * disagree about which W/kg band the athlete is actually in.
+ */
+export function getWkgLevelIndex(wkg: number): 0 | 1 | 2 | 3 {
+  if (wkg < 2.8) return 0;
+  if (wkg < 3.5) return 1;
+  if (wkg < 4.2) return 2;
+  return 3;
+}
