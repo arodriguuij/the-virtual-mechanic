@@ -170,19 +170,18 @@ export function WeatherImpactCard({
     // background/border/padding of its own.
     <div className="flex flex-col gap-3">
       <div>
-        <span className="mb-1 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
-          Impacto térmico
+        <span className="mb-1 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
+          Impacto Térmico
         </span>
-        <span className="mb-3 block font-mono text-xs text-zinc-500">
-          Predicción meteorológica por tramos según la altimetría de la ruta (Open-Meteo)
-        </span>
-        {/* The real source-confidence line (live forecast vs. seasonal
-            average vs. a generic planning estimate, plus the lapse-rate
-            correction when one applies) — kept as its own smaller trailing
-            detail rather than dropped outright, since it's genuinely
-            different information from the fixed explainer above and this
+        {/* The old fixed explainer ("Predicción meteorológica por tramos
+            según la altimetría de la ruta (Open-Meteo)") and the real
+            source-confidence line (live forecast vs. seasonal average vs. a
+            generic planning estimate, plus the lapse-rate correction when
+            one applies) used to render as two separate lines — merged into
+            one concise, still-dynamic line, since `sourceLabel` already
+            names the altimetry-based Open-Meteo forecast itself and this
             app never silently discards real computed data. */}
-        <span className="font-mono text-[10px] text-zinc-400">
+        <p className="mb-3 font-mono text-[11px] tracking-tight text-zinc-400">
           {sourceLabel}
           {!altitude && lapseRateAdjustmentC !== 0 && (
             <span className="inline-flex items-center gap-1">
@@ -191,7 +190,7 @@ export function WeatherImpactCard({
               {lapseRateAdjustmentC}°C por altitud
             </span>
           )}
-        </span>
+        </p>
       </div>
 
       {altitude ? (

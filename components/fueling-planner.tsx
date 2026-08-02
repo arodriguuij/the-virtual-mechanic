@@ -2710,7 +2710,7 @@ export function FuelingPlanner({
                 </div>
               </div>
 
-              <div className="mt-3">
+              <div className="mt-6 pt-2">
                 <WeatherImpactCard
                   temperatureC={result.weather.temperatureC}
                   temperatureMaxC={result.weather.temperatureMaxC}
