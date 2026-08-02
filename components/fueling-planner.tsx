@@ -211,28 +211,27 @@ const segmentedButtonClass =
 const segmentedButtonLabelClass = "block w-full truncate";
 // "Jerarquía de Color: Selectores vs. Acción Principal" — every selector/
 // toggle (Card 01's mode toggle, Card 02's date/paradas pills, Card 04's
-// bottle selectors, the active Pre-ruta tab) shares one obsidian-black
-// (`#18181B`) accent for "selected/active." The final "Calcular Estrategia
-// Nutricional" CTA deliberately does *not* share that color: it's the one
-// action on the whole screen, not a selection among options. An intermediate
-// pass gave it Card 03's own Verde Oliva (`#222A23`) instead — reverted
-// once that tone read as too close to obsidian black at a glance, defeating
-// the whole point of a distinct "execute" color. Bronce Táctico PNS
-// (`#8C6D46`, hover `#785C3A`) replaces it: a warm, clearly distinct accent
-// that can't be confused with any selector's black fill. Still a deliberate,
-// scoped one-off departure from the shared `primaryButtonClass` token
-// (still `bg-terracotta` everywhere else — Copiar receta, Guardar cambios,
-// Guardar consumo real, etc. — a *different* bronze/taupe token, `--terracotta`,
-// not literally the same hex as this one-off). `rounded-xl` is a deliberate,
-// explicit exception to this app's otherwise-global `rounded-sm` control
-// radius (same precedent as Card 05's own `rounded-xl` result cards) —
-// scoped to this one button, not a change to the shared radius scale. No
-// `uppercase` here (unlike every other shared button token) — the label
-// itself is real Title Case ("Calcular Estrategia Nutricional"), and a CSS
-// `text-transform` would silently force it back to all-caps regardless of
-// the source string's actual casing.
+// bottle selectors) shares one Taupe/Bronce Apagado (`#70685b`, hover
+// `#60594e`) accent for "selected/active" — a muted, secondary tone that
+// reads as "chosen among options," not an action. The final "Calcular
+// Estrategia Nutricional" CTA deliberately does *not* share that color: it's
+// the one action on the whole screen, not a selection among options. Earlier
+// passes gave it Card 03's own Verde Oliva (`#222A23`), then a Bronce
+// Táctico (`#8C6D46`) — both reverted in favor of Negro Obsidiana
+// (`#18181B`, hover `#27272A`) instead, so the CTA reads as the single most
+// authoritative, highest-contrast action on the screen, distinct from every
+// selector's now-lighter taupe fill. Still a deliberate, scoped one-off
+// departure from the shared `primaryButtonClass` token (still `bg-terracotta`
+// everywhere else — Copiar receta, Guardar cambios, Guardar consumo real,
+// etc.). `rounded-xl` is a deliberate, explicit exception to this app's
+// otherwise-global `rounded-sm` control radius (same precedent as Card 05's
+// own `rounded-xl` result cards) — scoped to this one button, not a change
+// to the shared radius scale. No `uppercase` here (unlike every other shared
+// button token) — the label itself is real Title Case ("Calcular Estrategia
+// Nutricional"), and a CSS `text-transform` would silently force it back to
+// all-caps regardless of the source string's actual casing.
 const bronzeCtaButtonClass =
-  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#8C6D46] px-4 font-mono text-sm font-bold tracking-wider text-white shadow-sm transition-colors duration-150 hover:bg-[#785C3A] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#8C6D46]";
+  "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#18181B] px-4 font-mono text-sm font-bold tracking-wider text-white shadow-sm transition-colors duration-150 hover:bg-[#27272A] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#18181B]";
 // Card 05 ("Manifiesto de Salida") — the one dark-surface card in the
 // results flow, so every subtitle inside it (Cadencia de Hidratación,
 // Equipamiento y Bici, Comida de Bolsillo, Paradas en Ruta, Plan de Agua
@@ -1000,7 +999,7 @@ function DeparturePicker({
             className={cn(
               segmentedButtonClass,
               dayMode === opt.value
-                ? "border-transparent bg-[#18181B] text-white"
+                ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
                 : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
             )}
           >
@@ -1980,7 +1979,7 @@ export function FuelingPlanner({
                 className={cn(
                   segmentedButtonClass,
                   mode === "route" || mode === "gpx"
-                    ? "border-transparent bg-[#18181B] text-white"
+                    ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
                     : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                 )}
               >
@@ -1992,7 +1991,7 @@ export function FuelingPlanner({
                 className={cn(
                   segmentedButtonClass,
                   mode === "quick"
-                    ? "border-transparent bg-[#18181B] text-white"
+                    ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
                     : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                 )}
               >
@@ -2392,7 +2391,7 @@ export function FuelingPlanner({
                   className={cn(
                     segmentedButtonClass,
                     cafeteriaStopCount === opt.value
-                      ? "border-transparent bg-[#18181B] text-white"
+                      ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
                       : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                   )}
                 >
@@ -2906,7 +2905,7 @@ export function FuelingPlanner({
                       className={cn(
                         "rounded-sm border px-2.5 py-1 font-mono text-[11px] font-semibold shadow-none transition-colors duration-150",
                         displayBottlePlan?.bottleSizeMl === ml
-                          ? "border-transparent bg-[#18181B] text-white"
+                          ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
                           : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                       )}
                     >
@@ -2933,7 +2932,7 @@ export function FuelingPlanner({
                     className={cn(
                       segmentedButtonClass,
                       bottleConfig === opt.value
-                        ? "border-transparent bg-[#18181B] text-white"
+                        ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
                         : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                     )}
                   >
