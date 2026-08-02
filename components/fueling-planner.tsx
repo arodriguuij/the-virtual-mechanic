@@ -234,7 +234,7 @@ const bronzeCtaButtonClass =
 // en Ruta) shares this exact class rather than each carrying its own
 // near-identical string — "todos los subtítulos comparten exactamente el
 // mismo estilo visual" is trivially true when they're all one constant.
-const manifestSubtitleClass = "font-mono text-[11px] tracking-widest text-zinc-400 uppercase";
+const manifestSubtitleClass = "font-mono text-[11px] tracking-widest text-zinc-500 uppercase";
 // "Salida" quick-select: a day pill (Hoy/Mañana) plus a plain hour `<select>`
 // replaces the old `datetime-local` input — that native control's per-browser
 // chrome (and iOS Safari's multi-segment month/day/year/hour/minute/AM-PM
@@ -495,35 +495,34 @@ const CARB_DEMAND_GAUGE_MAX_G_PER_HOUR = 100;
 const FLUID_DEMAND_GAUGE_MAX_ML_PER_HOUR = 1500;
 const SODIUM_DEMAND_GAUGE_MAX_MG_PER_HOUR = 2000;
 
-// "Ficha Técnica de Laboratorio" (Card 03's own dark olive tile
-// restyle) — this component's only 4 call sites all live inside Card 03,
-// so its colors were restyled directly for that dark surface rather than
-// gaining a `dark`/light variant prop for a light-surface call site that
-// doesn't exist. Emerald-tinted fill (`bg-emerald-500/60`) on a low-opacity
-// white track, in place of the old terracotta-on-porcelain pairing.
+// "Unificación de Lienzo Claro" — this component's only 4 call sites all
+// live inside Card 03's now-light `bg-zinc-50` tiles, so its colors were
+// restyled directly for that light surface: a `zinc-200` track and a
+// Bronce Táctico (`#70685b`) fill, this app's "state accent" color, in
+// place of the earlier dark card's low-opacity-white/emerald pairing.
 function MicroGauge({ pct }: { pct: number }) {
   const clamped = Math.max(0, Math.min(100, pct));
   return (
-    <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-white/10" aria-hidden>
-      <div className="h-full bg-emerald-500/60" style={{ width: `${clamped}%` }} />
+    <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-zinc-200" aria-hidden>
+      <div className="h-full bg-[#70685b]" style={{ width: `${clamped}%` }} />
     </div>
   );
 }
 
 /** "Manifiesto de Salida" checklist row — a real square checkbox (not
- * bracket text) matching Card 05's own dark "Display Táctico" palette:
- * `border-zinc-600 bg-zinc-800/50` at rest, filling solid `bg-emerald-500`
- * with a white check mark once ticked. Purely a physical prep aid (tick
- * off gear as it's actually packed into pockets/cages); toggling it has no
- * effect on any figure elsewhere in the card — the underlying line content
- * is still fully re-derived from `result`/`bottleConfig`/pocket food, this
- * is just a checked/unchecked overlay on top of it. `children` (not a
- * plain `text` string) so call sites that need a nested reveal button or
- * warning block under one line (the mix-bottle row's "[ Ver en cazos ]"
- * and hypertonic warning) can still attach it without a second component.
- * Only ever rendered on Card 05's dark surface, so its text color
- * (`text-zinc-100`) is a fixed light tone, not this app's usual
- * light-background `text-neutral-*` convention. */
+ * bracket text). Restyled for Card 05's now-light surface ("Unificación de
+ * Lienzo Claro"): `border-zinc-300 bg-white` at rest, filling solid
+ * `bg-emerald-500` with a dark check mark once ticked (emerald reads as a
+ * "done"/covered state, the same green semantic `--sage` already carries
+ * elsewhere in this app — orthogonal to the bronze "selected" accent used
+ * by every selector). Purely a physical prep aid (tick off gear as it's
+ * actually packed into pockets/cages); toggling it has no effect on any
+ * figure elsewhere in the card — the underlying line content is still
+ * fully re-derived from `result`/`bottleConfig`/pocket food, this is just
+ * a checked/unchecked overlay on top of it. `children` (not a plain `text`
+ * string) so call sites that need a nested reveal button or warning block
+ * under one line (the mix-bottle row's "[ Ver en cazos ]" and hypertonic
+ * warning) can still attach it without a second component. */
 function ChecklistCheckboxLine({
   checked,
   onToggle,
@@ -544,7 +543,7 @@ function ChecklistCheckboxLine({
         aria-label={ariaLabel}
         className={cn(
           "mt-0.5 flex size-4.5 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-colors",
-          checked ? "border-emerald-500 bg-emerald-500" : "border-zinc-600 bg-zinc-800/50 hover:border-zinc-500"
+          checked ? "border-emerald-500 bg-emerald-500" : "border-zinc-300 bg-white hover:border-zinc-400"
         )}
       >
         {checked && <Check className="size-3 text-zinc-950" strokeWidth={3} />}
@@ -552,7 +551,7 @@ function ChecklistCheckboxLine({
       <span
         className={cn(
           "text-sm font-medium",
-          checked ? "text-zinc-500 line-through decoration-zinc-600" : "text-zinc-100"
+          checked ? "text-zinc-400 line-through decoration-zinc-300" : "text-zinc-900"
         )}
       >
         {children}
@@ -2577,29 +2576,28 @@ export function FuelingPlanner({
             )}
 
             {/* "Agrupación Estructurada de Resultados" — every calculated
-                output now lives inside one of 3 independent white "tarjeta
-                madre" cards (bg-white rounded-xl p-4 border-0 shadow-none)
-                on the porcelain canvas, replacing the prior mix of one
-                combined card (old Sub-bloques A/B/C) plus several genuinely
-                floating elements below it (the dark Hero card, the weather
-                card, the bare stat row, the gut-training warning, the
-                Balance Neto grid, and every recipe/timeline/reload/carb-
-                loading accordion) — none of those had their own white-card
-                boundary before this pass. `rounded-xl` is a deliberate,
-                scoped exception to this app's app-wide `rounded-sm` "Radio
-                de Bordes Pequeño Global" convention (see the design-system
-                history below "PNS premium redesign") — this prompt's own
-                literal spec asks for `rounded-xl` on these 3 specific result
-                cards; every other card/button/select in the app is
-                unaffected. Weather, the Hero card's per-bottle dose callout,
-                and the gut-training warning weren't named in the prompt's
-                own 3-card outline, but dropping real, already-computed data
-                or a deliberately-tuned design element (see "PNS premium
-                redesign" above for the Hero card's own history) would
-                contradict this app's "never silently drop real data"
-                convention — all three are folded into Tarjeta 1 instead,
-                the card whose "objetivos calculados" concern they're most
-                directly part of. */}
+                output lives inside one of 3 independent white "tarjeta
+                madre" cards (bg-white border border-zinc-200 rounded-2xl p-5
+                shadow-none) on the porcelain canvas. `rounded-2xl` is a
+                deliberate, scoped exception to this app's app-wide
+                `rounded-sm` "Radio de Bordes Pequeño Global" convention (see
+                the design-system history below "PNS premium redesign") —
+                just these 3 result cards; every other card/button/select in
+                the app is unaffected. Cards 03 and 05 were each briefly
+                their own dark-surface exception (a "Verde Oliva Táctico"
+                olive panel and an obsidian-black "Manifiesto" respectively)
+                before "Unificación de Lienzo Claro" reverted both back to
+                this same light standard, with the Bronce Táctico (`#70685b`)
+                accent — already every selector's active-state color — doing
+                the "state" work the dark panels used to (see Card 04's own
+                sticky OBJETIVO/CUBIERTO/RESTANTE bar). Weather, the Hero
+                card's per-bottle dose callout, and the gut-training warning
+                weren't named in the original 3-card outline, but dropping
+                real, already-computed data or a deliberately-tuned design
+                element would contradict this app's "never silently drop
+                real data" convention — all three are folded into Tarjeta 1
+                instead, the card whose "objetivos calculados" concern
+                they're most directly part of. */}
 
             {/* 🎴 Tarjeta 1 · 03 · Metabolismo y objetivos calculados —
                 exclusively the theoretical/environmental targets for this
@@ -2616,16 +2614,17 @@ export function FuelingPlanner({
                 laboratorio casero," both computed from the athlete's real
                 Card 04 configuration instead of a premature preview.
 
-                "Ficha Técnica de Laboratorio" (PNS Tactical Olive pass) —
-                this card became the second dark surface in the results
-                flow (after Card 05), a "Verde Oliva Táctico" instrument
-                panel (`bg-[#222A23]`, `border-emerald-900/40`) rather than
-                the flat white "tarjeta madre" every other card still uses —
-                a deliberate, scoped exception (same precedent as Card 05's
-                own obsidian departure), not a change to the shared white
-                card system. */}
-            <div className="rounded-xl border border-emerald-900/40 bg-[#222A23] p-4 shadow-none">
-              <span className="mb-3 block font-mono text-xs font-bold tracking-wider text-zinc-400">
+                "Unificación de Lienzo Claro" — this card was briefly a
+                "Verde Oliva Táctico" dark instrument panel
+                (`bg-[#222A23]`, `border-emerald-900/40`); reverted back to
+                the same flat white "tarjeta madre" every other card in the
+                results flow uses (`bg-white border border-zinc-200`), per
+                an explicit request to remove every dark-surface exception
+                app-wide in favor of one coherent light palette with the
+                Bronce Táctico (`#70685b`) accent doing the "state" work a
+                dark panel used to. */}
+            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-none">
+              <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 03 · Metabolismo y objetivos calculados
               </span>
 
@@ -2634,62 +2633,53 @@ export function FuelingPlanner({
                   instead of forcing the grid track wider (the default
                   `min-width: auto` grid items get otherwise), so a long
                   number/tooltip trigger can never push this card past the
-                  viewport edge on a narrow phone. */}
-              {/* "Instrumental Técnico," restyled for the dark olive card:
-                  each tile is now a nested near-black box
-                  (`bg-black/20 border-white/5`) rather than the old
-                  porcelain `#F8F7F5` fill, laboratory-notation labels
-                  (HC/H₂O/Na⁺/TIME) in a muted emerald-cream tone, and the
-                  big figure in pure white — "Cifras principales" per the
-                  PNS spec — instead of `zinc-900`. */}
+                  viewport edge on a narrow phone. Each tile is a light
+                  porcelain-adjacent box (`bg-zinc-50 border-zinc-200/70`)
+                  nested inside the white card, plain "Duración"/
+                  "Carbohidratos"/"Hidratación"/"Sodio" labels (the dark
+                  card's own HC/H₂O/Na⁺/TIME laboratory notation was scoped
+                  to that now-removed dark treatment) and the big figure in
+                  high-contrast `zinc-900`. */}
               <div className="grid grid-cols-2 gap-3 *:min-w-0">
-                <div className="flex flex-col gap-1 rounded-lg border border-white/5 bg-black/20 p-3">
-                  <span className="font-mono text-xs tracking-widest text-emerald-200/70 uppercase">
-                    TIME · Duración
-                  </span>
-                  <span className="font-mono text-3xl font-bold tracking-tight text-white tabular-nums">
+                <div className="flex flex-col gap-1 rounded-xl border border-zinc-200/70 bg-zinc-50 p-4">
+                  <span className="font-mono text-[11px] text-zinc-500 uppercase">Duración</span>
+                  <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {formatHoursMinutes(result.durationHours)}
                   </span>
                   <MicroGauge pct={(result.durationHours / DURATION_GAUGE_MAX_HOURS) * 100} />
                 </div>
-                <div className="relative flex flex-col gap-1 overflow-visible rounded-lg border border-white/5 bg-black/20 p-3">
+                <div className="relative flex flex-col gap-1 overflow-visible rounded-xl border border-zinc-200/70 bg-zinc-50 p-4">
                   <span className="flex items-center gap-1">
-                    <span className="font-mono text-xs tracking-widest text-emerald-200/70 uppercase">
-                      HC · Carbohidratos
-                    </span>
+                    <span className="font-mono text-[11px] text-zinc-500 uppercase">Carbohidratos</span>
                     <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
                   </span>
-                  <span className="font-mono text-3xl font-bold tracking-tight text-white tabular-nums">
+                  <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {result.carbsGPerHour}
                     <span className="ml-1 text-xs font-normal text-zinc-500">g/h</span>
                   </span>
-                  <span className="font-mono text-[11px] text-zinc-400">
+                  <span className="font-mono text-[11px] text-zinc-500">
                     Total: {result.totalRideCarbsG} g
                   </span>
                   <MicroGauge pct={(result.carbsGPerHour / CARB_DEMAND_GAUGE_MAX_G_PER_HOUR) * 100} />
                 </div>
-                <div className="flex flex-col gap-1 rounded-lg border border-white/5 bg-black/20 p-3">
-                  <span className="font-mono text-xs tracking-widest text-emerald-200/70 uppercase">
-                    H₂O · Hidratación
-                  </span>
-                  <span className="font-mono text-3xl font-bold tracking-tight text-white tabular-nums">
+                <div className="flex flex-col gap-1 rounded-xl border border-zinc-200/70 bg-zinc-50 p-4">
+                  <span className="font-mono text-[11px] text-zinc-500 uppercase">Hidratación</span>
+                  <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {result.fluidLossMlPerHour}
                     <span className="ml-1 text-xs font-normal text-zinc-500">ml/h</span>
                   </span>
-                  <span className="font-mono text-[11px] text-zinc-400">
+                  <span className="font-mono text-[11px] text-zinc-500">
                     Total: {(totalFluidMl / 1000).toFixed(1)} L
                   </span>
                   <MicroGauge pct={(result.fluidLossMlPerHour / FLUID_DEMAND_GAUGE_MAX_ML_PER_HOUR) * 100} />
                 </div>
-                <div className="flex flex-col gap-1 rounded-lg border border-white/5 bg-black/20 p-3">
-                  <span className="font-mono text-xs tracking-widest text-emerald-200/70 uppercase">
-                    Na⁺ · Sodio
-                  </span>
-                  <span className="font-mono text-3xl font-bold tracking-tight text-white tabular-nums">
+                <div className="flex flex-col gap-1 rounded-xl border border-zinc-200/70 bg-zinc-50 p-4">
+                  <span className="font-mono text-[11px] text-zinc-500 uppercase">Sodio</span>
+                  <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {result.sodiumMgPerHour}
                     <span className="ml-1 text-xs font-normal text-zinc-500">mg/h</span>
                   </span>
-                  <span className="font-mono text-[11px] text-zinc-400">
+                  <span className="font-mono text-[11px] text-zinc-500">
                     Total: {totalSodiumMg} mg
                   </span>
                   <MicroGauge pct={(result.sodiumMgPerHour / SODIUM_DEMAND_GAUGE_MAX_MG_PER_HOUR) * 100} />
@@ -2715,13 +2705,15 @@ export function FuelingPlanner({
                   informational (the actual recipe/sodium/bottle-plan
                   adjustments already happened server-side) so the athlete
                   understands *why* the numbers below look different from a
-                  normal-weather calculation. Both restyled for the dark
-                  olive card — cold stays a neutral nested box, heat uses
-                  the same dark-amber alert treatment as every other
-                  warning in this card/Card 05. */}
+                  normal-weather calculation. Cold stays a neutral nested
+                  zinc box, heat is a light amber banner (`bg-amber-50/80
+                  border-amber-200/80 text-amber-900`) — the same technical
+                  warning treatment as every other alert in this card/Card
+                  05, per "Unificación de Lienzo Claro" replacing the old
+                  dark-amber-on-obsidian pairing. */}
               {result.thermalAdaptation.isExtremeCold && (
-                <div className="mt-3 flex items-start gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-xs text-zinc-300">
-                  <Snowflake className="mt-0.5 size-3.5 shrink-0 text-zinc-400" />
+                <div className="mt-3 flex items-start gap-2 rounded-xl border border-zinc-200/70 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                  <Snowflake className="mt-0.5 size-3.5 shrink-0 text-zinc-500" />
                   <span>
                     Frío extremo (&lt;8°C) — prioriza comida sólida/geles en bolsillo (hasta un
                     70-80% del objetivo) y hemos reducido la concentración del bidón para evitar
@@ -2730,8 +2722,8 @@ export function FuelingPlanner({
                 </div>
               )}
               {result.thermalAdaptation.isExtremeHeat && (
-                <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-2 text-xs text-amber-200/90">
-                  <Sun className="mt-0.5 size-3.5 shrink-0 text-amber-400" />
+                <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3.5 font-mono text-xs text-amber-900">
+                  <Sun className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
                   <span>
                     Calor sofocante (&gt;32°C) — sodio elevado a ≥900mg/L y reservamos al menos 1
                     bidón de agua pura para termorregulación/aclarado bucal.
@@ -2757,11 +2749,12 @@ export function FuelingPlanner({
                   tab keeps that protection while still answering "how do I
                   fix this." Suppressed under Train Low — a low intake by
                   design isn't a gut-capacity limitation worth warning
-                  about. Restyled to the same dark-amber alert treatment as
-                  every other warning box in this card. */}
+                  about. Light amber alert treatment, matching the heat
+                  warning above and every other alert box in this card/Card
+                  05. */}
               {result.gutTraining.isGutLimited && !result.trainLow && (
-                <div className="mt-3 flex flex-col gap-1.5 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-2.5 text-xs text-amber-200/90">
-                  <span className="font-bold tracking-wide text-amber-400 uppercase">
+                <div className="mt-3 flex flex-col gap-1.5 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3.5 font-mono text-xs text-amber-900">
+                  <span className="font-bold tracking-wide text-amber-800 uppercase">
                     Límite digestivo superado
                   </span>
                   <p>
@@ -2779,7 +2772,7 @@ export function FuelingPlanner({
                     href="/perfil#gut-training"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-0.5 w-fit font-mono font-semibold text-amber-300 underline underline-offset-2 hover:text-amber-200"
+                    className="mt-0.5 w-fit font-mono font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900"
                   >
                     [ Ver cómo entrenar el intestino en Perfil ]
                   </a>
@@ -2798,7 +2791,7 @@ export function FuelingPlanner({
                 box, no trailing "Gasto/Ingesta/Déficit" summary, no
                 "pulsa Calcular de nuevo" footer note — "Al Grano": this
                 card is the interactive simulator, nothing else. */}
-            <div className="rounded-xl border-0 bg-white p-4 shadow-none">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-none">
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 04 · Simulador y configuración de avituallamiento
               </span>
@@ -2817,46 +2810,37 @@ export function FuelingPlanner({
                 </div>
               )}
 
-              {/* Píldora Fija de Balance en Tiempo Real — "Sticky HUD Bar"
-                  (Garmin/Wahoo dark display), sticky within this card as
-                  the athlete scrolls through the bottle-config selector and
-                  the pocket-food inventory below, so OBJETIVO/CUBIERTO/
-                  RESTANTE stays on screen instead of requiring a scroll
-                  back up. Recomputes instantly from `coveredCarbsG`/
-                  `remainingCarbsG` (pure client-side arithmetic, reacting
-                  to *both* the bottle selector and every pocket-food
-                  stepper) — no network round-trip, no need to press
-                  "Calcular" again just to see the coverage change.
-                  `top-16 lg:top-4` clears the mobile sticky header
-                  (`sticky top-0 z-40`, ~64px tall, `lg:hidden`) so the bar
-                  never renders underneath it; desktop has no such header,
-                  so it sticks close to the viewport's own top instead — a
-                  literal `top-0` was explicitly asked for once, then the
-                  same spec's own follow-up explicitly reconfirmed keeping
-                  this breakpoint-aware offset instead, precisely to avoid
-                  reopening that already-fixed header-overlap regression.
-                  `#18181B`/`text-white`/`text-emerald-400` are deliberate
-                  one-off literals, not this app's usual porcelain/
-                  `--terracotta` tokens — a dark ciclocomputador HUD is a
-                  categorically different visual register from the rest of
-                  this light-editorial app, the one other place that
-                  register was ever used (Card 05's old "Dosis Ejecutiva"
-                  hero) having since moved into the checklist. RESTANTE is
-                  the "live" metric: bright white while there's still a gap
-                  to close, technical emerald the instant it hits 0 (fully
-                  covered) — OBJETIVO/CUBIERTO both stay a muted
-                  `text-zinc-400`, so RESTANTE is unambiguously the one
-                  number this display wants your eye on. */}
-              <div className="sticky top-16 z-20 mb-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl border border-zinc-800 bg-[#18181B] px-3 py-2 text-center font-mono text-[11px] font-semibold tracking-wide shadow-sm backdrop-blur-sm sm:text-xs lg:top-4">
-                <span className="text-zinc-400">OBJETIVO: {result.totalRideCarbsG}g HC</span>
-                <span className="text-zinc-700">|</span>
-                <span className="text-zinc-400">CUBIERTO: {coveredCarbsG}g HC</span>
-                <span className="text-zinc-700">|</span>
+              {/* Píldora Fija de Balance en Tiempo Real — "Sticky HUD Bar,"
+                  sticky within this card as the athlete scrolls through the
+                  bottle-config selector and the pocket-food inventory
+                  below, so OBJETIVO/CUBIERTO/RESTANTE stays on screen
+                  instead of requiring a scroll back up. Recomputes
+                  instantly from `coveredCarbsG`/`remainingCarbsG` (pure
+                  client-side arithmetic, reacting to *both* the bottle
+                  selector and every pocket-food stepper) — no network
+                  round-trip, no need to press "Calcular" again just to see
+                  the coverage change. `top-16 lg:top-4` clears the mobile
+                  sticky header (`sticky top-0 z-40`, ~64px tall,
+                  `lg:hidden`) so the bar never renders underneath it;
+                  desktop has no such header, so it sticks close to the
+                  viewport's own top instead. "Unificación de Lienzo Claro"
+                  replaced this bar's old obsidian-black (`#18181B`) fill
+                  with the Bronce Táctico accent (`#70685b`) — the same
+                  color every selector's active state already uses — so it
+                  reads as this card's own state accent rather than a
+                  second dark HUD register. RESTANTE is still the "live"
+                  metric: full white while there's still a gap to close, a
+                  light emerald the instant it hits 0 (fully covered) —
+                  OBJETIVO/CUBIERTO both stay a dimmer `text-white/75`, so
+                  RESTANTE is unambiguously the one number this display
+                  wants your eye on. */}
+              <div className="sticky top-16 z-20 mb-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl bg-[#70685b] px-3 py-2 text-center font-mono text-xs font-bold tracking-wide text-white shadow-xs sm:text-xs lg:top-4">
+                <span className="text-white/75">OBJETIVO: {result.totalRideCarbsG}g HC</span>
+                <span className="text-white/40">|</span>
+                <span className="text-white/75">CUBIERTO: {coveredCarbsG}g HC</span>
+                <span className="text-white/40">|</span>
                 <span
-                  className={cn(
-                    "font-bold",
-                    remainingCarbsG > 0 ? "text-white" : "text-emerald-400"
-                  )}
+                  className={cn(remainingCarbsG > 0 ? "text-white" : "text-emerald-300")}
                 >
                   RESTANTE: {remainingCarbsG}g HC
                 </span>
@@ -3084,27 +3068,25 @@ export function FuelingPlanner({
             />
 
             {/* 🎴 Tarjeta 3 · 05 · Manifiesto de Salida — "100% Español +
-                Estilo PNS": the one dark-surface card in the results flow,
-                a deliberate tactical departure from Cards 03/04's white
-                "tarjeta madre" fill — obsidian black (`#18181B`, matching
-                every other active/primary surface this app now uses — see
-                "Unificación de Negro Obsidiana"), a thin low-contrast
-                `border-zinc-800`, and the same `rounded-xl` frame/padding
-                as the two cards above it. No dashed borders anywhere in
-                this card anymore (the old "ticket/manifiesto" perforation
-                aesthetic is gone outright, not just recolored) — every
-                internal section is its own bordered dark sub-box or simply
-                separated by the parent's own `gap-4`, and every subtitle in
-                the card (`manifestSubtitleClass`) shares one exact typographic
-                style. Still 2 core blocks in order — Cronograma (when to
-                eat/drink) then Equipamiento (what to bring) — with the
-                déficit alert and carb-loading module as their own
-                conditional overlays around them, same structure as before,
-                just restyled and unified. The athlete screenshots this card
-                if they want to save or share it — no export button lives
-                here. */}
-            <div className="flex flex-col gap-4 rounded-xl border border-zinc-800 bg-[#18181B] p-4 shadow-none">
-              <span className="font-mono text-xs font-bold tracking-wider text-zinc-400">
+                Estilo PNS": this card was briefly the one deliberate
+                dark-surface exception in the results flow (obsidian black
+                `#18181B`) — reverted to the same flat white "tarjeta madre"
+                (`bg-white border border-zinc-200`) as Cards 03/04, per
+                "Unificación de Lienzo Claro." No dashed borders anywhere in
+                this card (the old "ticket/manifiesto" perforation aesthetic
+                is gone outright, not just recolored) — every internal
+                section is its own bordered light `bg-zinc-50` sub-box or
+                simply separated by the parent's own `gap-4`, and every
+                subtitle in the card (`manifestSubtitleClass`) shares one
+                exact typographic style. Still 2 core blocks in order —
+                Cronograma (when to eat/drink) then Equipamiento (what to
+                bring) — with the déficit alert and carb-loading module as
+                their own conditional overlays around them, same structure
+                as before, just restyled onto the shared light palette. The
+                athlete screenshots this card if they want to save or share
+                it — no export button lives here. */}
+            <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-none">
+              <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 05 · Manifiesto de salida
               </span>
 
@@ -3115,18 +3097,18 @@ export function FuelingPlanner({
                   `remainingCarbsG` collapses to 0 and this disappears
                   entirely. Suppressed under Train Low — a remaining
                   "déficit" there is the whole point of the session, not
-                  something to warn about. Dark-amber treatment matching
-                  this card's own tactical palette rather than the app's
-                  usual light `bg-status-warning/10` warning tone. */}
+                  something to warn about. Light amber "aviso técnico"
+                  treatment, matching every other alert box in Cards 03-05
+                  now that the dark tactical palette is gone. */}
               {remainingCarbsG > 15 && !result.trainLow && (
-                <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-950/30 p-4">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-400" />
+                <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 font-mono text-xs text-amber-900">
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs font-bold tracking-wide text-amber-400 uppercase">
+                    <span className="font-bold tracking-wide text-amber-800 uppercase">
                       Alerta de déficit pendiente de cubrir
                     </span>
-                    <p className="text-sm text-amber-200/90">
-                      Te faltan <span className="font-semibold text-amber-300">{remainingCarbsG}g HC</span>{" "}
+                    <p className="text-sm text-amber-900">
+                      Te faltan <span className="font-semibold text-amber-800">{remainingCarbsG}g HC</span>{" "}
                       para alcanzar tu objetivo de la ruta. Te recomendamos activar &quot;Paradas
                       previstas en ruta&quot; (Tarjeta 02) o añadir más comida al bolsillo en la
                       Tarjeta 04 para evitar la pájara.
@@ -3136,19 +3118,18 @@ export function FuelingPlanner({
               )}
 
               {/* Bloque 1 · Display Táctico de Hidratación — a nested
-                  near-black box (`bg-black/40` over the card's own
-                  `#18181B`, `border-white/10`) inside the already-dark
-                  card, leading with the one number that matters mid-ride —
-                  how often to drink — with the calculated clock marks
-                  underneath as a quick reference strip. The detailed
-                  solid/gel/caffeine milestone rail below it is unchanged in
-                  substance. */}
-              <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+                  light `bg-zinc-50` box (matching the card's own now-white
+                  fill, `border-zinc-200/70`), leading with the one number
+                  that matters mid-ride — how often to drink — with the
+                  calculated clock marks underneath as a quick reference
+                  strip. The detailed solid/gel/caffeine milestone rail
+                  below it is unchanged in substance. */}
+              <div className="rounded-xl border border-zinc-200/70 bg-zinc-50 p-4">
                 <span className={manifestSubtitleClass}>Cadencia de hidratación</span>
-                <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm text-zinc-300">
-                  <Droplet className="size-3.5 shrink-0 self-center text-zinc-400" />
+                <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm text-zinc-700">
+                  <Droplet className="size-3.5 shrink-0 self-center text-zinc-500" />
                   Beber 1 bidón (~{displayBottlePlan!.bottleSizeMl} ml) cada
-                  <span className="font-mono text-xl font-bold text-white">
+                  <span className="font-mono text-xl font-bold text-zinc-900">
                     {result.timingTimeline.hydrationIntervalMinutes} min
                   </span>
                 </p>
@@ -3170,25 +3151,25 @@ export function FuelingPlanner({
                   </p>
                 )}
                 {mergedTimelineEntries.length > 0 && (
-                  <ol className="mt-3 flex flex-col border-t border-white/10 pt-3">
+                  <ol className="mt-3 flex flex-col border-t border-zinc-200 pt-3">
                     {mergedTimelineEntries.map((entry, i) => (
                       <li key={entry.key} className="relative flex gap-2.5 pb-3 last:pb-0">
                         {i < mergedTimelineEntries.length - 1 && (
                           <span
                             aria-hidden
-                            className="absolute top-3 left-1.25 h-full w-px bg-zinc-700"
+                            className="absolute top-3 left-1.25 h-full w-px bg-zinc-200"
                           />
                         )}
                         <span
                           aria-hidden
-                          className="relative z-10 mt-1 size-2.75 shrink-0 rounded-full border-2 border-terracotta bg-black"
+                          className="relative z-10 mt-1 size-2.75 shrink-0 rounded-full border-2 border-terracotta bg-zinc-50"
                         />
                         <div className="flex min-w-0 flex-col gap-0.5">
                           <span className="font-mono text-[10px] text-zinc-500">
                             {entry.approx ? "~" : ""}
                             {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
                           </span>
-                          <span className="flex items-center gap-1.5 text-sm text-zinc-300">
+                          <span className="flex items-center gap-1.5 text-sm text-zinc-700">
                             {entry.icon === "solid" && (
                               <Utensils className="size-3.5 shrink-0 text-zinc-500" />
                             )}
@@ -3269,12 +3250,12 @@ export function FuelingPlanner({
                                 ts`) for why this can fire at all; under
                                 every currently-supported bottle size it's
                                 a defense-in-depth check, not something
-                                routinely seen. Dark-amber to match this
-                                card's own alert palette. */}
+                                routinely seen. Light amber, matching every
+                                other alert box on this now-light card. */}
                             {line.kind === "mix" &&
                               displayBottlePlan!.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
-                                <div className="ml-7 flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-950/30 px-2.5 py-1.5 text-xs text-amber-200/90">
-                                  <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-400" />
+                                <div className="ml-7 flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
+                                  <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
                                   <span>
                                     Solución hipertónica ({displayBottlePlan!.fuelBottles.concentrationPct}% &gt;{" "}
                                     {HYPERTONIC_THRESHOLD_PCT}%) — añade agua o traslada carga a comida de
@@ -3283,7 +3264,7 @@ export function FuelingPlanner({
                                 </div>
                               )}
                             {line.kind === "mix" && showBikeScoops && (
-                              <div className="ml-7 flex flex-col gap-1 rounded-lg border border-white/10 bg-black/40 p-2.5 text-xs text-zinc-400">
+                              <div className="ml-7 flex flex-col gap-1 rounded-lg border border-zinc-200/70 bg-zinc-50 p-2.5 text-xs text-zinc-600">
                                 <p>
                                   Maltodextrina: {displayBottlePlan!.fuelBottles.maltodextrinGPerBottle}g (~
                                   {fuelBottleMeasures!.maltodextrinScoops} cazos)
@@ -3351,16 +3332,16 @@ export function FuelingPlanner({
               {/* Estrategia de carga día −1 — supplementary, occasional
                   content (only rendered on a long/target-event ride), kept
                   outside the tiers above rather than forced into one of
-                  them. Restyled to the same dark nested-box treatment as
+                  them. Restyled to the same light nested-box treatment as
                   the hydration HUD above. */}
               {result.carbLoading && (
-                <details className="rounded-xl border border-white/10 bg-black/40 px-3 py-2.5">
-                  <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-zinc-300 uppercase">
+                <details className="rounded-xl border border-zinc-200/70 bg-zinc-50 px-3 py-2.5">
+                  <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-zinc-700 uppercase">
                     <CalendarDays className="size-3.5 shrink-0" />
                     Estrategia de carga día −1 · {result.carbLoading.minCarbsG}-
                     {result.carbLoading.maxCarbsG}g HC
                   </summary>
-                  <div className="mt-2 flex flex-col gap-1.5 text-sm text-zinc-400">
+                  <div className="mt-2 flex flex-col gap-1.5 text-sm text-zinc-600">
                     {result.carbLoading.guidelines.map((guideline) => (
                       <p key={guideline}>• {guideline}</p>
                     ))}
