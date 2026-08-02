@@ -291,22 +291,36 @@ export function DashboardShell({
       </aside>
 
       <div className="flex flex-1 flex-col lg:pl-64">
-        {/* "Header Sticky" pass — reverted back to a translucent porcelain
-            surface (`bg-[#F8F7F5]/80 backdrop-blur-md`) with a hairline
-            `border-b border-zinc-200/50` as the separator, replacing the
-            prior opaque `bg-white`/zero-border/PNS-shadow-only treatment
-            (see this file's own earlier history for that iteration's
-            reasoning) — an explicit request to fuse the header visually
-            with the porcelain page canvas beneath it again, this time via
-            blur+transparency instead of a flat color match. `z-50` (up
-            from `z-40`) keeps it above every ordinary page-level stacking
-            context — still comfortably below the mobile drawer's own
-            `z-9999`/`z-10000`, so opening the drawer still fully covers it.
-            Horizontal padding matches `<main>`'s own `px-4 sm:px-6` below,
-            so the brand mark's left edge and the hamburger's right edge
-            line up with the card edges in the content underneath instead
-            of sitting inset from them. */}
-        <header className="sticky top-0 z-50 flex w-full items-center justify-center border-b border-zinc-200/50 bg-[#F8F7F5]/80 px-4 py-4 backdrop-blur-md transition-all sm:px-6 lg:hidden">
+        {/* "Fix Definitivo de Header Fijo" — `sticky` was silently defeated
+            by `<body>`'s own `overflow-x-hidden` (`app/layout.tsx`): setting
+            `overflow-x` to anything but `visible` while `overflow-y` stays
+            unset forces `overflow-y: auto` implicitly per spec, which makes
+            `<body>` itself the page's real scrolling element instead of the
+            viewport — the same "an `overflow` ancestor silently breaks
+            `position: sticky`" bug class already documented once in this
+            app's history (`components/fueling-planner.tsx`'s Card 04
+            balance pill), just one level higher up the tree this time.
+            Rather than chase exactly which scroll-container quirk mobile
+            Safari adds on top of that, this switched to `fixed` — immune to
+            *any* ancestor's `overflow`/scroll-container behavior, since a
+            `fixed` element always positions against the true viewport (or a
+            transformed/filtered ancestor, and nothing between here and
+            `<body>` sets one). `top-0 right-0 left-0` (plus the redundant
+            but explicit `w-full`) pins it edge-to-edge; `z-50` still sits
+            comfortably below the mobile drawer's own `z-9999`/`z-10000`, so
+            opening the drawer still fully covers it. Background/border
+            opacity bumped (`/80`→`/90`, `/50`→`/80`) and a `shadow-xs`
+            restored — both had read as too fused with the porcelain canvas
+            once `border-b` was the *only* separator; now there's a
+            perceptible line and a soft lift again. Horizontal padding
+            matches `<main>`'s own `px-4 sm:px-6` below, so the brand mark's
+            left edge and the hamburger's right edge line up with the card
+            edges in the content underneath instead of sitting inset from
+            them. Taking the header fully out of flow (unlike `sticky`,
+            which still reserved its own row before the page ever scrolled)
+            means `<main>` below needs its own explicit top-clearance now —
+            see that comment for the exact figure. */}
+        <header className="fixed top-0 right-0 left-0 z-50 flex w-full items-center justify-center border-b border-zinc-200/80 bg-[#F8F7F5]/90 px-4 py-4 shadow-xs backdrop-blur-md transition-all sm:px-6 lg:hidden">
           <Link
             href="/"
             onClick={(e) => scrollToTopIfHome(e, pathname)}
@@ -329,8 +343,16 @@ export function DashboardShell({
             (16px) — a PNS-editorial pass asked for the page's own content to
             sit closer to the viewport edge on a phone, matching this app's
             existing `sm:`/`md:` step-up convention rather than a flat value
-            at every breakpoint. */}
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-6 pb-12 sm:px-6 sm:pt-8 sm:pb-16 md:px-8">
+            at every breakpoint.
+            Top padding, below `lg:` only, now also clears the `fixed`
+            header above (~56px of its own content+padding, rounded up to a
+            clean `4rem`/64px so nothing ever sits flush against it): the
+            base/`sm:` figures are the header's own 64px clearance *plus*
+            this app's original `pt-6`/`sm:pt-8` breathing room (24px/32px),
+            not stacked as two separate paddings. `lg:pt-8` resets back down
+            to that original desktop figure, since the `lg:hidden` header
+            doesn't exist at that breakpoint and needs no clearance at all. */}
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-22 pb-12 sm:px-6 sm:pt-24 sm:pb-16 md:px-8 lg:pt-8">
           {children}
         </main>
       </div>

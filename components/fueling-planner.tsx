@@ -2844,9 +2844,9 @@ export function FuelingPlanner({
                   selector and every pocket-food stepper) — no network
                   round-trip, no need to press "Calcular" again just to see
                   the coverage change. `top-16 lg:top-4` clears the mobile
-                  sticky header (`sticky top-0 z-50`, ~64px tall,
-                  `lg:hidden`) so the bar never renders underneath it;
-                  desktop has no such header, so it sticks close to the
+                  header (`fixed top-0 z-50`, ~64px tall, `lg:hidden`) so
+                  the bar never renders underneath it; desktop has no such
+                  header, so it sticks close to the
                   viewport's own top instead. "Unificación de Lienzo Claro"
                   replaced this bar's old obsidian-black (`#18181B`) fill
                   with the Bronce Táctico accent (`#70685b`) — the same
