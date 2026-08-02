@@ -711,7 +711,7 @@ function getBikeChecklistLines(
   bottleConfig: BottleConfigOption,
   bottlePlan: PlanResult["bottlePlan"]
 ): BikeChecklistLine[] {
-  const { fuelBottles, waterBottles, bottleSizeMl, totalBottles } = bottlePlan;
+  const { fuelBottles, bottleSizeMl } = bottlePlan;
   const maxOnBike = result.reloadStrategy?.startingBottleCount ?? bottlePlan.totalBottles;
   const lines: BikeChecklistLine[] = [];
 
@@ -734,25 +734,22 @@ function getBikeChecklistLines(
     });
   }
 
-  // "Corrección de Bug: Checklist con Solo Agua" — `waterBottles.count` is
-  // only the *residual* plain-water need beyond what a mix bottle's own
-  // liquid volume would already cover; it can legitimately be small or
-  // even 0 when the recipe's fuel bottle(s) alone already hold most of the
-  // ride's fluid target. That's the right cap for "1 Mix"/"Ambos Mix" (only
-  // recommend *extra* plain water beyond the mix bottle(s) actually on the
-  // bike) — but under "Solo agua" there's no mix bottle at all, so the
-  // athlete's real bottles are carrying the ride's *entire* fluid target,
-  // not just a residual on top of a bottle that doesn't exist. Using
-  // `waterBottles.count` there could under-count down to 0 even though the
-  // athlete clearly has real bottles configured, which is exactly what
-  // produced the reported "Sin bidones..." false negative. `totalBottles`
-  // (fuel + water combined, since a fuel bottle's own volume already
-  // counts toward the fluid target) is the ride's true total bottle need,
-  // so that — capped at the real cage count — is what "Solo agua" shows.
-  const waterBottlesOnBike =
-    bottleConfig === "water_only"
-      ? Math.min(totalBottles, maxOnBike)
-      : Math.min(waterBottles.count, Math.max(0, maxOnBike - mixBottleCount));
+  // "Corrección de Bug: Bidón de Solo Agua desaparecido en '1 Mix'" — this
+  // used to cap the water-bottle line at `waterBottles.count`, the
+  // *physiological* residual fluid need beyond what a mix bottle's own
+  // liquid volume already covers. That figure can legitimately be 0 when
+  // the fuel bottle(s) alone already hold most of the ride's fluid
+  // target — which silently dropped the second bottle from the checklist
+  // entirely on a 2-cage bike running "1 Mix," even though the athlete
+  // still has a real, physical second cage that isn't carrying mix. A
+  // bottle checklist is about what's actually mounted on the bike, not
+  // just what the fluid math says is strictly necessary — a rider doesn't
+  // leave a cage empty just because the model says the extra water isn't
+  // needed, they fill it anyway. So every cage not assigned to a mix
+  // bottle (`maxOnBike - mixBottleCount`, `mixBottleCount` staying `0`
+  // under "Solo agua") now gets a plain-water line, regardless of
+  // `waterBottles.count`.
+  const waterBottlesOnBike = Math.max(0, maxOnBike - mixBottleCount);
   if (waterBottlesOnBike > 0) {
     lines.push({
       key: "water",
