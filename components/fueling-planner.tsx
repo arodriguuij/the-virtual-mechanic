@@ -276,30 +276,37 @@ const INTENSITY_SELECT_OPTIONS: { value: IntensityLevel; label: string }[] = [
   { value: "competition", label: "Competición / Carrera" },
 ];
 
+// "Colores Strava por Zona" — each zone's title/indicator picks up the same
+// blue→green→amber→orange→red→purple gradation Strava's own power-zone
+// chips use, so the athlete can pattern-match a zone by color at a glance
+// instead of reading every label. The description text stays a neutral
+// `text-zinc-500` regardless of zone — only the zone name itself is
+// color-coded, so the color scale doesn't fight the panel's own legibility.
 const INTENSITY_ZONE_TOOLTIP_NOTE = (
-  <div className="space-y-1.5 text-left">
+  <div className="space-y-1.5 text-left text-xs font-mono text-zinc-500">
     <p>
-      <strong>Recuperación (Z1):</strong> &lt;55% FTP (Gasto glucogénico mínimo, oxidación de
-      grasas).
+      <strong className="text-sky-600">Recuperación (Z1):</strong> &lt;55% FTP (Gasto
+      glucogénico mínimo, oxidación de grasas).
     </p>
     <p>
-      <strong>Fondo Aeróbico (Z2):</strong> 55-75% FTP (Ritmo base, consumo moderado de
-      glucógeno).
+      <strong className="text-emerald-600">Fondo Aeróbico (Z2):</strong> 55-75% FTP (Ritmo
+      base, consumo moderado de glucógeno).
     </p>
     <p>
-      <strong>Tempo / Sweetspot (Z3):</strong> 76-90% FTP (Ritmo exigente sostenible, consumo
-      alto).
+      <strong className="text-amber-600">Tempo / Sweetspot (Z3):</strong> 76-90% FTP (Ritmo
+      exigente sostenible, consumo alto).
     </p>
     <p>
-      <strong>Umbral (Z4):</strong> 91-105% FTP (Series al límite, consumo glucogénico
-      elevado).
+      <strong className="text-orange-600">Umbral (Z4):</strong> 91-105% FTP (Series al
+      límite, consumo glucogénico elevado).
     </p>
     <p>
-      <strong>Intervalos / VO2 Max (Z5-Z7):</strong> &gt;106% FTP (Series explosivas de alta
-      intensidad).
+      <strong className="text-rose-600">Intervalos / VO2 Max (Z5-Z7):</strong> &gt;106% FTP
+      (Series explosivas de alta intensidad).
     </p>
     <p>
-      <strong>Competición / Carrera:</strong> Variabilidad alta y máximo vaciado metabólico.
+      <strong className="text-purple-600">Competición / Carrera:</strong> Variabilidad alta
+      y máximo vaciado metabólico.
     </p>
   </div>
 );
@@ -2873,7 +2880,7 @@ export function FuelingPlanner({
                 </span>
               </div>
 
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="mt-7 mb-2 flex flex-wrap items-center justify-between gap-2">
                 <span className={formFieldLabelClass}>Configuración de bidones</span>
                 {/* "Micro-Edición In-Situ de Capacidad de Bidón" — a
                     display-only preview of a different bottle size than the
@@ -2952,7 +2959,7 @@ export function FuelingPlanner({
                   own "Mi Despensa" selection (every catalog item by
                   default, narrowed via "Editar mi despensa"), always
                   editable. */}
-              <div className="mt-4">
+              <div className="mt-8">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <span className={formFieldLabelClass}>Comida en bolsillo</span>
                   <button
@@ -3128,19 +3135,17 @@ export function FuelingPlanner({
                   treatment, matching every other alert box in Cards 03-05
                   now that the dark tactical palette is gone. */}
               {remainingCarbsG > 15 && !result.trainLow && (
-                <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 font-mono text-xs text-amber-900">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />
-                  <div className="flex flex-col gap-1">
-                    <span className="font-bold tracking-wide text-amber-800 uppercase">
-                      Alerta de déficit pendiente de cubrir
-                    </span>
-                    <p className="text-sm text-amber-900">
-                      Te faltan <span className="font-semibold text-amber-800">{remainingCarbsG}g HC</span>{" "}
-                      para alcanzar tu objetivo de la ruta. Te recomendamos activar &quot;Paradas
-                      previstas en ruta&quot; (Tarjeta 02) o añadir más comida al bolsillo en la
-                      Tarjeta 04 para evitar la pájara.
-                    </p>
-                  </div>
+                <div className="rounded-xl border border-amber-200/80 bg-amber-50/80 p-3.5 text-amber-900 shadow-xs">
+                  <span className="mb-1 flex items-center gap-1.5 font-mono text-xs font-bold tracking-wider text-amber-900 uppercase">
+                    <TriangleAlert className="size-3.5 shrink-0 text-amber-600" />
+                    Alerta de déficit pendiente de cubrir
+                  </span>
+                  <p className="font-mono text-xs leading-relaxed text-amber-900/90">
+                    Te faltan <span className="font-semibold text-amber-800">{remainingCarbsG}g HC</span>{" "}
+                    para alcanzar tu objetivo de la ruta. Te recomendamos activar &quot;Paradas
+                    previstas en ruta&quot; (Tarjeta 02) o añadir más comida al bolsillo en la
+                    Tarjeta 04 para evitar la pájara.
+                  </p>
                 </div>
               )}
 
