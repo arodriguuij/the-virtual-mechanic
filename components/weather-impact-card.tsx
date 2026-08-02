@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 // than gaining a light/dark variant prop for a dark-surface call site that
 // no longer exists (this card was briefly a dark olive tile — see that
 // file's own design-system history).
-const statLabel = "text-[10px] font-semibold tracking-widest text-zinc-500 uppercase";
 
 // "Clima Inteligente con Alerta por Rangos" — a flat gray tile treats 32°C
 // exactly like 18°C, even though the athlete's real thermal stress at those
@@ -164,10 +163,26 @@ export function WeatherImpactCard({
         : "estimación genérica";
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-zinc-200/70 bg-zinc-50 px-3 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className={statLabel}>Impacto térmico</span>
-        <span className="text-xs text-zinc-500">
+    // "Sin Contenedor Outer" — the old bordered `bg-zinc-50` card wrapping
+    // this whole section is gone; it now sits as plain content directly in
+    // Card 03's own flow (`components/fueling-planner.tsx`), not a
+    // card-within-a-card. Only layout (`flex flex-col gap-3`) survives, no
+    // background/border/padding of its own.
+    <div className="flex flex-col gap-3">
+      <div>
+        <span className="mb-1 block font-mono text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+          Impacto térmico
+        </span>
+        <span className="mb-3 block font-mono text-xs text-zinc-500">
+          Predicción meteorológica por tramos según la altimetría de la ruta (Open-Meteo)
+        </span>
+        {/* The real source-confidence line (live forecast vs. seasonal
+            average vs. a generic planning estimate, plus the lapse-rate
+            correction when one applies) — kept as its own smaller trailing
+            detail rather than dropped outright, since it's genuinely
+            different information from the fixed explainer above and this
+            app never silently discards real computed data. */}
+        <span className="font-mono text-[10px] text-zinc-400">
           {sourceLabel}
           {!altitude && lapseRateAdjustmentC !== 0 && (
             <span className="inline-flex items-center gap-1">

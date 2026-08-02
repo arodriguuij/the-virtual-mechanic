@@ -495,6 +495,18 @@ const CARB_DEMAND_GAUGE_MAX_G_PER_HOUR = 100;
 const FLUID_DEMAND_GAUGE_MAX_ML_PER_HOUR = 1500;
 const SODIUM_DEMAND_GAUGE_MAX_MG_PER_HOUR = 2000;
 
+// "Semáforo Dinámico" — the one place Card 04's sticky bar decides
+// RESTANTE's traffic-light color, so a future call site can't invent a
+// second, disagreeing threshold. >30g HC is a real bonk risk (rose), 1-30g
+// is a closing-but-not-closed gap (amber), 0g means the pocket-food/bottle
+// selection already covers the ride's full target (emerald).
+const REMAINING_CARBS_DEFICIT_HIGH_THRESHOLD_G = 30;
+function getRemainingCarbsTextClass(remainingCarbsG: number): string {
+  if (remainingCarbsG > REMAINING_CARBS_DEFICIT_HIGH_THRESHOLD_G) return "text-rose-300 font-bold";
+  if (remainingCarbsG > 0) return "text-amber-300 font-bold";
+  return "text-emerald-300 font-bold";
+}
+
 // "Unificación de Lienzo Claro" — this component's only 4 call sites all
 // live inside Card 03's now-light `bg-zinc-50` tiles, so its colors were
 // restyled directly for that light surface: a `zinc-200` track and a
@@ -2633,22 +2645,32 @@ export function FuelingPlanner({
                   instead of forcing the grid track wider (the default
                   `min-width: auto` grid items get otherwise), so a long
                   number/tooltip trigger can never push this card past the
-                  viewport edge on a narrow phone. Each tile is a light
-                  porcelain-adjacent box (`bg-zinc-50 border-zinc-200/70`)
-                  nested inside the white card, plain "Duración"/
-                  "Carbohidratos"/"Hidratación"/"Sodio" labels (the dark
-                  card's own HC/H₂O/Na⁺/TIME laboratory notation was scoped
-                  to that now-removed dark treatment) and the big figure in
-                  high-contrast `zinc-900`. */}
+                  viewport edge on a narrow phone. "Test A/B/C/D" — each of
+                  the 4 tiles deliberately carries a *different* fill/border
+                  treatment (Opción A "Crema Táctico," B "Taupe/Bronce
+                  Sutil," C "Blanco Puro + Borde Bronce," D "Gris Táctico
+                  Suave") rather than the one shared `bg-zinc-50` box every
+                  other tile in this app uses, so the 4 options can be
+                  compared side-by-side live after deploy before settling on
+                  one winner — a temporary, deliberately inconsistent state,
+                  not a converged design decision. Labels stay the plain
+                  "Duración"/"Carbohidratos"/"Hidratación"/"Sodio" text (the
+                  dark card's own HC/H₂O/Na⁺/TIME laboratory notation was
+                  scoped to that now-removed dark treatment) and the big
+                  figure stays high-contrast `zinc-900` in every variant, so
+                  only the tile's own frame is what's actually being
+                  compared. */}
               <div className="grid grid-cols-2 gap-3 *:min-w-0">
-                <div className="flex flex-col gap-1 rounded-xl border border-zinc-200/70 bg-zinc-50 p-4">
+                {/* Opción A · Crema Táctico */}
+                <div className="flex flex-col gap-1 rounded-xl border border-zinc-200/80 bg-[#F4F3EE] p-4 shadow-xs">
                   <span className="font-mono text-[11px] text-zinc-500 uppercase">Duración</span>
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {formatHoursMinutes(result.durationHours)}
                   </span>
                   <MicroGauge pct={(result.durationHours / DURATION_GAUGE_MAX_HOURS) * 100} />
                 </div>
-                <div className="relative flex flex-col gap-1 overflow-visible rounded-xl border border-zinc-200/70 bg-zinc-50 p-4">
+                {/* Opción B · Taupe/Bronce Sutil */}
+                <div className="relative flex flex-col gap-1 overflow-visible rounded-xl border border-[#70685b]/20 bg-[#70685b]/5 p-4 shadow-xs">
                   <span className="flex items-center gap-1">
                     <span className="font-mono text-[11px] text-zinc-500 uppercase">Carbohidratos</span>
                     <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
@@ -2662,7 +2684,8 @@ export function FuelingPlanner({
                   </span>
                   <MicroGauge pct={(result.carbsGPerHour / CARB_DEMAND_GAUGE_MAX_G_PER_HOUR) * 100} />
                 </div>
-                <div className="flex flex-col gap-1 rounded-xl border border-zinc-200/70 bg-zinc-50 p-4">
+                {/* Opción C · Blanco Puro + Borde Bronce */}
+                <div className="flex flex-col gap-1 rounded-xl border border-[#70685b]/30 bg-white p-4 shadow-xs">
                   <span className="font-mono text-[11px] text-zinc-500 uppercase">Hidratación</span>
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {result.fluidLossMlPerHour}
@@ -2673,7 +2696,8 @@ export function FuelingPlanner({
                   </span>
                   <MicroGauge pct={(result.fluidLossMlPerHour / FLUID_DEMAND_GAUGE_MAX_ML_PER_HOUR) * 100} />
                 </div>
-                <div className="flex flex-col gap-1 rounded-xl border border-zinc-200/70 bg-zinc-50 p-4">
+                {/* Opción D · Gris Táctico Suave */}
+                <div className="flex flex-col gap-1 rounded-xl border border-zinc-200 bg-zinc-50 p-4 shadow-xs">
                   <span className="font-mono text-[11px] text-zinc-500 uppercase">Sodio</span>
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {result.sodiumMgPerHour}
@@ -2820,7 +2844,7 @@ export function FuelingPlanner({
                   selector and every pocket-food stepper) — no network
                   round-trip, no need to press "Calcular" again just to see
                   the coverage change. `top-16 lg:top-4` clears the mobile
-                  sticky header (`sticky top-0 z-40`, ~64px tall,
+                  sticky header (`sticky top-0 z-50`, ~64px tall,
                   `lg:hidden`) so the bar never renders underneath it;
                   desktop has no such header, so it sticks close to the
                   viewport's own top instead. "Unificación de Lienzo Claro"
@@ -2828,9 +2852,14 @@ export function FuelingPlanner({
                   with the Bronce Táctico accent (`#70685b`) — the same
                   color every selector's active state already uses — so it
                   reads as this card's own state accent rather than a
-                  second dark HUD register. RESTANTE is still the "live"
-                  metric: full white while there's still a gap to close, a
-                  light emerald the instant it hits 0 (fully covered) —
+                  second dark HUD register. "Semáforo Dinámico" — RESTANTE
+                  is still the "live" metric, now colored like a traffic
+                  light against `remainingCarbsG` itself: rose while the gap
+                  is still large (>30g HC, real risk of a pájara), amber
+                  once it's closing (1-30g HC), emerald the instant it hits
+                  0 (fully covered) — `getRemainingCarbsTextClass` below is
+                  the one place this 3-tier threshold lives, so the bar and
+                  any future call site can't disagree about the cutoffs.
                   OBJETIVO/CUBIERTO both stay a dimmer `text-white/75`, so
                   RESTANTE is unambiguously the one number this display
                   wants your eye on. */}
@@ -2839,9 +2868,7 @@ export function FuelingPlanner({
                 <span className="text-white/40">|</span>
                 <span className="text-white/75">CUBIERTO: {coveredCarbsG}g HC</span>
                 <span className="text-white/40">|</span>
-                <span
-                  className={cn(remainingCarbsG > 0 ? "text-white" : "text-emerald-300")}
-                >
+                <span className={getRemainingCarbsTextClass(remainingCarbsG)}>
                   RESTANTE: {remainingCarbsG}g HC
                 </span>
               </div>

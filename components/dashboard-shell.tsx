@@ -291,29 +291,22 @@ export function DashboardShell({
       </aside>
 
       <div className="flex flex-1 flex-col lg:pl-64">
-        {/* Pure-white PNS floating header — opaque `bg-white`, zero
-            `border-b`, reading as its own distinct elevated surface above
-            the porcelain page. The shadow itself now matches Pas Normal
-            Studios' own site *exactly* — its literal `box-shadow: 0 0
-            #0000, 0 0 #0000, 0 4px 6px -1px #0000001a, 0 2px 4px -2px
-            #0000001a` (a two-layer shadow stack; the first two `0 0 #0000`
-            components are inert placeholders Tailwind's own multi-layer
-            shadow utilities always emit, not a visible third/fourth layer)
-            translates directly to `shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),
-            0_2px_4px_-2px_rgba(0,0,0,0.1)]` — replacing this header's own
-            prior single-layer, wider/deeper `shadow-[0_6px_20px_rgba(0,0,0,
-            0.07)]` approximation with PNS's real two-layer recipe verbatim.
-            `backdrop-blur-md` stays dropped — a fully opaque `bg-white` has
-            nothing showing through to blur. `viewport.themeColor` in
-            `app/layout.tsx` reverted back to the porcelain `--background`
-            value (`#F8F7F5`) rather than matching this header's own white —
-            iOS Safari's status bar now fuses with the page canvas beneath
-            the header instead of the header itself, a deliberate choice from
-            this exact request. Horizontal padding matches `<main>`'s own
-            `px-4 sm:px-6` below, so the brand mark's left edge and the
-            hamburger's right edge line up with the card edges in the
-            content underneath instead of sitting inset from them. */}
-        <header className="sticky top-0 z-40 flex w-full items-center justify-center bg-white px-4 py-4 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-2px_rgba(0,0,0,0.1)] transition-all sm:px-6 lg:hidden">
+        {/* "Header Sticky" pass — reverted back to a translucent porcelain
+            surface (`bg-[#F8F7F5]/80 backdrop-blur-md`) with a hairline
+            `border-b border-zinc-200/50` as the separator, replacing the
+            prior opaque `bg-white`/zero-border/PNS-shadow-only treatment
+            (see this file's own earlier history for that iteration's
+            reasoning) — an explicit request to fuse the header visually
+            with the porcelain page canvas beneath it again, this time via
+            blur+transparency instead of a flat color match. `z-50` (up
+            from `z-40`) keeps it above every ordinary page-level stacking
+            context — still comfortably below the mobile drawer's own
+            `z-9999`/`z-10000`, so opening the drawer still fully covers it.
+            Horizontal padding matches `<main>`'s own `px-4 sm:px-6` below,
+            so the brand mark's left edge and the hamburger's right edge
+            line up with the card edges in the content underneath instead
+            of sitting inset from them. */}
+        <header className="sticky top-0 z-50 flex w-full items-center justify-center border-b border-zinc-200/50 bg-[#F8F7F5]/80 px-4 py-4 backdrop-blur-md transition-all sm:px-6 lg:hidden">
           <Link
             href="/"
             onClick={(e) => scrollToTopIfHome(e, pathname)}
