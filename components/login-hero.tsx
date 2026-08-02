@@ -3,29 +3,13 @@ import Link from "next/link";
 import { memo, type ReactNode } from "react";
 
 import { RatioLogo } from "@/components/icons/RatioLogo";
-import { cn } from "@/lib/utils";
 
 const headerTagline = "Estrategia de avituallamiento pre y post-ruta adaptada a tus vatios reales.";
 
-// `accent` marks the two labels the "Rediseño Integral" pass singled out
-// for the Taupe Táctico (`#70685b`) treatment — the same accent every
-// active selector/badge in the app already uses — leaving the third
-// (Tasa de sudor) on the neutral tone every other stat label already had.
 const telemetryStats = [
-  { label: "Potencia NP", value: "228 W", accent: true },
-  { label: "Deuda glucógeno", value: "195 g", accent: true },
-  { label: "Tasa de sudor", value: "1.2 L/h", accent: false },
-];
-
-// The 4-box "Pauta de ingesta" micro-grid, matching Card 03's own
-// stat-tile pattern (`bg-[#F6F5F0]` porcelain fill, bold `zinc-900` figure)
-// — replaces the old single "85 g/h · 750 ml/h · 850 mg Sodio" line with
-// one box per figure, plus the post-ride target as its own 4th box.
-const nutritionMicroGrid = [
-  { label: "Carbohidratos", value: "85 g/h" },
-  { label: "Hidratación", value: "750 ml/h" },
-  { label: "Sodio", value: "850 mg/h" },
-  { label: "Post-Ruta", value: "65g HC · 30g PRO" },
+  { label: "Potencia NP", value: "228 W" },
+  { label: "Deuda glucógeno", value: "195 g" },
+  { label: "Tasa de sudor", value: "1.2 L/h" },
 ];
 
 /**
@@ -130,20 +114,23 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
     <div className="relative grid min-h-dvh w-full grid-cols-1 bg-neutral-950 lg:grid-cols-2 lg:bg-white">
       <BackgroundMedia />
 
-      {/* Mobile (< lg) keeps the elevated white contrast card over the
-          moving video — the "Rediseño Integral" pass reinstated a real
-          border + `shadow-xl` + `rounded-2xl` here (explicitly requested,
-          reversing a run of earlier "no hard edges" passes documented in
-          this file's own history), so the card now reads as a genuine
-          floating panel rather than a blur-only tint. Desktop (>= lg) still
-          drops every bit of card chrome (`lg:rounded-none lg:border-0
-          lg:bg-transparent lg:p-0 lg:shadow-none`) — the right column *is*
-          already a clean white field with no video behind it to contrast
-          against, so a border/shadow there would just outline empty space;
-          the content sits directly on that column's own background,
-          spaced by `lg:px-12 lg:py-16` alone. */}
+      {/* Mobile (< lg) keeps the elevated white contrast card — legibility
+          over the moving video still matters — but no hard edges: just
+          `backdrop-blur-md` + `bg-white/95` + `rounded-sm` (a later "radio de
+          bordes pequeño global" pass stepped this down further, from a PNS-style
+          sobering pass's `rounded-lg`, itself down from an earlier `rounded-3xl`), no
+          border, no drop shadow. The blur + near-opaque fill alone is enough to read
+          as "floating" over the video without a harder box outline. Desktop
+          (>= lg) drops every bit of card chrome entirely (`lg:rounded-none
+          lg:bg-transparent lg:p-0`) — a prior pass gave the desktop column
+          its own boxed `zinc-50` card once the column background went from
+          cream to plain `bg-white`, but that read as one card floating
+          inside another (the right column *is* already a clean white field,
+          it doesn't need a second nested white-on-white box); the content
+          now just sits directly on that column's own background, spaced by
+          `lg:px-12 lg:py-16` alone rather than an inset card padding. */}
       <div className="relative z-10 flex min-h-dvh w-full items-center justify-center overflow-hidden p-3 sm:p-4 lg:p-12">
-        <div className="w-full max-w-md rounded-2xl border border-zinc-200/80 bg-white/95 p-6 text-center shadow-xl backdrop-blur-md sm:p-8 lg:max-w-lg lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:px-12 lg:py-16 lg:backdrop-blur-none">
+        <div className="w-full max-w-md rounded-sm bg-white/95 p-6 text-center backdrop-blur-md sm:p-8 lg:max-w-lg lg:rounded-none lg:bg-transparent lg:p-0 lg:px-12 lg:py-16 lg:backdrop-blur-none">
           {/* Three explicit sections (branding, physiological preview,
               auth action) rather than one flat stack — `gap-4 sm:gap-6`
               between them is the *only* separation mechanism (no per-block
@@ -195,51 +182,14 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
                   Sa Calobra – Coll dels Reis
                 </p>
                 <p className="font-mono text-[10px] text-neutral-500 sm:text-xs">
-                  9.5 km · 670m D+ · 7% avg
+                  9.5 km · 670m D+ · 7% avg · 27°C (Calor Alto)
                 </p>
-
-                {/* Mini map preview — a dimmed, illustrative "base map" (no
-                    real tiles/Leaflet here, this screen renders before any
-                    auth exists and has zero client-side data of its own)
-                    with the Sa Calobra route traced in the app's own Taupe
-                    Táctico accent, matching the real route-map treatment
-                    every authenticated screen uses (`RouteMapPreview`). */}
-                <div className="relative mt-3 mb-4 h-32 w-full overflow-hidden rounded-xl border border-zinc-200/80 shadow-xs">
-                  <div className="absolute inset-0 bg-[#EDEBE4]" aria-hidden="true" />
-                  <svg
-                    viewBox="0 0 300 130"
-                    preserveAspectRatio="none"
-                    className="absolute inset-0 h-full w-full"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M12,112 C45,100 55,58 82,54 C112,50 118,92 150,86 C182,80 188,38 222,34 C248,30 262,18 288,14"
-                      fill="none"
-                      stroke="#70685b"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <span className="absolute top-2 left-2 rounded-md bg-white/90 px-2.5 py-1 font-mono text-[10px] font-bold text-zinc-700 uppercase backdrop-blur-md">
-                    Ejemplo · Sa Calobra
-                  </span>
-                </div>
-
-                <span className="inline-flex items-center rounded-md border border-amber-200/80 bg-amber-50 px-2 py-0.5 font-mono text-[10px] font-medium text-amber-900">
-                  27°C · CALOR ALTO
-                </span>
               </div>
 
               <div className="grid grid-cols-3 gap-4 py-4 text-center sm:gap-6 sm:py-5">
                 {telemetryStats.map((stat) => (
                   <div key={stat.label}>
-                    <p
-                      className={cn(
-                        "truncate font-mono text-[9px] uppercase sm:text-[10px]",
-                        stat.accent ? "text-[#70685b]" : "text-neutral-400"
-                      )}
-                    >
+                    <p className="truncate font-mono text-[9px] uppercase text-neutral-400 sm:text-[10px]">
                       {stat.label}
                     </p>
                     <p className="font-mono text-xs font-bold text-neutral-800 sm:text-sm">
@@ -250,29 +200,20 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
               </div>
 
               <div className="py-4 sm:py-5">
-                <span className="mb-2 block font-mono text-[9px] font-bold tracking-wider text-[#70685b] uppercase sm:text-[10px]">
+                <span className="mb-0.5 block font-mono text-[9px] text-neutral-400 uppercase sm:text-[10px]">
                   Pauta de ingesta (tolerancia media)
                 </span>
+                <p className="flex flex-wrap items-baseline gap-x-1.5 font-mono text-neutral-900">
+                  <span className="text-lg font-bold sm:text-2xl">85 g/h</span>
+                  <span className="font-mono text-xs text-neutral-500">· 750 ml/h · 850 mg Sodio</span>
+                </p>
 
-                {/* Micro-grid de telemetría nutricional — Card 03's own
-                    stat-tile pattern (porcelain `#F6F5F0` fill, bold
-                    `zinc-900` figure), one box per figure instead of a
-                    single run-on line. */}
-                <div className="grid grid-cols-2 gap-2">
-                  {nutritionMicroGrid.map((item) => (
-                    <div
-                      key={item.label}
-                      className="rounded-xl border border-zinc-200/80 bg-[#F6F5F0] p-3 shadow-xs"
-                    >
-                      <p className="font-mono text-[9px] tracking-wider text-neutral-400 uppercase sm:text-[10px]">
-                        {item.label}
-                      </p>
-                      <p className="mt-0.5 font-mono text-xs font-bold text-zinc-900 sm:text-sm">
-                        {item.value}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                <p className="mt-1.5 block font-mono text-[10px] leading-tight text-neutral-600 sm:text-xs">
+                  EN RUTA: 2 geles (40g HC) + 1 bidón/h
+                </p>
+                <p className="mt-0.5 block font-mono text-[10px] leading-tight text-neutral-600 sm:text-xs">
+                  POST-RUTA: 65g HC + 30g Proteína
+                </p>
               </div>
             </div>
 
