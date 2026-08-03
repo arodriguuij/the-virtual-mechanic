@@ -33,13 +33,14 @@ const TILE_SUBDOMAINS = "abcd";
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
-// Obsidian black (`#18181B`) — this app's now-unified accent for every
-// active/primary surface (Cards 01/02/04's active selectors, the active
-// tab) — the route line's own accent, reading cleanly against Voyager's
-// light, soft-colored terrain. Kept as a literal hex rather than a
-// Tailwind class, since Leaflet's `Polyline` `color` prop needs a plain
-// string.
-const ROUTE_LINE_COLOR = "#18181B";
+// Verde oliva (`#555a43`) — a muted, natural-toned accent that reads as
+// harmonious with Voyager's own soft green terrain rather than sitting on
+// top of it as a stark, rigid black line. Replaces the earlier obsidian
+// black (`#18181B`) — this "Estilizado Minimalista" pass wants the route
+// itself to read as a fine, technical trace rather than a bold UI accent.
+// Kept as a literal hex rather than a Tailwind class, since Leaflet's
+// `Polyline` `color` prop needs a plain string.
+const ROUTE_LINE_COLOR = "#555a43";
 // A wider, softer, near-black line rendered directly underneath the route
 // itself — Leaflet's `Polyline` has no `box-shadow`-style prop of its own, so
 // stacking a second, more transparent stroke beneath the real one is the
@@ -233,7 +234,7 @@ export function RouteMapPreview({
         zoomControl={false}
       >
         <TileLayer url={TILE_URL} subdomains={TILE_SUBDOMAINS} attribution={TILE_ATTRIBUTION} />
-        {/* Shadow stroke first (wider, translucent dark), the real obsidian
+        {/* Shadow stroke first (wider, translucent dark), the real olive
             route drawn on top — gives the line a subtle sense of depth over
             the busier topo terrain without needing a CSS filter. */}
         <Polyline
@@ -246,12 +247,15 @@ export function RouteMapPreview({
             lineJoin: "round",
           }}
         />
+        {/* Fine, technical stroke — `weight: 2.5`/`opacity: 0.95` reads as a
+            deliberately thin, elegant trace rather than a bold UI element,
+            per "Estilizado Minimalista de la Ruta en Mapa." */}
         <Polyline
           positions={points}
           pathOptions={{
             color: ROUTE_LINE_COLOR,
-            weight: 2,
-            opacity: 1,
+            weight: 2.5,
+            opacity: 0.95,
             lineCap: "round",
             lineJoin: "round",
           }}

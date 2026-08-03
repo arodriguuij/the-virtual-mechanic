@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, ChevronDown, Mountain, Thermometer, TriangleAlert, Wind } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mountain, Thermometer, TriangleAlert, Wind } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -389,12 +389,6 @@ export function WeatherImpactCard({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [activeScrollIndex, setActiveScrollIndex] = useState(0);
-  // "Cronograma Unificado por Hitos" — starts expanded whenever there's a
-  // real multi-hito schedule to show (see the comment above); a lone
-  // "Ruta" reading has nothing to expand into and stays collapsed/moot,
-  // same as before. Still toggleable — an athlete who's already read the
-  // schedule can collapse it back down.
-  const [showTimeline, setShowTimeline] = useState(hasMultiplePoints);
 
   // "Deshabilitación por Índice" — driven straight off `activeScrollIndex`
   // (which card is currently focused) rather than the scroll container's
@@ -435,10 +429,11 @@ export function WeatherImpactCard({
   // strip. The active index is derived from the *real* rendered width of
   // the strip's own first card (`getBoundingClientRect`), not the fixed
   // `CAROUSEL_CARD_SCROLL_AMOUNT_PX` guess (kept only as a fallback before
-  // the strip has rendered) — this app's cards are `min-w-70 max-w-75` (a
-  // range, not one fixed size), so measuring the real DOM node is what
-  // keeps this accurate instead of drifting the way a hardcoded constant
-  // would as content/viewport width changes.
+  // the strip has rendered) — this app's cards are `w-full` (matching
+  // whatever the container's own available width happens to be at each
+  // breakpoint, not one fixed size), so measuring the real DOM node is
+  // what keeps this accurate instead of drifting the way a hardcoded
+  // constant would as content/viewport width changes.
   function handleContainerScroll() {
     const el = scrollContainerRef.current;
     if (!el) return;
@@ -472,7 +467,7 @@ export function WeatherImpactCard({
             `sourceLabel` already names the altimetry-based Open-Meteo
             forecast itself and this app never silently discards real
             computed data. */}
-        <p className="truncate font-mono text-[11px] text-zinc-400">
+        <p className="font-mono text-xs whitespace-normal text-zinc-500 leading-relaxed">
           {sourceLabel}
           {!altitude && lapseRateAdjustmentC !== 0 && (
             <span className="inline-flex items-center gap-1">
@@ -515,43 +510,32 @@ export function WeatherImpactCard({
         </div>
       ) : (
         // Contenedor Unificado del Cronograma por Hitos — one bordered
-        // porcelain container holding both the toggle header (with the
-        // route's real min/max temp range and hito count baked directly
-        // into it, no separate summary tile needed) and, once expanded,
-        // the altimetry SVG + carousel. Starts expanded (see the
-        // `showTimeline` initializer above) — sobrio PNS style: no emoji,
-        // no "Desplegar"/"Ocultar" text, a plain rotating chevron instead.
+        // porcelain container holding both the header (with the route's
+        // real min/max temp range and hito count baked directly into it,
+        // no separate summary tile needed) and the altimetry SVG +
+        // carousel. "Cronograma Térmico Fijo" — always rendered expanded,
+        // no collapse toggle: this module is the whole point of the
+        // 2+-hito case (there's nothing else to show once the averaged
+        // 3-tile summary above is hidden in its favor), so hiding it
+        // behind an extra tap just cost the athlete a click to see the
+        // one thing this card exists to show.
         <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3.5 transition-all">
-          <button
-            type="button"
-            onClick={() => setShowTimeline((v) => !v)}
-            className="group flex w-full cursor-pointer items-center justify-between py-1 text-left"
-            aria-expanded={showTimeline}
-          >
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="font-mono text-xs font-bold tracking-tight text-zinc-900">
-                Cronograma térmico por puertos
-              </span>
-              <span className="shrink-0 font-mono text-[11px] font-medium text-zinc-500">
-                ({minTemperatureC}°C — {maxTemperatureC}°C · {weatherPoints.length} hitos)
-              </span>
-            </div>
-            <ChevronDown
-              className={cn(
-                "size-4 shrink-0 text-zinc-500 transition-transform duration-200 ease-out group-hover:text-zinc-900",
-                showTimeline && "rotate-180"
-              )}
-            />
-          </button>
+          <div className="flex min-w-0 items-center gap-2 py-1">
+            <span className="font-mono text-xs font-bold tracking-tight text-zinc-900">
+              Cronograma térmico por puertos
+            </span>
+            <span className="shrink-0 font-mono text-[11px] font-medium text-zinc-500">
+              ({minTemperatureC}°C — {maxTemperatureC}°C · {weatherPoints.length} hitos)
+            </span>
+          </div>
 
-          {showTimeline && (
-            <div className="mt-3 flex flex-col gap-3 border-t border-zinc-200/60 pt-3">
+          <div className="mt-3 flex flex-col gap-3 border-t border-zinc-200/60 pt-3">
               {/* Nav Header — the strip's own `←`/`→` controls, paired
                   with a short caption describing what the carousel below
                   shows (no repeated "Impacto Térmico" title here — the
-                  toggle button above already carries it). */}
+                  header above already carries it). */}
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-mono text-[10px] font-medium tracking-wider text-zinc-500">
+                <span className="font-mono text-[11px] font-medium whitespace-normal text-zinc-500">
                   Previsión por altimetría y hora de paso
                 </span>
                 <div className="flex shrink-0 items-center gap-1 text-zinc-800">
@@ -592,13 +576,15 @@ export function WeatherImpactCard({
 
               {/* Contenedor de tarjetas con swipe táctil nativo — real
                   touch/trackpad/mouse-wheel scrolling, `snap-x
-                  snap-mandatory` + `snap-start` on each card for the
-                  magnetic anchor, `touch-pan-x` so a vertical page-scroll
-                  gesture starting on this strip isn't captured by it.
-                  `-mx-1 px-1` lets a `snap-start` card's own focus ring/
-                  shadow render uncropped at the strip's edges without
-                  widening the row past its parent. Rendered in strict
-                  chronological/route order — the same order
+                  snap-mandatory` + `snap-center` on each full-width card
+                  for the magnetic anchor (one hito fills the visible strip
+                  at a time — no partial next-card peeking that could look
+                  misaligned/cut off on a narrow phone), `touch-pan-x` so a
+                  vertical page-scroll gesture starting on this strip isn't
+                  captured by it. `-mx-1 px-1` lets a `snap-center` card's
+                  own focus ring/shadow render uncropped at the strip's
+                  edges without widening the row past its parent. Rendered
+                  in strict chronological/route order — the same order
                   `weatherPoints` itself is already built in (Salida →
                   Valle → Cima → ... → Llegada). */}
               <div
@@ -611,7 +597,7 @@ export function WeatherImpactCard({
                   <div
                     key={point.key}
                     className={cn(
-                      "min-w-70 max-w-75 shrink-0 snap-start rounded-xl border p-3.5 shadow-xs transition-colors",
+                      "w-full shrink-0 snap-center rounded-xl border p-3.5 shadow-xs transition-colors",
                       // "Sincronización Bidireccional" — a solid, fully-
                       // opaque bronze border (not the previous `/40`
                       // translucent one) so the active card gives a
@@ -672,8 +658,7 @@ export function WeatherImpactCard({
                   />
                 </div>
               </div>
-            </div>
-          )}
+          </div>
         </div>
       )}
 

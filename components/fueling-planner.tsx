@@ -582,7 +582,7 @@ const SODIUM_DEMAND_GAUGE_MAX_MG_PER_HOUR = 2000;
 // planned stop, or more load in the pockets); only the fully-covered case
 // (0g) gets its own distinct, positive color.
 function getRemainingCarbsTextClass(remainingCarbsG: number): string {
-  if (remainingCarbsG > 0) return "text-[#70685b] font-bold";
+  if (remainingCarbsG > 0) return "text-amber-200 font-bold";
   return "text-emerald-300 font-bold";
 }
 
@@ -3064,11 +3064,13 @@ export function FuelingPlanner({
                   `overflow-hidden` with `overflow-visible` (see that Card's
                   own doc comment) — `position: sticky` is silently defeated
                   by any `overflow: hidden` ancestor, and Card 04's own
-                  container below carries no such class either. Obsidian-
-                  black (`#18181B`) fill, `border-zinc-800`/`shadow-md`/
-                  `backdrop-blur-md` — the HUD reads as its own distinct
-                  floating register rather than blending into the same
-                  accent every selector's active state already uses.
+                  container below carries no such class either. Bronce
+                  elegante (`#70685b`, this app's own terracotta/bronze
+                  accent) fill, replacing the earlier obsidian-black
+                  (`#18181B`) HUD — the dark register read as a jarring,
+                  unrelated surface against the rest of this card's warm
+                  porcelain/white palette; bronze keeps the "distinct
+                  floating register" the HUD wants while staying on-brand.
                   "Logística de Salida" relabeled all 3 figures to make the
                   home-vs-road split explicit — OBJETIVO RUTA (the ride's
                   real target, unchanged), CARGA DE CASA (what's physically
@@ -3077,11 +3079,12 @@ export function FuelingPlanner({
                   to close, not a deficit to panic over) —
                   `getRemainingCarbsTextClass` simplified from a 3-tier rose/
                   amber/emerald semaforo to 2 states matching that framing:
-                  Bronce Táctico (`#70685b`) while nonzero, emerald the
+                  amber while nonzero (bronze-on-bronze text would be
+                  invisible against this bar's own new fill), emerald the
                   instant it hits 0. OBJETIVO RUTA/CARGA DE CASA both stay a
                   dimmer `text-white/75`, so RESTANTE RUTA is unambiguously
                   the one number this display wants your eye on. */}
-              <div className="sticky top-14 z-20 my-4 rounded-xl border border-zinc-800 bg-[#18181B] p-3.5 text-white shadow-md backdrop-blur-md">
+              <div className="sticky top-14 z-30 my-4 rounded-xl border border-[#585248] bg-[#70685b] p-3.5 text-white shadow-lg transition-all lg:top-4">
                 <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center font-mono text-xs font-bold tracking-wide sm:text-xs">
                   <span className="text-white/75">OBJETIVO RUTA: {result.totalRideCarbsG}g HC</span>
                   <span className="text-white/40">|</span>
@@ -3095,8 +3098,8 @@ export function FuelingPlanner({
                     (what to physically load) and hands off the remainder
                     to Card 05 explicitly, so a nonzero RESTANTE RUTA never
                     reads as this card having failed to do its job. */}
-                <p className="mt-1.5 text-center font-mono text-[10px] leading-snug text-white/60">
-                  Configura lo que llevarás físicamente en la bici. El remanente restante lo
+                <p className="mt-1.5 border-t border-white/10 pt-1.5 text-center font-mono text-[10px] leading-snug text-white/70">
+                  Configura lo que llevarás físicamente en la bici. El restante lo
                   cubrirás con tus paradas en ruta o avituallamientos.
                 </p>
               </div>
