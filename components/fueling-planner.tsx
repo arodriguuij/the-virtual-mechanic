@@ -3046,62 +3046,72 @@ export function FuelingPlanner({
                 </div>
               )}
 
-              {/* Píldora Fija de Balance en Tiempo Real — "Sticky HUD Bar,"
+              {/* Texto explicativo — frames the whole card's own purpose
+                  (what to physically load) and hands off the remainder to
+                  Card 05 explicitly, so a nonzero RESTANTE never reads as
+                  this card having failed to do its job. Deliberately in
+                  normal document flow, *not* inside the sticky strip below
+                  — the strip needs to stay an ultra-compact single line
+                  (~35px) so it never eats meaningful screen real estate
+                  while pinned; a full explanatory sentence baked into it
+                  would have forced it tall enough to compete with the
+                  content it's supposed to float quietly above. This
+                  paragraph itself scrolls away normally, same as any other
+                  static copy on the page. */}
+              <p className="mb-3 font-mono text-xs leading-relaxed text-zinc-500">
+                Configura lo que llevarás físicamente en la bici. El restante lo cubrirás
+                con tus paradas en ruta o avituallamientos.
+              </p>
+
+              {/* Tira Resumen Sticky Ultra-Compacta — "Sticky HUD Bar,"
                   sticky within this card as the athlete scrolls through the
                   bottle-config selector and the pocket-food inventory
-                  below, so OBJETIVO RUTA/CARGA DE CASA/RESTANTE RUTA stays
-                  on screen instead of requiring a scroll back up. Recomputes
-                  instantly from `coveredCarbsG`/`remainingCarbsG` (pure
-                  client-side arithmetic, reacting to *both* the bottle
-                  selector and every pocket-food stepper) — no network
-                  round-trip, no need to press "Calcular" again just to see
-                  the coverage change. `top-14 lg:top-4` clears the mobile
-                  header (`fixed top-0 z-50`, ~64px tall, `lg:hidden`) so
-                  the bar never renders underneath it; desktop has no such
-                  header, so it sticks close to the viewport's own top
-                  instead — this only works because the root `<Card>` this
-                  whole component renders into overrides its own base
-                  `overflow-hidden` with `overflow-visible` (see that Card's
-                  own doc comment) — `position: sticky` is silently defeated
-                  by any `overflow: hidden` ancestor, and Card 04's own
-                  container below carries no such class either. Bronce
-                  elegante (`#70685b`, this app's own terracotta/bronze
-                  accent) fill, replacing the earlier obsidian-black
-                  (`#18181B`) HUD — the dark register read as a jarring,
-                  unrelated surface against the rest of this card's warm
-                  porcelain/white palette; bronze keeps the "distinct
-                  floating register" the HUD wants while staying on-brand.
-                  "Logística de Salida" relabeled all 3 figures to make the
-                  home-vs-road split explicit — OBJETIVO RUTA (the ride's
-                  real target, unchanged), CARGA DE CASA (what's physically
-                  loaded onto bottles+pockets before leaving, was CUBIERTO),
-                  RESTANTE RUTA (what Card 05's road-side stops are expected
-                  to close, not a deficit to panic over) —
-                  `getRemainingCarbsTextClass` simplified from a 3-tier rose/
-                  amber/emerald semaforo to 2 states matching that framing:
-                  amber while nonzero (bronze-on-bronze text would be
-                  invisible against this bar's own new fill), emerald the
-                  instant it hits 0. OBJETIVO RUTA/CARGA DE CASA both stay a
-                  dimmer `text-white/75`, so RESTANTE RUTA is unambiguously
-                  the one number this display wants your eye on. */}
-              <div className="sticky top-14 z-30 my-4 rounded-xl border border-[#585248] bg-[#70685b] p-3.5 text-white shadow-lg transition-all lg:top-4">
-                <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center font-mono text-xs font-bold tracking-wide sm:text-xs">
-                  <span className="text-white/75">OBJETIVO RUTA: {result.totalRideCarbsG}g HC</span>
-                  <span className="text-white/40">|</span>
-                  <span className="text-white/75">CARGA DE CASA: {coveredCarbsG}g HC</span>
-                  <span className="text-white/40">|</span>
-                  <span className={getRemainingCarbsTextClass(remainingCarbsG)}>
-                    RESTANTE RUTA: {remainingCarbsG}g HC
-                  </span>
+                  below, so OBJETIVO/CASA/RESTANTE stays on screen instead
+                  of requiring a scroll back up. Recomputes instantly from
+                  `coveredCarbsG`/`remainingCarbsG` (pure client-side
+                  arithmetic, reacting to *both* the bottle selector and
+                  every pocket-food stepper) — no network round-trip, no
+                  need to press "Calcular" again just to see the coverage
+                  change. `top-14 lg:top-4` clears the mobile header (`fixed
+                  top-0 z-50`, ~64px tall, `lg:hidden`) so the bar never
+                  renders underneath it; desktop has no such header, so it
+                  sticks close to the viewport's own top instead — this
+                  only works because the root `<Card>` this whole component
+                  renders into overrides its own base `overflow-hidden`
+                  with `overflow-visible` (see that Card's own doc comment)
+                  — `position: sticky` is silently defeated by any
+                  `overflow: hidden` ancestor, and Card 04's own container
+                  below carries no such class either. Bronce elegante
+                  (`#70685b`, this app's own terracotta/bronze accent) fill
+                  — the HUD reads as its own distinct floating register
+                  rather than blending into the same accent every selector's
+                  active state already uses. A single `justify-between` row
+                  with short labels (OBJETIVO/CASA/RESTANTE, not the fuller
+                  "OBJETIVO RUTA"/"CARGA DE CASA"/"RESTANTE RUTA" wording the
+                  static paragraph above already spells out in full) is what
+                  keeps this to one compact line instead of wrapping onto
+                  two — `getRemainingCarbsTextClass` (the shared 2-state
+                  amber/emerald semáforo, unchanged) still decides RESTANTE's
+                  color. */}
+              <div className="sticky top-14 z-30 my-3 rounded-xl border border-[#585248] bg-[#70685b] px-3 py-2.5 text-white shadow-md backdrop-blur-md transition-all lg:top-4">
+                <div className="flex items-center justify-between font-mono text-[11px] font-bold tracking-tight sm:text-xs">
+                  <div className="flex items-center gap-1">
+                    <span className="text-zinc-300">OBJETIVO:</span>
+                    <span>{result.totalRideCarbsG}g HC</span>
+                  </div>
+                  <span className="text-white/30">|</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-zinc-300">CASA:</span>
+                    <span>{coveredCarbsG}g HC</span>
+                  </div>
+                  <span className="text-white/30">|</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-amber-200">RESTANTE:</span>
+                    <span className={getRemainingCarbsTextClass(remainingCarbsG)}>
+                      {remainingCarbsG}g HC
+                    </span>
+                  </div>
                 </div>
-                {/* Texto explicativo — frames the whole card's own purpose
-                    (what to physically load) and hands off the remainder
-                    to Card 05 explicitly, so a nonzero RESTANTE RUTA never
-                    reads as this card having failed to do its job. */}
-                <p className="mt-1.5 border-t border-white/10 pt-1.5 text-center font-mono text-[10px] leading-snug text-white/70">
-                  Configura lo que llevarás físicamente en la bici. El restante lo
-                  cubrirás con tus paradas en ruta o avituallamientos.
-                </p>
               </div>
 
               <hr className="border-t border-zinc-200/70 my-6" />

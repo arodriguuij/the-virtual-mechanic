@@ -129,20 +129,26 @@ export function CommercialProductsSheet({
   quantities: Record<string, number>;
   onChangeQty: (id: string, qty: number) => void;
 }) {
-  const [activeBrand, setActiveBrand] = useState<string | "all">("all");
-  const visibleProducts =
-    activeBrand === "all" ? COMMERCIAL_PRODUCTS : COMMERCIAL_PRODUCTS.filter((p) => p.brand === activeBrand);
+  // "Selección Unimarca Estricta" — no more "Todas" option: the sheet
+  // always shows exactly one brand's catalog at a time (3-4 items), never
+  // the full 12+-row combined list, so the vertical list stays short and
+  // fast to scan on a phone. Defaults to the catalog's first brand
+  // (`COMMERCIAL_PRODUCT_BRANDS[0]`) rather than a hardcoded brand name —
+  // whichever brand happens to be declared first in
+  // `lib/constants/nutrition-brands.ts` is always a valid, real option.
+  const [activeBrand, setActiveBrand] = useState<string>(COMMERCIAL_PRODUCT_BRANDS[0]);
+  const visibleProducts = COMMERCIAL_PRODUCTS.filter((p) => p.brand === activeBrand);
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         onOpenChange(next);
-        // A closed-and-reopened sheet starts back on "Todas" rather than
-        // wherever the athlete last filtered to — the filter is a quick
-        // in-session convenience, not something worth remembering across
-        // separate visits to the sheet.
-        if (!next) setActiveBrand("all");
+        // A closed-and-reopened sheet starts back on the first brand rather
+        // than wherever the athlete last filtered to — the filter is a
+        // quick in-session convenience, not something worth remembering
+        // across separate visits to the sheet.
+        if (!next) setActiveBrand(COMMERCIAL_PRODUCT_BRANDS[0]);
       }}
     >
       <DialogPortal>
@@ -168,24 +174,13 @@ export function CommercialProductsSheet({
             </DialogPrimitive.Close>
           </div>
 
-          {/* Filtro rápido por marca — a horizontal, non-wrapping pill row
-              (own `scrollbar-none` overflow-x-auto strip, same hidden-
-              scrollbar utility the weather carousel uses) rather than a
-              full tab bar, since 7 options (6 brands + "Todas") would
-              otherwise wrap onto 2-3 lines on a narrow phone. */}
+          {/* Filtro por marca — a horizontal, non-wrapping pill row (own
+              `scrollbar-none` overflow-x-auto strip, same hidden-scrollbar
+              utility the weather carousel uses) rather than a full tab
+              bar, since even 6 brand options could otherwise wrap onto 2
+              lines on a narrow phone. No "Todas" option — the sheet always
+              shows exactly one brand's own short catalog at a time. */}
           <div className="scrollbar-none mb-4 flex gap-1.5 overflow-x-auto pb-1">
-            <button
-              type="button"
-              onClick={() => setActiveBrand("all")}
-              className={cn(
-                "shrink-0 cursor-pointer rounded-full border px-3 py-1 font-mono text-[11px] font-semibold whitespace-nowrap transition-colors",
-                activeBrand === "all"
-                  ? "border-transparent bg-[#70685b] text-white"
-                  : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
-              )}
-            >
-              Todas
-            </button>
             {COMMERCIAL_PRODUCT_BRANDS.map((brand) => (
               <button
                 key={brand}
