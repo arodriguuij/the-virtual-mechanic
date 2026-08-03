@@ -8,6 +8,7 @@ import {
   Droplet,
   FlaskConical,
   Gauge,
+  Lightbulb,
   Lock,
   Moon,
   Pencil,
@@ -58,6 +59,7 @@ import {
   type PocketFoodSelection,
 } from "@/lib/metabolic-engine";
 import type { StravaRoute } from "@/lib/strava-routes";
+import { COMMERCIAL_PRODUCTS, type CommercialProduct } from "@/lib/constants/nutrition-brands";
 
 // Assumed pace when the athlete has no Strava ride history to derive a real
 // average speed from (brand-new account, or Strava never connected) — a
@@ -130,6 +132,34 @@ const POCKET_FOOD_TYPES: PocketFoodItemType[] = [
 const GEL_DOSE_TYPES: PocketFoodItemType[] = ["gel_small", "gel_standard", "gel_high", "gel_ultra"];
 const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = [...POCKET_FOOD_TYPES, ...GEL_DOSE_TYPES];
 const MAX_POCKET_FOOD_QTY = 6;
+
+// "Marcas comerciales (opcional)" — real branded products (see
+// `lib/constants/nutrition-brands.ts`), grouped by brand once at module
+// scope (pure data, no component state involved) so Card 04 can render one
+// small sub-header per brand instead of one flat 12-row list.
+const COMMERCIAL_PRODUCTS_BY_BRAND = COMMERCIAL_PRODUCTS.reduce<Record<string, CommercialProduct[]>>(
+  (acc, product) => {
+    (acc[product.brand] ??= []).push(product);
+    return acc;
+  },
+  {}
+);
+
+// "Balance de Sodio (marcas comerciales)" — Card 05 flags a real sodium gap
+// only on a genuinely hot ride (where under-replacing sodium is a real
+// cramping/hyponatremia risk, see `getSodiumLossMgPerHour` in
+// `lib/metabolic-engine.ts`) — a cool ride sweats far less sodium to begin
+// with, so a low commercial-product contribution there isn't a gap worth
+// flagging. Deliberately scoped to commercial-product sodium alone, not the
+// ride's *total* sodium plan: the DIY bottle recipe already sizes its own
+// salt content to hit the full target on its own (see "Bottle architecture
+// & osmolarity control"), so this only fires once the athlete has actually
+// opted into real-brand products and *those* alone would fall meaningfully
+// short of the target — never on an athlete who hasn't touched this
+// optional selector at all, which would otherwise read as a false-positive
+// warning against a DIY plan that's already fully covering sodium.
+const SODIUM_SUGGESTION_HOT_ROUTE_THRESHOLD_C = 28;
+const SODIUM_SUGGESTION_COVERAGE_FRACTION = 0.8;
 
 // "Optimización de Densidad en Simulador" — the 4 real catalog items shown
 // by default in Card 04 before "+ Mostrar más alimentos" is tapped (the
@@ -1226,6 +1256,51 @@ function PocketFoodStepperRow({
   );
 }
 
+/** One "Marcas comerciales" catalog row — the same compact stepper
+ * geometry as `PocketFoodStepperRow` above, but the caption is the
+ * product's own real bracketed data line (`[ Marca - Nombre (Xg HC ·
+ * Ymg Na+) ]`, per the "Selector Opcional de Marcas Reales" spec) instead
+ * of a carb-only figure, since every real product here carries a genuine
+ * sodium value the generic pocket-food catalog never tracked. */
+function CommercialProductStepperRow({
+  product,
+  qty,
+  onChange,
+}: {
+  product: CommercialProduct;
+  qty: number;
+  onChange: (qty: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-2 last:border-b-0">
+      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-600">
+        [ {product.brand} - {product.name} ({product.carbs}g HC · {product.sodium}mg Na+) ]
+      </span>
+      <div className="flex h-7 min-w-20 shrink-0 items-center justify-between rounded-sm border border-zinc-200 bg-transparent px-2 py-0.5">
+        <button
+          type="button"
+          onClick={() => onChange(qty - 1)}
+          className="flex size-5 cursor-pointer items-center justify-center text-sm leading-none font-normal text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
+          aria-label={`Quitar ${product.brand} ${product.name}`}
+        >
+          −
+        </button>
+        <span className="min-w-4 px-1 text-center font-sans text-xs font-medium text-zinc-800 tabular-nums">
+          {qty}
+        </span>
+        <button
+          type="button"
+          onClick={() => onChange(qty + 1)}
+          className="flex size-5 cursor-pointer items-center justify-center text-sm leading-none font-normal text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
+          aria-label={`Añadir ${product.brand} ${product.name}`}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function FuelingPlanner({
   routes,
   avgSpeedKmh,
@@ -1304,6 +1379,15 @@ export function FuelingPlanner({
   const trainLowEffective = trainLow && !trainLowIncompatible;
   const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
   const [customCarbsG, setCustomCarbsG] = useState(0);
+  // "Marcas comerciales (opcional)" — real branded products, tracked
+  // separately from `pocketFood` since each one carries a real sodium
+  // figure the generic catalog never had (see
+  // `lib/constants/nutrition-brands.ts`). Same `Record<id, qty>` shape/
+  // reset convention as `pocketFood` above; collapsed by default
+  // (`commercialProductsOpen`), same "+ Mostrar más" pattern the pocket-
+  // food catalog itself uses for its own less-common items.
+  const [commercialProducts, setCommercialProducts] = useState<Record<string, number>>({});
+  const [commercialProductsOpen, setCommercialProductsOpen] = useState(false);
   // "Incluye cafeína" — a modifier on whatever gel(s) are already selected,
   // not a 4th gel-catalog entry ("no duplicar ítems de geles"). Only shown
   // once at least one gel type has a quantity > 0 (see `hasGelSelected`
@@ -1525,7 +1609,22 @@ export function FuelingPlanner({
     ? displayBottlePlan.fuelBottles.maltodextrinGPerBottle + displayBottlePlan.fuelBottles.fructoseGPerBottle
     : 0;
   const ziplocDoseCarbsG = ziplocDoseCount * ziplocDoseGramsPerUnit;
-  const bottlesAndPocketCoveredCarbsG = pocketFoodCarbsPreview + bottleCarbsContributionG + ziplocDoseCarbsG;
+  // "Selector Opcional de Marcas Reales" — every selected commercial
+  // product contributes both HC and Na+ independently: the carb side feeds
+  // the same CUBIERTO/RESTANTE pill as every other coverage source below,
+  // the sodium side is only ever compared against the ride's own sodium
+  // target in Card 05 (see `showSodiumSuggestion` further down), never
+  // folded into any carb figure.
+  const commercialCarbsG = COMMERCIAL_PRODUCTS.reduce(
+    (sum, product) => sum + (commercialProducts[product.id] ?? 0) * product.carbs,
+    0
+  );
+  const commercialSodiumMg = COMMERCIAL_PRODUCTS.reduce(
+    (sum, product) => sum + (commercialProducts[product.id] ?? 0) * product.sodium,
+    0
+  );
+  const bottlesAndPocketCoveredCarbsG =
+    pocketFoodCarbsPreview + bottleCarbsContributionG + ziplocDoseCarbsG + commercialCarbsG;
   // D_base — the whole reason "Planificación de Paradas en Ruta" exists:
   // the deficit still pending from bottles + pocket food *alone*, before
   // any café/gas-station stop is factored in. Deliberately re-derived on
@@ -1565,6 +1664,21 @@ export function FuelingPlanner({
   const cafeteriaStopCarbsG = cafeteriaStopPlans.reduce((sum, plan) => sum + plan.carbsG, 0);
   const coveredCarbsG = bottlesAndPocketCoveredCarbsG + cafeteriaStopCarbsG;
   const remainingCarbsG = result ? Math.max(0, result.totalRideCarbsG - coveredCarbsG) : 0;
+
+  // "Balance de Sodio (marcas comerciales)" — see the module-level doc
+  // comment above `SODIUM_SUGGESTION_HOT_ROUTE_THRESHOLD_C` for the full
+  // reasoning. `isHotRouteForSodium` defaults to `false` with no `result`
+  // (falls back to `-Infinity` against the threshold).
+  const isHotRouteForSodium =
+    (result?.weather.temperatureMaxC ?? result?.weather.temperatureC ?? -Infinity) >=
+    SODIUM_SUGGESTION_HOT_ROUTE_THRESHOLD_C;
+  const sodiumDeficitMg = Math.max(0, totalSodiumMg - commercialSodiumMg);
+  const showSodiumSuggestion =
+    result != null &&
+    commercialSodiumMg > 0 &&
+    isHotRouteForSodium &&
+    commercialSodiumMg < totalSodiumMg * SODIUM_SUGGESTION_COVERAGE_FRACTION;
+
   // Which bottle-config buttons Card 04 actually renders — see
   // `getBottleConfigOptions` above for why a 1-cage athlete never sees
   // "Ambos Mix" at all.
@@ -1579,6 +1693,13 @@ export function FuelingPlanner({
   // above), so they don't come back out of `getPocketChecklistLines` for
   // free — appended here instead, replacing the function of the old
   // "Estrategia de recarga en ruta" card's own checklist line.
+  // Real commercial products aren't part of `pocketFood` either (see the
+  // `commercialProducts` state comment above) — appended here for the same
+  // reason the Ziploc dose is, so a selected brand actually shows up in the
+  // "Comida de bolsillo" packing list, sodium figure included.
+  const commercialChecklistLines = COMMERCIAL_PRODUCTS.filter((p) => (commercialProducts[p.id] ?? 0) > 0).map(
+    (p) => `${commercialProducts[p.id]}x ${p.brand} ${p.name} (${p.carbs}g HC · ${p.sodium}mg Na+)`
+  );
   const pocketChecklistLines = [
     ...getPocketChecklistLines(pocketFood, customCarbsG),
     ...(ziplocDoseCount > 0
@@ -1586,6 +1707,7 @@ export function FuelingPlanner({
           `${ziplocDoseCount}x Dosis de recarga Mix (Ziploc con ${ziplocDoseGramsPerUnit}g Malto/Fructosa)`,
         ]
       : []),
+    ...commercialChecklistLines,
   ];
   const waterPlanChecklistLines = result ? getWaterPlanLines(result) : [];
   const cafeteriaChecklistLines = getCafeteriaStopChecklistLines(cafeteriaStopPlans);
@@ -1740,6 +1862,7 @@ export function FuelingPlanner({
     setZiplocDoseCount(0);
     setPocketFood({});
     setCustomCarbsG(0);
+    setCommercialProducts({});
     setBottleCapacityOverrideMl(null);
     setBottleCapacityEditorOpen(false);
     setShowBikeScoops(false);
@@ -1757,6 +1880,10 @@ export function FuelingPlanner({
 
   function setPocketFoodQty(type: PocketFoodItemType, qty: number) {
     setPocketFood((prev) => ({ ...prev, [type]: Math.max(0, Math.min(MAX_POCKET_FOOD_QTY, qty)) }));
+  }
+
+  function setCommercialProductQty(id: string, qty: number) {
+    setCommercialProducts((prev) => ({ ...prev, [id]: Math.max(0, Math.min(MAX_POCKET_FOOD_QTY, qty)) }));
   }
 
   // "Regla Crítica de Reseteo al Desmarcar" — unchecking an item that
@@ -3063,6 +3190,60 @@ export function FuelingPlanner({
                   </label>
                 )}
               </div>
+
+              {/* "Selector Opcional de Marcas Reales" — real branded
+                  products (Maurten, 226ERS, SiS, Santa Madre, Neversecond,
+                  Precision Fuel), each with a real sodium figure the
+                  generic pocket-food catalog above never carried (see
+                  `lib/constants/nutrition-brands.ts`). Collapsed by
+                  default, same "+ Mostrar más" convention as the
+                  pocket-food catalog's own "+ Mostrar más alimentos" — most
+                  athletes plan around the DIY bottle/generic catalog and
+                  only need this when actually restocking from a specific
+                  brand. Every selection feeds both the CUBIERTO/RESTANTE
+                  pill above (`commercialCarbsG`) and Card 05's sodium
+                  balance check (`commercialSodiumMg`). */}
+              <div className="mt-8">
+                <button
+                  type="button"
+                  onClick={() => setCommercialProductsOpen((v) => !v)}
+                  className="flex w-full cursor-pointer items-center justify-between gap-2"
+                >
+                  <span className={formFieldLabelClass}>Marcas comerciales (opcional)</span>
+                  <ChevronDown
+                    className={cn(
+                      "size-3.5 shrink-0 text-zinc-500 transition-transform duration-150",
+                      commercialProductsOpen && "rotate-180"
+                    )}
+                  />
+                </button>
+                {commercialCarbsG > 0 && !commercialProductsOpen && (
+                  <p className="mt-1 font-mono text-[11px] text-zinc-500">
+                    {commercialCarbsG}g HC · {commercialSodiumMg}mg Na+ desde marcas reales
+                  </p>
+                )}
+                {commercialProductsOpen && (
+                  <div className="mt-2 flex flex-col gap-3">
+                    {Object.entries(COMMERCIAL_PRODUCTS_BY_BRAND).map(([brand, products]) => (
+                      <div key={brand}>
+                        <span className="mb-1 block font-mono text-[10px] tracking-wider text-zinc-400 uppercase">
+                          {brand}
+                        </span>
+                        <div className="flex flex-col">
+                          {products.map((product) => (
+                            <CommercialProductStepperRow
+                              key={product.id}
+                              product={product}
+                              qty={commercialProducts[product.id] ?? 0}
+                              onChange={(qty) => setCommercialProductQty(product.id, qty)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             {/* "Planificación de Paradas en Ruta" (selector + live per-stop
                 preview) moved entirely to Card 02 (Condiciones de la
@@ -3149,6 +3330,31 @@ export function FuelingPlanner({
                 </div>
               )}
 
+              {/* "Sugerencia de Sodio (marcas comerciales)" — only ever
+                  fires once the athlete has actually selected real branded
+                  products *and* the ride is hot enough that under-replacing
+                  sodium is a real risk (see `showSodiumSuggestion`'s own
+                  doc comment above) — never against an athlete running the
+                  default DIY bottle alone, which already sizes its own
+                  salt content to the full target. Reuses the exact same
+                  amber "aviso técnico" classes as the déficit alert above
+                  and Card 03's heat-warning banner, so every alert in this
+                  results flow reads as one consistent language. */}
+              {showSodiumSuggestion && (
+                <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3.5 shadow-xs">
+                  <div className="mb-1 flex items-center gap-2">
+                    <Lightbulb className="size-4 shrink-0 text-amber-700" />
+                    <span className="font-mono text-xs font-bold tracking-wider text-amber-900 uppercase">
+                      Sugerencia de electrolitos
+                    </span>
+                  </div>
+                  <p className="pl-6 font-mono text-xs leading-relaxed text-amber-900/90">
+                    Considera incluir electrolitos o cápsulas de sal (Déficit de Na+:{" "}
+                    <span className="font-semibold text-amber-800">{Math.round(sodiumDeficitMg)} mg</span>).
+                  </p>
+                </div>
+              )}
+
               {/* Bloque 1 · Display Táctico de Hidratación — a nested
                   light `bg-zinc-50` box (matching the card's own now-white
                   fill, `border-zinc-200/70`), leading with the one number
@@ -3220,6 +3426,23 @@ export function FuelingPlanner({
                   </ol>
                 )}
               </div>
+
+              {/* "Balance de Sodio (marcas comerciales)" — a plain,
+                  always-visible readout (not an alert — that's the
+                  conditional suggestion above) so the athlete can evaluate
+                  their electrolyte balance any time real branded products
+                  are selected, even when coverage is already fine. Same
+                  neutral `bg-zinc-50` nested-box treatment as Bloque 1. */}
+              {commercialSodiumMg > 0 && (
+                <div className="rounded-xl border border-zinc-200/70 bg-zinc-50 p-4">
+                  <span className={manifestSubtitleClass}>Sodio desde marcas comerciales</span>
+                  <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm text-zinc-700">
+                    <FlaskConical className="size-3.5 shrink-0 self-center text-zinc-500" />
+                    <span className="font-mono text-xl font-bold text-zinc-900">{commercialSodiumMg} mg</span>
+                    <span className="font-mono text-xs text-zinc-500">de {totalSodiumMg} mg objetivo</span>
+                  </p>
+                </div>
+              )}
 
               {/* Bloque 2 · Equipamiento y Agua — no wrapping "Cargo &
                   Equipment"/umbrella header anymore: each real category
