@@ -25,29 +25,33 @@ const WIND_ALERT_THRESHOLD_KMH = 20;
 // the amber alert treatment above their own thresholds.
 const HUMIDITY_ALERT_THRESHOLD_PCT = 75;
 
-// "Semáforo Dinámico de Color por Métricas" — a finer-grained color scale
-// on the carousel's own value text, layered on top of (not replacing) the
+// "Umbrales Climáticos Fisiológicos" — a finer-grained color scale on the
+// carousel's own value text, layered on top of (not replacing) the
 // coarser 2-tier `alertLabel` mechanism above (which still drives the
 // tile's background tint and its own "Calor extremo"/"Viento fuerte"/
 // "Humedad alta" badge line). These color the *number itself*, so an
 // athlete scanning the strip reads temperature/wind intensity at a glance
 // from color alone, not just from whichever tile happens to cross the
-// coarser alert threshold.
+// coarser alert threshold. Bands widened from an earlier pass's 15-23°C
+// comfort zone to 13-24°C — a genuinely comfortable cycling temperature
+// (e.g. 23°C) was being flagged amber as if it were already a heat
+// concern, a false alarm this wider, more physiologically accurate
+// "confort" band avoids.
 export function getTempColorClass(temp: number): string {
-  if (temp < 15) return "text-sky-600 font-semibold"; // Frío / Baja
-  if (temp <= 23) return "text-zinc-900 font-bold"; // Óptima / Templado
-  if (temp <= 28) return "text-amber-500 font-semibold"; // Alta / Calor
-  return "text-rose-600 font-bold"; // Muy Alta / Extremo
+  if (temp < 13) return "text-sky-600 font-semibold"; // Frío (< 13°C)
+  if (temp <= 24) return "text-zinc-900 font-bold"; // Confort / Ideal (13-24°C) — neutro
+  if (temp <= 29) return "text-amber-600 font-semibold"; // Moderado / Calor (25-29°C)
+  return "text-rose-600 font-bold"; // Extremo (≥ 30°C)
 }
 
 export function getWindColorClass(wind: number): string {
-  if (wind < 15) return "text-zinc-900 font-bold"; // Flojo / Neutro
-  if (wind <= 25) return "text-amber-500 font-semibold"; // Moderado
-  return "text-rose-600 font-bold"; // Fuerte / Crítico
+  if (wind < 15) return "text-zinc-900 font-bold"; // Neutro (< 15 km/h)
+  if (wind <= 25) return "text-amber-600 font-semibold"; // Moderado (15-25 km/h)
+  return "text-rose-600 font-bold"; // Fuerte (> 25 km/h)
 }
 
 export function getHumidityColorClass(humidity: number): string {
-  if (humidity > 75) return "text-amber-500 font-semibold";
+  if (humidity >= 70) return "text-amber-600 font-semibold";
   return "text-zinc-900 font-bold";
 }
 
@@ -575,8 +579,18 @@ export function WeatherImpactCard({
             <span className="font-mono text-xs font-bold tracking-tight text-zinc-900">
               Cronograma térmico por puertos
             </span>
+            {/* Badge de Rango Térmico — the low end colors as whatever
+                "frío" or "confort" reads on `getTempColorClass`'s own
+                scale (never an alert tone by definition, since the
+                minimum of a range can't itself be the hot extreme), while
+                the high end colors by its own real threshold — a route
+                whose max hits "Extremo" reads that in the badge itself,
+                not just deep inside the carousel below. */}
             <span className="shrink-0 font-mono text-[11px] font-medium text-zinc-500">
-              ({minTemperatureC}°C — {maxTemperatureC}°C · {weatherPoints.length} hitos)
+              (<span className={getTempColorClass(minTemperatureC ?? 0)}>{minTemperatureC}°C</span>
+              {" — "}
+              <span className={getTempColorClass(maxTemperatureC ?? 0)}>{maxTemperatureC}°C</span> ·{" "}
+              {weatherPoints.length} hitos)
             </span>
           </div>
 

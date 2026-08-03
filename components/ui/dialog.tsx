@@ -30,8 +30,22 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
+      // "Fix de Artefacto Blur en iOS Safari" — a `backdrop-filter` element
+      // that animates its own opacity in/out (this overlay's
+      // `fade-in-0`/`fade-out-0`) can make iOS Safari briefly freeze/flash
+      // the blurred frame right as the compositing layer tears down on
+      // close, since the browser doesn't always promote a blurred,
+      // fading-out element to its own GPU layer proactively.
+      // `transform-gpu`/`translate-z-0` force that promotion explicitly,
+      // `backface-hidden` avoids an extra unnecessary paint pass on the
+      // (never-rotated) hidden face, and `will-change-[opacity]` hints the
+      // browser to keep this element's compositing layer warm for the
+      // specific property that's actually animating — together these keep
+      // the full `backdrop-blur-xs` frosted-glass effect fully intact while
+      // making the open/close transition itself clean and instantaneous
+      // instead of glitchy.
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 transform-gpu translate-z-0 backface-hidden bg-black/10 duration-100 will-change-[opacity] supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}

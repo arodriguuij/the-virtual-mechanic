@@ -666,18 +666,22 @@ function MicroGauge({ pct }: { pct: number }) {
 
 /** "Manifiesto de Salida" checklist row — a real square checkbox (not
  * bracket text). Restyled for Card 05's now-light surface ("Unificación de
- * Lienzo Claro"): `border-zinc-300 bg-white` at rest, filling solid
- * `bg-emerald-500` with a dark check mark once ticked (emerald reads as a
- * "done"/covered state, the same green semantic `--sage` already carries
- * elsewhere in this app — orthogonal to the bronze "selected" accent used
- * by every selector). Purely a physical prep aid (tick off gear as it's
- * actually packed into pockets/cages); toggling it has no effect on any
- * figure elsewhere in the card — the underlying line content is still
- * fully re-derived from `result`/`bottleConfig`/pocket food, this is just
- * a checked/unchecked overlay on top of it. `children` (not a plain `text`
- * string) so call sites that need a nested reveal button or warning block
- * under one line (the mix-bottle row's "[ Ver en cazos ]" and hypertonic
- * warning) can still attach it without a second component. */
+ * Lienzo Claro"): `border-zinc-300 bg-white` at rest. Checked state was
+ * `bg-emerald-500` (a deliberate "done"/covered green, orthogonal to the
+ * bronze "selected" accent every selector uses) — since superseded by an
+ * explicit request to bring `#70685b` bronze into Card 05's own
+ * equipment-checklist affordance specifically, so `checked` now fills
+ * solid bronze with a white check mark instead (white reads with better
+ * contrast against the muted bronze fill than the previous dark
+ * `zinc-950` mark did against bright emerald). Purely a physical prep aid
+ * (tick off gear as it's actually packed into pockets/cages); toggling it
+ * has no effect on any figure elsewhere in the card — the underlying line
+ * content is still fully re-derived from `result`/`bottleConfig`/pocket
+ * food, this is just a checked/unchecked overlay on top of it. `children`
+ * (not a plain `text` string) so call sites that need a nested reveal
+ * button or warning block under one line (the mix-bottle row's "[ Ver en
+ * cazos ]" and hypertonic warning) can still attach it without a second
+ * component. */
 function ChecklistCheckboxLine({
   checked,
   onToggle,
@@ -698,10 +702,10 @@ function ChecklistCheckboxLine({
         aria-label={ariaLabel}
         className={cn(
           "mt-0.5 flex size-4.5 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-colors",
-          checked ? "border-emerald-500 bg-emerald-500" : "border-zinc-300 bg-white hover:border-zinc-400"
+          checked ? "border-[#70685b] bg-[#70685b]" : "border-zinc-300 bg-white hover:border-zinc-400"
         )}
       >
-        {checked && <Check className="size-3 text-zinc-950" strokeWidth={3} />}
+        {checked && <Check className="size-3 text-white" strokeWidth={3} />}
       </button>
       <span
         className={cn(
@@ -3439,8 +3443,11 @@ export function FuelingPlanner({
                   that matters mid-ride — how often to drink — with the
                   calculated clock marks underneath as a quick reference
                   strip. The detailed solid/gel/caffeine milestone rail
-                  below it is unchanged in substance. */}
-              <div className="rounded-xl border border-zinc-200/70 bg-zinc-50 p-4">
+                  below it is unchanged in substance. A left-edge bronze
+                  accent border (`border-l-4 border-l-[#70685b]`) marks this
+                  as the card's own featured/primary block, the same accent
+                  every selector's active state already uses elsewhere. */}
+              <div className="rounded-xl border border-zinc-200/70 border-l-4 border-l-[#70685b] bg-zinc-50 p-4">
                 <span className={manifestSubtitleClass}>Cadencia de hidratación</span>
                 <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm text-zinc-700">
                   <Droplet className="size-3.5 shrink-0 self-center text-zinc-500" />
@@ -3667,11 +3674,18 @@ export function FuelingPlanner({
               {/* Estrategia de carga día −1 — supplementary, occasional
                   content (only rendered on a long/target-event ride), kept
                   outside the tiers above rather than forced into one of
-                  them. Restyled to the same light nested-box treatment as
-                  the hydration HUD above. */}
+                  them. Given its own bronze-tinted "featured card"
+                  treatment (`bg-[#70685b]/5 border-[#70685b]/20`, the
+                  summary line itself in bronze) rather than the plain
+                  gray nested-box every other block in this card uses —
+                  this is the one supplementary module worth visually
+                  standing out as its own highlighted strategy card. The
+                  `CalendarDays` lucide icon stands in for a calendar glyph
+                  rather than a literal emoji, matching this app's
+                  no-emoji convention throughout. */}
               {result.carbLoading && (
-                <details className="rounded-xl border border-zinc-200/70 bg-zinc-50 px-3 py-2.5">
-                  <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-zinc-700 uppercase">
+                <details className="rounded-xl border border-[#70685b]/20 bg-[#70685b]/5 px-3 py-2.5">
+                  <summary className="flex cursor-pointer items-center gap-1.5 text-[11px] font-bold tracking-widest text-[#70685b] uppercase">
                     <CalendarDays className="size-3.5 shrink-0" />
                     Estrategia de carga día −1 · {result.carbLoading.minCarbsG}-
                     {result.carbLoading.maxCarbsG}g HC
