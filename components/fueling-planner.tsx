@@ -115,10 +115,6 @@ function getHydrationMarks(intervalMinutes: number, durationHours: number): stri
   return marks;
 }
 
-// "Refresco"/"Pan de leche" lead the list — real-world café/gasolinera-stop
-// or home-pantry purchases, so they're the first thing visible in Card 04's
-// inventory rather than buried after the rest.
-//
 // "Limpieza de Despensa Genérica" — the 4 generic gel dose tiers
 // (`gel_small`/`gel_standard`/`gel_high`/`gel_ultra`) were removed from this
 // catalog outright: a rider reaching for a gel now picks the *real* branded
@@ -129,16 +125,26 @@ function getHydrationMarks(intervalMinutes: number, durationHours: number): stri
 //
 // "Logística de Salida (Carga desde Casa)" — `pastry`/`energy_bar`/
 // `rice_cake` were dropped from this list too (a second, later pass), down
-// to exactly the 5 real-food items this card actually shows now
-// (`soda`/`banana`/`milk_bread` visible by default, `gummies`/`dates`
-// behind "Más comida real"). `PocketFoodItemType` itself — every one of
-// these, plus every `gel_*` member — is untouched in
-// `lib/metabolic-engine.ts`: that type still backs the server-only
-// "Óptimo"/"Híbrido" fueling modes (unreachable from this UI since the
-// "Reestructuración Integral..." pass, see that section's own doc history,
-// but still real API surface), so only this file's own catalog array
-// stopped offering the dropped items, not the shared type.
-const POCKET_FOOD_TYPES: PocketFoodItemType[] = ["soda", "banana", "milk_bread", "gummies", "dates"];
+// to 5 real-food items shown then (`soda`/`banana`/`milk_bread` visible by
+// default, `gummies`/`dates` behind "Más comida real").
+//
+// "Ajuste de Realismo" — `soda`/`milk_bread` were removed a third time:
+// neither is something a rider actually carries in a jersey pocket *from
+// home* (a can of soda is a road-side café/gasolinera purchase, not a
+// pantry item; "Pan de leche/Membrillo" never had a strong real-world
+// pocket-food precedent to begin with) — see the Estrategia de Ruta alert
+// in Card 05 below, which now names a refresco explicitly as the road-side
+// purchase example instead. Card 04's own catalog is down to exactly the 3
+// items a rider genuinely stuffs in a jersey pocket before leaving the
+// house (`banana`/`dates`/`gummies`), all visible by default with no
+// "Más comida real" accordion needed anymore — `PocketFoodItemType` itself
+// — every one of these, `soda`/`milk_bread`, plus every `gel_*` member — is
+// untouched in `lib/metabolic-engine.ts`: that type still backs the
+// server-only "Óptimo"/"Híbrido" fueling modes (unreachable from this UI
+// since the "Reestructuración Integral..." pass, see that section's own doc
+// history, but still real API surface), so only this file's own catalog
+// array stopped offering the dropped items, not the shared type.
+const POCKET_FOOD_TYPES: PocketFoodItemType[] = ["banana", "dates", "gummies"];
 const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = POCKET_FOOD_TYPES;
 const MAX_POCKET_FOOD_QTY = 6;
 
@@ -168,14 +174,16 @@ const SODIUM_SUGGESTION_COVERAGE_FRACTION = 0.8;
 const WATER_ONLY_TIP_DURATION_THRESHOLD_HOURS = 2;
 const WATER_ONLY_TIP_HEAT_THRESHOLD_C = 28;
 
-// "Visibilidad Progresiva" — the 3 real-food catalog items shown by default
-// in Card 04 before "Más comida real" is tapped: Refresco, Plátano, and Pan
-// de leche/Membrillo, the most common real purchases/carries this app
-// already points the athlete toward. Sitting alongside the always-visible
-// "Personalizado" free-grams row, Card 04's default view is 4 rows total —
-// Gominolas/Dátiles stay one tap away (or auto-reappear the instant either
-// one gets a real quantity, see `visiblePocketFoodTypes` below).
-const DEFAULT_VISIBLE_POCKET_FOOD_TYPES: PocketFoodItemType[] = ["soda", "banana", "milk_bread"];
+// "Visibilidad Progresiva" — now moot in practice: with the catalog itself
+// down to just Plátano/Dátiles/Gominolas (see `POCKET_FOOD_TYPES` above),
+// every real catalog item is already "default visible," so this list is
+// identical to the full catalog and the "Más comida real" toggle naturally
+// never renders (its own guard, `hiddenPocketFoodCount > 0`, is always
+// false) — Card 04's default view is exactly these 3 rows plus the
+// always-visible "Personalizado" free-grams row, 4 total, with no
+// accordion. Kept as its own constant rather than inlined so a future
+// catalog addition can still choose to hide behind the toggle again.
+const DEFAULT_VISIBLE_POCKET_FOOD_TYPES: PocketFoodItemType[] = POCKET_FOOD_TYPES;
 const MAX_CUSTOM_CARBS_G = 500;
 
 // Offline fallback for "en medio de un puerto sin cobertura" — the last
@@ -3358,7 +3366,13 @@ export function FuelingPlanner({
                 <>
                   {/* Caso A — a stop is already planned, so the remainder
                       isn't a gap to close, it's simply the share of the
-                      target that stop is expected to cover. */}
+                      target that stop is expected to cover. Names a
+                      Refresco/Lata explicitly as the road-side purchase
+                      example — the concept dropped from Card 04's own
+                      home-load catalog (see "Ajuste de Realismo" above)
+                      moved here instead, since a can of soda genuinely is
+                      a plausible café/gasolinera-stop purchase, just never
+                      something carried from home. */}
                   {remainingCarbsG > 0 && cafeteriaStopCount > 0 && (
                     <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-sky-200/80 bg-sky-50/70 p-3 shadow-xs">
                       <span className="pt-0.5 text-sm text-sky-700 shrink-0">ℹ️</span>
@@ -3366,8 +3380,8 @@ export function FuelingPlanner({
                         <span className="mr-1 font-bold text-sky-950">Estrategia de Ruta:</span>
                         Llevas <span className="font-bold text-sky-950">{coveredCarbsG}g HC</span> desde
                         casa. Los <span className="font-bold text-sky-950">{remainingCarbsG}g HC</span>{" "}
-                        restantes se cubrirán en tu(s) parada(s) programada(s) en ruta (ej. refresco +
-                        bocadillo/bollería).
+                        restantes se cubrirán en tu(s) parada(s) en ruta (ej. 1 Refresco/Lata + 1
+                        Bocadillo en cafetería o gasolinera).
                       </p>
                     </div>
                   )}
