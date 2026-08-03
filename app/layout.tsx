@@ -127,9 +127,19 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} h-full bg-background antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} min-h-dvh bg-background antialiased`}
     >
-      <body className="flex min-h-full flex-col overflow-x-hidden bg-background text-foreground">
+      {/* `min-h-dvh` (not `h-full`/`min-h-full`, which depend on the
+          ancestor chain propagating a real height down from the true
+          viewport) on both `html` and `body` — the dynamic-viewport-height
+          unit that actually accounts for iOS Safari's own collapsing/
+          expanding toolbar, so the porcelain canvas fills the real visible
+          area from first paint instead of a stale `100vh` reading leaving
+          a gray gap once the toolbar animates. `bg-background` stays the
+          design-system token rather than a hardcoded `#F8F7F5` literal —
+          same value (see the token's own comment above `viewport`), this
+          app's own "reuse the token, never hardcode the hex" convention. */}
+      <body className="flex min-h-dvh flex-col overflow-x-hidden bg-background text-foreground">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

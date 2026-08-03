@@ -59,7 +59,11 @@ import {
   type PocketFoodSelection,
 } from "@/lib/metabolic-engine";
 import type { StravaRoute } from "@/lib/strava-routes";
-import { COMMERCIAL_PRODUCTS, type CommercialProduct } from "@/lib/constants/nutrition-brands";
+import { COMMERCIAL_PRODUCTS } from "@/lib/constants/nutrition-brands";
+import {
+  CommercialProductsSheet,
+  CommercialProductStepperRow,
+} from "@/components/commercial-products-sheet";
 
 // Assumed pace when the athlete has no Strava ride history to derive a real
 // average speed from (brand-new account, or Strava never connected) — a
@@ -132,18 +136,6 @@ const POCKET_FOOD_TYPES: PocketFoodItemType[] = [
 const GEL_DOSE_TYPES: PocketFoodItemType[] = ["gel_small", "gel_standard", "gel_high", "gel_ultra"];
 const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = [...POCKET_FOOD_TYPES, ...GEL_DOSE_TYPES];
 const MAX_POCKET_FOOD_QTY = 6;
-
-// "Marcas comerciales (opcional)" — real branded products (see
-// `lib/constants/nutrition-brands.ts`), grouped by brand once at module
-// scope (pure data, no component state involved) so Card 04 can render one
-// small sub-header per brand instead of one flat 12-row list.
-const COMMERCIAL_PRODUCTS_BY_BRAND = COMMERCIAL_PRODUCTS.reduce<Record<string, CommercialProduct[]>>(
-  (acc, product) => {
-    (acc[product.brand] ??= []).push(product);
-    return acc;
-  },
-  {}
-);
 
 // "Balance de Sodio (marcas comerciales)" — Card 05 flags a real sodium gap
 // only on a genuinely hot ride (where under-replacing sodium is a real
@@ -1266,51 +1258,6 @@ function PocketFoodStepperRow({
   );
 }
 
-/** One "Marcas comerciales" catalog row — the same compact stepper
- * geometry as `PocketFoodStepperRow` above, but the caption is the
- * product's own real bracketed data line (`[ Marca - Nombre (Xg HC ·
- * Ymg Na+) ]`, per the "Selector Opcional de Marcas Reales" spec) instead
- * of a carb-only figure, since every real product here carries a genuine
- * sodium value the generic pocket-food catalog never tracked. */
-function CommercialProductStepperRow({
-  product,
-  qty,
-  onChange,
-}: {
-  product: CommercialProduct;
-  qty: number;
-  onChange: (qty: number) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-2 last:border-b-0">
-      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-600">
-        [ {product.brand} - {product.name} ({product.carbs}g HC · {product.sodium}mg Na+) ]
-      </span>
-      <div className="flex h-7 min-w-20 shrink-0 items-center justify-between rounded-sm border border-zinc-200 bg-transparent px-2 py-0.5">
-        <button
-          type="button"
-          onClick={() => onChange(qty - 1)}
-          className="flex size-5 cursor-pointer items-center justify-center text-sm leading-none font-normal text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
-          aria-label={`Quitar ${product.brand} ${product.name}`}
-        >
-          −
-        </button>
-        <span className="min-w-4 px-1 text-center font-sans text-xs font-medium text-zinc-800 tabular-nums">
-          {qty}
-        </span>
-        <button
-          type="button"
-          onClick={() => onChange(qty + 1)}
-          className="flex size-5 cursor-pointer items-center justify-center text-sm leading-none font-normal text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30"
-          aria-label={`Añadir ${product.brand} ${product.name}`}
-        >
-          +
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export function FuelingPlanner({
   routes,
   avgSpeedKmh,
@@ -1393,11 +1340,12 @@ export function FuelingPlanner({
   // separately from `pocketFood` since each one carries a real sodium
   // figure the generic catalog never had (see
   // `lib/constants/nutrition-brands.ts`). Same `Record<id, qty>` shape/
-  // reset convention as `pocketFood` above; collapsed by default
-  // (`commercialProductsOpen`), same "+ Mostrar más" pattern the pocket-
-  // food catalog itself uses for its own less-common items.
+  // reset convention as `pocketFood` above. The full catalog lives behind
+  // `CommercialProductsSheet`, a bottom-sheet modal — Card 04 itself only
+  // ever renders the athlete's own already-selected rows plus a small
+  // trigger link, see `selectedCommercialProducts` below.
   const [commercialProducts, setCommercialProducts] = useState<Record<string, number>>({});
-  const [commercialProductsOpen, setCommercialProductsOpen] = useState(false);
+  const [commercialProductsSheetOpen, setCommercialProductsSheetOpen] = useState(false);
   // "Incluye cafeína" — a modifier on whatever gel(s) are already selected,
   // not a 4th gel-catalog entry ("no duplicar ítems de geles"). Only shown
   // once at least one gel type has a quantity > 0 (see `hasGelSelected`
@@ -1633,6 +1581,13 @@ export function FuelingPlanner({
     (sum, product) => sum + (commercialProducts[product.id] ?? 0) * product.sodium,
     0
   );
+  // What Card 04's own "bolsillo" actually renders — only the products the
+  // athlete has already given a real quantity to, same "the list shows
+  // what's selected" contract as every other pocket-food row. The full
+  // catalog lives inside `CommercialProductsSheet` instead.
+  const selectedCommercialProducts = COMMERCIAL_PRODUCTS.filter(
+    (product) => (commercialProducts[product.id] ?? 0) > 0
+  );
   const bottlesAndPocketCoveredCarbsG =
     pocketFoodCarbsPreview + bottleCarbsContributionG + ziplocDoseCarbsG + commercialCarbsG;
   // D_base — the whole reason "Planificación de Paradas en Ruta" exists:
@@ -1722,7 +1677,7 @@ export function FuelingPlanner({
     ...getPocketChecklistLines(pocketFood, customCarbsG),
     ...(ziplocDoseCount > 0
       ? [
-          `${ziplocDoseCount}x Dosis de recarga Mix (Ziploc con ${ziplocDoseGramsPerUnit}g Malto/Fructosa)`,
+          `${ziplocDoseCount}x Recarga Mix (Ziploc, ${ziplocDoseGramsPerUnit}g HC)`,
         ]
       : []),
     ...commercialChecklistLines,
@@ -3189,7 +3144,14 @@ export function FuelingPlanner({
                       `activePantryTypes`. */}
                   {ziplocDoseActive && (
                     <PocketFoodStepperRow
-                      label="Dosis de recarga Mix (Ziploc)"
+                      // "Nombres Cortos" — the full "Dosis de recarga Mix
+                      // (Ziploc)" reliably truncated on a narrow phone; the
+                      // row's own `carbsG` caption already renders the
+                      // grams right next to it ("Recarga Mix" + "44g HC"),
+                      // so nothing real is lost. `ariaLabel` keeps the
+                      // fuller description for screen readers, where
+                      // truncation doesn't apply.
+                      label="Recarga Mix"
                       carbsG={ziplocDoseGramsPerUnit}
                       ariaLabel="Dosis de recarga Mix (Ziploc)"
                       qty={ziplocDoseCount}
@@ -3257,60 +3219,56 @@ export function FuelingPlanner({
                 )}
               </div>
 
-              {/* "Selector Opcional de Marcas Reales" — real branded
+              {/* "Selector de Marcas vía Bottom Sheet" — real branded
                   products (Maurten, 226ERS, SiS, Santa Madre, Neversecond,
                   Precision Fuel), each with a real sodium figure the
                   generic pocket-food catalog above never carried (see
-                  `lib/constants/nutrition-brands.ts`). Collapsed by
-                  default, same "+ Mostrar más" convention as the
-                  pocket-food catalog's own "+ Mostrar más alimentos" — most
-                  athletes plan around the DIY bottle/generic catalog and
-                  only need this when actually restocking from a specific
-                  brand. Every selection feeds both the CUBIERTO/RESTANTE
-                  pill above (`commercialCarbsG`) and Card 05's sodium
-                  balance check (`commercialSodiumMg`). */}
+                  `lib/constants/nutrition-brands.ts`). The old always-
+                  expanded, brand-grouped 12-row list collapsed Card 04
+                  vertically on a narrow phone — the full catalog now lives
+                  behind `CommercialProductsSheet`, a bottom-sheet modal;
+                  Card 04 itself only ever renders the athlete's own
+                  already-selected rows (`selectedCommercialProducts`) plus
+                  a small trigger link. Every selection still feeds both
+                  the CUBIERTO/RESTANTE pill above (`commercialCarbsG`) and
+                  Card 05's sodium balance check (`commercialSodiumMg`),
+                  live, whether it was just added from the sheet or is
+                  being adjusted right here. */}
               <div className="mt-8">
-                <button
-                  type="button"
-                  onClick={() => setCommercialProductsOpen((v) => !v)}
-                  className="flex w-full cursor-pointer items-center justify-between gap-2"
-                >
-                  <span className={formFieldLabelClass}>Marcas comerciales (opcional)</span>
-                  <ChevronDown
-                    className={cn(
-                      "size-3.5 shrink-0 text-zinc-500 transition-transform duration-150",
-                      commercialProductsOpen && "rotate-180"
-                    )}
-                  />
-                </button>
-                {commercialCarbsG > 0 && !commercialProductsOpen && (
-                  <p className="mt-1 font-mono text-[11px] text-zinc-500">
-                    {commercialCarbsG}g HC · {commercialSodiumMg}mg Na+ desde marcas reales
-                  </p>
-                )}
-                {commercialProductsOpen && (
-                  <div className="mt-2 flex flex-col gap-3">
-                    {Object.entries(COMMERCIAL_PRODUCTS_BY_BRAND).map(([brand, products]) => (
-                      <div key={brand}>
-                        <span className="mb-1 block font-mono text-[10px] tracking-wider text-zinc-400 uppercase">
-                          {brand}
-                        </span>
-                        <div className="flex flex-col">
-                          {products.map((product) => (
-                            <CommercialProductStepperRow
-                              key={product.id}
-                              product={product}
-                              qty={commercialProducts[product.id] ?? 0}
-                              onChange={(qty) => setCommercialProductQty(product.id, qty)}
-                            />
-                          ))}
-                        </div>
-                      </div>
+                <span className={formFieldLabelClass}>Marcas comerciales (opcional)</span>
+                {selectedCommercialProducts.length > 0 && (
+                  <div className="mt-2 flex flex-col">
+                    {selectedCommercialProducts.map((product) => (
+                      <CommercialProductStepperRow
+                        key={product.id}
+                        product={product}
+                        qty={commercialProducts[product.id] ?? 0}
+                        onChange={(qty) => setCommercialProductQty(product.id, qty)}
+                      />
                     ))}
                   </div>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setCommercialProductsSheetOpen(true)}
+                  className="block cursor-pointer py-2 font-mono text-xs text-[#70685b] hover:underline"
+                >
+                  + Añadir producto de marca
+                </button>
+                {commercialCarbsG > 0 && (
+                  <p className="font-mono text-[11px] text-zinc-500">
+                    {commercialCarbsG}g HC · {commercialSodiumMg}mg Na+ desde marcas reales
+                  </p>
+                )}
               </div>
             </div>
+
+            <CommercialProductsSheet
+              open={commercialProductsSheetOpen}
+              onOpenChange={setCommercialProductsSheetOpen}
+              quantities={commercialProducts}
+              onChangeQty={setCommercialProductQty}
+            />
             {/* "Planificación de Paradas en Ruta" (selector + live per-stop
                 preview) moved entirely to Card 02 (Condiciones de la
                 salida) — see the "Paradas previstas en ruta" sub-section
@@ -3330,7 +3288,7 @@ export function FuelingPlanner({
               onToggle={togglePantryItem}
               onSave={handleSavePantry}
               extraItem={{
-                label: "Dosis de recarga Mix (Ziploc)",
+                label: "Recarga Mix (Ziploc)",
                 carbsLabel: `~${ziplocDoseGramsPerUnit}g HC`,
                 active: ziplocDoseActive,
                 onToggle: () => {
@@ -3380,14 +3338,14 @@ export function FuelingPlanner({
                   treatment, matching every other alert box in Cards 03-05
                   now that the dark tactical palette is gone. */}
               {remainingCarbsG > 15 && !result.trainLow && (
-                <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3.5 shadow-xs">
-                  <div className="mb-1 flex items-center gap-2">
-                    <TriangleAlert className="size-4 shrink-0 text-amber-700" />
-                    <span className="font-mono text-xs font-bold tracking-wider text-amber-900 uppercase">
+                <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3 shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <TriangleAlert className="size-3.5 shrink-0 text-amber-700" />
+                    <span className="font-mono text-[11px] font-bold tracking-wider text-amber-900 uppercase">
                       Alerta de déficit pendiente de cubrir
                     </span>
                   </div>
-                  <p className="pl-6 font-mono text-xs leading-relaxed text-amber-900/90">
+                  <p className="mt-1 font-mono text-[11px] leading-tight text-amber-900/90">
                     Te faltan <span className="font-semibold text-amber-800">{remainingCarbsG}g HC</span>{" "}
                     para alcanzar tu objetivo de la ruta. Te recomendamos activar &quot;Paradas
                     previstas en ruta&quot; (Tarjeta 02) o añadir más comida al bolsillo en la
