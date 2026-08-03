@@ -142,7 +142,11 @@ export default async function PerfilPage({
     typeof profileErrorCode === "string" ? profileErrorMessages[profileErrorCode] ?? null : null;
 
   return (
-    <div className="flex flex-col gap-3">
+    // "Unificación de Fondo Porcelana entre Rutas" — see `/`'s own root
+    // wrapper (`app/(app)/page.tsx`) for why this explicit background
+    // sits on the page's own root now, on top of `<body>`'s existing
+    // `bg-background` (the same value).
+    <div className="min-h-dvh w-full flex flex-col gap-3 bg-[#F8F7F5]">
       {/* No divider line below the subtitle — the wrapper's own gap
           (tightened to `gap-3`, down from `gap-6`, by the "Jerarquía de
           Espaciado Editorial" ultracompact pass) is the only separator

@@ -200,18 +200,6 @@
     max-width: 100%;
     overflow-x: hidden;
     position: relative;
-    /* "Fix de Safari iOS Navigation Bar" — the root document's own
-       vertical elastic bounce (scrolling past the top/bottom and
-       rubber-banding back) is what flips Safari's floating "pill" toolbar
-       into its solid/opaque bar state, since the bounce briefly exposes
-       whatever's beneath the document instead of this app's own porcelain
-       canvas. `overscroll-behavior-y: none` on the root suppresses that
-       bounce for the document scroll itself. Deliberately Y-axis only —
-       an earlier X-axis attempt (`overscroll-behavior-x`) was reverted
-       because it fought iOS Safari's native horizontal back-swipe
-       navigation gesture; vertical bounce containment has no such
-       conflict with any gesture this app relies on. */
-    overscroll-behavior-y: none;
   }
   body {
     @apply bg-background text-foreground;

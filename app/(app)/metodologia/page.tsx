@@ -56,7 +56,11 @@ function MethodologyCard({
 
 export default function MetodologiaPage() {
   return (
-    <div className="flex flex-col gap-6">
+    // "Unificación de Fondo Porcelana entre Rutas" — see `/`'s own root
+    // wrapper (`app/(app)/page.tsx`) for why this explicit background
+    // sits on the page's own root now, on top of `<body>`'s existing
+    // `bg-background` (the same value).
+    <div className="min-h-dvh w-full flex flex-col gap-6 bg-[#F8F7F5]">
       <header>
         {/* "Normalización Tipográfica" — sentence case, no `uppercase`
             transform, matching the same de-shouting pass already applied to

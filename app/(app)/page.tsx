@@ -195,7 +195,17 @@ export default async function Home({
   const profileSaved = params.profile_saved === "1";
 
   return (
-    <div className="flex flex-col gap-3">
+    // "Unificación de Fondo Porcelana entre Rutas" — an explicit
+    // `bg-[#F8F7F5] min-h-[100dvh] w-full` on this page's own root, on top
+    // of (not instead of) `<body>`'s existing `bg-background` — the same
+    // literal hex, `--background`'s own value. Belt-and-suspenders: this is
+    // the one element Next's App Router actually swaps during a client-side
+    // navigation between `/`, `/perfil`, and `/metodologia` ("Base
+    // científica" — see that page's own doc comment), so it's the layer
+    // most likely to matter if a future change ever left a route's own
+    // content transparent for a frame during that swap — iOS Safari's
+    // floating "pill" toolbar reads any such gap as "opaque bar" territory.
+    <div className="min-h-dvh w-full flex flex-col gap-3 bg-[#F8F7F5]">
       {profileSaved && <ProfileSavedToast />}
       {/* "Jerarquía de Espaciado Editorial y Estructura Frameless" — an
           ultracompact scale (roughly half of every prior gap) so the

@@ -3464,10 +3464,10 @@ export function FuelingPlanner({
                   <span className="pt-0.5 text-sm text-amber-700 shrink-0">⚠️</span>
                   <p className="font-mono text-xs leading-relaxed text-amber-900/90">
                     <span className="mr-1 font-bold text-amber-950">Alerta de Déficit:</span>
-                    Te faltan <span className="font-bold text-amber-950">{remainingCarbsG}g HC</span> para
-                    alcanzar tu objetivo de la ruta. Te recomendamos activar &quot;Paradas previstas en
-                    ruta&quot; (Tarjeta 02) o añadir más comida al bolsillo en la Tarjeta 04 para evitar la
-                    pájara.
+                    Te faltan <span className="font-bold text-amber-950">{remainingCarbsG}g HC</span>{" "}
+                    para alcanzar tu objetivo de la ruta. Te recomendamos activar &quot;Paradas previstas
+                    en ruta&quot; (Tarjeta 02) o añadir más comida al bolsillo en la Tarjeta 04 para evitar
+                    la pájara.
                   </p>
                 </div>
               )}

@@ -229,9 +229,6 @@ export function WeatherImpactCard({
   // space.
   const [showTimeline, setShowTimeline] = useState(false);
 
-  const isAtStart = scrollProgress <= 0.01;
-  const isAtEnd = scrollProgress >= 0.99;
-
   const sourceLabel =
     source === "dynamic"
       ? // `multiPointSample` is true precisely when a real geographic
@@ -284,6 +281,16 @@ export function WeatherImpactCard({
       ];
 
   const hasMultiplePoints = weatherPoints.length > 1;
+
+  // "Deshabilitación por Índice" — driven straight off `activeScrollIndex`
+  // (which card is currently focused) rather than the scroll container's
+  // own `scrollProgress` percentage. `scrollProgress` is a real-valued
+  // fraction of `scrollWidth - clientWidth`, which can land a hair short of
+  // `0`/`1` depending on how the browser rounds sub-pixel scroll offsets —
+  // the `<= 0.01`/`>= 0.99` tolerance band worked around that, but an
+  // index comparison has no rounding to work around in the first place.
+  const isAtStart = activeScrollIndex === 0;
+  const isAtEnd = activeScrollIndex >= weatherPoints.length - 1;
 
   // "Fix de Scroll Magnético por Tarjetas" — a raw `scrollBy(292px)` drifts
   // out of sync with each card's own real rendered width (it's a `min-w-70
@@ -415,8 +422,8 @@ export function WeatherImpactCard({
                 type="button"
                 onClick={() => handleScrollToIndex("left")}
                 disabled={isAtStart}
-                className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
-                aria-label="Anterior"
+                className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
+                aria-label="Anterior puerto"
               >
                 <ArrowLeft className="size-4" />
               </button>
@@ -424,8 +431,8 @@ export function WeatherImpactCard({
                 type="button"
                 onClick={() => handleScrollToIndex("right")}
                 disabled={isAtEnd}
-                className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
-                aria-label="Siguiente"
+                className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
+                aria-label="Siguiente puerto"
               >
                 <ArrowRight className="size-4" />
               </button>
