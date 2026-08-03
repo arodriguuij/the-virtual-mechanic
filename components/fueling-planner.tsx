@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Bike,
   CalendarDays,
   ChevronDown,
   Coffee,
@@ -769,12 +770,22 @@ function getBottleCarbsContributionG(
   }
 }
 
-/** One "En bici" checklist row — `kind` lets the caller special-case the
+/** "Rediseño Estructural de la Lista de Equipamiento" — one structured row
+ * for Card 05's "Resumen de Carga" manifest, replacing the old pre-baked
+ * single-string lines (`"2x Bidón de 750ml (con Mezcla Casera)"`) that
+ * forced a 2-column right-aligned layout to either wrap badly or clip a
+ * trailing unit. `quantity` (`null` when the row has no natural count —
+ * e.g. a single "Personalizado" gram entry) renders as its own compact
+ * bronze badge; `name` is the bold primary line; `specs` is an optional
+ * micro-sized secondary line (macros, a prep note) — all left-aligned,
+ * never forced into a right-hand column. */
+type ManifestItem = { key: string; quantity: number | null; name: string; specs?: string };
+
+/** One "En bici" manifest row — `kind` lets the caller special-case the
  * mix-bottle row with an inline "[ Ver en cazos ]" reveal (see Card 05's
- * "Checklist de salida" render below) while every other row (plain water,
- * a Maurten/Beta Fuel sachet bidón) renders as plain text, same as every
- * other checklist section in this card. */
-type BikeChecklistLine = { key: string; kind: "mix" | "water" | "gel_ultra"; text: string };
+ * render below) while every other row (plain water, a Maurten/Beta Fuel
+ * sachet bidón) renders as a plain manifest item like everything else. */
+type BikeManifestItem = ManifestItem & { kind: "mix" | "water" | "gel_ultra" };
 
 /** Tarjeta 05's "Checklist de preparación para llevar" — what to physically
  * grab before rolling out, split into "En bici" (bottles, driven by the
@@ -808,14 +819,14 @@ type BikeChecklistLine = { key: string; kind: "mix" | "water" | "gel_ultra"; tex
  * Maurten/Beta Fuel 80g HC sachet dissolved into its own bottle) used to
  * live inside the removed hero box; it belongs here too now, since it's
  * just another bottle to prepare before rolling out. */
-function getBikeChecklistLines(
+function getBikeManifestItems(
   result: PlanResult,
   bottleConfig: BottleConfigOption,
   bottlePlan: PlanResult["bottlePlan"]
-): BikeChecklistLine[] {
+): BikeManifestItem[] {
   const { fuelBottles, bottleSizeMl } = bottlePlan;
   const maxOnBike = result.reloadStrategy?.startingBottleCount ?? bottlePlan.totalBottles;
-  const lines: BikeChecklistLine[] = [];
+  const items: BikeManifestItem[] = [];
 
   let mixBottleCount = 0;
   if (bottleConfig !== "water_only" && fuelBottles.count > 0) {
@@ -824,15 +835,15 @@ function getBikeChecklistLines(
     // (`result.athleteBottleCount`, 1 or 2), not a hardcoded 2 — capped at
     // `maxOnBike` so this can never exceed what's actually mounted.
     mixBottleCount = Math.min(bottleConfig === "one_mix" ? 1 : result.athleteBottleCount, maxOnBike);
-    lines.push({
+    items.push({
       key: "mix",
       kind: "mix",
-      // "Race Day Manifest" — the explicit Malto/Fructosa/Sal formula used
-      // to sit right in this line's own text; trimmed to a clean
-      // `Nx Bidón de Xml (con Mezcla Casera)` so the checklist scans as a
-      // manifest, not a recipe card — the real grams only surface one tap
-      // away via "[ Ver en cazos ]" below, unchanged.
-      text: `${mixBottleCount}x Bidón de ${bottleSizeMl}ml (con Mezcla Casera)`,
+      quantity: mixBottleCount,
+      name: `Bidón de ${bottleSizeMl}ml`,
+      // "Race Day Manifest" — the explicit Malto/Fructosa/Sal formula
+      // doesn't live in this line's own text; the real grams only surface
+      // one tap away via "[ Ver en cazos ]" below, unchanged.
+      specs: "Mezcla Casera",
     });
   }
 
@@ -853,23 +864,27 @@ function getBikeChecklistLines(
   // `waterBottles.count`.
   const waterBottlesOnBike = Math.max(0, maxOnBike - mixBottleCount);
   if (waterBottlesOnBike > 0) {
-    lines.push({
+    items.push({
       key: "water",
       kind: "water",
-      text: `${waterBottlesOnBike}x Bidón de ${bottleSizeMl}ml (Solo Agua)`,
+      quantity: waterBottlesOnBike,
+      name: `Bidón de ${bottleSizeMl}ml`,
+      specs: "Solo Agua",
     });
   }
 
   const gelUltraCount = result.pocketFood.gel_ultra ?? 0;
   if (gelUltraCount > 0) {
-    lines.push({
+    items.push({
       key: "gel_ultra",
       kind: "gel_ultra",
-      text: `${gelUltraCount}x Bidón con 1 Sobre comercial de 80g HC (Maurten / Beta Fuel) + 500ml de agua`,
+      quantity: gelUltraCount,
+      name: "Bidón + Sobre comercial 80g HC",
+      specs: "Maurten / Beta Fuel + 500ml agua",
     });
   }
 
-  return lines;
+  return items;
 }
 
 /** Tarjeta 05's "Plan de agua en ruta" — plain water beyond what fits in
@@ -901,17 +916,32 @@ function getWaterPlanLines(result: PlanResult): string[] {
   ];
 }
 
-function getPocketChecklistLines(
+function getPocketManifestItems(
   pocketFood: Partial<Record<PocketFoodItemType, number>>,
   customCarbsG: number
-): string[] {
-  const lines: string[] = [];
+): ManifestItem[] {
+  const items: ManifestItem[] = [];
   for (const type of POCKET_FOOD_TYPES) {
     const qty = pocketFood[type] ?? 0;
-    if (qty > 0) lines.push(`${qty}x ${pocketFoodName(type)}`);
+    if (qty > 0) {
+      items.push({
+        key: type,
+        quantity: qty,
+        name: pocketFoodName(type),
+        // Total for the whole line (per-unit carbs × quantity), not a
+        // per-unit figure — the quantity badge already shows "Nx", so the
+        // spec line answers "how many carbs is this line carrying" at a
+        // glance rather than making the athlete multiply it themselves.
+        specs: `${POCKET_FOOD_CARBS_G[type] * qty}g HC`,
+      });
+    }
   }
-  if (customCarbsG > 0) lines.push(`${customCarbsG}g HC Personalizado`);
-  return lines;
+  // No natural count for a free-grams entry — no quantity badge, the gram
+  // figure itself is already the one number that matters here.
+  if (customCarbsG > 0) {
+    items.push({ key: "custom", quantity: null, name: "Personalizado", specs: `${customCarbsG}g HC` });
+  }
+  return items;
 }
 
 // Thresholds and copy straight from the "Helper de Equivalencias Sugeridas"
@@ -1674,21 +1704,26 @@ export function FuelingPlanner({
       (result.weather.temperatureMaxC ?? result.weather.temperatureC) >= WATER_ONLY_TIP_HEAT_THRESHOLD_C);
   const showWaterOnlyMixTip = isHighHeatOrLongDuration && bottleConfig === "water_only";
 
-  // Tarjeta 05's "Checklist de preparación para llevar" — same source data
-  // as the balance pill above, read fresh on every render so the on-screen
-  // list stays in sync with what's currently selected.
-  const bikeChecklistLines =
-    result && displayBottlePlan ? getBikeChecklistLines(result, bottleConfig, displayBottlePlan) : [];
+  // Tarjeta 05's "Resumen de Carga" manifest — same source data as the
+  // balance pill above, read fresh on every render so the on-screen list
+  // stays in sync with what's currently selected.
+  const bikeManifestItems =
+    result && displayBottlePlan ? getBikeManifestItems(result, bottleConfig, displayBottlePlan) : [];
   // Real commercial products aren't part of `pocketFood` (see the
   // `commercialProducts` state comment above) — appended here so a selected
-  // brand actually shows up in the "Comida de bolsillo" packing list,
-  // sodium figure included.
-  const commercialChecklistLines = COMMERCIAL_PRODUCTS.filter((p) => (commercialProducts[p.id] ?? 0) > 0).map(
-    (p) => `${commercialProducts[p.id]}x ${p.brand} ${p.name} (${p.carbs}g HC · ${p.sodium}mg Na+)`
-  );
-  const pocketChecklistLines = [
-    ...getPocketChecklistLines(pocketFood, customCarbsG),
-    ...commercialChecklistLines,
+  // brand actually shows up in the "Bolsillos maillot" packing list,
+  // sodium figure included in its own `specs` line.
+  const commercialManifestItems: ManifestItem[] = COMMERCIAL_PRODUCTS.filter(
+    (p) => (commercialProducts[p.id] ?? 0) > 0
+  ).map((p) => ({
+    key: p.id,
+    quantity: commercialProducts[p.id],
+    name: `${p.brand} ${p.name}`,
+    specs: `${p.carbs}g HC · ${p.sodium}mg Na+`,
+  }));
+  const pocketManifestItems: ManifestItem[] = [
+    ...getPocketManifestItems(pocketFood, customCarbsG),
+    ...commercialManifestItems,
   ];
   const waterPlanChecklistLines = result ? getWaterPlanLines(result) : [];
   const cafeteriaChecklistLines = getCafeteriaStopChecklistLines(cafeteriaStopPlans);
@@ -3030,11 +3065,14 @@ export function FuelingPlanner({
                   arithmetic, reacting to *both* the bottle selector and
                   every pocket-food stepper) — no network round-trip, no
                   need to press "Calcular" again just to see the coverage
-                  change. `top-14 lg:top-4` clears the mobile header (`fixed
+                  change. `top-16 lg:top-4` clears the mobile header (`fixed
                   top-0 z-50`, ~64px tall, `lg:hidden`) so the bar never
                   renders underneath it (and never overlaps the "RATIO"
-                  wordmark); desktop has no such header, so it sticks close
-                  to the viewport's own top instead — this only works
+                  wordmark) — bumped up from an earlier `top-14` (56px),
+                  which left the bar's own top edge 8px short of the
+                  header's real bottom edge, clipping visibly behind it on
+                  a real device; desktop has no such header, so it sticks
+                  close to the viewport's own top instead — this only works
                   because the root `<Card>` this whole component renders
                   into overrides its own base `overflow-hidden` with
                   `overflow-visible` (see that Card's own doc comment) —
@@ -3055,7 +3093,7 @@ export function FuelingPlanner({
                   amber/emerald semáforo) still decides RESTANTE's color —
                   a ride that's already fully covered reads emerald here,
                   not a flat amber regardless of state. */}
-              <div className="sticky top-14 z-20 my-3 rounded-xl border border-[#585248] bg-[#70685b] p-3 text-white shadow-md transition-all lg:top-4">
+              <div className="sticky top-16 z-20 my-3 rounded-xl border border-[#585248] bg-[#70685b] p-3 text-white shadow-md transition-all lg:top-4">
                 <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 font-mono text-xs font-bold">
                   <span>OBJETIVO: {result.totalRideCarbsG}g HC</span>
                   <span className="opacity-30">|</span>
@@ -3505,61 +3543,79 @@ export function FuelingPlanner({
                 </div>
               )}
 
-              {/* Bloque 2 · Equipamiento y Bolsillos — "Resumen Estático
-                  para Screenshot": the interactive per-line checkbox
-                  (`ChecklistCheckboxLine`, a tick-off-as-you-pack physical
-                  prep aid) is gone entirely, replaced by one clean,
-                  read-only white box — this card exists for a rider to
-                  screenshot right before rolling out, and a checkbox state
-                  that resets on reload/doesn't survive a screenshot at all
-                  was never actually serving that use case. Each category
-                  (bici, bolsillo, paradas, agua) is now a plain label-left/
-                  value-right row, `divide-y` hairlines between them rather
-                  than a dashed divider or a bordered `<li>` per line.
-                  Driven by the same bottle config + pocket-food state as
-                  the balance pill in Card 04, so it's never out of sync
-                  with what CUBIERTO/RESTANTE currently shows — see
-                  `getBikeChecklistLines`/`getWaterPlanLines`/
-                  `getCafeteriaStopChecklistLines` above. "Bici (bidones)"
-                  still renders specially (not through the generic map
-                  below) since it alone carries the inline "[ Ver en cazos
-                  ]" reveal and the hypertonic-concentration warning. */}
+              {/* Bloque 2 · Resumen de Carga (Bici y Bolsillos) —
+                  "Rediseño Estructural y Tipográfico": the old 2-column
+                  label-left/value-right layout forced every item's name
+                  and quantity into a narrow right-aligned column, which
+                  wrapped long commercial-product names badly and orphaned
+                  trailing units ("...200mg Na+)") onto their own line on a
+                  narrow phone. Replaced with one white "tarjeta madre" per
+                  category (Bici / Bolsillos / Paradas / Agua), each row
+                  strictly left-aligned: a compact bronze quantity badge
+                  (`Nx`) first, then a 2-tier text block (bold primary
+                  name, an optional micro `specs` second line for macros/
+                  prep notes) — nothing here is ever pushed into a
+                  right-hand column that could force a wrap. Driven by the
+                  same bottle config + pocket-food state as the balance
+                  pill in Card 04, so it's never out of sync with what
+                  CUBIERTO/RESTANTE currently shows — see
+                  `getBikeManifestItems`/`getPocketManifestItems`/
+                  `getWaterPlanLines`/`getCafeteriaStopChecklistLines`
+                  above. "Bici (bidones)" still renders specially (not
+                  through a shared item-list helper) since it alone
+                  carries the inline "[ Ver en cazos ]" reveal and the
+                  hypertonic-concentration warning; "Paradas en ruta"/
+                  "Plan de agua en ruta" stay plain descriptive paragraphs
+                  (their own source data is already full sentences, not
+                  itemized quantities), each in their own card rather than
+                  itemized rows. */}
               <div className="flex flex-col gap-2">
                 <span className="block font-mono text-xs tracking-wider text-zinc-400 uppercase">
-                  Equipamiento y bolsillos
+                  Resumen de carga (bici y bolsillos)
                 </span>
-                {bikeChecklistLines.length === 0 &&
-                pocketChecklistLines.length === 0 &&
+                {bikeManifestItems.length === 0 &&
+                pocketManifestItems.length === 0 &&
                 waterPlanChecklistLines.length === 0 &&
                 cafeteriaChecklistLines.length === 0 ? (
                   <p className="text-sm text-zinc-500">
                     Sin bidones ni comida de bolsillo seleccionados todavía.
                   </p>
                 ) : (
-                  <div className="flex flex-col divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white p-3 font-mono text-xs">
-                    {bikeChecklistLines.length > 0 && (
-                      <div className="flex flex-col gap-1.5 py-2.5 first:pt-0 last:pb-0">
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="shrink-0 text-zinc-600">Bici (bidones):</span>
-                          <div className="space-y-0.5 text-right">
-                            {bikeChecklistLines.map((line) => (
-                              <div key={line.key} className="font-semibold text-zinc-900">
-                                {line.text}
-                                {line.kind === "mix" && (
-                                  <>
-                                    {" "}
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowBikeScoops((v) => !v)}
-                                      className="font-mono text-[11px] font-medium text-terracotta underline-offset-2 hover:underline"
-                                    >
-                                      [ {showBikeScoops ? "▲" : "▼"} Ver en cazos ]
-                                    </button>
-                                  </>
+                  <div className="flex flex-col gap-3 font-mono">
+                    {bikeManifestItems.length > 0 && (
+                      <div className="flex flex-col gap-2 rounded-xl border border-zinc-200 bg-white p-3.5">
+                        <div className="flex items-center gap-1.5 border-b border-zinc-100 pb-1.5 text-[11px] font-bold tracking-wider text-zinc-400 uppercase">
+                          <Bike className="size-3.5 shrink-0" />
+                          Bici (bidones)
+                        </div>
+                        <div className="flex flex-col gap-2 pt-1">
+                          {bikeManifestItems.map((item) => (
+                            <div key={item.key} className="flex items-start gap-2.5 text-xs">
+                              <span className="shrink-0 rounded bg-[#70685b]/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-[#70685b]">
+                                {item.quantity}x
+                              </span>
+                              <div className="flex flex-col text-left">
+                                <span className="leading-snug font-semibold text-zinc-900">
+                                  {item.name}
+                                  {item.kind === "mix" && (
+                                    <>
+                                      {" "}
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowBikeScoops((v) => !v)}
+                                        className="font-mono text-[11px] font-medium text-terracotta underline-offset-2 hover:underline"
+                                      >
+                                        [ {showBikeScoops ? "▲" : "▼"} Ver en cazos ]
+                                      </button>
+                                    </>
+                                  )}
+                                </span>
+                                {item.specs && (
+                                  <span className="mt-0.5 text-[10px] text-zinc-400">{item.specs}</span>
                                 )}
                               </div>
-                            ))}
-                          </div>
+                            </div>
+                          ))}
                         </div>
                         {/* Hypertonic-concentration warning — see "Bottle
                             architecture & osmolarity control"
@@ -3567,7 +3623,7 @@ export function FuelingPlanner({
                             fire at all; under every currently-supported
                             bottle size it's a defense-in-depth check, not
                             something routinely seen. */}
-                        {bikeChecklistLines.some((line) => line.kind === "mix") &&
+                        {bikeManifestItems.some((item) => item.kind === "mix") &&
                           displayBottlePlan!.fuelBottles.concentrationPct > HYPERTONIC_THRESHOLD_PCT && (
                             <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900">
                               <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
@@ -3578,7 +3634,7 @@ export function FuelingPlanner({
                               </span>
                             </div>
                           )}
-                        {bikeChecklistLines.some((line) => line.kind === "mix") && showBikeScoops && (
+                        {bikeManifestItems.some((item) => item.kind === "mix") && showBikeScoops && (
                           <div className="flex flex-col gap-1 rounded-lg border border-zinc-200/70 bg-zinc-50 p-2.5 text-[11px] text-zinc-600">
                             <p>
                               Maltodextrina: {displayBottlePlan!.fuelBottles.maltodextrinGPerBottle}g (~
@@ -3600,27 +3656,66 @@ export function FuelingPlanner({
                         )}
                       </div>
                     )}
-                    {[
-                      { title: "Bolsillos maillot", lines: pocketChecklistLines },
-                      { title: "Paradas en ruta", lines: cafeteriaChecklistLines },
-                      { title: "Plan de agua en ruta", lines: waterPlanChecklistLines },
-                    ]
-                      .filter((section) => section.lines.length > 0)
-                      .map((section) => (
-                        <div
-                          key={section.title}
-                          className="flex items-start justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
-                        >
-                          <span className="shrink-0 text-zinc-600">{section.title}:</span>
-                          <div className="space-y-0.5 text-right">
-                            {section.lines.map((line, i) => (
-                              <div key={i} className="font-semibold text-zinc-900">
-                                {line}
-                              </div>
-                            ))}
-                          </div>
+
+                    {pocketManifestItems.length > 0 && (
+                      <div className="flex flex-col gap-2 rounded-xl border border-zinc-200 bg-white p-3.5">
+                        <div className="flex items-center gap-1.5 border-b border-zinc-100 pb-1.5 text-[11px] font-bold tracking-wider text-zinc-400 uppercase">
+                          <Utensils className="size-3.5 shrink-0" />
+                          Bolsillos maillot
                         </div>
-                      ))}
+                        <div className="flex flex-col gap-2.5 pt-1">
+                          {pocketManifestItems.map((item) => (
+                            <div key={item.key} className="flex items-start gap-2.5 text-xs">
+                              {item.quantity != null && (
+                                <span className="mt-0.5 shrink-0 rounded bg-[#70685b]/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-[#70685b]">
+                                  {item.quantity}x
+                                </span>
+                              )}
+                              <div className="flex flex-col text-left">
+                                <span className="leading-snug font-semibold text-zinc-900">{item.name}</span>
+                                {item.specs && (
+                                  <span className="mt-0.5 font-mono text-[10px] text-zinc-400">
+                                    {item.specs}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {cafeteriaChecklistLines.length > 0 && (
+                      <div className="flex flex-col gap-1.5 rounded-xl border border-zinc-200 bg-white p-3.5">
+                        <span className="flex items-center gap-1.5 border-b border-zinc-100 pb-1.5 text-[11px] font-bold tracking-wider text-zinc-400 uppercase">
+                          <Coffee className="size-3.5 shrink-0" />
+                          Paradas en ruta
+                        </span>
+                        <div className="flex flex-col gap-1.5 pt-1">
+                          {cafeteriaChecklistLines.map((line, i) => (
+                            <p key={i} className="text-left text-xs leading-snug font-semibold text-zinc-800">
+                              {line}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {waterPlanChecklistLines.length > 0 && (
+                      <div className="flex flex-col gap-1.5 rounded-xl border border-zinc-200 bg-white p-3.5">
+                        <span className="flex items-center gap-1.5 border-b border-zinc-100 pb-1.5 text-[11px] font-bold tracking-wider text-zinc-400 uppercase">
+                          <Droplet className="size-3.5 shrink-0" />
+                          Plan de agua en ruta
+                        </span>
+                        <div className="flex flex-col gap-1.5 pt-1">
+                          {waterPlanChecklistLines.map((line, i) => (
+                            <p key={i} className="text-left text-xs leading-snug font-semibold text-zinc-800">
+                              {line}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
