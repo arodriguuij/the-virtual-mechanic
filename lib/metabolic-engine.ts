@@ -519,6 +519,7 @@ export type PocketFoodItemType =
   | "soda"
   | "pastry"
   | "banana"
+  | "milk_bread"
   | "energy_bar"
   | "rice_cake"
   | "dates"
@@ -535,13 +536,19 @@ export const pocketFoodLabels: Record<PocketFoodItemType, string> = {
   // purchase counts toward CUBIERTO the same way any other catalog item
   // does — same "illustrative fixed dose, not a real nutrition database"
   // convention as every other entry here.
-  soda: "🥤 Refresco",
+  soda: "🥤 Refresco / Lata",
   pastry: "🥐 Bollería",
   banana: "🍌 Plátano",
+  // "Logística de Salida (Carga desde Casa)" — a plain-carb bakery item
+  // (a milk roll, membrillo/quince paste on bread), the third of the 3
+  // real-food items Card 04 shows by default alongside Plátano/Refresco —
+  // see `POCKET_FOOD_TYPES`/`DEFAULT_VISIBLE_POCKET_FOOD_TYPES` in
+  // `components/fueling-planner.tsx`.
+  milk_bread: "🥛 Pan de leche / Membrillo",
   energy_bar: "🍫 Barrita energética",
   rice_cake: "🍙 Bollo de arroz / Rice cake",
-  dates: "🌴 Dátiles (2 uds)",
-  gummies: "🍬 Gominolas / Chews",
+  dates: "🌴 Dátiles / Fruta desecada",
+  gummies: "🍬 Gominolas / Haribo (bolsita)",
   gel_small: "🧃 Gel pequeño",
   gel_standard: "🧃 Gel estándar",
   gel_high: "🧃 Gel alta carga / Hydro",
@@ -557,10 +564,11 @@ export const pocketFoodCarbsG: Record<PocketFoodItemType, number> = {
   soda: 35,
   pastry: 35,
   banana: 22,
+  milk_bread: 25,
   energy_bar: 30,
   rice_cake: 25,
-  dates: 18,
-  gummies: 30,
+  dates: 20,
+  gummies: 20,
   gel_small: 25,
   gel_standard: 30,
   gel_high: 45,
@@ -906,6 +914,7 @@ export function generateTimingTimeline({
     "soda",
     "pastry",
     "banana",
+    "milk_bread",
     "energy_bar",
     "rice_cake",
     "dates",

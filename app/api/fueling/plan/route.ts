@@ -65,6 +65,7 @@ const VALID_POCKET_FOOD_TYPES = new Set<PocketFoodItemType>([
   "soda",
   "pastry",
   "banana",
+  "milk_bread",
   "energy_bar",
   "rice_cake",
   "dates",

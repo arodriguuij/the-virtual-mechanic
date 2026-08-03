@@ -115,10 +115,9 @@ function getHydrationMarks(intervalMinutes: number, durationHours: number): stri
   return marks;
 }
 
-// "Refresco"/"Bollería" lead the list — the two real-world café/gasolinera
-// purchases the "Paradas previstas en ruta" section (Card 02) points the
-// athlete toward, so they're the first thing visible in Card 04's inventory
-// rather than buried after the pocket-carried items.
+// "Refresco"/"Pan de leche" lead the list — real-world café/gasolinera-stop
+// or home-pantry purchases, so they're the first thing visible in Card 04's
+// inventory rather than buried after the rest.
 //
 // "Limpieza de Despensa Genérica" — the 4 generic gel dose tiers
 // (`gel_small`/`gel_standard`/`gel_high`/`gel_ultra`) were removed from this
@@ -126,21 +125,20 @@ function getHydrationMarks(intervalMinutes: number, durationHours: number): stri
 // product (Maurten/226ERS/SiS/etc., with its own real sodium figure) from
 // `CommercialProductsSheet` instead, or falls back to the always-available
 // "Personalizado" free-grams entry — a generic placeholder gel duplicated
-// both of those without adding anything real of its own. `PocketFoodItemType`
-// itself, and its `gel_*` members, are untouched in `lib/metabolic-engine.ts`
-// — that type still backs the server-only "Óptimo"/"Híbrido" fueling modes
-// (unreachable from this UI since the "Reestructuración Integral..." pass,
-// see that section's own doc history, but still real API surface), so only
-// this file's own catalog arrays stopped offering them, not the shared type.
-const POCKET_FOOD_TYPES: PocketFoodItemType[] = [
-  "soda",
-  "pastry",
-  "banana",
-  "energy_bar",
-  "rice_cake",
-  "dates",
-  "gummies",
-];
+// both of those without adding anything real of its own.
+//
+// "Logística de Salida (Carga desde Casa)" — `pastry`/`energy_bar`/
+// `rice_cake` were dropped from this list too (a second, later pass), down
+// to exactly the 5 real-food items this card actually shows now
+// (`soda`/`banana`/`milk_bread` visible by default, `gummies`/`dates`
+// behind "Más comida real"). `PocketFoodItemType` itself — every one of
+// these, plus every `gel_*` member — is untouched in
+// `lib/metabolic-engine.ts`: that type still backs the server-only
+// "Óptimo"/"Híbrido" fueling modes (unreachable from this UI since the
+// "Reestructuración Integral..." pass, see that section's own doc history,
+// but still real API surface), so only this file's own catalog array
+// stopped offering the dropped items, not the shared type.
+const POCKET_FOOD_TYPES: PocketFoodItemType[] = ["soda", "banana", "milk_bread", "gummies", "dates"];
 const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = POCKET_FOOD_TYPES;
 const MAX_POCKET_FOOD_QTY = 6;
 
@@ -170,15 +168,14 @@ const SODIUM_SUGGESTION_COVERAGE_FRACTION = 0.8;
 const WATER_ONLY_TIP_DURATION_THRESHOLD_HOURS = 2;
 const WATER_ONLY_TIP_HEAT_THRESHOLD_C = 28;
 
-// "Optimización de Densidad en Simulador" — the catalog items shown by
-// default in Card 04 before "+ Mostrar más alimentos" is tapped. Narrowed
-// (as part of "Limpieza de Despensa Genérica") to just the two most common
-// real purchases/carries this app already points the athlete toward —
-// Refresco (the café-stop item "Paradas previstas en ruta" suggests) and
-// Plátano — sitting alongside the always-visible "Personalizado" free-grams
-// row, so Card 04's default view is 3 rows total rather than the previous
-// 5 (4 catalog items + the since-removed Ziploc reload dose).
-const DEFAULT_VISIBLE_POCKET_FOOD_TYPES: PocketFoodItemType[] = ["soda", "banana"];
+// "Visibilidad Progresiva" — the 3 real-food catalog items shown by default
+// in Card 04 before "Más comida real" is tapped: Refresco, Plátano, and Pan
+// de leche/Membrillo, the most common real purchases/carries this app
+// already points the athlete toward. Sitting alongside the always-visible
+// "Personalizado" free-grams row, Card 04's default view is 4 rows total —
+// Gominolas/Dátiles stay one tap away (or auto-reappear the instant either
+// one gets a real quantity, see `visiblePocketFoodTypes` below).
+const DEFAULT_VISIBLE_POCKET_FOOD_TYPES: PocketFoodItemType[] = ["soda", "banana", "milk_bread"];
 const MAX_CUSTOM_CARBS_G = 500;
 
 // Offline fallback for "en medio de un puerto sin cobertura" — the last
@@ -555,13 +552,14 @@ const SODIUM_DEMAND_GAUGE_MAX_MG_PER_HOUR = 2000;
 
 // "Semáforo Dinámico" — the one place Card 04's sticky bar decides
 // RESTANTE's traffic-light color, so a future call site can't invent a
-// second, disagreeing threshold. >30g HC is a real bonk risk (rose), 1-30g
-// is a closing-but-not-closed gap (amber), 0g means the pocket-food/bottle
-// selection already covers the ride's full target (emerald).
-const REMAINING_CARBS_DEFICIT_HIGH_THRESHOLD_G = 30;
+// second, disagreeing threshold. "Logística de Salida" simplified this to
+// 2 states, matching REMANENTE RUTA's own framing — a nonzero remainder
+// isn't an error to escalate through rose/amber tiers, it's simply the
+// share of the target Card 05 expects to be covered on the road (a
+// planned stop, or more load in the pockets); only the fully-covered case
+// (0g) gets its own distinct, positive color.
 function getRemainingCarbsTextClass(remainingCarbsG: number): string {
-  if (remainingCarbsG > REMAINING_CARBS_DEFICIT_HIGH_THRESHOLD_G) return "text-rose-300 font-bold";
-  if (remainingCarbsG > 0) return "text-amber-300 font-bold";
+  if (remainingCarbsG > 0) return "text-[#70685b] font-bold";
   return "text-emerald-300 font-bold";
 }
 
@@ -2987,20 +2985,25 @@ export function FuelingPlanner({
               )}
             </div>
 
-            {/* 🎴 Tarjeta 2 · 04 · Simulador y configuración de
-                avituallamiento — the bottle-role preference plus the
-                pocket-food inventory, rendered flat (no `<details>`
-                accordion) since this card's own header already frames the
-                whole section. Both the bottle selector *and* every
-                pocket-food stepper feed the sticky balance pill above them
-                live — see `getBottleCarbsContributionG` for how the bottle
-                choice turns into a CUBIERTO figure. No explanatory text
-                box, no trailing "Gasto/Ingesta/Déficit" summary, no
-                "pulsa Calcular de nuevo" footer note — "Al Grano": this
-                card is the interactive simulator, nothing else. */}
+            {/* 🎴 Tarjeta 2 · 04 · Logística de salida (Carga desde casa) —
+                "Refactor de Card 04 y 05" reframes this card conceptually:
+                it's no longer a generic "simulator," it's specifically
+                about what the athlete physically loads onto the bike
+                (bottles + pockets) before leaving the house — the bottle-
+                role preference plus the pocket-food inventory, rendered
+                flat (no `<details>` accordion) since this card's own header
+                already frames the whole section. Both the bottle selector
+                *and* every pocket-food stepper feed the sticky balance bar
+                above them live — see `getBottleCarbsContributionG` for how
+                the bottle choice turns into a CARGA DE CASA figure. No
+                trailing "Gasto/Ingesta/Déficit" summary, no "pulsa Calcular
+                de nuevo" footer note — "Al Grano": this card is the
+                interactive simulator, nothing else (Card 05 is where the
+                remainder — REMANENTE RUTA — gets reconciled against a
+                planned stop). */}
             <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-none">
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
-                04 · Simulador y configuración de avituallamiento
+                04 · Logística de salida (Carga desde casa)
               </span>
 
               {/* "Modo Eficiencia Metabólica" badge — a quiet reminder,
@@ -3020,8 +3023,8 @@ export function FuelingPlanner({
               {/* Píldora Fija de Balance en Tiempo Real — "Sticky HUD Bar,"
                   sticky within this card as the athlete scrolls through the
                   bottle-config selector and the pocket-food inventory
-                  below, so OBJETIVO/CUBIERTO/RESTANTE stays on screen
-                  instead of requiring a scroll back up. Recomputes
+                  below, so OBJETIVO RUTA/CARGA DE CASA/REMANENTE RUTA stays
+                  on screen instead of requiring a scroll back up. Recomputes
                   instantly from `coveredCarbsG`/`remainingCarbsG` (pure
                   client-side arithmetic, reacting to *both* the bottle
                   selector and every pocket-food stepper) — no network
@@ -3030,34 +3033,41 @@ export function FuelingPlanner({
                   header (`fixed top-0 z-50`, ~64px tall, `lg:hidden`) so
                   the bar never renders underneath it; desktop has no such
                   header, so it sticks close to the viewport's own top
-                  instead. Reverted back to the obsidian-black (`#18181B`)
-                  fill from an intermediate Bronce Táctico (`#70685b`) pass
-                  — the HUD reads as its own distinct floating register
-                  again (`border-zinc-800`, `shadow-md`, `backdrop-blur-md`)
-                  rather than blending into the same accent every selector's
-                  active state already uses, and it's what
-                  `getRemainingCarbsTextClass` below was actually tuned
-                  for — its rose/amber/emerald-300 pastels read clearly
-                  against black, not against the mid-tone bronze this
-                  briefly sat on. "Semáforo Dinámico" — RESTANTE is still
-                  the "live" metric, colored like a traffic light against
-                  `remainingCarbsG` itself: rose while the gap is still
-                  large (>30g HC, real risk of a pájara), amber once it's
-                  closing (1-30g HC), emerald the instant it hits 0 (fully
-                  covered) — `getRemainingCarbsTextClass` below is the one
-                  place this 3-tier threshold lives, so the bar and any
-                  future call site can't disagree about the cutoffs.
-                  OBJETIVO/CUBIERTO both stay a dimmer `text-white/75`, so
-                  RESTANTE is unambiguously the one number this display
-                  wants your eye on. */}
-              <div className="sticky top-14 z-20 my-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl border border-zinc-800 bg-[#18181B] p-3.5 text-center font-mono text-xs font-bold tracking-wide text-white shadow-md backdrop-blur-md sm:text-xs lg:top-4">
-                <span className="text-white/75">OBJETIVO: {result.totalRideCarbsG}g HC</span>
-                <span className="text-white/40">|</span>
-                <span className="text-white/75">CUBIERTO: {coveredCarbsG}g HC</span>
-                <span className="text-white/40">|</span>
-                <span className={getRemainingCarbsTextClass(remainingCarbsG)}>
-                  RESTANTE: {remainingCarbsG}g HC
-                </span>
+                  instead. Obsidian-black (`#18181B`) fill, `border-zinc-800`/
+                  `shadow-md`/`backdrop-blur-md` — the HUD reads as its own
+                  distinct floating register rather than blending into the
+                  same accent every selector's active state already uses.
+                  "Logística de Salida" relabeled all 3 figures to make the
+                  home-vs-road split explicit — OBJETIVO RUTA (the ride's
+                  real target, unchanged), CARGA DE CASA (what's physically
+                  loaded onto bottles+pockets before leaving, was CUBIERTO),
+                  REMANENTE RUTA (was RESTANTE, now framed as "what Card 05's
+                  road-side stops are expected to close," not a deficit to
+                  panic over) — `getRemainingCarbsTextClass` simplified from
+                  a 3-tier rose/amber/emerald semaforo to 2 states matching
+                  that framing: Bronce Táctico (`#70685b`) while nonzero,
+                  emerald the instant it hits 0. OBJETIVO RUTA/CARGA DE CASA
+                  both stay a dimmer `text-white/75`, so REMANENTE RUTA is
+                  unambiguously the one number this display wants your eye
+                  on. */}
+              <div className="sticky top-14 z-20 my-4 rounded-xl border border-zinc-800 bg-[#18181B] p-3.5 text-white shadow-md backdrop-blur-md">
+                <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center font-mono text-xs font-bold tracking-wide sm:text-xs">
+                  <span className="text-white/75">OBJETIVO RUTA: {result.totalRideCarbsG}g HC</span>
+                  <span className="text-white/40">|</span>
+                  <span className="text-white/75">CARGA DE CASA: {coveredCarbsG}g HC</span>
+                  <span className="text-white/40">|</span>
+                  <span className={getRemainingCarbsTextClass(remainingCarbsG)}>
+                    REMANENTE RUTA: {remainingCarbsG}g HC
+                  </span>
+                </div>
+                {/* Texto explicativo — frames the whole card's own purpose
+                    (what to physically load) and hands off the remainder
+                    to Card 05 explicitly, so a nonzero REMANENTE RUTA never
+                    reads as this card having failed to do its job. */}
+                <p className="mt-1.5 text-center font-mono text-[10px] leading-snug text-white/60">
+                  Configura lo que llevarás físicamente en la bici. El remanente restante lo
+                  cubrirás con tus paradas en ruta o avituallamientos.
+                </p>
               </div>
 
               <hr className="border-t border-zinc-200/70 my-6" />
@@ -3209,23 +3219,26 @@ export function FuelingPlanner({
                     </div>
                   </div>
                 </div>
-                {/* "+ Mostrar más alimentos" — the catalog's own remaining
-                    items (whatever real "Editar mi despensa" doesn't
-                    already narrow it to) stay one tap away rather than
-                    gone, collapsing back down once toggled a second time. */}
+                {/* "Más comida real" — the catalog's own remaining items
+                    (whatever real "Editar mi despensa" doesn't already
+                    narrow it to) stay one tap away rather than gone,
+                    collapsing back down once toggled a second time. Any
+                    hidden item that already has a real quantity > 0 is
+                    exempted from this whole toggle (see
+                    `visiblePocketFoodTypes` above) — the "Regla de
+                    Auto-Exposición" — so it stays visible even while the
+                    accordion itself reads as closed. */}
                 {(hiddenPocketFoodCount > 0 || showAllPocketFood) && (
                   <button
                     type="button"
                     onClick={() => setShowAllPocketFood((prev) => !prev)}
-                    className="mt-1 flex w-full cursor-pointer items-center justify-center gap-1 py-1.5 font-mono text-[11px] font-semibold tracking-wide text-terracotta uppercase transition-colors hover:text-terracotta-hover"
+                    className="my-1 flex cursor-pointer items-center gap-1 py-1.5 font-mono text-[11px] text-[#70685b] hover:underline"
                   >
-                    <ChevronDown
-                      className={cn(
-                        "size-3.5 shrink-0 transition-transform duration-150",
-                        showAllPocketFood && "rotate-180"
-                      )}
-                    />
-                    {showAllPocketFood ? "Mostrar menos" : `Mostrar más alimentos (${hiddenPocketFoodCount})`}
+                    <span>
+                      {showAllPocketFood
+                        ? "▲ Ocultar opciones"
+                        : `▼ Más comida real (${hiddenPocketFoodCount})`}
+                    </span>
                   </button>
                 )}
               </div>
@@ -3323,38 +3336,70 @@ export function FuelingPlanner({
                 05 · Manifiesto de salida
               </span>
 
-              {/* "Alerta de Déficit Pendiente de Cubrir" — the reason the
-                  checklist's own recipe might not be enough on its own.
-                  Purely reactive: once the athlete closes the gap from Card
-                  04 (a café/gasolinera stop, or enough extra pocket food),
-                  `remainingCarbsG` collapses to 0 and this disappears
-                  entirely. Suppressed under Train Low — a remaining
-                  "déficit" there is the whole point of the session, not
-                  something to warn about. Light amber "aviso técnico"
-                  treatment, matching every other alert box in Cards 03-05
-                  now that the dark tactical palette is gone. */}
-              {/* "Unificación Visual de Alertas" — the same 2-column icon
-                  + inline-title layout as Card 04's own "Tip de
-                  Eficiencia" (see `showWaterOnlyMixTip` above): a plain
-                  emoji column (not the `TriangleAlert` lucide icon this
-                  used to carry) and a Title Case, bold, inline label
-                  immediately followed by the explanatory sentence on the
-                  same line — replacing the old stacked "uppercase label
-                  row, then a second paragraph below it" structure, so
-                  every alert/aviso box in this results flow now shares one
-                  identical pattern rather than two visually-similar-but-
-                  structurally-different ones. */}
-              {remainingCarbsG > 15 && !result.trainLow && (
-                <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 shadow-xs">
-                  <span className="pt-0.5 text-sm text-amber-700 shrink-0">⚠️</span>
-                  <p className="font-mono text-xs leading-relaxed text-amber-900/90">
-                    <span className="mr-1 font-bold text-amber-950">Alerta de Déficit:</span>
-                    Te faltan <span className="font-bold text-amber-950">{remainingCarbsG}g HC</span>{" "}
-                    para alcanzar tu objetivo de la ruta. Te recomendamos activar &quot;Paradas previstas
-                    en ruta&quot; (Tarjeta 02) o añadir más comida al bolsillo en la Tarjeta 04 para evitar
-                    la pájara.
-                  </p>
-                </div>
+              {/* "Integración en el Manifiesto de Salida" — REMANENTE RUTA
+                  (Card 04's own sticky bar) is never treated as a bare
+                  error here; it's reconciled against whether the athlete
+                  has actually planned a road-side stop (Card 02's "Paradas
+                  en ruta"), same "home load + road plan = full coverage"
+                  framing the sticky bar's own explanatory line already
+                  sets up. 3 mutually exclusive states, purely reactive to
+                  `remainingCarbsG`/`cafeteriaStopCount` — closing the gap
+                  from either card (more pocket food, a bigger bottle role,
+                  or activating a stop) instantly moves this from one state
+                  to the next, no recalculation needed. Suppressed entirely
+                  under Train Low — a remaining gap there is the whole
+                  point of the session, not something to reconcile or
+                  celebrate. Same 2-column icon + inline Title Case layout
+                  as Card 04's own "Tip de Eficiencia" throughout, so every
+                  alert/aviso box in this results flow still reads as one
+                  consistent language regardless of its tone (info/warning/
+                  success). */}
+              {!result.trainLow && (
+                <>
+                  {/* Caso A — a stop is already planned, so the remainder
+                      isn't a gap to close, it's simply the share of the
+                      target that stop is expected to cover. */}
+                  {remainingCarbsG > 0 && cafeteriaStopCount > 0 && (
+                    <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-sky-200/80 bg-sky-50/70 p-3 shadow-xs">
+                      <span className="pt-0.5 text-sm text-sky-700 shrink-0">ℹ️</span>
+                      <p className="font-mono text-xs leading-relaxed text-sky-900/90">
+                        <span className="mr-1 font-bold text-sky-950">Estrategia de Ruta:</span>
+                        Llevas <span className="font-bold text-sky-950">{coveredCarbsG}g HC</span> desde
+                        casa. Los <span className="font-bold text-sky-950">{remainingCarbsG}g HC</span>{" "}
+                        restantes se cubrirán en tu(s) parada(s) programada(s) en ruta (ej. refresco +
+                        bocadillo/bollería).
+                      </p>
+                    </div>
+                  )}
+                  {/* Caso B — no stop planned yet, so the remainder is a
+                      genuine open gap: the same warning this card used to
+                      show unconditionally, now scoped to exactly this
+                      case. */}
+                  {remainingCarbsG > 0 && cafeteriaStopCount === 0 && (
+                    <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 shadow-xs">
+                      <span className="pt-0.5 text-sm text-amber-700 shrink-0">⚠️</span>
+                      <p className="font-mono text-xs leading-relaxed text-amber-900/90">
+                        <span className="mr-1 font-bold text-amber-950">
+                          Reposición en Ruta Necesaria:
+                        </span>
+                        Te faltan <span className="font-bold text-amber-950">{remainingCarbsG}g HC</span>{" "}
+                        para completar la ruta. Activa &quot;Paradas en ruta&quot; (Tarjeta 02) o añade
+                        más carga en los bolsillos (Tarjeta 04) para evitar la pájara.
+                      </p>
+                    </div>
+                  )}
+                  {/* Caso C — the home load alone already covers the ride;
+                      no road-side reposición needed at all. */}
+                  {remainingCarbsG === 0 && (
+                    <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/70 p-3 shadow-xs">
+                      <span className="pt-0.5 text-sm text-emerald-700 shrink-0">✅</span>
+                      <p className="font-mono text-xs leading-relaxed text-emerald-900/90">
+                        <span className="mr-1 font-bold text-emerald-950">Cobertura Completa:</span>
+                        Tu carga inicial de casa cubre el 100% del objetivo de la salida.
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
 
               {/* "Sugerencia de Sodio (marcas comerciales)" — only ever
