@@ -25,6 +25,32 @@ const WIND_ALERT_THRESHOLD_KMH = 20;
 // the amber alert treatment above their own thresholds.
 const HUMIDITY_ALERT_THRESHOLD_PCT = 75;
 
+// "Semáforo Dinámico de Color por Métricas" — a finer-grained color scale
+// on the carousel's own value text, layered on top of (not replacing) the
+// coarser 2-tier `alertLabel` mechanism above (which still drives the
+// tile's background tint and its own "Calor extremo"/"Viento fuerte"/
+// "Humedad alta" badge line). These color the *number itself*, so an
+// athlete scanning the strip reads temperature/wind intensity at a glance
+// from color alone, not just from whichever tile happens to cross the
+// coarser alert threshold.
+export function getTempColorClass(temp: number): string {
+  if (temp < 15) return "text-sky-600 font-semibold"; // Frío / Baja
+  if (temp <= 23) return "text-zinc-900 font-bold"; // Óptima / Templado
+  if (temp <= 28) return "text-amber-500 font-semibold"; // Alta / Calor
+  return "text-rose-600 font-bold"; // Muy Alta / Extremo
+}
+
+export function getWindColorClass(wind: number): string {
+  if (wind < 15) return "text-zinc-900 font-bold"; // Flojo / Neutro
+  if (wind <= 25) return "text-amber-500 font-semibold"; // Moderado
+  return "text-rose-600 font-bold"; // Fuerte / Crítico
+}
+
+export function getHumidityColorClass(humidity: number): string {
+  if (humidity > 75) return "text-amber-500 font-semibold";
+  return "text-zinc-900 font-bold";
+}
+
 // "Carrusel Híbrido PNS Style" — one horizontal swipeable strip of
 // "weather point" cards — the real per-card width is measured live (see
 // `handleContainerScroll`), but before the strip has ever rendered a first
@@ -88,19 +114,25 @@ type WeatherPoint = {
  * compact-view summary row, which reuses this same tile). `alertLabel`
  * switches the tile to a warm amber tint and renders as its own line below
  * `caption` — both can coexist (e.g. "+6°C vs. valle" *and* "Calor extremo"
- * at once), rather than one replacing the other. */
+ * at once), rather than one replacing the other. `valueColorClass` (from
+ * `getTempColorClass`/`getWindColorClass`/`getHumidityColorClass` above)
+ * overrides the value's own default color/weight with the finer-grained
+ * semáforo — independent of `alertLabel`, which still governs the tile's
+ * background tint. */
 function CarouselStatTile({
   label,
   icon,
   value,
   caption,
   alertLabel,
+  valueColorClass,
 }: {
   label: string;
   icon?: ReactNode;
   value: string;
   caption?: string;
   alertLabel?: string;
+  valueColorClass?: string;
 }) {
   // "Aplanamiento de UI" — no border here anymore, a background tint alone
   // (porcelain `zinc-50` normally, amber once a real threshold is crossed)
@@ -118,9 +150,7 @@ function CarouselStatTile({
         {icon}
         {label}
       </span>
-      <span
-        className={cn("block truncate font-sans text-sm font-bold", alert ? "text-amber-900" : "text-zinc-900")}
-      >
+      <span className={cn("block truncate font-sans text-sm", valueColorClass ?? (alert ? "text-amber-900 font-bold" : "text-zinc-900 font-bold"))}>
         {value}
       </span>
       {caption && (
@@ -508,17 +538,20 @@ export function WeatherImpactCard({
             value={`${temperatureC}°C`}
             caption={temperatureMaxC != null && temperatureMaxC !== temperatureC ? `máx ${temperatureMaxC}°C` : undefined}
             alertLabel={(temperatureMaxC ?? temperatureC) >= HEAT_ALERT_THRESHOLD_C ? "Calor extremo" : undefined}
+            valueColorClass={getTempColorClass(temperatureC)}
           />
           <CarouselStatTile
             label="Viento"
             icon={<Wind className="size-3 shrink-0" />}
             value={`${windSpeedKmh} km/h`}
             alertLabel={windSpeedKmh >= WIND_ALERT_THRESHOLD_KMH ? "Viento fuerte" : undefined}
+            valueColorClass={getWindColorClass(windSpeedKmh)}
           />
           <CarouselStatTile
             label="Humedad"
             value={`${humidityPct}%`}
             alertLabel={humidityPct >= HUMIDITY_ALERT_THRESHOLD_PCT ? "Humedad alta" : undefined}
+            valueColorClass={getHumidityColorClass(humidityPct)}
           />
         </div>
       ) : (
@@ -578,14 +611,15 @@ export function WeatherImpactCard({
               </div>
             </div>
 
-            {/* Perfil Altimétrico 2D — a subtle porcelain tint
-                (`bg-zinc-50/50`), no border: the SVG's own plotted line/axes
-                already give it enough visual definition without a second
-                frame around it. The currently-focused carousel card's own
-                node highlights live, synced off the same `activeScrollIndex`
-                the carousel's `onScroll` handler already maintains. Clicking
-                any node jumps the carousel straight to that card. */}
-            <div className="rounded-xl bg-zinc-50/50 p-2">
+            {/* Perfil Altimétrico 2D — 100% transparent now, no tint/frame
+                of its own: the SVG's own plotted line/axes already give it
+                enough visual definition without a background box around
+                it. The currently-focused carousel card's own node
+                highlights live, synced off the same `activeScrollIndex`
+                the carousel's `onScroll` handler already maintains.
+                Clicking any node jumps the carousel straight to that
+                card. */}
+            <div className="w-full bg-transparent py-2">
               <AltitudeProfileSvg
                 points={weatherPoints}
                 profile={elevationProfile}
@@ -630,8 +664,15 @@ export function WeatherImpactCard({
                       isActive ? "bg-zinc-50/80" : "bg-transparent"
                     )}
                   >
-                    <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-1.5">
-                      <div className="flex min-w-0 items-center gap-2">
+                    {/* "Ajuste Tipográfico del Nombre de Cimas/Hitos" —
+                        stacked (name row, then Km/altitud row below it)
+                        rather than side-by-side, so a long real col name
+                        (or a long "Cima Km 41 · 2324m" fallback) gets the
+                        card's full width to itself instead of splitting it
+                        with a `shrink-0` sibling — `line-clamp-1` keeps it
+                        to one line without an aggressive mid-word cut. */}
+                    <div className="flex flex-col gap-0.5 border-b border-zinc-200/60 pb-1.5">
+                      <span className="flex min-w-0 items-center gap-1.5">
                         <span
                           className={cn(
                             "size-2 shrink-0 rounded-full",
@@ -641,15 +682,15 @@ export function WeatherImpactCard({
                         {point.type === "peak" && (
                           <Mountain className="size-3 shrink-0 text-[#70685b]" />
                         )}
-                        <span className="truncate font-mono text-xs font-bold tracking-wider text-zinc-900 uppercase">
+                        <span className="line-clamp-1 font-mono text-[11px] font-bold tracking-tight text-zinc-900 uppercase">
                           {point.locationName}
                         </span>
-                      </div>
+                      </span>
                       {/* Km/altitud — the real distance-along-route
                           whenever a granular server hito supplied one
                           (a 2-point altitude fallback never had a real km
                           figure to show). */}
-                      <span className="shrink-0 font-mono text-[11px] text-zinc-500">
+                      <span className="font-mono text-[10px] text-zinc-400">
                         {point.distanceKm != null ? `Km ${point.distanceKm} · ` : ""}
                         {point.elevationM != null ? `${point.elevationM}m altitud` : "Altitud no disponible"}
                       </span>
@@ -661,17 +702,20 @@ export function WeatherImpactCard({
                         value={`${point.temperatureC}°C`}
                         caption={point.temperatureCaption}
                         alertLabel={point.temperatureC >= HEAT_ALERT_THRESHOLD_C ? "Calor extremo" : undefined}
+                        valueColorClass={getTempColorClass(point.temperatureC)}
                       />
                       <CarouselStatTile
                         label="Viento"
                         icon={<Wind className="size-3 shrink-0" />}
                         value={`${point.windSpeedKmh} km/h`}
                         alertLabel={point.windSpeedKmh >= WIND_ALERT_THRESHOLD_KMH ? "Viento fuerte" : undefined}
+                        valueColorClass={getWindColorClass(point.windSpeedKmh)}
                       />
                       <CarouselStatTile
                         label="Humedad"
                         value={`${point.humidityPct}%`}
                         alertLabel={point.humidityPct >= HUMIDITY_ALERT_THRESHOLD_PCT ? "Humedad alta" : undefined}
+                        valueColorClass={getHumidityColorClass(point.humidityPct)}
                       />
                     </div>
                   </div>

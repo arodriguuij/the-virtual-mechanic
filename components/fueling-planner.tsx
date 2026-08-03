@@ -2844,32 +2844,24 @@ export function FuelingPlanner({
                   instead of forcing the grid track wider (the default
                   `min-width: auto` grid items get otherwise), so a long
                   number/tooltip trigger can never push this card past the
-                  viewport edge on a narrow phone. "Test A/B/C/D" — each of
-                  the 4 tiles deliberately carries a *different* fill/border
-                  treatment (Opción A "Crema Táctico," B "Taupe/Bronce
-                  Sutil," C "Blanco Puro + Borde Bronce," D "Gris Táctico
-                  Suave") rather than the one shared `bg-zinc-50` box every
-                  other tile in this app uses, so the 4 options can be
-                  compared side-by-side live after deploy before settling on
-                  one winner — a temporary, deliberately inconsistent state,
-                  not a converged design decision. Labels stay the plain
-                  "Duración"/"Carbohidratos"/"Hidratación"/"Sodio" text (the
-                  dark card's own HC/H₂O/Na⁺/TIME laboratory notation was
-                  scoped to that now-removed dark treatment) and the big
-                  figure stays high-contrast `zinc-900` in every variant, so
-                  only the tile's own frame is what's actually being
-                  compared. */}
+                  viewport edge on a narrow phone. "Test A/B/C/D" converged
+                  — this card briefly ran 4 side-by-side tile treatments
+                  (Crema Táctico, Taupe/Bronce Sutil, Blanco Puro + Borde
+                  Bronce, Gris Táctico Suave) as a deliberately inconsistent
+                  live comparison; a DevTools-inspected winner (flat
+                  `#f0f0f0`, no border, a small `4px` radius) now applies to
+                  all 4 tiles identically. Labels stay the plain
+                  "Duración"/"Carbohidratos"/"Hidratación"/"Sodio" text and
+                  the big figure stays high-contrast `zinc-900`. */}
               <div className="grid grid-cols-2 gap-3 *:min-w-0">
-                {/* Opción A · Crema Táctico */}
-                <div className="flex flex-col gap-1 rounded-xl border border-zinc-200/80 bg-[#F4F3EE] p-4 shadow-xs">
+                <div className="flex flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
                   <span className="font-mono text-[11px] text-zinc-500">Duración</span>
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {formatHoursMinutes(result.durationHours)}
                   </span>
                   <MicroGauge pct={(result.durationHours / DURATION_GAUGE_MAX_HOURS) * 100} />
                 </div>
-                {/* Opción B · Taupe/Bronce Sutil */}
-                <div className="relative flex flex-col gap-1 overflow-visible rounded-xl border border-[#70685b]/20 bg-[#70685b]/5 p-4 shadow-xs">
+                <div className="relative flex flex-col justify-between gap-1 overflow-visible rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
                   <span className="flex items-center gap-1">
                     <span className="font-mono text-[11px] text-zinc-500">Carbohidratos</span>
                     <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
@@ -2883,8 +2875,7 @@ export function FuelingPlanner({
                   </span>
                   <MicroGauge pct={(result.carbsGPerHour / CARB_DEMAND_GAUGE_MAX_G_PER_HOUR) * 100} />
                 </div>
-                {/* Opción C · Blanco Puro + Borde Bronce */}
-                <div className="flex flex-col gap-1 rounded-xl border border-[#70685b]/30 bg-white p-4 shadow-xs">
+                <div className="flex flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
                   <span className="font-mono text-[11px] text-zinc-500">Hidratación</span>
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {result.fluidLossMlPerHour}
@@ -2895,8 +2886,7 @@ export function FuelingPlanner({
                   </span>
                   <MicroGauge pct={(result.fluidLossMlPerHour / FLUID_DEMAND_GAUGE_MAX_ML_PER_HOUR) * 100} />
                 </div>
-                {/* Opción D · Gris Táctico Suave */}
-                <div className="flex flex-col gap-1 rounded-xl border border-zinc-200 bg-zinc-50 p-4 shadow-xs">
+                <div className="flex flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
                   <span className="font-mono text-[11px] text-zinc-500">Sodio</span>
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {result.sodiumMgPerHour}
