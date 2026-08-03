@@ -91,6 +91,14 @@ export const metadata: Metadata = {
 // this change's scope; add that padding if a toast is ever reported
 // sitting too close to the bottom edge on a real notched/home-indicator
 // device.
+// `colorScheme: "light"` emits the actual `<meta name="color-scheme"
+// content="light">` tag — a separate signal from `globals.css`'s own CSS
+// `color-scheme: light` declaration on `:root`. Safari reads both, but the
+// meta tag is available to it before the stylesheet has even loaded, which
+// is exactly the window (first paint, and the instant right after a
+// client-side route transition) where the floating "pill" toolbar has
+// historically been most likely to fall back to its opaque bar state on a
+// device in system Dark Mode.
 export const viewport: Viewport = {
   themeColor: "#F8F7F5",
   width: "device-width",
@@ -98,6 +106,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  colorScheme: "light",
 };
 
 // Structured data (schema.org WebApplication) for Google's rich-result
@@ -144,7 +153,17 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        {children}
+        {/* Persistent porcelain wrapper — a plain `<div>`, not a second
+            `<main>` (every route under `(app)` already renders its own
+            `<main>` inside `DashboardShell`, and nested `<main>` landmarks
+            are invalid HTML). Its only job is to guarantee the porcelain
+            background repaints immediately underneath whatever the App
+            Router swaps in during a client-side navigation between routes,
+            rather than relying solely on `<body>`'s own background a level
+            higher — belt-and-suspenders against a transparent frame iOS
+            Safari's floating toolbar could otherwise read as "opaque bar"
+            territory for. */}
+        <div className="min-h-dvh w-full flex-1 bg-background">{children}</div>
       </body>
     </html>
   );

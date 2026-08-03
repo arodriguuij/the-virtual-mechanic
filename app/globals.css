@@ -203,9 +203,18 @@
   }
   body {
     @apply bg-background text-foreground;
+    min-height: 100dvh;
   }
+  /* `html` gets the same porcelain fill as `<body>`, not just inherited —
+     WebKit paints the elastic overscroll-bounce region (the rubber-band
+     past the very top/bottom of the page) against `<html>`'s own
+     background, not `<body>`'s, so without this the bounce briefly reveals
+     whatever `<html>` defaults to instead of staying porcelain the whole
+     way through the gesture. No `!important`: nothing else in this
+     stylesheet sets `html`'s `background-color`, so a plain declaration
+     already wins. */
   html {
-    @apply font-sans;
+    @apply bg-background font-sans;
   }
 
   /* Brand-colored text selection — the one place `--terracotta` intentionally
