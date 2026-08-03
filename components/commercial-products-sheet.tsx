@@ -10,17 +10,36 @@ import { cn } from "@/lib/utils";
 
 const COMMERCIAL_PRODUCT_BRANDS = Array.from(new Set(COMMERCIAL_PRODUCTS.map((p) => p.brand)));
 
+// "Badges de Color por Rango de HC" — a flat carb figure reads faster as a
+// quick visual band than as one more number in a line the eye has to parse
+// — a low-carb electrolyte tab (≤30g) shouldn't compete for attention the
+// same way a high-carb gel (>60g) does. Thresholds match the ranges named
+// in the request itself; kept as one small pure function rather than an
+// inline ternary in the JSX so the 3 bands can't drift out of sync between
+// a future second call site and this one.
+const CARB_BADGE_LOW_MAX_G = 30;
+const CARB_BADGE_MID_MAX_G = 60;
+function getCarbBadgeClass(carbs: number): string {
+  if (carbs <= CARB_BADGE_LOW_MAX_G) return "bg-zinc-100 text-zinc-700 border-zinc-200";
+  if (carbs <= CARB_BADGE_MID_MAX_G) return "bg-[#70685b]/15 text-[#70685b] border-[#70685b]/30";
+  return "bg-zinc-900 text-amber-200 border-zinc-800";
+}
+
 /** One "Marcas comerciales" catalog row — the same compact stepper
  * geometry as `PocketFoodStepperRow` (`components/fueling-planner.tsx`),
- * but the label renders as 2 stacked lines (brand in bronze up top, then
- * product name + its real carb/sodium figures below) instead of one
- * bracketed `[ Marca - Nombre (...) ]` string — that single-line format
- * reliably truncated the brand/name/figures together on a narrow phone
- * ("Nombres Cortos"-style clipping), which this 2-line split avoids since
- * only the second line's own trailing figures need `truncate`. Exported
- * since it renders in two places: inside this sheet's own catalog list,
- * and inline in Card 04's "bolsillo" for whatever's already selected (see
- * `FuelingPlanner`'s own `selectedCommercialProducts`). */
+ * laid out as 3 fixed blocks (brand+name / HC+Na+ / stepper) rather than
+ * cramming the carb/sodium figures into the same truncating text line as
+ * the product name — a long product name plus its own trailing "· Xg HC ·
+ * Ymg Na+" figures used to compete for the same `truncate`d line, clipping
+ * the figures off on a narrow phone; the HC badge and Na+ label are now
+ * their own `shrink-0` block that can never be cut, and only the name
+ * itself truncates if it's genuinely too long. The HC badge's color also
+ * bands by range (`getCarbBadgeClass`) so a rider scanning the sheet can
+ * spot a high-carb gel vs. a low-carb electrolyte tab at a glance, not just
+ * by reading the number. Exported since it renders in two places: inside
+ * this sheet's own catalog list, and inline in Card 04's "bolsillo" for
+ * whatever's already selected (see `FuelingPlanner`'s own
+ * `selectedCommercialProducts`). */
 export function CommercialProductStepperRow({
   product,
   qty,
@@ -31,17 +50,23 @@ export function CommercialProductStepperRow({
   onChange: (qty: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-2 last:border-b-0">
-      <div className="min-w-0 flex-1 pr-2">
-        <span className="mb-1 block font-mono text-[10px] font-bold tracking-wider text-[#70685b] uppercase leading-none">
+    <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-2.5 last:border-0">
+      <div className="min-w-0 flex-1">
+        <span className="mb-1 block font-mono text-[9px] font-bold tracking-wider text-[#70685b] uppercase leading-none">
           {product.brand}
         </span>
-        <span className="block truncate font-sans text-xs font-semibold text-zinc-900">
-          {product.name}{" "}
-          <span className="font-mono text-[11px] font-normal text-zinc-500">
-            · {product.carbs}g HC · {product.sodium}mg Na+
-          </span>
+        <span className="block truncate font-sans text-xs font-semibold text-zinc-900">{product.name}</span>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <span
+          className={cn(
+            "rounded-md border px-2 py-0.5 font-mono text-[10px] font-bold",
+            getCarbBadgeClass(product.carbs)
+          )}
+        >
+          {product.carbs}g HC
         </span>
+        <span className="font-mono text-[10px] text-zinc-400">{product.sodium}mg Na+</span>
       </div>
       <div className="flex h-7 min-w-20 shrink-0 items-center justify-between rounded-sm border border-zinc-200 bg-transparent px-2 py-0.5">
         <button

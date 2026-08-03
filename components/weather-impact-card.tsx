@@ -285,11 +285,22 @@ export function WeatherImpactCard({
 
   const hasMultiplePoints = weatherPoints.length > 1;
 
-  function handleArrowScroll(direction: "left" | "right") {
-    scrollContainerRef.current?.scrollBy({
-      left: direction === "left" ? -CAROUSEL_CARD_SCROLL_AMOUNT_PX : CAROUSEL_CARD_SCROLL_AMOUNT_PX,
-      behavior: "smooth",
-    });
+  // "Fix de Scroll Magnético por Tarjetas" — a raw `scrollBy(292px)` drifts
+  // out of sync with each card's own real rendered width (it's a `min-w-70
+  // max-w-75` box, not a fixed 292px one) after a couple of arrow presses,
+  // landing mid-card instead of anchored to its `snap-start` edge. Scrolling
+  // straight to the target index's own DOM child via `scrollIntoView`
+  // anchors on that card's real boundary every time, however wide it
+  // actually rendered — `inline: "start"` matches the strip's own
+  // `snap-start` alignment, `block: "nearest"` keeps this a purely
+  // horizontal scroll with no vertical page movement.
+  function handleScrollToIndex(direction: "left" | "right") {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const newIndex =
+      direction === "left" ? Math.max(0, activeScrollIndex - 1) : Math.min(weatherPoints.length - 1, activeScrollIndex + 1);
+    const targetCard = container.children[newIndex] as HTMLElement | undefined;
+    targetCard?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
   }
 
   // The one native `onScroll` handler both the button-triggered
@@ -402,7 +413,7 @@ export function WeatherImpactCard({
             <div className="flex shrink-0 items-center gap-1 text-zinc-800">
               <button
                 type="button"
-                onClick={() => handleArrowScroll("left")}
+                onClick={() => handleScrollToIndex("left")}
                 disabled={isAtStart}
                 className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
                 aria-label="Anterior"
@@ -411,7 +422,7 @@ export function WeatherImpactCard({
               </button>
               <button
                 type="button"
-                onClick={() => handleArrowScroll("right")}
+                onClick={() => handleScrollToIndex("right")}
                 disabled={isAtEnd}
                 className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
                 aria-label="Siguiente"

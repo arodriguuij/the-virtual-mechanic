@@ -3081,27 +3081,31 @@ export function FuelingPlanner({
                   client-side arithmetic, reacting to *both* the bottle
                   selector and every pocket-food stepper) — no network
                   round-trip, no need to press "Calcular" again just to see
-                  the coverage change. `top-16 lg:top-4` clears the mobile
+                  the coverage change. `top-14 lg:top-4` clears the mobile
                   header (`fixed top-0 z-50`, ~64px tall, `lg:hidden`) so
                   the bar never renders underneath it; desktop has no such
-                  header, so it sticks close to the
-                  viewport's own top instead. "Unificación de Lienzo Claro"
-                  replaced this bar's old obsidian-black (`#18181B`) fill
-                  with the Bronce Táctico accent (`#70685b`) — the same
-                  color every selector's active state already uses — so it
-                  reads as this card's own state accent rather than a
-                  second dark HUD register. "Semáforo Dinámico" — RESTANTE
-                  is still the "live" metric, now colored like a traffic
-                  light against `remainingCarbsG` itself: rose while the gap
-                  is still large (>30g HC, real risk of a pájara), amber
-                  once it's closing (1-30g HC), emerald the instant it hits
-                  0 (fully covered) — `getRemainingCarbsTextClass` below is
-                  the one place this 3-tier threshold lives, so the bar and
-                  any future call site can't disagree about the cutoffs.
+                  header, so it sticks close to the viewport's own top
+                  instead. Reverted back to the obsidian-black (`#18181B`)
+                  fill from an intermediate Bronce Táctico (`#70685b`) pass
+                  — the HUD reads as its own distinct floating register
+                  again (`border-zinc-800`, `shadow-md`, `backdrop-blur-md`)
+                  rather than blending into the same accent every selector's
+                  active state already uses, and it's what
+                  `getRemainingCarbsTextClass` below was actually tuned
+                  for — its rose/amber/emerald-300 pastels read clearly
+                  against black, not against the mid-tone bronze this
+                  briefly sat on. "Semáforo Dinámico" — RESTANTE is still
+                  the "live" metric, colored like a traffic light against
+                  `remainingCarbsG` itself: rose while the gap is still
+                  large (>30g HC, real risk of a pájara), amber once it's
+                  closing (1-30g HC), emerald the instant it hits 0 (fully
+                  covered) — `getRemainingCarbsTextClass` below is the one
+                  place this 3-tier threshold lives, so the bar and any
+                  future call site can't disagree about the cutoffs.
                   OBJETIVO/CUBIERTO both stay a dimmer `text-white/75`, so
                   RESTANTE is unambiguously the one number this display
                   wants your eye on. */}
-              <div className="sticky top-16 z-20 mb-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl bg-[#70685b] px-3 py-2 text-center font-mono text-xs font-bold tracking-wide text-white shadow-xs sm:text-xs lg:top-4">
+              <div className="sticky top-14 z-20 my-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl border border-zinc-800 bg-[#18181B] p-3.5 text-center font-mono text-xs font-bold tracking-wide text-white shadow-md backdrop-blur-md sm:text-xs lg:top-4">
                 <span className="text-white/75">OBJETIVO: {result.totalRideCarbsG}g HC</span>
                 <span className="text-white/40">|</span>
                 <span className="text-white/75">CUBIERTO: {coveredCarbsG}g HC</span>
@@ -3444,19 +3448,26 @@ export function FuelingPlanner({
                   something to warn about. Light amber "aviso técnico"
                   treatment, matching every other alert box in Cards 03-05
                   now that the dark tactical palette is gone. */}
+              {/* "Unificación Visual de Alertas" — the same 2-column icon
+                  + inline-title layout as Card 04's own "Tip de
+                  Eficiencia" (see `showWaterOnlyMixTip` above): a plain
+                  emoji column (not the `TriangleAlert` lucide icon this
+                  used to carry) and a Title Case, bold, inline label
+                  immediately followed by the explanatory sentence on the
+                  same line — replacing the old stacked "uppercase label
+                  row, then a second paragraph below it" structure, so
+                  every alert/aviso box in this results flow now shares one
+                  identical pattern rather than two visually-similar-but-
+                  structurally-different ones. */}
               {remainingCarbsG > 15 && !result.trainLow && (
-                <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3 shadow-xs">
-                  <div className="flex items-center gap-2">
-                    <TriangleAlert className="size-3.5 shrink-0 text-amber-700" />
-                    <span className="font-mono text-[11px] font-bold tracking-wider text-amber-900 uppercase whitespace-nowrap">
-                      Alerta de déficit
-                    </span>
-                  </div>
-                  <p className="mt-1 font-mono text-[11px] leading-tight text-amber-900/90">
-                    Te faltan <span className="font-semibold text-amber-800">{remainingCarbsG}g HC</span>{" "}
-                    para alcanzar tu objetivo de la ruta. Te recomendamos activar &quot;Paradas
-                    previstas en ruta&quot; (Tarjeta 02) o añadir más comida al bolsillo en la
-                    Tarjeta 04 para evitar la pájara.
+                <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/70 p-3 shadow-xs">
+                  <span className="pt-0.5 text-sm text-amber-700 shrink-0">⚠️</span>
+                  <p className="font-mono text-xs leading-relaxed text-amber-900/90">
+                    <span className="mr-1 font-bold text-amber-950">Alerta de Déficit:</span>
+                    Te faltan <span className="font-bold text-amber-950">{remainingCarbsG}g HC</span> para
+                    alcanzar tu objetivo de la ruta. Te recomendamos activar &quot;Paradas previstas en
+                    ruta&quot; (Tarjeta 02) o añadir más comida al bolsillo en la Tarjeta 04 para evitar la
+                    pájara.
                   </p>
                 </div>
               )}
