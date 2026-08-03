@@ -12,6 +12,7 @@
  */
 
 import { detectMountainPasses, type MountainPass } from "@/lib/metabolic-engine";
+import { detectElevationMilestones, type ElevationMilestone } from "@/lib/utils/elevation-parser";
 
 export type ParsedGpxRoute = {
   name: string;
@@ -50,6 +51,13 @@ export type ParsedGpxRoute = {
    * multi-summit caffeine-splitting logic a Strava route's own streams
    * call uses. `[]` when the file has no usable elevation data. */
   mountainPasses: MountainPass[];
+  /** "Algoritmo de Detección de Puertos/Valles" — a finer-grained Salida →
+   * [Valle → Cima]* → Llegada milestone list (see `detectElevationMilestones`
+   * in `lib/utils/elevation-parser.ts`), each with its own real coordinates
+   * for weather sampling and (for a "peak" milestone) Overpass name lookup —
+   * feeds Card 03's thermal-impact carousel. `[]` under the same "no usable
+   * elevation data" condition as `mountainPasses`. */
+  elevationMilestones: ElevationMilestone[];
   /** The full decoded track, for `RouteMapPreview` — a GPX file already has
    * every point in hand locally, no polyline decoding needed the way a
    * Strava route's `summaryPolyline` requires. */
@@ -143,6 +151,16 @@ export function parseGpxFile(xmlText: string, fileName: string): ParsedGpxRoute 
     .map((p, i) => (p.eleM != null && distanceKm > 0 ? { distanceFraction: cumulativeDistanceKm[i] / distanceKm, elevationM: p.eleM } : null))
     .filter((p): p is { distanceFraction: number; elevationM: number } => p != null);
   const mountainPasses = detectMountainPasses(elevationProfile);
+  const milestoneSourcePoints = points
+    .map((p, i) =>
+      p.eleM != null && distanceKm > 0
+        ? { lat: p.lat, lng: p.lng, distanceFraction: cumulativeDistanceKm[i] / distanceKm, elevationM: p.eleM }
+        : null
+    )
+    .filter(
+      (p): p is { lat: number; lng: number; distanceFraction: number; elevationM: number } => p != null
+    );
+  const elevationMilestones = detectElevationMilestones(milestoneSourcePoints, distanceKm);
 
   return {
     name: gpxName || fileName.replace(/\.gpx$/i, ""),
@@ -167,6 +185,7 @@ export function parseGpxFile(xmlText: string, fileName: string): ParsedGpxRoute 
         ? Math.max(0, Math.min(1, cumulativeDistanceKm[troughIndex] / distanceKm))
         : null,
     mountainPasses,
+    elevationMilestones,
     points: points.map((p): [number, number] => [p.lat, p.lng]),
     elevationProfile,
   };

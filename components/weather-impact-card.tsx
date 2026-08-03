@@ -49,10 +49,31 @@ export type AltitudeWeather = {
   };
 };
 
-type WeatherPoint = {
+/** Real per-hito weather sample from `POST /api/fueling/plan`'s
+ * `weather.weatherPoints` — see `detectElevationMilestones`
+ * (`lib/utils/elevation-parser.ts`) for how each hito was found and
+ * `getPeakName` (`lib/overpass.ts`) for how a "peak" hito's `locationName`
+ * was resolved. */
+export type ServerWeatherPoint = {
   key: string;
   locationName: string;
+  elevationM: number;
+  distanceKm: number;
+  distanceFraction: number;
+  temperatureC: number;
+  humidityPct: number;
+  windSpeedKmh: number;
+};
+
+type WeatherPointType = "start" | "peak" | "valley" | "end" | "route";
+
+type WeatherPoint = {
+  key: string;
+  type: WeatherPointType;
+  locationName: string;
   elevationM: number | null;
+  distanceFraction: number;
+  distanceKm: number | null;
   temperatureC: number;
   temperatureCaption?: string;
   windSpeedKmh: number;
@@ -113,49 +134,76 @@ function CarouselStatTile({
 }
 
 /**
- * "Perfil Altimétrico 2D" — a small SVG sparkline plotting each
- * `weatherPoint`'s real `elevationM` reading, nodes evenly spaced along the
- * x-axis (there's no real per-point distance-along-route figure in this
- * component's own data — only elevation and weather — so an index-based
- * layout is used rather than fabricating a km position for each stop).
+ * "Perfil Altimétrico 2D" — the route's real elevation curve (`profile`, a
+ * `{distanceFraction, elevationM}[]` — Card 03's own thinned copy of the
+ * server's/GPX's real altitude stream) with each `weatherPoint` marked at
+ * its own true position along that curve, rather than nodes evenly spaced
+ * by index. Falls back to a synthetic 2-point curve built from `points`
+ * alone (evenly spaced, min/max scaled) whenever no real `profile` is
+ * available — the pre-multi-hito behavior, still needed for a route whose
+ * elevation stream never resolved (e.g. an older/degraded weather sample).
  * The node matching `activeIndex` (the carousel's currently-focused card)
  * renders filled bronze with a white ring; every other node is a small
- * hollow bronze-outlined dot. A null `elevationM` (the single-point "Ruta"
- * case never reaches this component at all — see `hasMultiplePoints` below
- * — but a real route's own `base`/`peak` reading can each independently be
- * `null`) falls back to the profile's own min elevation, i.e. a flat
- * segment, rather than crashing the min/max scale.
+ * hollow bronze-outlined dot. Clicking any node scrolls the carousel to
+ * that same card via `onPointClick`.
  */
-function AltitudeProfileSvg({ points, activeIndex }: { points: WeatherPoint[]; activeIndex: number }) {
+function AltitudeProfileSvg({
+  points,
+  profile,
+  activeIndex,
+  onPointClick,
+}: {
+  points: WeatherPoint[];
+  profile: { distanceFraction: number; elevationM: number }[];
+  activeIndex: number;
+  onPointClick: (index: number) => void;
+}) {
   const width = 300;
   const height = 56;
   const padX = 14;
   const padY = 10;
 
-  const elevations = points.map((p) => p.elevationM ?? 0);
+  const hasRealProfile = profile.length >= 2;
+  // Without a real profile, fall back to the old "one sample per point,
+  // evenly spaced" curve — every downstream min/max/x/y computation below
+  // reads from this same `curvePoints` array either way.
+  const curvePoints: { distanceFraction: number; elevationM: number }[] = hasRealProfile
+    ? profile
+    : points.map((p, i) => ({
+        distanceFraction: points.length > 1 ? i / (points.length - 1) : 0,
+        elevationM: p.elevationM ?? 0,
+      }));
+
+  const elevations = curvePoints.map((p) => p.elevationM);
   const minEl = Math.min(...elevations);
   const maxEl = Math.max(...elevations);
   const range = maxEl - minEl || 1;
-  const stepX = points.length > 1 ? (width - padX * 2) / (points.length - 1) : 0;
 
-  const coords = points.map((p, i) => {
-    const x = padX + stepX * i;
-    const normalized = ((p.elevationM ?? minEl) - minEl) / range;
-    const y = height - padY - normalized * (height - padY * 2);
-    return { x, y };
-  });
+  const toX = (fraction: number) => padX + Math.max(0, Math.min(1, fraction)) * (width - padX * 2);
+  const toY = (elevationM: number) => height - padY - ((elevationM - minEl) / range) * (height - padY * 2);
 
-  const linePath = coords.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(" ");
+  const curveCoords = curvePoints.map((p) => ({ x: toX(p.distanceFraction), y: toY(p.elevationM) }));
+  const linePath = curveCoords
+    .map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`)
+    .join(" ");
   const areaPath =
-    coords.length > 0
-      ? `${linePath} L ${coords[coords.length - 1].x.toFixed(1)} ${height} L ${coords[0].x.toFixed(1)} ${height} Z`
+    curveCoords.length > 0
+      ? `${linePath} L ${curveCoords[curveCoords.length - 1].x.toFixed(1)} ${height} L ${curveCoords[0].x.toFixed(1)} ${height} Z`
       : "";
+
+  // Each weather-point marker sits at its own real distance-along-route
+  // position, using the curve's own min/max scale so a marker always lands
+  // exactly on the silhouette beneath it.
+  const markerCoords = points.map((p) => ({
+    x: toX(p.distanceFraction),
+    y: toY(p.elevationM ?? minEl),
+  }));
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="h-14 w-full" role="img" aria-label="Perfil altimétrico de la ruta">
       {areaPath && <path d={areaPath} fill={BRONZE} fillOpacity={0.08} stroke="none" />}
       <path d={linePath} fill="none" stroke={BRONZE} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.55} />
-      {coords.map((c, i) => (
+      {markerCoords.map((c, i) => (
         <circle
           key={points[i].key}
           cx={c.x}
@@ -164,7 +212,8 @@ function AltitudeProfileSvg({ points, activeIndex }: { points: WeatherPoint[]; a
           fill={i === activeIndex ? BRONZE : "#ffffff"}
           stroke={BRONZE}
           strokeWidth={i === activeIndex ? 2 : 1.5}
-          className="transition-all duration-150"
+          className="cursor-pointer transition-all duration-150"
+          onClick={() => onPointClick(i)}
         />
       ))}
     </svg>
@@ -186,20 +235,20 @@ function AltitudeProfileSvg({ points, activeIndex }: { points: WeatherPoint[]; a
  * `hasMultiplePoints`) adds the 2D altimetry sparkline above and the
  * horizontal swipeable point-by-point carousel below it, both kept in sync
  * live off the same `activeScrollIndex`/`scrollProgress` state that drives
- * the progress bar — whichever of touch-drag or the `←`/`→` buttons moved
- * the strip, `handleContainerScroll` (the one native `onScroll` listener)
- * is what updates all three.
+ * the progress bar — whichever of touch-drag, the `←`/`→` buttons, or a
+ * direct click on the SVG's own nodes moved the strip,
+ * `handleContainerScroll` (the one native `onScroll` listener) is what
+ * keeps all three in sync.
  *
- * Whenever the server flags a significant climb (`altitude` non-null — the
- * route's real elevation range ≥ 400m, or a known summit ≥ 500m ASL, see
- * `POST /api/fueling/plan`), `weatherPoints` below carries 2 real points
- * ("Valle / Salida" and "Cima del Puerto") instead of 1 — both real
- * Open-Meteo data at each point's own coordinates when the multi-point
- * sample succeeded, or the same `-0.65°C/100m` lapse-rate estimate already
- * used elsewhere in this app otherwise — see `getLapseRateAdjustedTemperature`.
- * Never a fabricated third "Llegada" point: the server only ever returns
- * base/peak readings here, so the carousel only ever shows what's genuinely
- * been sampled.
+ * **`weatherPoints`** (from `POST /api/fueling/plan`'s own
+ * `weather.weatherPoints`, see `ServerWeatherPoint`/`detectElevationMilestones`)
+ * is the real, granular Salida/Valle/Cima/Llegada breakdown — a multi-pass
+ * mountain route (2+ real cols) surfaces every one of them, each with its
+ * own Overpass-resolved name for a "peak" hito, not just a single valley-
+ * vs-summit pair. Falls back to the older 2-point `altitude` prop (still
+ * sent whenever the route has a significant climb but no granular
+ * milestones resolved) and, failing that, the single blended "Ruta"
+ * reading — never a fabricated third point.
  */
 export function WeatherImpactCard({
   temperatureC,
@@ -210,6 +259,8 @@ export function WeatherImpactCard({
   multiPointSample,
   lapseRateAdjustmentC,
   altitude,
+  weatherPoints: serverWeatherPoints = [],
+  elevationProfile = [],
 }: {
   temperatureC: number;
   temperatureMaxC: number | null;
@@ -219,6 +270,8 @@ export function WeatherImpactCard({
   multiPointSample: boolean;
   lapseRateAdjustmentC: number;
   altitude?: AltitudeWeather | null;
+  weatherPoints?: ServerWeatherPoint[];
+  elevationProfile?: { distanceFraction: number; elevationM: number }[];
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -247,38 +300,70 @@ export function WeatherImpactCard({
         ? "media histórica estacional"
         : "estimación genérica";
 
-  const weatherPoints: WeatherPoint[] = altitude
-    ? [
-        {
-          key: "valley",
-          locationName: "Valle / Salida",
-          elevationM: altitude.base.elevationM,
-          temperatureC: altitude.base.temperatureC,
-          windSpeedKmh: altitude.base.windSpeedKmh,
-          humidityPct: altitude.base.humidityPct,
-        },
-        {
-          key: "peak",
-          locationName: "Cima del Puerto",
-          elevationM: altitude.peak.elevationM,
-          temperatureCaption: `${Math.round((altitude.peak.temperatureC - altitude.base.temperatureC) * 10) / 10}°C vs. valle`,
-          temperatureC: altitude.peak.temperatureC,
-          windSpeedKmh: altitude.peak.windSpeedKmh,
-          humidityPct: altitude.peak.humidityPct,
-        },
-      ]
-    : [
-        {
-          key: "route",
-          locationName: "Ruta",
-          elevationM: null,
-          temperatureC,
-          temperatureCaption:
-            temperatureMaxC != null && temperatureMaxC !== temperatureC ? `máx ${temperatureMaxC}°C` : undefined,
-          windSpeedKmh,
-          humidityPct,
-        },
-      ];
+  // "Rutas Multipuerto de Alta Montaña" — the real, granular hito list
+  // always wins when the server resolved one (2+ real cols on the route),
+  // falling back to the older 2-point valley/summit comparison, and finally
+  // to the single blended reading — never all three at once.
+  const weatherPoints: WeatherPoint[] =
+    serverWeatherPoints.length > 0
+      ? serverWeatherPoints.map((p) => ({
+          key: p.key,
+          type: p.key.startsWith("start")
+            ? "start"
+            : p.key.startsWith("peak")
+              ? "peak"
+              : p.key.startsWith("valley")
+                ? "valley"
+                : "end",
+          locationName: p.locationName,
+          elevationM: p.elevationM,
+          distanceFraction: p.distanceFraction,
+          distanceKm: p.distanceKm,
+          temperatureC: p.temperatureC,
+          windSpeedKmh: p.windSpeedKmh,
+          humidityPct: p.humidityPct,
+        }))
+      : altitude
+        ? [
+            {
+              key: "valley",
+              type: "valley",
+              locationName: "Valle / Salida",
+              elevationM: altitude.base.elevationM,
+              distanceFraction: 0,
+              distanceKm: null,
+              temperatureC: altitude.base.temperatureC,
+              windSpeedKmh: altitude.base.windSpeedKmh,
+              humidityPct: altitude.base.humidityPct,
+            },
+            {
+              key: "peak",
+              type: "peak",
+              locationName: "Cima del Puerto",
+              elevationM: altitude.peak.elevationM,
+              distanceFraction: 1,
+              distanceKm: null,
+              temperatureCaption: `${Math.round((altitude.peak.temperatureC - altitude.base.temperatureC) * 10) / 10}°C vs. valle`,
+              temperatureC: altitude.peak.temperatureC,
+              windSpeedKmh: altitude.peak.windSpeedKmh,
+              humidityPct: altitude.peak.humidityPct,
+            },
+          ]
+        : [
+            {
+              key: "route",
+              type: "route",
+              locationName: "Ruta",
+              elevationM: null,
+              distanceFraction: 0,
+              distanceKm: null,
+              temperatureC,
+              temperatureCaption:
+                temperatureMaxC != null && temperatureMaxC !== temperatureC ? `máx ${temperatureMaxC}°C` : undefined,
+              windSpeedKmh,
+              humidityPct,
+            },
+          ];
 
   const hasMultiplePoints = weatherPoints.length > 1;
 
@@ -301,13 +386,16 @@ export function WeatherImpactCard({
   // actually rendered — `inline: "start"` matches the strip's own
   // `snap-start` alignment, `block: "nearest"` keeps this a purely
   // horizontal scroll with no vertical page movement.
-  function handleScrollToIndex(direction: "left" | "right") {
+  function handleScrollToSpecificIndex(index: number) {
     const container = scrollContainerRef.current;
     if (!container) return;
-    const newIndex =
-      direction === "left" ? Math.max(0, activeScrollIndex - 1) : Math.min(weatherPoints.length - 1, activeScrollIndex + 1);
-    const targetCard = container.children[newIndex] as HTMLElement | undefined;
+    const clamped = Math.max(0, Math.min(weatherPoints.length - 1, index));
+    const targetCard = container.children[clamped] as HTMLElement | undefined;
     targetCard?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+  }
+
+  function handleScrollToIndex(direction: "left" | "right") {
+    handleScrollToSpecificIndex(direction === "left" ? activeScrollIndex - 1 : activeScrollIndex + 1);
   }
 
   // The one native `onScroll` handler both the button-triggered
@@ -398,7 +486,7 @@ export function WeatherImpactCard({
           className="mt-1 flex w-full items-center justify-between rounded-xl border border-zinc-200/80 bg-[#F6F5F0] px-3 py-2 font-mono text-xs text-[#70685b] transition-colors hover:bg-zinc-100"
         >
           <span className="flex items-center gap-1.5 font-medium">
-            📈 Cronograma térmico por puertos ({weatherPoints.length} hitos)
+            Cronograma térmico por puertos ({weatherPoints.length} hitos)
           </span>
           <span>{showTimeline ? "▲ Ocultar" : "▼ Desplegar"}</span>
         </button>
@@ -442,8 +530,14 @@ export function WeatherImpactCard({
           {/* Perfil Altimétrico 2D — the currently-focused carousel card's
               own node highlights live, synced off the same
               `activeScrollIndex` the carousel's `onScroll` handler already
-              maintains. */}
-          <AltitudeProfileSvg points={weatherPoints} activeIndex={activeScrollIndex} />
+              maintains. Clicking any node jumps the carousel straight to
+              that card. */}
+          <AltitudeProfileSvg
+            points={weatherPoints}
+            profile={elevationProfile}
+            activeIndex={activeScrollIndex}
+            onPointClick={handleScrollToSpecificIndex}
+          />
 
           {/* Contenedor de tarjetas con swipe táctil nativo — real touch/
               trackpad/mouse-wheel scrolling, `snap-x snap-mandatory` +
@@ -453,7 +547,8 @@ export function WeatherImpactCard({
               ring/shadow render uncropped at the strip's edges without
               widening the row past its parent. Rendered in strict
               chronological/route order — the same order `weatherPoints`
-              itself is already built in (Valle/Salida → Cima del Puerto). */}
+              itself is already built in (Salida → Valle → Cima → ... →
+              Llegada). */}
           <div
             ref={scrollContainerRef}
             onScroll={handleContainerScroll}
@@ -471,13 +566,15 @@ export function WeatherImpactCard({
                 )}
               >
                 <span className="mb-0.5 flex items-center gap-1 truncate font-mono text-[10px] font-bold tracking-wider text-[#70685b] uppercase">
-                  {point.key === "peak" && <Mountain className="size-3 shrink-0" />}
+                  {point.type === "peak" && <Mountain className="size-3 shrink-0" />}
                   {point.locationName}
                 </span>
-                {/* Línea 2 — real elevation only; this component receives
-                    no per-point distance-along-route figure, so no km
-                    value is shown here rather than inventing one. */}
+                {/* Línea 2 — real elevation, plus the real distance-along-
+                    route (Km X) whenever a granular server hito supplied
+                    one (a 2-point altitude fallback or the single "Ruta"
+                    reading never had a real km figure to show). */}
                 <span className="mb-2 block font-mono text-[10px] text-zinc-400">
+                  {point.distanceKm != null ? `Km ${point.distanceKm} · ` : ""}
                   {point.elevationM != null ? `${point.elevationM}m altitud` : "Altitud no disponible"}
                 </span>
                 <div className="grid grid-cols-3 gap-2">

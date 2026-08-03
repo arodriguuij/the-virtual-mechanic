@@ -457,6 +457,26 @@ type PlanResult = {
         elevationM: number | null;
       };
     } | null;
+    /** "Cronograma Térmico por Puertos/Valles" — real Salida/Valle/Cima/
+     * Llegada milestones (see `detectElevationMilestones`), each with its
+     * own weather sample and (for a "peak") an Overpass-resolved name.
+     * `[]` on a flat/short route with nothing to detect, in which case
+     * `WeatherImpactCard` falls back to the 2-point `altitude` comparison
+     * (or the single blended reading, if that's `null` too). */
+    weatherPoints: {
+      key: string;
+      locationName: string;
+      elevationM: number;
+      distanceKm: number;
+      distanceFraction: number;
+      temperatureC: number;
+      humidityPct: number;
+      windSpeedKmh: number;
+    }[];
+    /** Thinned `{distanceFraction, elevationM}` elevation curve for the same
+     * carousel's altitude-profile SVG — `[]` when no real per-point profile
+     * was resolved. */
+    elevationProfile: { distanceFraction: number; elevationM: number }[];
   };
   gutTraining: {
     isGutLimited: boolean;
@@ -1979,6 +1999,14 @@ export function FuelingPlanner({
                 // (see `lib/gpx-import.ts`) rather than needing a Strava
                 // streams call the way a saved route does.
                 mountainPasses: parsedGpx.mountainPasses,
+                // "Algoritmo de Detección de Puertos/Valles" — the same
+                // Salida/Valle/Cima/Llegada milestone list and elevation
+                // curve a Strava route resolves server-side via its own
+                // streams call, computed locally instead since a GPX file
+                // already carries per-point altitude — feeds Card 03's
+                // thermal-impact carousel with real per-hito weather.
+                elevationMilestones: parsedGpx.elevationMilestones,
+                elevationProfile: parsedGpx.elevationProfile,
                 intensity,
                 isTargetEvent,
                 pocketFood: pocketFoodPayload,
@@ -2894,6 +2922,8 @@ export function FuelingPlanner({
                   multiPointSample={result.weather.multiPointSample}
                   lapseRateAdjustmentC={result.weather.lapseRateAdjustmentC}
                   altitude={result.weather.altitude}
+                  weatherPoints={result.weather.weatherPoints}
+                  elevationProfile={result.weather.elevationProfile}
                 />
               </div>
 

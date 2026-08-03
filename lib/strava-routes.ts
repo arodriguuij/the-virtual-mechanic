@@ -2,6 +2,12 @@ import "server-only";
 
 import { decodePolyline } from "@/lib/strava";
 import { detectMountainPasses, type MountainPass } from "@/lib/metabolic-engine";
+import {
+  detectElevationMilestones,
+  downsampleElevationProfile,
+  type ElevationMilestone,
+  type ElevationProfilePoint,
+} from "@/lib/utils/elevation-parser";
 
 const STRAVA_API_BASE = "https://www.strava.com/api/v3";
 
@@ -107,6 +113,17 @@ export type RouteElevationExtremes = {
   // Strava call. Used to fraction caffeine dosing across multiple summits
   // instead of one single late-ride dose — see `POST /api/fueling/plan`.
   mountainPasses: MountainPass[];
+  // "Algoritmo de Detección de Puertos/Valles" — a finer-grained Salida →
+  // [Valle → Cima]* → Llegada milestone list (see
+  // `detectElevationMilestones`), each with real coordinates for its own
+  // per-point weather sample and (for a "peak" milestone) Overpass name
+  // lookup — feeds Card 03's thermal-impact carousel, distinct from
+  // `mountainPasses` above, which only drives caffeine-dose timing.
+  elevationMilestones: ElevationMilestone[];
+  // Thinned per-point `{distanceFraction, elevationM}` curve for the same
+  // carousel's own altitude-profile SVG — the real shape of the route, not
+  // just its summit/trough extremes.
+  elevationProfile: ElevationProfilePoint[];
 };
 
 // Unlike activity streams, Strava's route streams endpoint always returns
@@ -183,8 +200,20 @@ export async function fetchRouteElevationExtremes(
   if (!peakPoint || !troughPoint) return null;
   const [peakLat, peakLng] = peakPoint;
   const [troughLat, troughLng] = troughPoint;
-  const mountainPasses = detectMountainPasses(
-    altitude.map((elevationM, i) => ({ distanceFraction: distanceFractionAt(i), elevationM }))
+  const elevationProfile = altitude.map((elevationM, i) => ({
+    distanceFraction: distanceFractionAt(i),
+    elevationM,
+  }));
+  const mountainPasses = detectMountainPasses(elevationProfile);
+  const totalDistanceKm = totalDistance ? totalDistance / 1000 : 0;
+  const elevationMilestones = detectElevationMilestones(
+    altitude.map((elevationM, i) => ({
+      lat: latlng[i][0],
+      lng: latlng[i][1],
+      distanceFraction: distanceFractionAt(i),
+      elevationM,
+    })),
+    totalDistanceKm
   );
   return {
     peak: {
@@ -200,5 +229,7 @@ export async function fetchRouteElevationExtremes(
       elevationM: Math.round(troughAltitude),
     },
     mountainPasses,
+    elevationMilestones,
+    elevationProfile: downsampleElevationProfile(elevationProfile),
   };
 }

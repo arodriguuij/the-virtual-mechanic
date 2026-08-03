@@ -11,6 +11,11 @@ import {
 import { fetchRouteElevationExtremes } from "@/lib/strava-routes";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { logFuelingPlan } from "@/lib/fueling-logs";
+import { getPeakName } from "@/lib/overpass";
+import {
+  type ElevationMilestone,
+  type ElevationProfilePoint,
+} from "@/lib/utils/elevation-parser";
 import {
   estimateRideDurationHours,
   generateTimingTimeline,
@@ -101,6 +106,52 @@ function sanitizeMountainPasses(input: unknown): MountainPass[] {
       distanceFraction: Math.max(0, Math.min(1, p.distanceFraction)),
       elevationM: p.elevationM,
       gainM: typeof p.gainM === "number" ? p.gainM : 0,
+    }));
+}
+
+const VALID_ELEVATION_MILESTONE_TYPES = new Set(["start", "peak", "valley", "end"]);
+
+/** Client-supplied elevation-milestone list (GPX Híbrido, computed locally
+ * via `detectElevationMilestones` — see `lib/gpx-import.ts`) — sanitized the
+ * same "drop anything malformed, never reject the whole request" way every
+ * other client-supplied array in this route is handled. */
+function sanitizeElevationMilestones(input: unknown): ElevationMilestone[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter(
+      (m): m is ElevationMilestone =>
+        m &&
+        typeof m === "object" &&
+        VALID_ELEVATION_MILESTONE_TYPES.has(m.type) &&
+        typeof m.lat === "number" &&
+        typeof m.lng === "number" &&
+        typeof m.distanceFraction === "number" &&
+        typeof m.distanceKm === "number" &&
+        typeof m.elevationM === "number"
+    )
+    .map((m) => ({
+      type: m.type,
+      lat: m.lat,
+      lng: m.lng,
+      distanceFraction: Math.max(0, Math.min(1, m.distanceFraction)),
+      distanceKm: m.distanceKm,
+      elevationM: m.elevationM,
+    }));
+}
+
+/** Client-supplied elevation profile (GPX Híbrido, already computed locally
+ * — see `ParsedGpxRoute.elevationProfile` in `lib/gpx-import.ts`), sanitized
+ * the same way. Feeds Card 03's altitude-profile SVG on the client. */
+function sanitizeElevationProfile(input: unknown): ElevationProfilePoint[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter(
+      (p): p is ElevationProfilePoint =>
+        p && typeof p === "object" && typeof p.distanceFraction === "number" && typeof p.elevationM === "number"
+    )
+    .map((p) => ({
+      distanceFraction: Math.max(0, Math.min(1, p.distanceFraction)),
+      elevationM: p.elevationM,
     }));
 }
 
@@ -288,6 +339,25 @@ export async function POST(request: NextRequest) {
   // Strava streams call whenever a saved route's own elevation profile is
   // fetched instead.
   let mountainPasses: MountainPass[] = sanitizeMountainPasses(body.mountainPasses);
+  // "Algoritmo de Detección de Puertos/Valles" — same source precedence as
+  // `mountainPasses` above: a GPX upload's own client-computed Salida/Valle/
+  // Cima/Llegada list wins until a real Strava streams call (below)
+  // overwrites it with the route's actual elevation profile.
+  let elevationMilestones: ElevationMilestone[] = sanitizeElevationMilestones(body.elevationMilestones);
+  let elevationProfile: ElevationProfilePoint[] = sanitizeElevationProfile(body.elevationProfile);
+  // Real per-milestone weather (Temp/Viento/Humedad), one entry per detected
+  // hito, in route order — `[]` on a flat/short route with no genuine
+  // pass/valley to report, or on any weather-sampling failure.
+  let weatherPoints: {
+    key: string;
+    locationName: string;
+    elevationM: number;
+    distanceKm: number;
+    distanceFraction: number;
+    temperatureC: number;
+    humidityPct: number;
+    windSpeedKmh: number;
+  }[] = [];
 
   // A GPX Híbrido upload already found its own elevation extremes
   // client-side (it has per-point altitude, unlike a Strava route's summary
@@ -352,6 +422,8 @@ export async function POST(request: NextRequest) {
             // above) — mutually exclusive in practice, so this always wins
             // whenever it fires.
             mountainPasses = extremes.mountainPasses;
+            elevationMilestones = extremes.elevationMilestones;
+            elevationProfile = extremes.elevationProfile;
           }
         }
         if (peak && trough) {
@@ -400,6 +472,51 @@ export async function POST(request: NextRequest) {
               routeSamplePoints = weather.pointSamples;
             }
           }
+        }
+      }
+
+      // "Cronograma Térmico por Puertos/Valles" — real per-hito weather (not
+      // just the single blended start/summit/finish/valley sample above),
+      // one Open-Meteo lookup per detected milestone, in parallel. Feeds
+      // Card 03's thermal-impact carousel with a genuinely granular
+      // Salida/Valle/Cima/Llegada breakdown instead of one 2-point valley-
+      // vs-peak comparison.
+      if (elevationMilestones.length > 0) {
+        const start = new Date(departureIso);
+        const durationMs = durationHours * 60 * 60 * 1000;
+        const milestoneWeather = await getWeatherForRoute(
+          elevationMilestones.map((m) => ({
+            lat: m.lat,
+            lng: m.lng,
+            atDate: new Date(start.getTime() + durationMs * m.distanceFraction),
+          }))
+        );
+        if (milestoneWeather) {
+          const named = await Promise.all(
+            elevationMilestones.map(async (m, i) => {
+              const sample = milestoneWeather.pointSamples[i];
+              if (!sample) return null;
+              const locationName =
+                m.type === "peak"
+                  ? await getPeakName(m.lat, m.lng, m.distanceKm, m.elevationM)
+                  : m.type === "valley"
+                    ? `Valle Km ${Math.round(m.distanceKm)}`
+                    : m.type === "start"
+                      ? "Salida"
+                      : "Llegada";
+              return {
+                key: `${m.type}-${i}`,
+                locationName,
+                elevationM: m.elevationM,
+                distanceKm: m.distanceKm,
+                distanceFraction: m.distanceFraction,
+                temperatureC: Math.round(sample.temperatureC * 10) / 10,
+                humidityPct: Math.round(sample.humidity * 10) / 10,
+                windSpeedKmh: Math.round(sample.windSpeedKmh * 10) / 10,
+              };
+            })
+          );
+          weatherPoints = named.filter((p): p is NonNullable<typeof p> => p != null);
         }
       }
 
@@ -644,6 +761,15 @@ export async function POST(request: NextRequest) {
       // `hasSignificantClimb` above. `null` for a flat route/Entreno Manual,
       // in which case the single blended reading above is the whole story.
       altitude: altitudeWeather,
+      // "Cronograma Térmico por Puertos/Valles" — real Salida/Valle/Cima/
+      // Llegada milestones with their own weather + (for a peak) an
+      // Overpass-resolved name. `[]` on a flat/short route with nothing to
+      // detect — Card 03 falls back to the single blended reading above.
+      weatherPoints,
+      // Thinned elevation curve for the same carousel's altitude-profile
+      // SVG — `[]` when no real per-point profile was ever resolved (Entreno
+      // Manual, or a route/GPX with no usable altitude stream).
+      elevationProfile,
     },
     gutTraining: {
       isGutLimited: gutTarget.isGutLimited,
