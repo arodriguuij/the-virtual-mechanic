@@ -134,6 +134,17 @@
   --badge-bg: #eae7df;
   --badge-foreground: #3d3a33;
   --badge-border: #dcd8cc;
+
+  /* "Fix de Safari iOS Navigation Bar" — this app never toggles the `.dark`
+     class above (no theme switcher exists), so it's always light, but
+     without an explicit `color-scheme` the browser is left to infer that
+     from `prefers-color-scheme` media queries alone — none exist here. On
+     an iOS device set to system Dark Mode, that ambiguity is what lets
+     Safari's own floating bottom chrome (the "pill" toolbar) render with
+     mismatched, occasionally opaque/gray native materials instead of
+     staying in sync with this always-light page. Declaring it explicitly
+     removes the ambiguity regardless of the device's own system setting. */
+  color-scheme: light;
 }
 
 .dark {
@@ -189,6 +200,18 @@
     max-width: 100%;
     overflow-x: hidden;
     position: relative;
+    /* "Fix de Safari iOS Navigation Bar" — the root document's own
+       vertical elastic bounce (scrolling past the top/bottom and
+       rubber-banding back) is what flips Safari's floating "pill" toolbar
+       into its solid/opaque bar state, since the bounce briefly exposes
+       whatever's beneath the document instead of this app's own porcelain
+       canvas. `overscroll-behavior-y: none` on the root suppresses that
+       bounce for the document scroll itself. Deliberately Y-axis only —
+       an earlier X-axis attempt (`overscroll-behavior-x`) was reverted
+       because it fought iOS Safari's native horizontal back-swipe
+       navigation gesture; vertical bounce containment has no such
+       conflict with any gesture this app relies on. */
+    overscroll-behavior-y: none;
   }
   body {
     @apply bg-background text-foreground;

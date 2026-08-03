@@ -353,10 +353,16 @@ function IntensityObjectiveSelect({
   id,
   value,
   onChange,
+  error,
 }: {
   id: string;
   value: IntensityLevel | "";
   onChange: (value: IntensityLevel) => void;
+  /** "Validación Secuencial Inteligente" — set once `handleCalculate`
+   * (`FuelingPlanner`) finds Paso 01 complete but this select still empty.
+   * Purely a border/micro-text highlight, same amber treatment as the
+   * route select below — never forces the native picker open itself. */
+  error?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -373,7 +379,7 @@ function IntensityObjectiveSelect({
       <div className="relative">
         <select
           id={id}
-          className={selectableInputClass}
+          className={cn(selectableInputClass, error && "border-2 border-amber-400 bg-amber-50/20")}
           value={value}
           onChange={(e) => onChange(e.target.value as IntensityLevel)}
         >
@@ -388,6 +394,11 @@ function IntensityObjectiveSelect({
         </select>
         <ChevronDown className={selectChevronClass} />
       </div>
+      {error && (
+        <span className="mt-1 block font-mono text-[10px] text-amber-700">
+          * Por favor, selecciona una intensidad
+        </span>
+      )}
     </div>
   );
 }
@@ -1451,6 +1462,13 @@ export function FuelingPlanner({
   const [hasCalculatedOnce, setHasCalculatedOnce] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // "Validación Secuencial Inteligente" — `handleCalculate` below checks
+  // Paso 01 (route/GPX/duration) before Paso 02 (intensity), one at a
+  // time, rather than reporting both gaps in one combined check — so the
+  // athlete is always guided to fix exactly one thing at a time, in the
+  // order the form itself reads top to bottom.
+  const [routeError, setRouteError] = useState(false);
+  const [intensityError, setIntensityError] = useState(false);
   const [isOfflineCache, setIsOfflineCache] = useState(false);
   const [parsedGpx, setParsedGpx] = useState<ParsedGpxRoute | null>(null);
   const [gpxDurationHours, setGpxDurationHours] = useState(2);
@@ -1839,6 +1857,11 @@ export function FuelingPlanner({
     setBottleCapacityOverrideMl(null);
     setBottleCapacityEditorOpen(false);
     setShowBikeScoops(false);
+    // A route/GPX/duration or intensity change means whichever error was
+    // showing may no longer apply — cleared here rather than left stale
+    // for `handleCalculate`'s next run to silently correct.
+    setRouteError(false);
+    setIntensityError(false);
   }, [
     mode,
     selectedRouteId,
@@ -1912,30 +1935,59 @@ export function FuelingPlanner({
   }
 
   async function handleCalculate() {
-    // "Lógica de Navegación: enfocar en vez de bloquear mudo" — the CTA
-    // stays clickable even while Paso 01/02 is still incomplete (see the
-    // button's own `disabled` condition below, which no longer covers
-    // these 3 cases) specifically so a click still lands here and can
-    // guide the athlete to whatever's missing, rather than the button
-    // just silently refusing to respond. Scrolls the relevant control into
-    // view and — for the two real `<input>`s — focuses it too; the GPX
-    // dropzone has no single focusable control worth targeting, so it only
-    // scrolls. Returns before ever calling the API.
-    if (mode === "route" && (!selectedRoute || !intensity)) {
-      const routeSelect = document.getElementById("route");
-      routeSelect?.scrollIntoView({ behavior: "smooth", block: "center" });
-      routeSelect?.focus();
-      return;
-    }
-    if (mode === "gpx" && (!parsedGpx || !intensity)) {
-      document.getElementById("gpx-dropzone")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-    if (mode === "quick" && !quickValid) {
-      const hoursInput = document.getElementById("duration-hours");
-      hoursInput?.scrollIntoView({ behavior: "smooth", block: "center" });
-      hoursInput?.focus();
-      return;
+    // "Validación Secuencial Inteligente" — the CTA stays clickable even
+    // while Paso 01/02 is still incomplete (see the button's own
+    // `disabled` condition below, which no longer covers these cases)
+    // specifically so a click still lands here and can guide the athlete
+    // to whatever's missing — but one gap at a time, in the order the form
+    // itself reads (route/GPX/duración first, intensidad second), rather
+    // than reporting both at once. Never calls `.focus()` on a `<select>`:
+    // on iOS Safari, programmatically focusing a `<select>` pops its
+    // native picker wheel open uninvited, which read as the page "forcing"
+    // a menu open rather than simply pointing at what's missing — a real
+    // `<input>` (Duración) has no such side effect, so that one still gets
+    // `.focus()` for a real keyboard. Returns before ever calling the API.
+    if (mode === "route") {
+      if (!selectedRoute) {
+        setRouteError(true);
+        document.getElementById("route")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      setRouteError(false);
+      if (!intensity) {
+        setIntensityError(true);
+        document.getElementById("intensity")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      setIntensityError(false);
+    } else if (mode === "gpx") {
+      if (!parsedGpx) {
+        setRouteError(true);
+        document.getElementById("gpx-dropzone")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      setRouteError(false);
+      if (!intensity) {
+        setIntensityError(true);
+        document.getElementById("intensity-gpx")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      setIntensityError(false);
+    } else if (mode === "quick") {
+      if (quickDurationHours <= 0) {
+        setRouteError(true);
+        const hoursInput = document.getElementById("duration-hours");
+        hoursInput?.scrollIntoView({ behavior: "smooth", block: "center" });
+        hoursInput?.focus();
+        return;
+      }
+      setRouteError(false);
+      if (!intensity) {
+        setIntensityError(true);
+        document.getElementById("intensity-quick")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      setIntensityError(false);
     }
 
     setLoading(true);
@@ -2205,9 +2257,16 @@ export function FuelingPlanner({
                         <div className="relative mt-1.5">
                           <select
                             id="route"
-                            className={cn(selectableFieldClass, refreshingRoutes && "text-zinc-400")}
+                            className={cn(
+                              selectableFieldClass,
+                              refreshingRoutes && "text-zinc-400",
+                              routeError && "border-2 border-amber-400 bg-amber-50/20"
+                            )}
                             value={refreshingRoutes ? "__syncing" : selectedRouteId}
-                            onChange={(e) => setSelectedRouteId(e.target.value)}
+                            onChange={(e) => {
+                              setSelectedRouteId(e.target.value);
+                              setRouteError(false);
+                            }}
                             disabled={refreshingRoutes}
                           >
                             {refreshingRoutes ? (
@@ -2236,6 +2295,11 @@ export function FuelingPlanner({
                             <ChevronDown className={selectChevronClass} />
                           )}
                         </div>
+                        {routeError && (
+                          <span className="mt-1 block font-mono text-[10px] text-amber-700">
+                            * Por favor, selecciona una ruta
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <div className="flex flex-col items-start gap-2 border border-dashed border-neutral-300 px-4 py-3">
@@ -2284,7 +2348,11 @@ export function FuelingPlanner({
                           id="gpx-dropzone"
                           className={cn(
                             "flex flex-col items-center justify-center gap-2 border-2 border-dashed px-4 py-8 text-center transition-colors duration-150",
-                            isDraggingGpx ? "border-neutral-900 bg-neutral-50" : "border-neutral-300"
+                            isDraggingGpx
+                              ? "border-neutral-900 bg-neutral-50"
+                              : routeError
+                                ? "border-amber-400 bg-amber-50/20"
+                                : "border-neutral-300"
                           )}
                         >
                           <Upload className="size-5 text-neutral-400" />
@@ -2309,6 +2377,11 @@ export function FuelingPlanner({
                           />
                         </div>
                         {gpxError && <p className="mt-2 text-sm text-status-warning">{gpxError}</p>}
+                        {routeError && !gpxError && (
+                          <span className="mt-1 block font-mono text-[10px] text-amber-700">
+                            * Por favor, sube un archivo GPX
+                          </span>
+                        )}
                       </div>
                     )}
                   </>
@@ -2337,9 +2410,16 @@ export function FuelingPlanner({
                         step={1}
                         placeholder="0"
                         aria-label="Horas"
-                        className={cn(inputClass, "pr-8")}
+                        className={cn(
+                          inputClass,
+                          "pr-8",
+                          routeError && "border-2 border-amber-400 bg-amber-50/20"
+                        )}
                         value={quickHoursInput}
-                        onChange={(e) => setQuickHoursInput(e.target.value)}
+                        onChange={(e) => {
+                          setQuickHoursInput(e.target.value);
+                          setRouteError(false);
+                        }}
                       />
                       <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
                         h
@@ -2357,13 +2437,21 @@ export function FuelingPlanner({
                         aria-label="Minutos"
                         className={cn(inputClass, "pr-10")}
                         value={quickMinutesInput}
-                        onChange={(e) => setQuickMinutesInput(e.target.value)}
+                        onChange={(e) => {
+                          setQuickMinutesInput(e.target.value);
+                          setRouteError(false);
+                        }}
                       />
                       <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
                         min
                       </span>
                     </div>
                   </div>
+                  {routeError && (
+                    <span className="mt-1 block font-mono text-[10px] text-amber-700">
+                      * Por favor, introduce una duración
+                    </span>
+                  )}
                 </div>
                 {/* "Vatios Objetivo" was removed entirely — its own input
                     used to sit here, next to Duración, as an independent
@@ -2375,7 +2463,12 @@ export function FuelingPlanner({
                     zone's %FTP against the athlete's real profile FTP, so
                     a real selection is mandatory here too (see
                     `quickValid`). */}
-                <IntensityObjectiveSelect id="intensity-quick" value={intensity} onChange={setIntensity} />
+                <IntensityObjectiveSelect
+                  id="intensity-quick"
+                  value={intensity}
+                  onChange={setIntensity}
+                  error={intensityError}
+                />
               </div>
             )}
           </div>
@@ -2425,7 +2518,12 @@ export function FuelingPlanner({
 
           {mode === "route" && (
             <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <IntensityObjectiveSelect id="intensity" value={intensity} onChange={setIntensity} />
+              <IntensityObjectiveSelect
+                id="intensity"
+                value={intensity}
+                onChange={setIntensity}
+                error={intensityError}
+              />
               <DeparturePicker
                 dayMode={departureDayMode}
                 onDayModeChange={setDepartureDayMode}
@@ -2460,7 +2558,12 @@ export function FuelingPlanner({
           {mode === "gpx" && parsedGpx && (
             <div className="mt-2 flex flex-col gap-2">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <IntensityObjectiveSelect id="intensity-gpx" value={intensity} onChange={setIntensity} />
+                <IntensityObjectiveSelect
+                  id="intensity-gpx"
+                  value={intensity}
+                  onChange={setIntensity}
+                  error={intensityError}
+                />
                 <DeparturePicker
                   dayMode={departureDayMode}
                   onDayModeChange={setDepartureDayMode}
