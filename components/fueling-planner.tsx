@@ -119,6 +119,19 @@ function getHydrationMarks(intervalMinutes: number, durationHours: number): stri
 // purchases the "Paradas previstas en ruta" section (Card 02) points the
 // athlete toward, so they're the first thing visible in Card 04's inventory
 // rather than buried after the pocket-carried items.
+//
+// "Limpieza de Despensa Genérica" — the 4 generic gel dose tiers
+// (`gel_small`/`gel_standard`/`gel_high`/`gel_ultra`) were removed from this
+// catalog outright: a rider reaching for a gel now picks the *real* branded
+// product (Maurten/226ERS/SiS/etc., with its own real sodium figure) from
+// `CommercialProductsSheet` instead, or falls back to the always-available
+// "Personalizado" free-grams entry — a generic placeholder gel duplicated
+// both of those without adding anything real of its own. `PocketFoodItemType`
+// itself, and its `gel_*` members, are untouched in `lib/metabolic-engine.ts`
+// — that type still backs the server-only "Óptimo"/"Híbrido" fueling modes
+// (unreachable from this UI since the "Reestructuración Integral..." pass,
+// see that section's own doc history, but still real API surface), so only
+// this file's own catalog arrays stopped offering them, not the shared type.
 const POCKET_FOOD_TYPES: PocketFoodItemType[] = [
   "soda",
   "pastry",
@@ -128,13 +141,7 @@ const POCKET_FOOD_TYPES: PocketFoodItemType[] = [
   "dates",
   "gummies",
 ];
-// "gel_ultra" (the 80g commercial sachet — Maurten 320 / Beta Fuel) joins
-// the fast-absorption gel tiers rather than the pocket-solids list — it's
-// dissolved directly into a bottle, not eaten from the jersey, but it still
-// belongs in the same "fast source, schedule from the ride's second half"
-// bucket `generateTimingTimeline` already sorts every gel dose into.
-const GEL_DOSE_TYPES: PocketFoodItemType[] = ["gel_small", "gel_standard", "gel_high", "gel_ultra"];
-const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = [...POCKET_FOOD_TYPES, ...GEL_DOSE_TYPES];
+const ALL_POCKET_FOOD_TYPES: PocketFoodItemType[] = POCKET_FOOD_TYPES;
 const MAX_POCKET_FOOD_QTY = 6;
 
 // "Balance de Sodio (marcas comerciales)" — Card 05 flags a real sodium gap
@@ -163,15 +170,15 @@ const SODIUM_SUGGESTION_COVERAGE_FRACTION = 0.8;
 const WATER_ONLY_TIP_DURATION_THRESHOLD_HOURS = 2;
 const WATER_ONLY_TIP_HEAT_THRESHOLD_C = 28;
 
-// "Optimización de Densidad en Simulador" — the 4 real catalog items shown
-// by default in Card 04 before "+ Mostrar más alimentos" is tapped (the
-// Ziploc reload dose is the 5th habitual item the audit named, rendered
-// separately since it isn't a `PocketFoodItemType` — see `ziplocDoseActive`
-// above). Chosen for being the most common real purchases/carries this app
-// already points the athlete toward: Refresco/Bollería (the café-stop
-// items "Paradas previstas en ruta" suggests), Plátano (the default solid),
-// and Gel estándar (the default gel dose).
-const DEFAULT_VISIBLE_POCKET_FOOD_TYPES: PocketFoodItemType[] = ["soda", "pastry", "banana", "gel_standard"];
+// "Optimización de Densidad en Simulador" — the catalog items shown by
+// default in Card 04 before "+ Mostrar más alimentos" is tapped. Narrowed
+// (as part of "Limpieza de Despensa Genérica") to just the two most common
+// real purchases/carries this app already points the athlete toward —
+// Refresco (the café-stop item "Paradas previstas en ruta" suggests) and
+// Plátano — sitting alongside the always-visible "Personalizado" free-grams
+// row, so Card 04's default view is 3 rows total rather than the previous
+// 5 (4 catalog items + the since-removed Ziploc reload dose).
+const DEFAULT_VISIBLE_POCKET_FOOD_TYPES: PocketFoodItemType[] = ["soda", "banana"];
 const MAX_CUSTOM_CARBS_G = 500;
 
 // Offline fallback for "en medio de un puerto sin cobertura" — the last
@@ -1168,12 +1175,10 @@ function DeparturePicker({
 }
 
 // Generalized off `PocketFoodItemType` (a plain `label`/`carbsG`/`ariaLabel`
-// triad instead) so the same row markup can also render the "Dosis de
-// recarga Mix (Ziploc)" item below — its per-unit grams are dynamic
-// (identical to whatever one fuel bottle at the athlete's own bottle size
-// actually delivers this ride, see `ziplocDoseGramsPerUnit`), not a fixed
-// `pocketFoodCarbsG` catalog constant a `type` lookup could resolve on its
-// own the way every real catalog item's row still can.
+// triad instead) so this row's own props stay decoupled from the catalog's
+// own `PocketFoodItemType` union — every call site still resolves its
+// figures from the real catalog (`pocketFoodName`/`POCKET_FOOD_CARBS_G`/
+// `pocketFoodLabels`), but the component itself doesn't need to know that.
 // "Limpieza de Badges Redundantes" — this row used to lead with a
 // `[ GEL ]`/`[ SÓLIDO ]`/`[ LÍQUIDO ]`/`[ FÓRMULA ]` category tag before the
 // item's own name; removed outright (not just visually — the whole
@@ -1224,9 +1229,9 @@ function PocketFoodStepperRow({
     >
       {/* No category badge anymore — the name gets the full available
           width. `truncate` (not `whitespace-normal`) on the name itself so
-          a long title like "Dosis de recarga Mix (Ziploc)" stays on one
-          line rather than wrapping the row taller; the carb figure is
-          `shrink-0` so it's never what gets squeezed. */}
+          a long product name stays on one line rather than wrapping the
+          row taller; the carb figure is `shrink-0` so it's never what gets
+          squeezed. */}
       <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
         <span className="min-w-0 truncate text-sm text-neutral-900">{label}</span>
         <span className="shrink-0 font-mono text-xs text-zinc-500">{carbsG}g HC</span>
@@ -1357,25 +1362,18 @@ export function FuelingPlanner({
   // trigger link, see `selectedCommercialProducts` below.
   const [commercialProducts, setCommercialProducts] = useState<Record<string, number>>({});
   const [commercialProductsSheetOpen, setCommercialProductsSheetOpen] = useState(false);
-  // "Incluye cafeína" — a modifier on whatever gel(s) are already selected,
-  // not a 4th gel-catalog entry ("no duplicar ítems de geles"). Only shown
-  // once at least one gel type has a quantity > 0 (see `hasGelSelected`
-  // below), and the caffeine milestone in `timingTimeline` only appears at
-  // all when this is checked — see `generateTimingTimeline` in
-  // `lib/metabolic-engine.ts`.
-  const [includeCaffeine, setIncludeCaffeine] = useState(false);
   // "Mi Despensa" — starts as the full catalog (zero-onboarding: the
   // planner works fully from the first session with no setup) and is
   // overwritten from `localStorage` on mount if the athlete already
   // customized it on a previous visit (see the effect below).
   const [activePantryTypes, setActivePantryTypes] = useState<PocketFoodItemType[]>(ALL_POCKET_FOOD_TYPES);
   const [pantryModalOpen, setPantryModalOpen] = useState(false);
-  // "Optimización de Densidad" — 11 steppers at once was real choice-overload
-  // fatigue on a real phone, mid-kitchen-prep. Collapsed to the handful of
-  // habitual items by default (`DEFAULT_VISIBLE_POCKET_FOOD_TYPES` below,
-  // plus the Ziploc dose row, which is never gated by this), with the rest
-  // one tap away via "+ Mostrar más alimentos" rather than gone entirely —
-  // nothing in "Editar mi despensa" changes because of this, it's purely a
+  // "Optimización de Densidad" — showing every active catalog item at once
+  // was real choice-overload fatigue on a real phone, mid-kitchen-prep.
+  // Collapsed to the handful of habitual items by default
+  // (`DEFAULT_VISIBLE_POCKET_FOOD_TYPES` below), with the rest one tap away
+  // via "+ Mostrar más alimentos" rather than gone entirely — nothing in
+  // "Editar mi despensa" changes because of this, it's purely a
   // display-density preference layered on top of it.
   const [showAllPocketFood, setShowAllPocketFood] = useState(false);
   // "Estrategia nutricional" (Óptimo/Mi Inventario/Híbrido) was removed
@@ -1432,28 +1430,6 @@ export function FuelingPlanner({
   // edit with zero extra wiring. Resets to `0` on every Paso 01/02 change,
   // same as `bottleConfig` (see the reset effect below).
   const [cafeteriaStopCount, setCafeteriaStopCount] = useState<CafeteriaStopCount>(0);
-  // "Dosis de recarga Mix (Ziploc)" — replaces the old automatic
-  // "Estrategia de recarga en ruta" red card: instead of the app *telling*
-  // the athlete they need N reload bags, they declare how many pre-measured
-  // mix doses they're actually carrying in their jersey, same self-serve
-  // convention as every other pocket-food item. Deliberately kept as its
-  // own state rather than folded into `pocketFood`/`PocketFoodItemType`:
-  // its per-unit grams are dynamic — always identical to whatever one fuel
-  // bottle at the athlete's own configured bottle size delivers *this
-  // ride* (see `ziplocDoseGramsPerUnit` below), not a fixed catalog
-  // constant the shared type (and its server-side validation) can hold.
-  // Same "client-only planning preference, never round-tripped to the
-  // server" convention as `bottleConfig`/`cafeteriaStopCount` above — a
-  // Ziploc bag is packaging for the *same* already-calculated recipe, not
-  // new nutrition that should shrink the server's own target on a
-  // recalculation (see `handleCalculate`'s `pocketFoodPayload` below,
-  // which deliberately never includes it). The *quantity* resets to `0` on
-  // every Paso 01/02 change, same as `bottleConfig`/`cafeteriaStopCount` —
-  // `ziplocDoseActive` (its own "Editar mi despensa" visibility) doesn't,
-  // matching `activePantryTypes`'s own session-long persistence rather
-  // than a per-calculation input.
-  const [ziplocDoseActive, setZiplocDoseActive] = useState(true);
-  const [ziplocDoseCount, setZiplocDoseCount] = useState(0);
   const [result, setResult] = useState<PlanResult | null>(null);
   // Tracks whether the athlete has *ever* successfully calculated a
   // strategy in this session — drives the CTA's label ("Calcular..." the
@@ -1535,7 +1511,7 @@ export function FuelingPlanner({
   // grams/bottle-count instantly, client-side, with no recalculation
   // round-trip — every display below reads this instead of
   // `result.bottlePlan` directly, so the override reaches the hero recipe,
-  // the checklist, and the Ziploc reload-dose stepper all at once.
+  // the checklist, and the reload-strategy Ziploc bag dose all at once.
   const displayBottlePlan = useMemo(
     () =>
       result && bottleCapacityOverrideMl && bottleCapacityOverrideMl !== result.bottlePlan.bottleSizeMl
@@ -1549,10 +1525,7 @@ export function FuelingPlanner({
 
   // "Conversión Dinámica a Medidas Caseras" — recomputed from the last
   // calculated result whenever it changes; cheap pure arithmetic, no memo
-  // needed. Card 05's "Dosis ejecutiva" is scoped to the per-bottle figure
-  // — the old "Estrategia de recarga en ruta" card (and its own
-  // `ziplocMeasures` scoop-equivalence figure) was removed outright, see
-  // "Dosis de recarga Mix (Ziploc)" above for its replacement.
+  // needed. Card 05's "Dosis ejecutiva" is scoped to the per-bottle figure.
   const fuelBottleMeasures = displayBottlePlan
     ? calculateHouseholdMeasures({
         saltG: getTableSaltGrams(displayBottlePlan.fuelBottles.sodiumMgPerBottle),
@@ -1574,17 +1547,6 @@ export function FuelingPlanner({
     result && displayBottlePlan
       ? getBottleCarbsContributionG(bottleConfig, displayBottlePlan, result.athleteBottleCount)
       : 0;
-  // "Dosis de recarga Mix (Ziploc)" — always identical to what one fuel
-  // bottle at the athlete's *own* configured bottle size delivers this
-  // ride (`bottlePlan.bottleSizeMl` already comes from their real
-  // `athlete_profiles.bottle_capacity_ml`, or the in-situ override above),
-  // so changing that profile field/override and recalculating updates this
-  // figure automatically with zero extra wiring — same reactive pattern as
-  // every other Card 04 coverage source.
-  const ziplocDoseGramsPerUnit = displayBottlePlan
-    ? displayBottlePlan.fuelBottles.maltodextrinGPerBottle + displayBottlePlan.fuelBottles.fructoseGPerBottle
-    : 0;
-  const ziplocDoseCarbsG = ziplocDoseCount * ziplocDoseGramsPerUnit;
   // "Selector Opcional de Marcas Reales" — every selected commercial
   // product contributes both HC and Na+ independently: the carb side feeds
   // the same CUBIERTO/RESTANTE pill as every other coverage source below,
@@ -1607,7 +1569,7 @@ export function FuelingPlanner({
     (product) => (commercialProducts[product.id] ?? 0) > 0
   );
   const bottlesAndPocketCoveredCarbsG =
-    pocketFoodCarbsPreview + bottleCarbsContributionG + ziplocDoseCarbsG + commercialCarbsG;
+    pocketFoodCarbsPreview + bottleCarbsContributionG + commercialCarbsG;
   // D_base — the whole reason "Planificación de Paradas en Ruta" exists:
   // the deficit still pending from bottles + pocket food *alone*, before
   // any café/gas-station stop is factored in. Deliberately re-derived on
@@ -1680,24 +1642,15 @@ export function FuelingPlanner({
   // list stays in sync with what's currently selected.
   const bikeChecklistLines =
     result && displayBottlePlan ? getBikeChecklistLines(result, bottleConfig, displayBottlePlan) : [];
-  // Ziploc reload doses aren't part of `pocketFood` (see the state comment
-  // above), so they don't come back out of `getPocketChecklistLines` for
-  // free — appended here instead, replacing the function of the old
-  // "Estrategia de recarga en ruta" card's own checklist line.
-  // Real commercial products aren't part of `pocketFood` either (see the
-  // `commercialProducts` state comment above) — appended here for the same
-  // reason the Ziploc dose is, so a selected brand actually shows up in the
-  // "Comida de bolsillo" packing list, sodium figure included.
+  // Real commercial products aren't part of `pocketFood` (see the
+  // `commercialProducts` state comment above) — appended here so a selected
+  // brand actually shows up in the "Comida de bolsillo" packing list,
+  // sodium figure included.
   const commercialChecklistLines = COMMERCIAL_PRODUCTS.filter((p) => (commercialProducts[p.id] ?? 0) > 0).map(
     (p) => `${commercialProducts[p.id]}x ${p.brand} ${p.name} (${p.carbs}g HC · ${p.sodium}mg Na+)`
   );
   const pocketChecklistLines = [
     ...getPocketChecklistLines(pocketFood, customCarbsG),
-    ...(ziplocDoseCount > 0
-      ? [
-          `${ziplocDoseCount}x Recarga Mix (Ziploc, ${ziplocDoseGramsPerUnit}g HC)`,
-        ]
-      : []),
     ...commercialChecklistLines,
   ];
   const waterPlanChecklistLines = result ? getWaterPlanLines(result) : [];
@@ -1744,14 +1697,6 @@ export function FuelingPlanner({
   const hydrationMarks = result
     ? getHydrationMarks(result.timingTimeline.hydrationIntervalMinutes, result.durationHours)
     : [];
-
-  // The "Incluye cafeína" checkbox only makes sense once at least one gel
-  // dose is actually selected — hidden otherwise, and its own checked state
-  // is deliberately never sent to the server unless a gel is still selected
-  // (see `handleCalculate`'s `pocketFoodPayload` below), so removing the
-  // last gel after checking it can't leave a stale `includeCaffeine: true`
-  // scheduling a caffeine milestone with no real caffeine source behind it.
-  const hasGelSelected = GEL_DOSE_TYPES.some((type) => (pocketFood[type] ?? 0) > 0);
 
   // "Optimización de Densidad" — collapsed by default to the habitual set
   // (`DEFAULT_VISIBLE_POCKET_FOOD_TYPES`), but an item the athlete already
@@ -1832,8 +1777,7 @@ export function FuelingPlanner({
   // clear `result` for the result panel to disappear along with it. The
   // same trigger also resets Card 04's own downstream state (bottle
   // config back to "Solo Agua," planned café/gasolinera stops back to 0,
-  // planned Ziploc reload doses back to 0, every pocket-food quantity back
-  // to 0) —
+  // every pocket-food quantity back to 0) —
   // those figures were computed against the *old* target and would
   // otherwise silently carry over into a strategy they were never
   // actually chosen for. `isInitialInputRender` skips the very first run
@@ -1850,7 +1794,6 @@ export function FuelingPlanner({
     setResult(null);
     setBottleConfig(DEFAULT_BOTTLE_CONFIG);
     setCafeteriaStopCount(0);
-    setZiplocDoseCount(0);
     setPocketFood({});
     setCustomCarbsG(0);
     setCommercialProducts({});
@@ -1994,12 +1937,14 @@ export function FuelingPlanner({
     setError(null);
     try {
       const departureIso = new Date(departureLocal).toISOString();
+      // `includeCaffeine` is no longer sent at all — it was only ever a
+      // modifier on the now-removed generic gel catalog (see "Limpieza de
+      // Despensa Genérica"); `PocketFoodSelection.includeCaffeine` stays
+      // optional in `lib/metabolic-engine.ts` and simply defaults falsy
+      // server-side when omitted, so no caffeine milestone is scheduled.
       const pocketFoodPayload = {
         ...pocketFood,
         customCarbsG,
-        // Only ever `true` while a real gel is actually selected — see
-        // `hasGelSelected` above.
-        includeCaffeine: hasGelSelected && includeCaffeine,
       };
       const body =
         mode === "route" && selectedRoute
@@ -3121,9 +3066,10 @@ export function FuelingPlanner({
                 <span className={formFieldLabelClass}>Configuración de bidones</span>
                 {/* "Micro-Edición In-Situ de Capacidad de Bidón" — a
                     display-only preview of a different bottle size than the
-                    athlete's saved profile, re-scaling the per-bottle
-                    grams/Ziploc dose everywhere below with zero server
-                    round-trip (see `displayBottlePlan`). */}
+                    athlete's saved profile, re-scaling the per-bottle grams
+                    (and the reload-strategy Ziploc bag dose, see "Reload
+                    strategy" in the recipe engine) everywhere below with
+                    zero server round-trip (see `displayBottlePlan`). */}
                 {displayBottlePlan && (
                   <div className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-500">
                     <span>
@@ -3227,7 +3173,7 @@ export function FuelingPlanner({
                     Editar mi despensa
                   </button>
                 </div>
-                {activePantryTypes.length === 0 && !ziplocDoseActive && (
+                {activePantryTypes.length === 0 && (
                   <p className="mb-2 text-xs text-neutral-500">
                     Sin alimentos activos — actívalos en &quot;Editar mi despensa&quot; para verlos aquí.
                   </p>
@@ -3243,34 +3189,6 @@ export function FuelingPlanner({
                       onChange={(qty) => setPocketFoodQty(type, qty)}
                     />
                   ))}
-                  {/* "Dosis de recarga Mix (Ziploc)" — replaces the old
-                      automatic "Estrategia de recarga en ruta" red card:
-                      the athlete declares how many pre-measured mix doses
-                      they're carrying, and each one counts toward CUBIERTO
-                      exactly like any other pocket-food item. Not part of
-                      `ALL_POCKET_FOOD_TYPES`/the real catalog (its grams
-                      are dynamic, not a fixed constant — see
-                      `ziplocDoseGramsPerUnit` above), so it's gated by its
-                      own `ziplocDoseActive` flag rather than
-                      `activePantryTypes`. */}
-                  {ziplocDoseActive && (
-                    <PocketFoodStepperRow
-                      // "Nombres Cortos" — the full "Dosis de recarga Mix
-                      // (Ziploc)" reliably truncated on a narrow phone; the
-                      // row's own `carbsG` caption already renders the
-                      // grams right next to it ("Recarga Mix" + "44g HC"),
-                      // so nothing real is lost. `ariaLabel` keeps the
-                      // fuller description for screen readers, where
-                      // truncation doesn't apply.
-                      label="Recarga Mix"
-                      carbsG={ziplocDoseGramsPerUnit}
-                      ariaLabel="Dosis de recarga Mix (Ziploc)"
-                      qty={ziplocDoseCount}
-                      onChange={(qty) =>
-                        setZiplocDoseCount(Math.max(0, Math.min(MAX_POCKET_FOOD_QTY, qty)))
-                      }
-                    />
-                  )}
                   <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-2 last:border-b-0">
                     <label htmlFor="custom-carbs" className="text-sm text-neutral-900">
                       Personalizado
@@ -3309,24 +3227,6 @@ export function FuelingPlanner({
                     />
                     {showAllPocketFood ? "Mostrar menos" : `Mostrar más alimentos (${hiddenPocketFoodCount})`}
                   </button>
-                )}
-                {/* A modifier on whatever gel(s) are already selected, not a
-                    4th gel-catalog entry — only shown once a real gel dose
-                    is picked, and unmounting it (rather than just disabling
-                    it) when the last gel is removed means its own `checked`
-                    state can't silently keep driving the caffeine milestone
-                    with nothing behind it (also enforced server-side, see
-                    `pocketFoodPayload` above). */}
-                {hasGelSelected && (
-                  <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-neutral-700">
-                    <input
-                      type="checkbox"
-                      checked={includeCaffeine}
-                      onChange={(e) => setIncludeCaffeine(e.target.checked)}
-                      className="size-3.5 cursor-pointer accent-terracotta"
-                    />
-                    Incluye cafeína (~100mg)
-                  </label>
                 )}
               </div>
 
@@ -3398,21 +3298,6 @@ export function FuelingPlanner({
               activeTypes={activePantryTypes}
               onToggle={togglePantryItem}
               onSave={handleSavePantry}
-              extraItem={{
-                label: "Recarga Mix (Ziploc)",
-                carbsLabel: `~${ziplocDoseGramsPerUnit}g HC`,
-                active: ziplocDoseActive,
-                onToggle: () => {
-                  const nextActive = !ziplocDoseActive;
-                  setZiplocDoseActive(nextActive);
-                  // "Regla Crítica de Reseteo al Desmarcar" — same rule
-                  // every other despensa item already follows (see
-                  // `togglePantryItem` above): hiding the row zeroes its
-                  // quantity immediately so it can't keep silently
-                  // contributing to CUBIERTO once it's no longer visible.
-                  if (!nextActive) setZiplocDoseCount(0);
-                },
-              }}
             />
 
             {/* 🎴 Tarjeta 3 · 05 · Manifiesto de Salida — "100% Español +
@@ -3715,16 +3600,18 @@ export function FuelingPlanner({
               {/* "Estrategia de recarga en ruta" — the old automatic
                   red/warning-toned Ziploc accordion — has been removed
                   outright, per "Eliminación Definitiva de la Tarjeta
-                  Roja." Its function is now covered naturally by the
-                  athlete's own "Dosis de recarga Mix (Ziploc)" selections
-                  in the pocket-food inventory above (same per-dose grams,
-                  same checklist line under "Comida de bolsillo" — see
-                  `pocketChecklistLines`), a self-serve declaration rather
-                  than an app-imposed reload count. `result.reloadStrategy`
+                  Roja." It was briefly replaced by a self-serve "Dosis de
+                  recarga Mix (Ziploc)" pocket-food row (the athlete
+                  declaring how many pre-measured mix doses they carry) —
+                  that row is now gone too, per "Limpieza de Despensa
+                  Genérica": the same self-serve declaration is still
+                  possible via "Personalizado" (free grams) or a real
+                  branded product from Marcas Comerciales, without a
+                  dedicated generic catalog row for it. `result.reloadStrategy`
                   itself is untouched server-side — `getWaterPlanLines`
                   above still reads its `waterRefillCount`/
                   `waterRefillLiters` for the unrelated plain-water fountain
-                  refill note, which this removal doesn't affect. */}
+                  refill note, which none of this affects. */}
 
               {/* Estrategia de carga día −1 — supplementary, occasional
                   content (only rendered on a long/target-event ride), kept
