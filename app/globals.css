@@ -256,3 +256,18 @@
 .animate-logo-breathe {
   animation: logo-breathe 1.4s ease-in-out infinite;
 }
+
+/* "Carrusel Híbrido PNS Style" (`components/weather-impact-card.tsx`) — no
+   Tailwind core utility hides a scrollbar on its own (unlike `snap-x`/
+   `touch-pan-x`, both real utilities already), so this one small class
+   fills that one gap: the horizontal weather-point strip still scrolls
+   (mouse wheel, trackpad, touch swipe) exactly as before, it just never
+   shows the track/thumb chrome a horizontal strip like this doesn't need. */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

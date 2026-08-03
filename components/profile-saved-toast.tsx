@@ -42,7 +42,7 @@ export function ProfileSavedToast() {
       toast={{
         kind: "success",
         title: "Perfil actualizado",
-        message: "Guardado automáticamente",
+        message: "Cambios guardados correctamente",
       }}
     />
   );

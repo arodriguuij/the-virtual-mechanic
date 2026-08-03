@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, FlaskConical } from "lucide-react";
-import { useMemo, useState, type FocusEvent } from "react";
+import { useMemo, useRef, useState, type FocusEvent } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { FtpEstimatorModal } from "@/components/ftp-estimator-modal";
@@ -12,6 +12,9 @@ import type { AthleteProfile } from "@/lib/dashboard-data";
 import {
   athleteTypeDescriptions,
   athleteTypeLabels,
+  getGutTrainingCapGPerHour,
+  getPersonalizedCarbOxidationRateGPerHour,
+  getRelativeIntensityFromLevel,
   getWkgBarPercentage,
   getWkgCategory,
   getWkgLevelIndex,
@@ -24,7 +27,6 @@ import {
 import {
   fieldClass,
   formFieldLabelClass,
-  primaryButtonClass,
   selectableFieldClass,
   selectChevronClass,
 } from "@/lib/ui-classes";
@@ -68,6 +70,25 @@ const profileInputClass = fieldClass;
 const selectableProfileInputClass = selectableFieldClass;
 
 type RequiredField = "weight" | "ftp" | "athleteType" | "sweatRate" | "gutTrainingLevel";
+
+// Same top-to-bottom order the 3 numbered cards render their required
+// fields in — this is both the order the "missing fields" warning lists
+// them in and the order `focusFirstMissingField` below walks to find the
+// *first* one to jump to.
+const REQUIRED_FIELD_ORDER: RequiredField[] = [
+  "weight",
+  "ftp",
+  "athleteType",
+  "sweatRate",
+  "gutTrainingLevel",
+];
+const REQUIRED_FIELD_LABELS: Record<RequiredField, string> = {
+  weight: "Peso (kg)",
+  ftp: "FTP (W)",
+  athleteType: "Fenotipo metabólico",
+  sweatRate: "Tasa de sudoración",
+  gutTrainingLevel: "Adaptación digestiva",
+};
 
 /**
  * The entire Physiological Profile form — moved to a `"use client"`
@@ -153,6 +174,15 @@ export function PhysiologicalProfileForm({
   const [isSaltySweater, setIsSaltySweater] = useState(profile?.is_salty_sweater ?? false);
   const [touched, setTouched] = useState<Partial<Record<RequiredField, boolean>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // "Aviso de Campos Obligatorios" — set only by a genuine submit attempt
+  // while the form is still invalid (see the `<form onSubmit>` handler
+  // below); deliberately never reset by hand elsewhere, since ANDing it
+  // with `!isFormValid` (see `showMissingFieldsWarning` below) already
+  // makes the banner disappear on its own the instant the athlete actually
+  // fixes the missing field(s) — no separate "dismiss" action needed.
+  const [attemptedInvalidSubmit, setAttemptedInvalidSubmit] = useState(false);
+  const weightRef = useRef<HTMLInputElement>(null);
+  const ftpRef = useRef<HTMLInputElement>(null);
 
   const markTouched = (field: RequiredField) => setTouched((t) => ({ ...t, [field]: true }));
 
@@ -171,6 +201,28 @@ export function PhysiologicalProfileForm({
   const wkgCategory = wkg > 0 ? getWkgCategory(wkg) : null;
   const wkgBarPercentage = wkg > 0 ? getWkgBarPercentage(wkg) : 0;
   const wkgLevelIndex = wkg > 0 ? getWkgLevelIndex(wkg) : 0;
+
+  // "Micro-explicación Metabólica Personalizada" — real Z2/Z3 oxidation
+  // figures derived from the same engine the Fueling Planner itself uses
+  // (`getPersonalizedCarbOxidationRateGPerHour`), not a hardcoded range:
+  // Fondo (Z2, 70% FTP) is the one band the athlete's own phenotype
+  // (`athleteType`, defaulting to "balanced" — matching every other call
+  // site's own default whenever it's not yet selected) still adjusts;
+  // Tempo (Z3, 85% FTP) already sits at/above the aerobic-zone threshold
+  // where every phenotype converges to the same unadjusted rate. The gut
+  // cap only ever shows a real number once the athlete has actually picked
+  // a Gut Training level (`gutTrainingLevel`) — never a fabricated "hasta
+  // Xg HC/h" for a field they haven't configured yet, matching this app's
+  // "never invent profile data" convention.
+  const glycogenZ2GPerHour = getPersonalizedCarbOxidationRateGPerHour(
+    getRelativeIntensityFromLevel("endurance"),
+    athleteType ?? "balanced"
+  );
+  const glycogenZ3GPerHour = getPersonalizedCarbOxidationRateGPerHour(
+    getRelativeIntensityFromLevel("tempo"),
+    athleteType ?? "balanced"
+  );
+  const gutCapGPerHour = gutTrainingLevel ? getGutTrainingCapGPerHour(gutTrainingLevel) : null;
 
   const hasChanges = useMemo(
     () =>
@@ -195,13 +247,48 @@ export function PhysiologicalProfileForm({
     ]
   );
 
-  const canSave = isFormValid && hasChanges && !isSubmitting;
+  // "Gestión de Estado de Formulario (isDirty & isValid)" — 3 distinct
+  // button states instead of one flat `disabled`/`enabled` toggle:
+  // `!hasChanges` (nothing to save — genuinely `disabled`, inert, see the
+  // button's own `disabled={!hasChanges || isSubmitting}` below),
+  // `hasChanges && !isFormValid` (real edits, but still missing a required
+  // field — deliberately *not* `disabled`, so a click/Enter-key submit
+  // attempt can still reach the `<form onSubmit>` handler below and guide
+  // the athlete to whatever's missing instead of just silently refusing to
+  // respond), and `hasChanges && isFormValid` (submits for real).
+  // "PERFIL ACTUALIZADO" vs. "SIN CAMBIOS PENDIENTES" — both are the same
+  // `!hasChanges` resting state, distinguished only by whether there's a
+  // real saved profile to be "already up to date" against. A save is a
+  // genuine native `<form>` POST that redirects the whole browser (to the
+  // Dashboard on success — see `app/api/athlete-profile/update`), so this
+  // component always remounts with a fresh `profile` prop rather than
+  // needing an in-place reset; the next time the athlete lands back on
+  // `/perfil` after a successful save, `profile` already reflects what they
+  // just saved and nothing is dirty, so this naturally reads "PERFIL
+  // ACTUALIZADO" without any extra state.
+  const restingSaveLabel = profile ? "PERFIL ACTUALIZADO" : "SIN CAMBIOS PENDIENTES";
 
   const weightInvalid = Boolean(touched.weight) && !weightValid;
   const ftpInvalid = Boolean(touched.ftp) && !ftpValid;
   const athleteTypeInvalid = Boolean(touched.athleteType) && !athleteType;
   const sweatRateInvalid = Boolean(touched.sweatRate) && !sweatRate;
   const gutTrainingInvalid = Boolean(touched.gutTrainingLevel) && !gutTrainingLevel;
+
+  const requiredFieldValid: Record<RequiredField, boolean> = {
+    weight: weightValid,
+    ftp: ftpValid,
+    athleteType: Boolean(athleteType),
+    sweatRate: Boolean(sweatRate),
+    gutTrainingLevel: Boolean(gutTrainingLevel),
+  };
+  const missingFieldLabels = REQUIRED_FIELD_ORDER.filter((f) => !requiredFieldValid[f]).map(
+    (f) => REQUIRED_FIELD_LABELS[f]
+  );
+  // Only ever visible once the athlete has actually *tried* to save with a
+  // field still missing — self-clears the moment `isFormValid` flips back
+  // to `true`, with no separate reset needed (see `attemptedInvalidSubmit`
+  // above).
+  const showMissingFieldsWarning = attemptedInvalidSubmit && !isFormValid;
 
   // Attached to a radio group's wrapping grid, not each individual radio —
   // `e.relatedTarget` is the element about to receive focus, so this only
@@ -215,14 +302,64 @@ export function PhysiologicalProfileForm({
     };
   }
 
+  // Jumps to the *first* (in card order) required field still missing —
+  // a real `.focus()` for the two plain `<input>`s, a smooth `scrollIntoView`
+  // for the 3 radio-card groups (there's no single control to focus on a
+  // decorative card grid; the group's own `invalidGroupClass` ring, applied
+  // right alongside this via `setTouched` below, is what actually shows the
+  // athlete which cards need a pick).
+  function focusFirstMissingField() {
+    const firstMissing = REQUIRED_FIELD_ORDER.find((f) => !requiredFieldValid[f]);
+    if (firstMissing === "weight") {
+      weightRef.current?.focus();
+      weightRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else if (firstMissing === "ftp") {
+      ftpRef.current?.focus();
+      ftpRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else if (firstMissing === "athleteType") {
+      document.getElementById("athlete-type-group")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else if (firstMissing === "sweatRate") {
+      document.getElementById("sweat-rate-group")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else if (firstMissing === "gutTrainingLevel") {
+      document.getElementById("gut-training")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
   return (
     <form
       action="/api/athlete-profile/update"
       method="POST"
       noValidate
-      onSubmit={() => setIsSubmitting(true)}
+      onSubmit={(e) => {
+        // Checked in the `<form>`'s own `onSubmit`, not the button's
+        // `onClick` — a submit can also fire by pressing Enter inside a
+        // text field, which never dispatches the button's own click event
+        // at all. Handling it here catches both triggers identically.
+        if (!isFormValid) {
+          e.preventDefault();
+          setTouched({
+            weight: true,
+            ftp: true,
+            athleteType: true,
+            sweatRate: true,
+            gutTrainingLevel: true,
+          });
+          setAttemptedInvalidSubmit(true);
+          focusFirstMissingField();
+          return;
+        }
+        setIsSubmitting(true);
+      }}
       className="flex flex-col gap-6"
     >
+      {showMissingFieldsWarning && (
+        <div className="rounded-lg border border-amber-200/80 bg-amber-50/80 p-3">
+          <p className="font-mono text-xs leading-relaxed text-amber-900">
+            ⚠️ Completa los campos obligatorios (*): {missingFieldLabels.join(", ")}.
+          </p>
+        </div>
+      )}
+
       <Card className="overflow-visible">
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 pb-1">
@@ -298,6 +435,34 @@ export function PhysiologicalProfileForm({
                 />
               </div>
             )}
+            {/* "Micro-explicación Metabólica Personalizada" — a small
+                telemetry-style note directly under the W/kg readout/bar,
+                grounded in the athlete's own real inputs (see the
+                `glycogenZ2GPerHour`/`glycogenZ3GPerHour`/`gutCapGPerHour`
+                derivation above) rather than a fixed illustrative range —
+                gated on `wkgCategory` too, so it only ever appears once
+                Peso/FTP are both real. */}
+            {wkgCategory && (
+              <div className="rounded-xl border border-zinc-200/80 bg-[#F6F5F0] p-3">
+                <p className="font-mono text-[11px] leading-relaxed text-zinc-600">
+                  <span className="font-bold text-zinc-800">ESTRATEGIA METABÓLICA ESTIMADA:</span>{" "}
+                  Tasa de oxidación glucogénica en Z2/Z3 estimada en{" "}
+                  <span className="font-bold text-[#70685b]">
+                    {glycogenZ2GPerHour}-{glycogenZ3GPerHour}g HC/h
+                  </span>
+                  .{" "}
+                  {gutCapGPerHour != null ? (
+                    <>
+                      Capacidad digestiva objetivo: hasta{" "}
+                      <span className="font-bold text-[#70685b]">{gutCapGPerHour}g HC/h</span> sin
+                      distensión abdominal.
+                    </>
+                  ) : (
+                    "Configura tu Adaptación digestiva (03) para ver tu tope real de capacidad digestiva."
+                  )}
+                </p>
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4 *:min-w-0">
             {/* Both columns share one fixed-height header row (`h-5`) so
@@ -316,6 +481,7 @@ export function PhysiologicalProfileForm({
                 </label>
               </div>
               <input
+                ref={weightRef}
                 id="weight_kg"
                 name="weight_kg"
                 type="number"
@@ -348,6 +514,7 @@ export function PhysiologicalProfileForm({
                 />
               </div>
               <input
+                ref={ftpRef}
                 id="ftp"
                 name="ftp"
                 type="number"
@@ -414,6 +581,7 @@ export function PhysiologicalProfileForm({
               />
             </span>
             <div
+              id="athlete-type-group"
               className={cn(
                 "grid grid-cols-1 gap-2 sm:grid-cols-3",
                 athleteTypeInvalid && invalidGroupClass
@@ -445,6 +613,7 @@ export function PhysiologicalProfileForm({
               />
             </span>
             <div
+              id="sweat-rate-group"
               className={cn(
                 "grid grid-cols-1 gap-2 sm:grid-cols-3",
                 sweatRateInvalid && invalidGroupClass
@@ -583,28 +752,31 @@ export function PhysiologicalProfileForm({
       </Card>
 
       <div className="flex flex-col items-center gap-2">
+        {/* 3-state button — see the state-machine/`restingSaveLabel` doc
+            comments above. Only ever truly `disabled` while `!hasChanges`;
+            the `hasChanges && !isFormValid` state stays clickable on
+            purpose so a click (or an Enter-key submit from a text field)
+            still reaches the `<form onSubmit>` handler above and guides
+            the athlete to what's missing, rather than just sitting inert. */}
         <button
           type="submit"
-          disabled={!canSave}
+          disabled={!hasChanges || isSubmitting}
           className={cn(
-            "w-full rounded-sm py-3.5 text-xs transition-all duration-150",
-            canSave
-              ? primaryButtonClass
-              : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-sm bg-neutral-300/30 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase opacity-60 shadow-none"
+            "w-full rounded-sm py-3.5 font-mono text-xs font-semibold tracking-wider transition-all duration-150",
+            !hasChanges
+              ? "cursor-not-allowed bg-zinc-200 text-zinc-400"
+              : cn(
+                  "cursor-pointer bg-[#18181B] text-white hover:bg-[#27272A]",
+                  isFormValid && "shadow-xs"
+                )
           )}
         >
-          {isSubmitting ? "Guardando…" : "Guardar cambios"}
+          {isSubmitting ? "Guardando…" : hasChanges ? "GUARDAR CAMBIOS" : restingSaveLabel}
         </button>
-        {!isFormValid ? (
+        {!hasChanges && (
           <span className="font-mono text-[11px] text-neutral-500">
-            * Completa todos los campos obligatorios para guardar.
+            * Modifica al menos un dato para poder guardar.
           </span>
-        ) : (
-          !hasChanges && (
-            <span className="font-mono text-[11px] text-neutral-500">
-              * Modifica al menos un dato para poder guardar.
-            </span>
-          )
         )}
       </div>
     </form>

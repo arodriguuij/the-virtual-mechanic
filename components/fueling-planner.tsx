@@ -161,6 +161,16 @@ const COMMERCIAL_PRODUCTS_BY_BRAND = COMMERCIAL_PRODUCTS.reduce<Record<string, C
 const SODIUM_SUGGESTION_HOT_ROUTE_THRESHOLD_C = 28;
 const SODIUM_SUGGESTION_COVERAGE_FRACTION = 0.8;
 
+// "Tip de Eficiencia: Mix vs. Solo Agua" — a demanding ride (long or hot)
+// run entirely on plain water leaves the athlete carrying their whole carb
+// target as pocket food, when dissolving even one bottle into a Mix would
+// free up jersey space and deliver carbs/hydration together. Purely
+// advisory (never changes the actual recipe/bottle-plan math) and only
+// worth surfacing once the ride is genuinely demanding — a short, cool
+// spin has no real efficiency gain from switching.
+const WATER_ONLY_TIP_DURATION_THRESHOLD_HOURS = 2;
+const WATER_ONLY_TIP_HEAT_THRESHOLD_C = 28;
+
 // "Optimización de Densidad en Simulador" — the 4 real catalog items shown
 // by default in Card 04 before "+ Mostrar más alimentos" is tapped (the
 // Ziploc reload dose is the 5th habitual item the audit named, rendered
@@ -1684,6 +1694,14 @@ export function FuelingPlanner({
   // "Ambos Mix" at all.
   const bottleConfigOptions = result ? getBottleConfigOptions(result.athleteBottleCount) : TWO_CAGE_BOTTLE_CONFIG_OPTIONS;
 
+  // "Tip de Eficiencia: Mix vs. Solo Agua" — see the constants' own doc
+  // comment above. `false` with no `result` (nothing to evaluate yet).
+  const isHighHeatOrLongDuration =
+    result != null &&
+    (result.durationHours > WATER_ONLY_TIP_DURATION_THRESHOLD_HOURS ||
+      (result.weather.temperatureMaxC ?? result.weather.temperatureC) >= WATER_ONLY_TIP_HEAT_THRESHOLD_C);
+  const showWaterOnlyMixTip = isHighHeatOrLongDuration && bottleConfig === "water_only";
+
   // Tarjeta 05's "Checklist de preparación para llevar" — same source data
   // as the balance pill above, read fresh on every render so the on-screen
   // list stays in sync with what's currently selected.
@@ -1939,6 +1957,32 @@ export function FuelingPlanner({
   }
 
   async function handleCalculate() {
+    // "Lógica de Navegación: enfocar en vez de bloquear mudo" — the CTA
+    // stays clickable even while Paso 01/02 is still incomplete (see the
+    // button's own `disabled` condition below, which no longer covers
+    // these 3 cases) specifically so a click still lands here and can
+    // guide the athlete to whatever's missing, rather than the button
+    // just silently refusing to respond. Scrolls the relevant control into
+    // view and — for the two real `<input>`s — focuses it too; the GPX
+    // dropzone has no single focusable control worth targeting, so it only
+    // scrolls. Returns before ever calling the API.
+    if (mode === "route" && (!selectedRoute || !intensity)) {
+      const routeSelect = document.getElementById("route");
+      routeSelect?.scrollIntoView({ behavior: "smooth", block: "center" });
+      routeSelect?.focus();
+      return;
+    }
+    if (mode === "gpx" && (!parsedGpx || !intensity)) {
+      document.getElementById("gpx-dropzone")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (mode === "quick" && !quickValid) {
+      const hoursInput = document.getElementById("duration-hours");
+      hoursInput?.scrollIntoView({ behavior: "smooth", block: "center" });
+      hoursInput?.focus();
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -2282,6 +2326,7 @@ export function FuelingPlanner({
                             const file = e.dataTransfer.files?.[0];
                             if (file) handleGpxFile(file);
                           }}
+                          id="gpx-dropzone"
                           className={cn(
                             "flex flex-col items-center justify-center gap-2 border-2 border-dashed px-4 py-8 text-center transition-colors duration-150",
                             isDraggingGpx ? "border-neutral-900 bg-neutral-50" : "border-neutral-300"
@@ -2656,9 +2701,6 @@ export function FuelingPlanner({
             disabled={
               loading ||
               !isProfileComplete ||
-              (mode === "route" && (!selectedRoute || !intensity)) ||
-              (mode === "gpx" && (!parsedGpx || !intensity)) ||
-              (mode === "quick" && !quickValid) ||
               // "Ciclo de Vida del Botón Principal" — once a result exists
               // for the current inputs, the button disables itself
               // immediately (nothing left to (re)calculate until something
@@ -2666,6 +2708,12 @@ export function FuelingPlanner({
               // clears `result` and re-enables it the instant any Paso
               // 01/02 input actually changes.
               Boolean(result)
+              // Deliberately *not* disabled just because the route/GPX/
+              // duration input is still incomplete — `handleCalculate`
+              // itself checks that first and, when it's missing, scrolls/
+              // focuses the relevant Paso 01/02 control instead of the
+              // button silently refusing to respond (see its own doc
+              // comment above).
             }
             title={
               isProfileComplete && routeModeIncomplete
@@ -3079,6 +3127,24 @@ export function FuelingPlanner({
                   </button>
                 ))}
               </div>
+
+              {/* "Tip de Eficiencia: Mix vs. Solo Agua" — purely advisory,
+                  never changes the actual recipe/bottle-plan math (unlike
+                  the bottle-config buttons above it). Disappears the
+                  instant the athlete picks "1 Mix"/"Ambos Mix" — it's a
+                  suggestion for the current selection, not a persistent
+                  warning. */}
+              {showWaterOnlyMixTip && (
+                <div className="mt-2.5 flex items-start gap-2 rounded-lg border border-amber-200/60 bg-amber-50/70 p-2.5">
+                  <span className="text-xs text-amber-700">💡</span>
+                  <p className="font-mono text-[11px] leading-tight text-amber-900/90">
+                    <span className="font-semibold">Tip de Eficiencia:</span> En rutas de alta
+                    exigencia o calor, cambiar 1 bidón a{" "}
+                    <span className="underline decoration-amber-400">Mix</span> libera espacio en
+                    tus bolsillos y acelera la hidratación.
+                  </p>
+                </div>
+              )}
 
               {/* Inventario de Bolsillo Interactivo — only the athlete's
                   own "Mi Despensa" selection (every catalog item by
