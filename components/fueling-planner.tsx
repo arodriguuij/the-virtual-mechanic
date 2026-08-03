@@ -642,7 +642,7 @@ function AlertBanner({
   return (
     <div className={cn("flex items-start gap-2.5 rounded-xl border p-3 shadow-xs", c.border, c.bg, className)}>
       <span className={cn("shrink-0 pt-0.5 text-sm", c.icon)}>{icon}</span>
-      <p className={cn("font-mono text-xs leading-relaxed", c.text)}>
+      <p className={cn("font-mono text-xs leading-snug", c.text)}>
         <span className={cn("mr-1 font-bold", c.label)}>{label}:</span>
         {children}
       </p>
@@ -3403,7 +3403,7 @@ export function FuelingPlanner({
                       Sugerencia de electrolitos
                     </span>
                   </div>
-                  <p className="pl-6 font-mono text-xs leading-relaxed text-amber-900/90">
+                  <p className="pl-6 font-mono text-xs leading-snug text-amber-900/90">
                     Considera incluir electrolitos o cápsulas de sal (Déficit de Na+:{" "}
                     <span className="font-semibold text-amber-800">{Math.round(sodiumDeficitMg)} mg</span>).
                   </p>
