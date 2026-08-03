@@ -108,7 +108,7 @@ function CarouselStatTile({
     >
       <span
         className={cn(
-          "mb-0.5 flex items-center gap-1 truncate font-mono text-[9px] uppercase",
+          "mb-0.5 flex items-center gap-1 truncate font-mono text-[9px]",
           alert ? "text-amber-700" : "text-zinc-400"
         )}
       >
@@ -433,8 +433,8 @@ export function WeatherImpactCard({
     // border/padding of its own.
     <div className="flex flex-col gap-3">
       <div className="min-w-0">
-        <h4 className="font-mono text-xs font-semibold tracking-wider text-zinc-900 uppercase">
-          Impacto Térmico
+        <h4 className="font-mono text-xs font-semibold tracking-wider text-zinc-900">
+          Impacto térmico
         </h4>
         {/* The old fixed explainer ("Predicción meteorológica por tramos
             según la altimetría de la ruta (Open-Meteo)") and the real
@@ -468,7 +468,7 @@ export function WeatherImpactCard({
       {!hasMultiplePoints ? (
         <div className="grid grid-cols-3 gap-2">
           <CarouselStatTile
-            label="Temp. promedio"
+            label="Temperatura promedio"
             icon={<Thermometer className="size-3 shrink-0" />}
             value={`${temperatureC}°C`}
             caption={temperatureMaxC != null && temperatureMaxC !== temperatureC ? `máx ${temperatureMaxC}°C` : undefined}
@@ -502,7 +502,7 @@ export function WeatherImpactCard({
             aria-expanded={showTimeline}
           >
             <div className="flex min-w-0 items-center gap-2">
-              <span className="font-mono text-xs font-bold tracking-tight text-zinc-900 uppercase">
+              <span className="font-mono text-xs font-bold tracking-tight text-zinc-900">
                 Cronograma térmico por puertos
               </span>
               <span className="shrink-0 font-mono text-[11px] font-medium text-zinc-500">
@@ -524,7 +524,7 @@ export function WeatherImpactCard({
                   shows (no repeated "Impacto Térmico" title here — the
                   toggle button above already carries it). */}
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-mono text-[10px] font-medium tracking-wider text-zinc-500 uppercase">
+                <span className="truncate font-mono text-[10px] font-medium tracking-wider text-zinc-500">
                   Previsión por altimetría y hora de paso
                 </span>
                 <div className="flex shrink-0 items-center gap-1 text-zinc-800">

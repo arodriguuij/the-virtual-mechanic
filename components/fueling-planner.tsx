@@ -270,13 +270,14 @@ const segmentedButtonLabelClass = "block w-full truncate";
 // all-caps regardless of the source string's actual casing.
 const bronzeCtaButtonClass =
   "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#18181B] px-4 font-mono text-sm font-bold tracking-wider text-white shadow-sm transition-colors duration-150 hover:bg-[#27272A] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#18181B]";
-// Card 05 ("Manifiesto de Salida") — the one dark-surface card in the
-// results flow, so every subtitle inside it (Cadencia de Hidratación,
-// Equipamiento y Bici, Comida de Bolsillo, Paradas en Ruta, Plan de Agua
-// en Ruta) shares this exact class rather than each carrying its own
-// near-identical string — "todos los subtítulos comparten exactamente el
-// mismo estilo visual" is trivially true when they're all one constant.
-const manifestSubtitleClass = "font-mono text-[11px] tracking-widest text-zinc-500 uppercase";
+// Card 05 ("Manifiesto de Salida") — every subtitle inside it (Cadencia de
+// hidratación, Equipamiento y bici, Comida de bolsillo, Paradas en ruta,
+// Plan de agua en ruta) shares this exact class rather than each carrying
+// its own near-identical string — "todos los subtítulos comparten
+// exactamente el mismo estilo visual" is trivially true when they're all
+// one constant. No `uppercase`/`tracking-widest` — Sentence Case, matching
+// this app's "no ALL CAPS outside a genuine technical readout" convention.
+const manifestSubtitleClass = "font-mono text-[11px] text-zinc-500";
 // "Salida" quick-select: a day pill (Hoy/Mañana) plus a plain hour `<select>`
 // replaces the old `datetime-local` input — that native control's per-browser
 // chrome (and iOS Safari's multi-segment month/day/year/hour/minute/AM-PM
@@ -2196,7 +2197,7 @@ export function FuelingPlanner({
                             onClick={handleRefreshRoutes}
                             disabled={refreshingRoutes}
                             title="Recargar rutas desde Strava"
-                            className="flex cursor-pointer items-center gap-1 text-[10px] font-mono tracking-widest text-zinc-500 uppercase transition-colors duration-150 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="flex cursor-pointer items-center gap-1 text-[10px] font-mono text-zinc-500 transition-colors duration-150 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <RefreshCw className={cn("size-3", refreshingRoutes && "animate-spin")} />
                             {refreshingRoutes ? "Sincronizando…" : "Recargar"}
@@ -2289,7 +2290,7 @@ export function FuelingPlanner({
                     <button
                       type="button"
                       onClick={() => setGpxUploadOpen((v) => !v)}
-                      className="mt-2 flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-zinc-500 uppercase transition-colors duration-150 hover:text-zinc-900"
+                      className="mt-2 flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-zinc-500 transition-colors duration-150 hover:text-zinc-900"
                     >
                       <Upload className="size-3.5" />
                       {gpxUploadOpen ? "Cancelar" : "+ Subir GPX"}
@@ -2865,7 +2866,7 @@ export function FuelingPlanner({
               <div className="grid grid-cols-2 gap-3 *:min-w-0">
                 {/* Opción A · Crema Táctico */}
                 <div className="flex flex-col gap-1 rounded-xl border border-zinc-200/80 bg-[#F4F3EE] p-4 shadow-xs">
-                  <span className="font-mono text-[11px] text-zinc-500 uppercase">Duración</span>
+                  <span className="font-mono text-[11px] text-zinc-500">Duración</span>
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {formatHoursMinutes(result.durationHours)}
                   </span>
@@ -2874,7 +2875,7 @@ export function FuelingPlanner({
                 {/* Opción B · Taupe/Bronce Sutil */}
                 <div className="relative flex flex-col gap-1 overflow-visible rounded-xl border border-[#70685b]/20 bg-[#70685b]/5 p-4 shadow-xs">
                   <span className="flex items-center gap-1">
-                    <span className="font-mono text-[11px] text-zinc-500 uppercase">Carbohidratos</span>
+                    <span className="font-mono text-[11px] text-zinc-500">Carbohidratos</span>
                     <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
                   </span>
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
@@ -2888,7 +2889,7 @@ export function FuelingPlanner({
                 </div>
                 {/* Opción C · Blanco Puro + Borde Bronce */}
                 <div className="flex flex-col gap-1 rounded-xl border border-[#70685b]/30 bg-white p-4 shadow-xs">
-                  <span className="font-mono text-[11px] text-zinc-500 uppercase">Hidratación</span>
+                  <span className="font-mono text-[11px] text-zinc-500">Hidratación</span>
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {result.fluidLossMlPerHour}
                     <span className="ml-1 text-xs font-normal text-zinc-500">ml/h</span>
@@ -2900,7 +2901,7 @@ export function FuelingPlanner({
                 </div>
                 {/* Opción D · Gris Táctico Suave */}
                 <div className="flex flex-col gap-1 rounded-xl border border-zinc-200 bg-zinc-50 p-4 shadow-xs">
-                  <span className="font-mono text-[11px] text-zinc-500 uppercase">Sodio</span>
+                  <span className="font-mono text-[11px] text-zinc-500">Sodio</span>
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {result.sodiumMgPerHour}
                     <span className="ml-1 text-xs font-normal text-zinc-500">mg/h</span>

@@ -249,7 +249,7 @@ export default function HistorialPage() {
   return (
     <div className="flex flex-col gap-6">
       <header className="border-b border-neutral-200 pb-6">
-        <h1 className="text-xl font-bold font-mono text-neutral-900 uppercase tracking-tight sm:text-2xl">
+        <h1 className="text-xl font-bold font-mono text-neutral-900 tracking-tight sm:text-2xl">
           Historial
         </h1>
         <p className="text-xs font-mono text-neutral-500 mt-1 leading-relaxed">
