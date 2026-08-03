@@ -105,8 +105,8 @@ export function CommercialProductStepperRow({
  * exact same `commercialProducts`/`setCommercialProductQty` state Card 04's
  * own CUBIERTO/RESTANTE pill and Card 05's sodium balance already read), so
  * a change here is reflected everywhere else instantly, live, while the
- * sheet is still open — same "controlled, not a draft" contract
- * `PantryEditorModal` already established for the pocket-food catalog.
+ * sheet is still open — same "controlled, not a draft" contract this
+ * results flow already uses everywhere else, e.g. the pocket-food steppers.
  *
  * Built directly on `@base-ui/react/dialog`'s own `Popup`/`Close` (not the
  * shared `DialogContent` helper in `components/ui/dialog.tsx`) — that
