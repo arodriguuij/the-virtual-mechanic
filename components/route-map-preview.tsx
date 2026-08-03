@@ -33,14 +33,16 @@ const TILE_SUBDOMAINS = "abcd";
 const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
-// Verde oliva (`#555a43`) — a muted, natural-toned accent that reads as
-// harmonious with Voyager's own soft green terrain rather than sitting on
-// top of it as a stark, rigid black line. Replaces the earlier obsidian
-// black (`#18181B`) — this "Estilizado Minimalista" pass wants the route
-// itself to read as a fine, technical trace rather than a bold UI accent.
-// Kept as a literal hex rather than a Tailwind class, since Leaflet's
-// `Polyline` `color` prop needs a plain string.
-const ROUTE_LINE_COLOR = "#555a43";
+// Obsidian black (`#18181B`) — reverted back from a brief verde-oliva
+// (`#555a43`) experiment: against a live route on Voyager's soft-colored
+// terrain, the olive tone didn't hold enough contrast/precision at a
+// glance (a rider needs to read the exact line at a glance, not blend it
+// into the landscape) — obsidian black is the maximum-contrast choice,
+// kept fine (`weight: 2.5`) rather than bold so it still reads as a
+// precise technical trace, not a heavy UI accent. Kept as a literal hex
+// rather than a Tailwind class, since Leaflet's `Polyline` `color` prop
+// needs a plain string.
+const ROUTE_LINE_COLOR = "#18181B";
 // A wider, softer, near-black line rendered directly underneath the route
 // itself — Leaflet's `Polyline` has no `box-shadow`-style prop of its own, so
 // stacking a second, more transparent stroke beneath the real one is the
@@ -234,7 +236,7 @@ export function RouteMapPreview({
         zoomControl={false}
       >
         <TileLayer url={TILE_URL} subdomains={TILE_SUBDOMAINS} attribution={TILE_ATTRIBUTION} />
-        {/* Shadow stroke first (wider, translucent dark), the real olive
+        {/* Shadow stroke first (wider, translucent dark), the real obsidian
             route drawn on top — gives the line a subtle sense of depth over
             the busier topo terrain without needing a CSS filter. */}
         <Polyline

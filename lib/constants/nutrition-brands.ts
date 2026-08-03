@@ -27,6 +27,14 @@ export const COMMERCIAL_PRODUCTS: CommercialProduct[] = [
     carbs: 80,
     sodium: 500,
   },
+  {
+    id: "maurten-solid-160",
+    brand: "Maurten",
+    name: "Solid 160 (Barrita)",
+    category: "bar",
+    carbs: 40,
+    sodium: 0,
+  },
 
   // 226ERS
   {
@@ -45,6 +53,14 @@ export const COMMERCIAL_PRODUCTS: CommercialProduct[] = [
     carbs: 50,
     sodium: 100,
   },
+  {
+    id: "226ers-race-day-bar",
+    brand: "226ERS",
+    name: "Race Day Bar",
+    category: "bar",
+    carbs: 25,
+    sodium: 10,
+  },
 
   // SiS (Science in Sport)
   { id: "sis-beta-fuel-gel", brand: "SiS", name: "Beta Fuel Gel", category: "gel", carbs: 40, sodium: 30 },
@@ -55,6 +71,14 @@ export const COMMERCIAL_PRODUCTS: CommercialProduct[] = [
     category: "mix",
     carbs: 80,
     sodium: 570,
+  },
+  {
+    id: "sis-beta-fuel-chew",
+    brand: "SiS",
+    name: "Beta Fuel Chew (Gominola)",
+    category: "chew",
+    carbs: 46,
+    sodium: 30,
   },
 
   // Santa Madre
@@ -74,6 +98,14 @@ export const COMMERCIAL_PRODUCTS: CommercialProduct[] = [
     carbs: 90,
     sodium: 500,
   },
+  {
+    id: "santa-madre-unusual-bar",
+    brand: "Santa Madre",
+    name: "Unusual Bar",
+    category: "bar",
+    carbs: 50,
+    sodium: 100,
+  },
 
   // Neversecond
   {
@@ -92,6 +124,14 @@ export const COMMERCIAL_PRODUCTS: CommercialProduct[] = [
     carbs: 90,
     sodium: 200,
   },
+  {
+    id: "neversecond-c30-fuel-bar",
+    brand: "Neversecond",
+    name: "C30 Fuel Bar",
+    category: "bar",
+    carbs: 30,
+    sodium: 200,
+  },
 
   // Precision Fuel
   { id: "pf-30-gel", brand: "Precision Fuel", name: "PF 30 Gel", category: "gel", carbs: 30, sodium: 0 },
@@ -101,6 +141,14 @@ export const COMMERCIAL_PRODUCTS: CommercialProduct[] = [
     name: "PF 90 Gel (XL)",
     category: "gel",
     carbs: 90,
+    sodium: 0,
+  },
+  {
+    id: "pf-30-chew",
+    brand: "Precision Fuel",
+    name: "PF 30 Chew (Gominola)",
+    category: "chew",
+    carbs: 30,
     sodium: 0,
   },
 ];
