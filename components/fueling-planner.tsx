@@ -2008,6 +2008,12 @@ export function FuelingPlanner({
                 // thermal-impact carousel with real per-hito weather.
                 elevationMilestones: parsedGpx.elevationMilestones,
                 elevationProfile: parsedGpx.elevationProfile,
+                // "Regla de Oro: Sin Inferencia de Nombres" — real, explicit
+                // `<wpt>` waypoints from the file itself, checked server-side
+                // before Overpass for a "peak" hito's name (see
+                // `findNearestWaypointName` in `lib/overpass.ts`). Never a
+                // name guessed from the GPX's own title/filename.
+                waypoints: parsedGpx.waypoints,
                 intensity,
                 isTargetEvent,
                 pocketFood: pocketFoodPayload,

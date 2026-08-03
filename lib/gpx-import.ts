@@ -68,6 +68,15 @@ export type ParsedGpxRoute = {
    * doesn't need a second pass over `points` to reconstruct it. `[]` under
    * the same "no usable elevation data" condition as `mountainPasses`. */
   elevationProfile: { distanceFraction: number; elevationM: number }[];
+  /** "Regla de Oro: Sin Inferencia de Nombres" — real, explicit `<wpt>`
+   * waypoints from the GPX file itself (rider- or route-author-placed),
+   * the one legitimate source of a hito's name stronger than an OSM
+   * Overpass lookup — never inferred from the file's own title/name.
+   * Threaded through to `POST /api/fueling/plan`, which checks these
+   * before ever calling Overpass (see `findNearestWaypointName` in
+   * `lib/overpass.ts`). `[]` for a file with no named waypoints at all.
+   */
+  waypoints: { lat: number; lng: number; name: string }[];
 };
 
 type TrackPoint = { lat: number; lng: number; eleM: number | null };
@@ -82,6 +91,25 @@ function haversineKm(a: TrackPoint, b: TrackPoint): number {
   const lat2 = toRad(b.lat);
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Real, explicitly-named `<wpt>` elements — a *different* GPX concept
+ * from the `<trkpt>`/`<rtept>` track points `extractPoints` reads: a
+ * waypoint is a standalone point of interest the file's author placed on
+ * purpose (often exactly at a named summit/col), not part of the
+ * continuous ridden/planned line. Only kept when it has both real
+ * coordinates *and* a non-empty `<name>` — an unnamed waypoint has nothing
+ * a hito could use anyway. */
+function extractWaypoints(doc: Document): { lat: number; lng: number; name: string }[] {
+  return Array.from(doc.getElementsByTagName("wpt"))
+    .map((node): { lat: number; lng: number; name: string } | null => {
+      const lat = Number(node.getAttribute("lat"));
+      const lng = Number(node.getAttribute("lon"));
+      const name = node.getElementsByTagName("name")[0]?.textContent?.trim();
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || !name) return null;
+      return { lat, lng, name };
+    })
+    .filter((w): w is { lat: number; lng: number; name: string } => w != null);
 }
 
 function extractPoints(doc: Document): TrackPoint[] {
@@ -188,5 +216,6 @@ export function parseGpxFile(xmlText: string, fileName: string): ParsedGpxRoute 
     elevationMilestones,
     points: points.map((p): [number, number] => [p.lat, p.lng]),
     elevationProfile,
+    waypoints: extractWaypoints(doc),
   };
 }

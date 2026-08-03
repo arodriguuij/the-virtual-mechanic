@@ -659,10 +659,12 @@ export function WeatherImpactCard({
                     {/* "Ajuste Tipográfico del Nombre de Cimas/Hitos" —
                         stacked (name+nav row, then Km/altitud row below it)
                         rather than name/km side-by-side, so a long real col
-                        name (or a long "Cima Km 41 · 2324m" fallback) still
-                        gets room to itself instead of splitting it with a
-                        `shrink-0` sibling — `line-clamp-1` keeps it to one
-                        line without an aggressive mid-word cut.
+                        name (or the minimalist "Km 41 · 2324m" fallback,
+                        never an invented label like "Cima" — see
+                        `getPeakName` in `lib/overpass.ts`) still gets room
+                        to itself instead of splitting it with a `shrink-0`
+                        sibling — `line-clamp-1` keeps it to one line
+                        without an aggressive mid-word cut.
                         "Navegación Integrada" — the ←/→ controls (and the
                         X/Y counter between them) now live directly in this
                         header, right next to the hito they navigate,

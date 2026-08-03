@@ -11,7 +11,7 @@ import {
 import { fetchRouteElevationExtremes } from "@/lib/strava-routes";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { logFuelingPlan } from "@/lib/fueling-logs";
-import { getPeakName } from "@/lib/overpass";
+import { findNearestWaypointName, getPeakName, type GpxWaypoint } from "@/lib/overpass";
 import {
   type ElevationMilestone,
   type ElevationProfilePoint,
@@ -155,6 +155,27 @@ function sanitizeElevationProfile(input: unknown): ElevationProfilePoint[] {
       distanceFraction: Math.max(0, Math.min(1, p.distanceFraction)),
       elevationM: p.elevationM,
     }));
+}
+
+/** Client-supplied GPX `<wpt>` waypoints (`ParsedGpxRoute.waypoints` in
+ * `lib/gpx-import.ts`), sanitized the same "drop anything malformed, never
+ * reject the whole request" way every other client-supplied array in this
+ * route is handled. See `findNearestWaypointName` (`lib/overpass.ts`) for
+ * how these override an Overpass lookup when a real one sits close enough
+ * to a detected peak. */
+function sanitizeGpxWaypoints(input: unknown): GpxWaypoint[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter(
+      (w): w is GpxWaypoint =>
+        w &&
+        typeof w === "object" &&
+        typeof w.lat === "number" &&
+        typeof w.lng === "number" &&
+        typeof w.name === "string" &&
+        w.name.trim().length > 0
+    )
+    .map((w) => ({ lat: w.lat, lng: w.lng, name: w.name.trim() }));
 }
 
 // A single free-text "custom food" entry could otherwise be abused to smuggle
@@ -347,6 +368,12 @@ export async function POST(request: NextRequest) {
   // overwrites it with the route's actual elevation profile.
   let elevationMilestones: ElevationMilestone[] = sanitizeElevationMilestones(body.elevationMilestones);
   let elevationProfile: ElevationProfilePoint[] = sanitizeElevationProfile(body.elevationProfile);
+  // "Regla de Oro: Sin Inferencia de Nombres" — real, explicit `<wpt>`
+  // waypoints from a GPX Híbrido upload (never a name guessed from the
+  // file's own title), checked before Overpass in the naming loop below.
+  // A saved Strava route has no equivalent concept, so this stays `[]`
+  // whenever `body.waypoints` isn't present.
+  const gpxWaypoints: GpxWaypoint[] = sanitizeGpxWaypoints(body.waypoints);
   // Real per-milestone weather (Temp/Viento/Humedad), one entry per detected
   // hito, in route order — `[]` on a flat/short route with no genuine
   // pass/valley to report, or on any weather-sampling failure.
@@ -498,9 +525,20 @@ export async function POST(request: NextRequest) {
             elevationMilestones.map(async (m, i) => {
               const sample = milestoneWeather.pointSamples[i];
               if (!sample) return null;
+              // "Regla de Oro: Sin Inferencia de Nombres" — a "peak" hito's
+              // name is resolved 100% deterministically, in this exact
+              // order, never guessed from the GPX's own title/filename:
+              // 1. A real, explicit `<wpt>` waypoint close enough to this
+              //    point (`findNearestWaypointName` — GPX Híbrido only, `[]`
+              //    for a saved Strava route).
+              // 2. A real OpenStreetMap tag via Overpass (`getPeakName`).
+              // 3. The minimalist numeric fallback `getPeakName` itself
+              //    already returns when neither of the above has anything —
+              //    `Km {distanceKm} · {elevationM}m`, no invented label.
               const locationName =
                 m.type === "peak"
-                  ? await getPeakName(m.lat, m.lng, m.distanceKm, m.elevationM)
+                  ? (findNearestWaypointName(m.lat, m.lng, gpxWaypoints) ??
+                    (await getPeakName(m.lat, m.lng, m.distanceKm, m.elevationM)))
                   : m.type === "valley"
                     ? `Valle Km ${Math.round(m.distanceKm)}`
                     : m.type === "start"
