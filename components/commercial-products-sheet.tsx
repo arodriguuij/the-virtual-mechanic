@@ -4,7 +4,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
 import { useState } from "react";
 
-import { Dialog, DialogOverlay, DialogPortal } from "@/components/ui/dialog";
+import { Dialog, DialogOverlay, DialogPortal, DIALOG_CONTENT_Z } from "@/components/ui/dialog";
 import { COMMERCIAL_PRODUCTS, type CommercialProduct } from "@/lib/constants/nutrition-brands";
 import { cn } from "@/lib/utils";
 
@@ -155,7 +155,10 @@ export function CommercialProductsSheet({
         <DialogOverlay />
         <DialogPrimitive.Popup
           data-slot="dialog-content"
-          className="fixed right-0 bottom-0 left-0 z-50 max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl outline-none duration-200 data-closed:animate-out data-closed:slide-out-to-bottom data-open:animate-in data-open:slide-in-from-bottom"
+          className={cn(
+            "fixed right-0 bottom-0 left-0 max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl outline-none duration-200 data-closed:animate-out data-closed:slide-out-to-bottom data-open:animate-in data-open:slide-in-from-bottom",
+            DIALOG_CONTENT_Z
+          )}
         >
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="font-mono text-xs font-bold tracking-wider text-zinc-900 uppercase">

@@ -304,6 +304,25 @@ function getRoundedCurrentHour(): string {
   return `${String(hour).padStart(2, "0")}:00`;
 }
 
+/** "Scroll Inmediato al Primer Clic" — every `handleCalculate` early-return
+ * branch below already called `document.getElementById(...)?.scrollIntoView`
+ * directly, which should already fire on the very first click (it's a plain
+ * synchronous DOM call, not gated on a React re-render having flushed) —
+ * wrapping it in `requestAnimationFrame` here is a defensive belt-and-
+ * suspenders fix, deferring the call to the next paint so it can never race
+ * a same-tick layout change (e.g. the amber-border `error` state applying)
+ * that could otherwise leave `scrollIntoView` computing against stale
+ * geometry. Deliberately does *not* call `.focus()` on the target — the one
+ * `<input>` case that needs a real keyboard (Duración) still calls its own
+ * `.focus()` separately at its call site, since a `<select>` must never be
+ * programmatically focused here (that pops iOS Safari's native picker wheel
+ * open uninvited — see `handleCalculate`'s own top-level comment). */
+function scrollToFieldError(elementId: string) {
+  requestAnimationFrame(() => {
+    document.getElementById(elementId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+}
+
 // The one "Intensidad Objetivo" selector shared verbatim across all 3
 // planner modes — Ruta, Subir GPX, and Entreno Manual all now render the
 // exact same label, tooltip, placeholder, and option list via
@@ -1905,41 +1924,44 @@ export function FuelingPlanner({
     if (mode === "route") {
       if (!selectedRoute) {
         setRouteError(true);
-        document.getElementById("route")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        scrollToFieldError("route");
         return;
       }
       setRouteError(false);
       if (!intensity) {
         setIntensityError(true);
-        document.getElementById("intensity")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        scrollToFieldError("intensity");
         return;
       }
       setIntensityError(false);
     } else if (mode === "gpx") {
       if (!parsedGpx) {
         setRouteError(true);
-        document.getElementById("gpx-dropzone")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        scrollToFieldError("gpx-dropzone");
         return;
       }
       setRouteError(false);
       if (!intensity) {
         setIntensityError(true);
-        document.getElementById("intensity-gpx")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        scrollToFieldError("intensity-gpx");
         return;
       }
       setIntensityError(false);
     } else if (mode === "quick") {
       if (quickDurationHours <= 0) {
         setRouteError(true);
-        const hoursInput = document.getElementById("duration-hours");
-        hoursInput?.scrollIntoView({ behavior: "smooth", block: "center" });
-        hoursInput?.focus();
+        scrollToFieldError("duration-hours");
+        // A real `<input>`, safe to focus programmatically (unlike a
+        // `<select>` — see this function's own top comment) — deferred
+        // alongside the scroll itself so focus lands after the browser has
+        // actually settled the scroll position, not before it.
+        requestAnimationFrame(() => document.getElementById("duration-hours")?.focus());
         return;
       }
       setRouteError(false);
       if (!intensity) {
         setIntensityError(true);
-        document.getElementById("intensity-quick")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        scrollToFieldError("intensity-quick");
         return;
       }
       setIntensityError(false);
@@ -3054,77 +3076,51 @@ export function FuelingPlanner({
                 con tus paradas en ruta o avituallamientos.
               </p>
 
-              {/* Tira Resumen Sticky Ultra-Compacta — "Sticky HUD Bar,"
-                  sticky within this card as the athlete scrolls through the
-                  bottle-config selector and the pocket-food inventory
-                  below, so OBJETIVO/CASA/RESTANTE stays on screen instead
-                  of requiring a scroll back up. Recomputes instantly from
+              {/* Tira Resumen Sticky — "Anclaje Sticky por Contenedor
+                  Padre": sticks within *this card* only, since its
+                  containing block is Card 04's own root `<div>` (a plain
+                  sibling of Card 05's, not a shared ancestor) — the bar
+                  naturally un-sticks and scrolls away the instant Card 04's
+                  own bottom edge passes the sticky offset, with zero extra
+                  JS needed for that release. Recomputes instantly from
                   `coveredCarbsG`/`remainingCarbsG` (pure client-side
                   arithmetic, reacting to *both* the bottle selector and
                   every pocket-food stepper) — no network round-trip, no
                   need to press "Calcular" again just to see the coverage
                   change. `top-14 lg:top-4` clears the mobile header (`fixed
                   top-0 z-50`, ~64px tall, `lg:hidden`) so the bar never
-                  renders underneath it; desktop has no such header, so it
-                  sticks close to the viewport's own top instead — this
-                  only works because the root `<Card>` this whole component
-                  renders into overrides its own base `overflow-hidden`
-                  with `overflow-visible` (see that Card's own doc comment)
-                  — `position: sticky` is silently defeated by any
-                  `overflow: hidden` ancestor, and Card 04's own container
-                  below carries no such class either. Bronce elegante
-                  (`#70685b`, this app's own terracotta/bronze accent) fill
-                  — the HUD reads as its own distinct floating register
-                  rather than blending into the same accent every selector's
-                  active state already uses.
+                  renders underneath it (and never overlaps the "RATIO"
+                  wordmark); desktop has no such header, so it sticks close
+                  to the viewport's own top instead — this only works
+                  because the root `<Card>` this whole component renders
+                  into overrides its own base `overflow-hidden` with
+                  `overflow-visible` (see that Card's own doc comment) —
+                  `position: sticky` is silently defeated by any
+                  `overflow: hidden`/`clip`/`auto` ancestor, and Card 04's
+                  own container below carries no such class either. Bronce
+                  elegante (`#70685b`, this app's own terracotta/bronze
+                  accent) fill — the HUD reads as its own distinct floating
+                  register rather than blending into the same accent every
+                  selector's active state already uses.
 
-                  "Grid de 3 Columnas" — the previous single
-                  `justify-between` row (label+value pairs inline,
-                  pipe-separated) could still wrap onto two lines or clip a
-                  figure on a narrow phone once numbers got large. Replaced
-                  with 3 equal-width `grid-cols-3` columns divided by a
-                  subtle `divide-x divide-white/15` hairline, each laid out
-                  vertically (short uppercase label on top, bold figure
-                  below) — a fixed-column layout can't reflow/wrap the way a
-                  flex row could, so no combination of real figures can ever
-                  break this onto a second line or truncate a value.
+                  Back to a single compact row (superseding an earlier
+                  3-column grid pass) — `flex-wrap` is kept as a quiet
+                  safety net so an unusually large figure still wraps onto
+                  a second line instead of silently clipping, without
+                  changing how this reads in the normal case.
                   `getRemainingCarbsTextClass` (the shared 2-state
-                  amber/emerald semáforo, unchanged) still decides
-                  RESTANTE's color. */}
-              <div className="sticky top-14 z-30 my-3 rounded-xl border border-[#585248] bg-[#70685b] p-2.5 text-white shadow-md backdrop-blur-md transition-all lg:top-4">
-                <div className="grid grid-cols-3 divide-x divide-white/15 text-center">
-                  <div className="flex flex-col items-center justify-center px-1">
-                    <span className="font-mono text-[9px] font-medium tracking-wider text-zinc-300 uppercase sm:text-[10px]">
-                      Objetivo
-                    </span>
-                    <span className="mt-0.5 font-mono text-xs font-bold text-white sm:text-sm">
-                      {result.totalRideCarbsG}
-                      <span className="ml-0.5 text-[10px] font-normal text-zinc-200">g HC</span>
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-center justify-center px-1">
-                    <span className="font-mono text-[9px] font-medium tracking-wider text-zinc-300 uppercase sm:text-[10px]">
-                      Casa
-                    </span>
-                    <span className="mt-0.5 font-mono text-xs font-bold text-white sm:text-sm">
-                      {coveredCarbsG}
-                      <span className="ml-0.5 text-[10px] font-normal text-zinc-200">g HC</span>
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-center justify-center px-1">
-                    <span className="font-mono text-[9px] font-medium tracking-wider text-amber-200 uppercase sm:text-[10px]">
-                      Restante
-                    </span>
-                    <span
-                      className={cn(
-                        "mt-0.5 font-mono text-xs sm:text-sm",
-                        getRemainingCarbsTextClass(remainingCarbsG)
-                      )}
-                    >
-                      {remainingCarbsG}
-                      <span className="ml-0.5 text-[10px] font-normal opacity-80">g HC</span>
-                    </span>
-                  </div>
+                  amber/emerald semáforo) still decides RESTANTE's color —
+                  a ride that's already fully covered reads emerald here,
+                  not a flat amber regardless of state. */}
+              <div className="sticky top-14 z-20 my-3 rounded-xl border border-[#585248] bg-[#70685b] p-3 text-white shadow-md transition-all lg:top-4">
+                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 font-mono text-xs font-bold">
+                  <span>OBJETIVO: {result.totalRideCarbsG}g HC</span>
+                  <span className="opacity-30">|</span>
+                  <span>CASA: {coveredCarbsG}g HC</span>
+                  <span className="opacity-30">|</span>
+                  <span className={getRemainingCarbsTextClass(remainingCarbsG)}>
+                    RESTANTE: {remainingCarbsG}g HC
+                  </span>
                 </div>
               </div>
 

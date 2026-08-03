@@ -23,6 +23,33 @@ function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
+// "Overlay Oscuro Nativo, Sin Blur" — superseding the earlier GPU-promotion
+// workaround (`transform-gpu`/`translate-z-0`/`backface-hidden`/
+// `will-change-[opacity]`), which existed purely to fix an iOS Safari
+// freeze/flash artifact specific to *blurred* elements fading in/out.
+// `backdrop-blur`/`backdrop-filter` is dropped entirely here rather than
+// worked around — a flat, semi-transparent black scrim (the native iOS/
+// Android "dimming" look) has no `backdrop-filter` compositing layer to
+// glitch in the first place, so the fix is structural, not another
+// GPU hint layered on top of the same root cause.
+//
+// "Cobertura Total de Pantalla (Sidebar Incluido)" — `z-50` used to sit
+// far below the app shell's own `<aside>` sidebar (`components/
+// dashboard-shell.tsx`, `z-10000` on desktop, where it's a permanent
+// `position: fixed` column rather than a drawer overlay), so on a wide
+// viewport the sidebar rendered *on top of* every modal's dark overlay,
+// left fully undimmed. `z-[10010]` clears that comfortably — picked by
+// reading the sidebar's own real z-index rather than guessing a small
+// round number, since anything under `10000` would have silently failed
+// to fix this exact bug. No `container` prop is passed to `DialogPortal`
+// anywhere in this app, so every dialog already portals to `document.body`
+// (never a local, `<main>`-scoped container that could re-trap `position:
+// fixed`), and no ancestor between `<body>` and this overlay sets its own
+// `transform`/`perspective`/`filter` that would create a containing block
+// a `fixed` element could get trapped inside instead of the true viewport.
+const DIALOG_OVERLAY_Z = "z-[10010]";
+const DIALOG_CONTENT_Z = "z-[10020]";
+
 function DialogOverlay({
   className,
   ...props
@@ -30,22 +57,9 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      // "Fix de Artefacto Blur en iOS Safari" — a `backdrop-filter` element
-      // that animates its own opacity in/out (this overlay's
-      // `fade-in-0`/`fade-out-0`) can make iOS Safari briefly freeze/flash
-      // the blurred frame right as the compositing layer tears down on
-      // close, since the browser doesn't always promote a blurred,
-      // fading-out element to its own GPU layer proactively.
-      // `transform-gpu`/`translate-z-0` force that promotion explicitly,
-      // `backface-hidden` avoids an extra unnecessary paint pass on the
-      // (never-rotated) hidden face, and `will-change-[opacity]` hints the
-      // browser to keep this element's compositing layer warm for the
-      // specific property that's actually animating — together these keep
-      // the full `backdrop-blur-xs` frosted-glass effect fully intact while
-      // making the open/close transition itself clean and instantaneous
-      // instead of glitchy.
       className={cn(
-        "fixed inset-0 isolate z-50 transform-gpu translate-z-0 backface-hidden bg-black/10 duration-100 will-change-[opacity] supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate bg-black/50 transition-opacity duration-150 ease-out data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        DIALOG_OVERLAY_Z,
         className
       )}
       {...props}
@@ -67,7 +81,8 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          DIALOG_CONTENT_Z,
           className
         )}
         {...props}
@@ -171,4 +186,11 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  // Exported so `components/commercial-products-sheet.tsx` and
+  // `components/ui/info-dialog.tsx` — both of which build their own
+  // `DialogPrimitive.Popup` bottom sheet directly rather than going through
+  // `DialogContent` — can reuse the exact same z-index tokens instead of a
+  // second, independently-drifting magic number.
+  DIALOG_OVERLAY_Z,
+  DIALOG_CONTENT_Z,
 }
