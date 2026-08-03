@@ -381,11 +381,7 @@ function IntensityObjectiveSelect({
         <label htmlFor={id} className={cn(formFieldLabelClass, "block")}>
           Intensidad objetivo
         </label>
-        <InfoTooltip
-          label="Guía de zonas de intensidad"
-          note={INTENSITY_ZONE_TOOLTIP_NOTE}
-          panelClassName="w-72 text-left sm:w-80"
-        />
+        <InfoTooltip label="Guía de zonas de intensidad" note={INTENSITY_ZONE_TOOLTIP_NOTE} />
       </div>
       <div className="relative">
         <select
@@ -2197,7 +2193,7 @@ export function FuelingPlanner({
                             onClick={handleRefreshRoutes}
                             disabled={refreshingRoutes}
                             title="Recargar rutas desde Strava"
-                            className="flex cursor-pointer items-center gap-1 text-[10px] font-mono text-zinc-500 transition-colors duration-150 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="flex cursor-pointer items-center gap-1 text-[10px] font-mono font-semibold text-[#70685b] transition-colors duration-150 hover:text-[#585248] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <RefreshCw className={cn("size-3", refreshingRoutes && "animate-spin")} />
                             {refreshingRoutes ? "Sincronizando…" : "Recargar"}
@@ -2290,7 +2286,7 @@ export function FuelingPlanner({
                     <button
                       type="button"
                       onClick={() => setGpxUploadOpen((v) => !v)}
-                      className="mt-2 flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-zinc-500 transition-colors duration-150 hover:text-zinc-900"
+                      className="mt-2 flex cursor-pointer items-center gap-1.5 font-mono text-[11px] font-semibold text-[#70685b] transition-colors duration-150 hover:text-[#585248] hover:underline"
                     >
                       <Upload className="size-3.5" />
                       {gpxUploadOpen ? "Cancelar" : "+ Subir GPX"}
@@ -2913,7 +2909,13 @@ export function FuelingPlanner({
                 </div>
               </div>
 
-              <div className="mt-6 pt-2">
+              {/* Línea separadora — a clean divider between the 4-metric
+                  grid above and the Impacto Térmico section below, so the
+                  two read as distinct blocks rather than one continuous
+                  column of stats. */}
+              <hr className="my-6 border-t border-zinc-200/80" />
+
+              <div className="pt-2">
                 <WeatherImpactCard
                   temperatureC={result.weather.temperatureC}
                   temperatureMaxC={result.weather.temperatureMaxC}
@@ -3120,7 +3122,7 @@ export function FuelingPlanner({
                     <button
                       type="button"
                       onClick={() => setBottleCapacityEditorOpen((v) => !v)}
-                      className="flex cursor-pointer items-center gap-1 text-zinc-500 transition-colors duration-150 hover:text-zinc-900"
+                      className="flex cursor-pointer items-center gap-1 font-mono text-xs font-semibold text-[#70685b] transition-colors duration-150 hover:text-[#585248] hover:underline"
                     >
                       <Pencil className="size-3" />
                       Cambiar

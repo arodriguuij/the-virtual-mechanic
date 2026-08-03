@@ -1,86 +1,23 @@
-"use client";
+import type { ReactNode } from "react";
 
-import { HelpCircle } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
-
-import { cn } from "@/lib/utils";
+import { InfoDialog } from "@/components/ui/info-dialog";
 
 /**
- * Small inline "(?)" affordance for a section header/label — hover or focus
- * reveals a short plain-language explainer, without needing a modal or a
- * real tooltip primitive (none exists in `components/ui` yet). Now a real
- * `open` state (hover/focus in, hover/focus out) rather than pure CSS
- * `group-hover`/`group-focus-within` — a client component either way, but
- * this is what lets it close itself the instant the window scrolls (a
- * scroll-triggered popover drifting away from its trigger, or staying
- * stuck open under a card boundary, reads as broken), which a CSS-only
- * hover/focus trigger can't do on its own.
- *
- * `note` accepts a `ReactNode`, not just a plain string — most call sites
- * still just pass one sentence, but the Fueling Planner's "Intensidad
- * Objetivo" zone guide needs several `<p>`/`<strong>` lines, and widening
- * the type (a string is already a valid `ReactNode`) is backward-compatible
- * with every existing caller. `panelClassName` similarly lets a richer
- * tooltip widen itself past the default `max-w-xs` without affecting the
- * single-line callers that don't pass it.
- *
- * `HelpCircle` (not `Info`) is the one icon every tooltip trigger in the
- * app shares — see `components/fueling-context-tooltip.tsx` for the other
- * (and only other) call site sharing this exact treatment.
- *
- * **Panel: clean white, not dark.** "Unificación Global de Iconos de
- * Tooltip" originally gave this a dark `zinc-900` panel deliberately, as
- * the one exception to this app's porcelain/white palette. Reversed by a
- * later UX audit — on a real phone that dark panel read as "invasive,"
- * covering close to half the screen and darkening the surrounding card far
- * more than a short explainer warrants. Now `bg-white shadow-xl border
- * border-zinc-200 text-zinc-800 rounded-xl`, matching this app's own card
- * system instead of standing apart from it.
+ * Small inline "(?)" affordance for a section header/label — tapping it
+ * opens a bottom-sheet dialog with a short plain-language explainer (see
+ * `InfoDialog`, `components/ui/info-dialog.tsx`). Used to be a hover/focus
+ * CSS tooltip, which has no equivalent on a touchscreen — a rider on their
+ * phone could hover nothing, so the explainer was effectively unreachable
+ * on this app's primary device. `label` becomes both the trigger's
+ * accessible name and the sheet's own title; `note` is the sheet's body —
+ * still a plain string at every call site today, but `ReactNode` since the
+ * Fueling Planner's "Intensidad Objetivo" zone guide needs several `<p>`/
+ * `<strong>` lines rather than one sentence.
  */
-export function InfoTooltip({
-  label,
-  note,
-  panelClassName,
-}: {
-  label: string;
-  note: ReactNode;
-  panelClassName?: string;
-}) {
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    function closeOnScroll() {
-      setOpen(false);
-    }
-    window.addEventListener("scroll", closeOnScroll, { passive: true });
-    return () => window.removeEventListener("scroll", closeOnScroll);
-  }, [open]);
-
+export function InfoTooltip({ label, note }: { label: string; note: ReactNode }) {
   return (
-    <span className="relative inline-flex items-center">
-      <button
-        type="button"
-        tabIndex={0}
-        aria-label={label}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
-        className="inline-flex shrink-0 cursor-help text-zinc-400 transition-colors outline-none hover:text-zinc-600 focus:outline-none"
-      >
-        <HelpCircle className="size-3.5" />
-      </button>
-      <span
-        role="tooltip"
-        className={cn(
-          "pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 max-w-xs -translate-x-1/2 rounded-xl border border-zinc-200 bg-white p-4 font-mono text-xs font-normal tracking-normal text-zinc-800 normal-case shadow-xl transition-opacity duration-150",
-          open ? "opacity-100" : "opacity-0",
-          panelClassName
-        )}
-      >
-        {note}
-      </span>
-    </span>
+    <InfoDialog label={label} title={label}>
+      {note}
+    </InfoDialog>
   );
 }
