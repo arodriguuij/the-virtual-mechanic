@@ -1499,7 +1499,14 @@ export function FuelingPlanner({
   const [intensityError, setIntensityError] = useState(false);
   const [isOfflineCache, setIsOfflineCache] = useState(false);
   const [parsedGpx, setParsedGpx] = useState<ParsedGpxRoute | null>(null);
-  const [gpxDurationHours, setGpxDurationHours] = useState(2);
+  // "Selector Dual de Horas y Minutos" — replaces a single decimal-hours
+  // input (which rendered raw values like "2.35") with the same Horas/
+  // Minutos pair Entreno Manual's own "Duración estimada" already uses
+  // (`quickHoursInput`/`quickMinutesInput` above) — plain integers on
+  // screen, never a decimal. `gpxDurationHours` below derives the one
+  // decimal figure the actual calculation still needs from these two.
+  const [gpxHoursInput, setGpxHoursInput] = useState("2");
+  const [gpxMinutesInput, setGpxMinutesInput] = useState("0");
   const [gpxError, setGpxError] = useState<string | null>(null);
   const [isDraggingGpx, setIsDraggingGpx] = useState(false);
   const [refreshingRoutes, setRefreshingRoutes] = useState(false);
@@ -1532,6 +1539,14 @@ export function FuelingPlanner({
   const quickDurationHours = quickHoursNum + quickMinutesNum / 60;
   const quickValid = quickDurationHours > 0 && intensity !== "";
 
+  // Same "combine Horas + Minutos into one decimal-hours figure" pattern as
+  // `quickDurationHours` above — this is the one value GPX mode's own
+  // `durationHoursOverride` request-body field and `formatHoursMinutes()`
+  // caption actually read; the two integer inputs are purely a UI concern.
+  const gpxHoursNum = Number(gpxHoursInput) || 0;
+  const gpxMinutesNum = Number(gpxMinutesInput) || 0;
+  const gpxDurationHours = Math.max(0.25, gpxHoursNum + gpxMinutesNum / 60);
+
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === selectedRouteId) ?? null,
     [routes, selectedRouteId]
@@ -1542,6 +1557,44 @@ export function FuelingPlanner({
     () => (selectedRoute?.summaryPolyline ? decodePolyline(selectedRoute.summaryPolyline) : null),
     [selectedRoute]
   );
+  // "Mini-Gráfico de Altimetría Universal" — a selected Strava route has no
+  // per-point elevation available client-side the way a parsed GPX file
+  // does (see `ElevationSparkline`'s own doc comment), so this fetches it
+  // on demand, exactly once per *explicit* route selection (never eagerly
+  // for every route in the list), via `GET /api/strava/route-elevation` —
+  // a deliberate, scoped exception to this app's usual "never call Strava
+  // streams before the athlete actually calculates" rule, made specifically
+  // so Step 01's sparkline can render for a Strava route the same way it
+  // already does for GPX mode. The fetched profile is tagged with the
+  // `routeId` it belongs to, so switching routes hides the stale sparkline
+  // immediately (the tag no longer matches `selectedRouteId`) purely by
+  // re-deriving `stravaElevationPoints` below — no synchronous "reset to
+  // null" setState call at the top of the effect, which is what React's
+  // own lint rule flags as an unnecessary render-triggering pattern; every
+  // `setState` here only ever happens inside a genuinely async callback.
+  const [stravaElevationProfile, setStravaElevationProfile] = useState<{
+    routeId: string;
+    profile: { distanceFraction: number; elevationM: number }[];
+  } | null>(null);
+  useEffect(() => {
+    if (mode !== "route" || !selectedRouteId) return;
+    let cancelled = false;
+    fetch(`/api/strava/route-elevation?routeId=${encodeURIComponent(selectedRouteId)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { elevationProfile?: { distanceFraction: number; elevationM: number }[] } | null) => {
+        if (!cancelled) setStravaElevationProfile({ routeId: selectedRouteId, profile: data?.elevationProfile ?? [] });
+      })
+      .catch(() => {
+        if (!cancelled) setStravaElevationProfile({ routeId: selectedRouteId, profile: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, selectedRouteId]);
+  const stravaElevationPoints =
+    mode === "route" && stravaElevationProfile?.routeId === selectedRouteId
+      ? stravaElevationProfile.profile
+      : null;
   // Drives the CTA's gating/helper-text/tooltip for the two route-based
   // modes — a route (or GPX) alone isn't enough to calculate against
   // without an intensity too, and vice versa.
@@ -1873,7 +1926,21 @@ export function FuelingPlanner({
       }
       setParsedGpx(parsed);
       const speed = avgSpeedKmh && avgSpeedKmh > 0 ? avgSpeedKmh : FALLBACK_AVG_SPEED_KMH;
-      setGpxDurationHours(Math.round((parsed.distanceKm / speed) * 100) / 100);
+      const estimatedHours = parsed.distanceKm / speed;
+      let wholeHours = Math.floor(estimatedHours);
+      // Rounds to the nearest whole minute — the two integer inputs below
+      // can't represent a fractional minute anyway, and `gpxDurationHours`
+      // (derived from these two) is what the actual calculation reads, not
+      // this intermediate estimate. Rounding up to a full 60 (e.g. an
+      // estimate of 2.995h) rolls over into the next whole hour instead of
+      // ever displaying "60 min".
+      let wholeMinutes = Math.round((estimatedHours - wholeHours) * 60);
+      if (wholeMinutes === 60) {
+        wholeHours += 1;
+        wholeMinutes = 0;
+      }
+      setGpxHoursInput(String(wholeHours));
+      setGpxMinutesInput(String(wholeMinutes));
       // A successful upload makes the GPX the active route source — the
       // Strava selector resets/clears rather than sitting alongside it, so
       // there's only ever one route "in play" at a time.
@@ -2461,13 +2528,22 @@ export function FuelingPlanner({
             />
           )}
           {/* "Perfil Altimétrico (Sparkline SVG)" — a GPX file already has
-              its own elevation profile locally (see `ElevationSparkline`'s
-              own doc comment for why Strava-route mode doesn't get one
-              here too), so this renders directly under the map with zero
-              extra cost the instant a file's parsed. */}
+              its own elevation profile locally, so this renders the instant
+              a file's parsed, zero extra cost. A selected Strava route
+              instead reads from `stravaElevationPoints` (derived from the
+              on-selection fetch above) — `null` while that request is in
+              flight, before any route is picked, or right after switching
+              to a different route (the fetched profile's own tagged
+              `routeId` no longer matches), so the sparkline simply doesn't
+              render yet rather than showing a stale/wrong shape. */}
           {mode === "gpx" && parsedGpx && parsedGpx.elevationProfile.length >= 2 && (
             <div className="border-t border-zinc-100 bg-white px-4 pt-2 pb-1">
               <ElevationSparkline points={parsedGpx.elevationProfile} />
+            </div>
+          )}
+          {mode === "route" && stravaElevationPoints && stravaElevationPoints.length >= 2 && (
+            <div className="border-t border-zinc-100 bg-white px-4 pt-2 pb-1">
+              <ElevationSparkline points={stravaElevationPoints} />
             </div>
           )}
         </div>
@@ -2544,25 +2620,57 @@ export function FuelingPlanner({
                   onHourChange={setDepartureHour}
                 />
                 <div className="flex flex-col gap-2">
-                  <label htmlFor="gpx-duration" className={formFieldLabelClass}>
+                  <label className={formFieldLabelClass}>
                     <Pencil className="mr-1 inline size-3" />
                     Tiempo estimado (editar)
                   </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      id="gpx-duration"
-                      type="number"
-                      inputMode="decimal"
-                      min={0.25}
-                      step={0.25}
-                      className={inputClass}
-                      value={gpxDurationHours}
-                      onChange={(e) => setGpxDurationHours(Math.max(0.25, Number(e.target.value) || 0))}
-                    />
-                    <span className="font-mono text-xs whitespace-nowrap text-neutral-500">
-                      {formatHoursMinutes(gpxDurationHours)}
-                    </span>
+                  {/* "Selector Dual de Horas y Minutos" — same 2-col
+                      Horas/Minutos grid as Entreno Manual's own "Duración
+                      estimada" (`quickHoursInput`/`quickMinutesInput`
+                      above), replacing the old single decimal-hours input
+                      (which rendered raw values like "2.35") — plain
+                      integers on screen, the "Xh Ym" caption still gives
+                      the same at-a-glance readout as before. */}
+                  <div className="grid grid-cols-2 gap-3 *:min-w-0">
+                    <div className="relative flex items-center">
+                      <input
+                        id="gpx-duration-hours"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        step={1}
+                        placeholder="0"
+                        aria-label="Horas"
+                        className={cn(inputClass, "pr-8")}
+                        value={gpxHoursInput}
+                        onChange={(e) => setGpxHoursInput(e.target.value)}
+                      />
+                      <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                        h
+                      </span>
+                    </div>
+                    <div className="relative flex items-center">
+                      <input
+                        id="gpx-duration-minutes"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={59}
+                        step={5}
+                        placeholder="0"
+                        aria-label="Minutos"
+                        className={cn(inputClass, "pr-10")}
+                        value={gpxMinutesInput}
+                        onChange={(e) => setGpxMinutesInput(e.target.value)}
+                      />
+                      <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                        min
+                      </span>
+                    </div>
                   </div>
+                  <span className="font-mono text-xs whitespace-nowrap text-neutral-500">
+                    {formatHoursMinutes(gpxDurationHours)}
+                  </span>
                 </div>
               </div>
               <p className="text-xs text-neutral-500">

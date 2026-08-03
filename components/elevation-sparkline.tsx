@@ -6,20 +6,20 @@
  * a full charting library for what's really just one filled polyline.
  *
  * Takes `points` in the exact same `{distanceFraction, elevationM}[]` shape
- * `detectMountainPasses` (`lib/metabolic-engine.ts`) already consumes —
- * `parsedGpx.elevationProfile` (`lib/gpx-import.ts`) is its one real data
- * source today, since a GPX file already carries per-point altitude
- * locally with zero extra network cost. A Strava-selected route has no
- * equivalent profile available at this point in the flow: its full
- * altitude stream is only ever fetched on-demand, once, when the athlete
- * actually clicks "Calcular estrategia" (`fetchRouteElevationExtremes` in
- * `lib/strava-routes.ts`) — deliberately never eager, so selecting a route
- * in Card 01 doesn't add passive Strava API calls (see that function's own
- * doc comment). Rendering a sparkline for Strava mode would need a second,
- * eager per-route streams call purely to draw this silhouette before any
- * calculation exists, which would contradict that deliberate constraint —
- * so this component (and its one call site, GPX mode's map container) is
- * scoped to the data source that's genuinely free to render immediately.
+ * `detectMountainPasses` (`lib/metabolic-engine.ts`) already consumes. Two
+ * call sites, two different data sources: a parsed GPX file already
+ * carries per-point altitude locally (`parsedGpx.elevationProfile`, zero
+ * extra network cost), while a selected Strava route has no equivalent
+ * profile available client-side by default — its full altitude stream
+ * used to be fetched only once, server-side, when the athlete actually
+ * clicked "Calcular estrategia" (`fetchRouteElevationExtremes` in
+ * `lib/strava-routes.ts`). "Mini-Gráfico de Altimetría Universal" added a
+ * second, deliberate exception to that "never eager" rule specifically for
+ * this sparkline: `GET /api/strava/route-elevation` fetches the same
+ * streams data once per *explicit* route selection (never for every route
+ * in the list), so this component's `points` prop is `null` while that
+ * fetch is in flight or before any route is picked — same graceful
+ * "render nothing yet" behavior as a GPX file with too few points.
  */
 export function ElevationSparkline({
   points,
