@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Mountain, Thermometer, TriangleAlert, Wind } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, Mountain, Thermometer, TriangleAlert, Wind } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -273,15 +273,6 @@ export function WeatherImpactCard({
   weatherPoints?: ServerWeatherPoint[];
   elevationProfile?: { distanceFraction: number; elevationM: number }[];
 }) {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const [activeScrollIndex, setActiveScrollIndex] = useState(0);
-  // "Vista Compacta (Por defecto)" — the card opens collapsed, showing only
-  // the always-visible 3-tile summary; the athlete opts into the heavier
-  // altimetry/carousel detail rather than it always taking up vertical
-  // space.
-  const [showTimeline, setShowTimeline] = useState(false);
-
   const sourceLabel =
     source === "dynamic"
       ? // `multiPointSample` is true precisely when a real geographic
@@ -365,7 +356,26 @@ export function WeatherImpactCard({
             },
           ];
 
+  // "Condicionamiento de Impacto Térmico Global vs. Cronograma Unificado" —
+  // a route with 2+ real sampled hitos gets the granular carousel/SVG
+  // *instead of* the compact 3-tile average (a blended temperature is
+  // actively misleading once the ride covers a real valley-to-summit
+  // range), auto-expanded by default rather than behind an extra tap —
+  // there's nothing else to show on this card once the average is hidden,
+  // so collapsing it by default would just be an empty-looking card.
   const hasMultiplePoints = weatherPoints.length > 1;
+  const minTemperatureC = hasMultiplePoints ? Math.round(Math.min(...weatherPoints.map((p) => p.temperatureC))) : null;
+  const maxTemperatureC = hasMultiplePoints ? Math.round(Math.max(...weatherPoints.map((p) => p.temperatureC))) : null;
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [activeScrollIndex, setActiveScrollIndex] = useState(0);
+  // "Cronograma Unificado por Hitos" — starts expanded whenever there's a
+  // real multi-hito schedule to show (see the comment above); a lone
+  // "Ruta" reading has nothing to expand into and stays collapsed/moot,
+  // same as before. Still toggleable — an athlete who's already read the
+  // schedule can collapse it back down.
+  const [showTimeline, setShowTimeline] = useState(hasMultiplePoints);
 
   // "Deshabilitación por Índice" — driven straight off `activeScrollIndex`
   // (which card is currently focused) rather than the scroll container's
@@ -447,175 +457,191 @@ export function WeatherImpactCard({
         </p>
       </div>
 
-      {/* Vista Compacta — the same 3-tile Temp/Viento/Humedad readout as
-          before, but now driven by the ride-wide average props directly
-          (real data already computed server-side) rather than one card
-          per sampled point — the per-point breakdown moved into the
-          carousel below, behind the "Desplegar" toggle. */}
-      <div className="grid grid-cols-3 gap-2">
-        <CarouselStatTile
-          label="Temp. promedio"
-          icon={<Thermometer className="size-3 shrink-0" />}
-          value={`${temperatureC}°C`}
-          caption={temperatureMaxC != null && temperatureMaxC !== temperatureC ? `máx ${temperatureMaxC}°C` : undefined}
-          alertLabel={(temperatureMaxC ?? temperatureC) >= HEAT_ALERT_THRESHOLD_C ? "Calor extremo" : undefined}
-        />
-        <CarouselStatTile
-          label="Viento"
-          icon={<Wind className="size-3 shrink-0" />}
-          value={`${windSpeedKmh} km/h`}
-          alertLabel={windSpeedKmh >= WIND_ALERT_THRESHOLD_KMH ? "Viento fuerte" : undefined}
-        />
-        <CarouselStatTile
-          label="Humedad"
-          value={`${humidityPct}%`}
-          alertLabel={humidityPct >= HUMIDITY_ALERT_THRESHOLD_PCT ? "Humedad alta" : undefined}
-        />
-      </div>
-
-      {/* Botón desplegable — only offered when there's a real second point
-          to page to (a significant climb was actually sampled); a flat
-          route's single "Ruta" reading has nothing further to expand
-          into, so no button/altimetry/carousel renders at all in that
-          case, matching this component's long-standing "nothing to page
-          between" convention. */}
-      {hasMultiplePoints && (
-        <button
-          type="button"
-          onClick={() => setShowTimeline((v) => !v)}
-          className="mt-1 flex w-full items-center justify-between rounded-xl border border-zinc-200/80 bg-[#F6F5F0] px-3 py-2 font-mono text-xs text-[#70685b] transition-colors hover:bg-zinc-100"
-        >
-          <span className="flex items-center gap-1.5 font-medium">
-            Cronograma térmico por puertos ({weatherPoints.length} hitos)
-          </span>
-          <span>{showTimeline ? "▲ Ocultar" : "▼ Desplegar"}</span>
-        </button>
-      )}
-
-      {hasMultiplePoints && showTimeline && (
-        <div className="flex flex-col gap-3">
-          {/* Encabezado de Navegación PNS Style — a second, smaller header
-              scoped to the expanded detail itself (distinct from the
-              card's own always-visible title above), pairing the section
-              name with the strip's own `←`/`→` controls. */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <h5 className="font-mono text-[10px] font-bold tracking-wider text-zinc-900 uppercase">
-                Impacto Térmico
-              </h5>
-              <p className="truncate font-mono text-[10px] text-zinc-400">Previsión por altimetría</p>
-            </div>
-            <div className="flex shrink-0 items-center gap-1 text-zinc-800">
-              <button
-                type="button"
-                onClick={() => handleScrollToIndex("left")}
-                disabled={isAtStart}
-                className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
-                aria-label="Anterior puerto"
-              >
-                <ArrowLeft className="size-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleScrollToIndex("right")}
-                disabled={isAtEnd}
-                className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
-                aria-label="Siguiente puerto"
-              >
-                <ArrowRight className="size-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Perfil Altimétrico 2D — the currently-focused carousel card's
-              own node highlights live, synced off the same
-              `activeScrollIndex` the carousel's `onScroll` handler already
-              maintains. Clicking any node jumps the carousel straight to
-              that card. */}
-          <AltitudeProfileSvg
-            points={weatherPoints}
-            profile={elevationProfile}
-            activeIndex={activeScrollIndex}
-            onPointClick={handleScrollToSpecificIndex}
+      {/* "Condicionamiento de Impacto Térmico Global vs. Cronograma
+          Unificado" — a route with fewer than 2 real sampled hitos (a flat
+          route, or Entreno Manual's single blended reading) shows only this
+          static Temp/Viento/Humedad summary. 2+ hitos hide it entirely in
+          favor of the unified schedule below instead — a single averaged
+          temperature is actively misleading once the ride covers a real
+          valley-to-summit range, and showing both at once just duplicates
+          the same numbers in two places on a narrow phone. */}
+      {!hasMultiplePoints ? (
+        <div className="grid grid-cols-3 gap-2">
+          <CarouselStatTile
+            label="Temp. promedio"
+            icon={<Thermometer className="size-3 shrink-0" />}
+            value={`${temperatureC}°C`}
+            caption={temperatureMaxC != null && temperatureMaxC !== temperatureC ? `máx ${temperatureMaxC}°C` : undefined}
+            alertLabel={(temperatureMaxC ?? temperatureC) >= HEAT_ALERT_THRESHOLD_C ? "Calor extremo" : undefined}
           />
-
-          {/* Contenedor de tarjetas con swipe táctil nativo — real touch/
-              trackpad/mouse-wheel scrolling, `snap-x snap-mandatory` +
-              `snap-start` on each card for the magnetic anchor, `touch-pan-x`
-              so a vertical page-scroll gesture starting on this strip isn't
-              captured by it. `-mx-1 px-1` lets a `snap-start` card's own focus
-              ring/shadow render uncropped at the strip's edges without
-              widening the row past its parent. Rendered in strict
-              chronological/route order — the same order `weatherPoints`
-              itself is already built in (Salida → Valle → Cima → ... →
-              Llegada). */}
-          <div
-            ref={scrollContainerRef}
-            onScroll={handleContainerScroll}
-            className="scrollbar-none -mx-1 flex touch-pan-x snap-x snap-mandatory gap-3 overflow-x-auto px-1 py-1"
-            style={{ WebkitOverflowScrolling: "touch" }}
+          <CarouselStatTile
+            label="Viento"
+            icon={<Wind className="size-3 shrink-0" />}
+            value={`${windSpeedKmh} km/h`}
+            alertLabel={windSpeedKmh >= WIND_ALERT_THRESHOLD_KMH ? "Viento fuerte" : undefined}
+          />
+          <CarouselStatTile
+            label="Humedad"
+            value={`${humidityPct}%`}
+            alertLabel={humidityPct >= HUMIDITY_ALERT_THRESHOLD_PCT ? "Humedad alta" : undefined}
+          />
+        </div>
+      ) : (
+        // Contenedor Unificado del Cronograma por Hitos — one bordered
+        // porcelain container holding both the toggle header (with the
+        // route's real min/max temp range and hito count baked directly
+        // into it, no separate summary tile needed) and, once expanded,
+        // the altimetry SVG + carousel. Starts expanded (see the
+        // `showTimeline` initializer above) — sobrio PNS style: no emoji,
+        // no "Desplegar"/"Ocultar" text, a plain rotating chevron instead.
+        <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/70 p-3.5 transition-all">
+          <button
+            type="button"
+            onClick={() => setShowTimeline((v) => !v)}
+            className="group flex w-full cursor-pointer items-center justify-between py-1 text-left"
+            aria-expanded={showTimeline}
           >
-            {weatherPoints.map((point, index) => (
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="font-mono text-xs font-bold tracking-tight text-zinc-900 uppercase">
+                Cronograma térmico por puertos
+              </span>
+              <span className="shrink-0 font-mono text-[11px] font-medium text-zinc-500">
+                ({minTemperatureC}°C — {maxTemperatureC}°C · {weatherPoints.length} hitos)
+              </span>
+            </div>
+            <ChevronDown
+              className={cn(
+                "size-4 shrink-0 text-zinc-500 transition-transform duration-200 ease-out group-hover:text-zinc-900",
+                showTimeline && "rotate-180"
+              )}
+            />
+          </button>
+
+          {showTimeline && (
+            <div className="mt-3 flex flex-col gap-3 border-t border-zinc-200/60 pt-3">
+              {/* Nav Header — the strip's own `←`/`→` controls, paired
+                  with a short caption describing what the carousel below
+                  shows (no repeated "Impacto Térmico" title here — the
+                  toggle button above already carries it). */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-mono text-[10px] font-medium tracking-wider text-zinc-500 uppercase">
+                  Previsión por altimetría y hora de paso
+                </span>
+                <div className="flex shrink-0 items-center gap-1 text-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => handleScrollToIndex("left")}
+                    disabled={isAtStart}
+                    className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
+                    aria-label="Anterior puerto"
+                  >
+                    <ArrowLeft className="size-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleScrollToIndex("right")}
+                    disabled={isAtEnd}
+                    className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
+                    aria-label="Siguiente puerto"
+                  >
+                    <ArrowRight className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Perfil Altimétrico 2D — the currently-focused carousel
+                  card's own node highlights live, synced off the same
+                  `activeScrollIndex` the carousel's `onScroll` handler
+                  already maintains. Clicking any node jumps the carousel
+                  straight to that card. */}
+              <div className="rounded-xl border border-zinc-200/60 bg-white/70 p-2">
+                <AltitudeProfileSvg
+                  points={weatherPoints}
+                  profile={elevationProfile}
+                  activeIndex={activeScrollIndex}
+                  onPointClick={handleScrollToSpecificIndex}
+                />
+              </div>
+
+              {/* Contenedor de tarjetas con swipe táctil nativo — real
+                  touch/trackpad/mouse-wheel scrolling, `snap-x
+                  snap-mandatory` + `snap-start` on each card for the
+                  magnetic anchor, `touch-pan-x` so a vertical page-scroll
+                  gesture starting on this strip isn't captured by it.
+                  `-mx-1 px-1` lets a `snap-start` card's own focus ring/
+                  shadow render uncropped at the strip's edges without
+                  widening the row past its parent. Rendered in strict
+                  chronological/route order — the same order
+                  `weatherPoints` itself is already built in (Salida →
+                  Valle → Cima → ... → Llegada). */}
               <div
-                key={point.key}
-                className={cn(
-                  "min-w-70 max-w-75 shrink-0 snap-start rounded-xl border p-3.5 shadow-xs transition-colors",
-                  index === activeScrollIndex
-                    ? "border-[#70685b]/40 bg-[#F6F5F0]"
-                    : "border-zinc-200/80 bg-[#F6F5F0]"
-                )}
+                ref={scrollContainerRef}
+                onScroll={handleContainerScroll}
+                className="scrollbar-none -mx-1 flex touch-pan-x snap-x snap-mandatory gap-3 overflow-x-auto px-1 py-1"
+                style={{ WebkitOverflowScrolling: "touch" }}
               >
-                <span className="mb-0.5 flex items-center gap-1 truncate font-mono text-[10px] font-bold tracking-wider text-[#70685b] uppercase">
-                  {point.type === "peak" && <Mountain className="size-3 shrink-0" />}
-                  {point.locationName}
-                </span>
-                {/* Línea 2 — real elevation, plus the real distance-along-
-                    route (Km X) whenever a granular server hito supplied
-                    one (a 2-point altitude fallback or the single "Ruta"
-                    reading never had a real km figure to show). */}
-                <span className="mb-2 block font-mono text-[10px] text-zinc-400">
-                  {point.distanceKm != null ? `Km ${point.distanceKm} · ` : ""}
-                  {point.elevationM != null ? `${point.elevationM}m altitud` : "Altitud no disponible"}
-                </span>
-                <div className="grid grid-cols-3 gap-2">
-                  <CarouselStatTile
-                    label="Temp."
-                    icon={<Thermometer className="size-3 shrink-0" />}
-                    value={`${point.temperatureC}°C`}
-                    caption={point.temperatureCaption}
-                    alertLabel={point.temperatureC >= HEAT_ALERT_THRESHOLD_C ? "Calor extremo" : undefined}
-                  />
-                  <CarouselStatTile
-                    label="Viento"
-                    icon={<Wind className="size-3 shrink-0" />}
-                    value={`${point.windSpeedKmh} km/h`}
-                    alertLabel={point.windSpeedKmh >= WIND_ALERT_THRESHOLD_KMH ? "Viento fuerte" : undefined}
-                  />
-                  <CarouselStatTile
-                    label="Humedad"
-                    value={`${point.humidityPct}%`}
-                    alertLabel={point.humidityPct >= HUMIDITY_ALERT_THRESHOLD_PCT ? "Humedad alta" : undefined}
+                {weatherPoints.map((point, index) => (
+                  <div
+                    key={point.key}
+                    className={cn(
+                      "min-w-70 max-w-75 shrink-0 snap-start rounded-xl border p-3.5 shadow-xs transition-colors",
+                      index === activeScrollIndex ? "border-[#70685b]/40 bg-white" : "border-zinc-200/80 bg-white"
+                    )}
+                  >
+                    <span className="mb-0.5 flex items-center gap-1 truncate font-mono text-[10px] font-bold tracking-wider text-[#70685b] uppercase">
+                      {point.type === "peak" && <Mountain className="size-3 shrink-0" />}
+                      {point.locationName}
+                    </span>
+                    {/* Línea 2 — real elevation, plus the real distance-
+                        along-route (Km X) whenever a granular server hito
+                        supplied one (a 2-point altitude fallback never had
+                        a real km figure to show). */}
+                    <span className="mb-2 block font-mono text-[10px] text-zinc-400">
+                      {point.distanceKm != null ? `Km ${point.distanceKm} · ` : ""}
+                      {point.elevationM != null ? `${point.elevationM}m altitud` : "Altitud no disponible"}
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      <CarouselStatTile
+                        label="Temp."
+                        icon={<Thermometer className="size-3 shrink-0" />}
+                        value={`${point.temperatureC}°C`}
+                        caption={point.temperatureCaption}
+                        alertLabel={point.temperatureC >= HEAT_ALERT_THRESHOLD_C ? "Calor extremo" : undefined}
+                      />
+                      <CarouselStatTile
+                        label="Viento"
+                        icon={<Wind className="size-3 shrink-0" />}
+                        value={`${point.windSpeedKmh} km/h`}
+                        alertLabel={point.windSpeedKmh >= WIND_ALERT_THRESHOLD_KMH ? "Viento fuerte" : undefined}
+                      />
+                      <CarouselStatTile
+                        label="Humedad"
+                        value={`${point.humidityPct}%`}
+                        alertLabel={point.humidityPct >= HUMIDITY_ALERT_THRESHOLD_PCT ? "Humedad alta" : undefined}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Indicador de progreso PNS style — a thin `translateX`
+                  track synced from `scrollProgress`, which
+                  `handleContainerScroll` updates on every native `scroll`
+                  event regardless of whether it was a drag or a
+                  `handleArrowScroll` call. */}
+              <div className="flex justify-center">
+                <div className="relative h-0.5 w-24 overflow-hidden rounded-full bg-zinc-200">
+                  <div
+                    className="h-full rounded-full bg-[#70685b] transition-all duration-75"
+                    style={{
+                      width: `${100 / weatherPoints.length}%`,
+                      transform: `translateX(${scrollProgress * (weatherPoints.length - 1) * 100}%)`,
+                    }}
                   />
                 </div>
               </div>
-            ))}
-          </div>
-
-          {/* Indicador de progreso PNS style — a thin `translateX` track
-              synced from `scrollProgress`, which `handleContainerScroll`
-              updates on every native `scroll` event regardless of whether
-              it was a drag or a `handleArrowScroll` call. */}
-          <div className="flex justify-center">
-            <div className="relative h-0.5 w-24 overflow-hidden rounded-full bg-zinc-200">
-              <div
-                className="h-full rounded-full bg-[#70685b] transition-all duration-75"
-                style={{
-                  width: `${100 / weatherPoints.length}%`,
-                  transform: `translateX(${scrollProgress * (weatherPoints.length - 1) * 100}%)`,
-                }}
-              />
             </div>
-          </div>
+          )}
         </div>
       )}
 
