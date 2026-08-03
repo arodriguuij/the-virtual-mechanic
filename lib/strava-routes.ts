@@ -21,6 +21,15 @@ type StravaRouteApiResponse = {
   elevation_gain: number; // meters
   type: number;
   map: { summary_polyline: string | null } | null;
+  // Strava's own estimate (seconds) of how long this route takes an
+  // "average" rider — a real, documented field on the Route resource,
+  // distinct from `moving_time`/`elapsed_time` (activity-only fields; a
+  // saved route has never actually been ridden, so it has no elapsed time
+  // of its own). Used purely to pre-fill "Tiempo estimado" in Card 02 —
+  // never a substitute for this app's own FTP/intensity-aware
+  // `estimateRideDurationHours()` unless the athlete explicitly edits the
+  // field (see `POST /api/fueling/plan`'s `durationHoursOverride`).
+  estimated_moving_time?: number;
 };
 
 export type StravaRoute = {
@@ -44,6 +53,10 @@ export type StravaRoute = {
   // first coordinate, and re-fetching it later would be a wasted API call
   // since it's already right here in the routes-list response.
   summaryPolyline: string | null;
+  // Strava's own "Tiempo Estimado" for this route (seconds), `null` when
+  // Strava has nothing on file for it — see `StravaRouteApiResponse`'s own
+  // field comment above for why this isn't a real elapsed/moving time.
+  estimatedMovingTimeSec: number | null;
 };
 
 /**
@@ -80,6 +93,8 @@ export async function fetchAthleteRoutes(accessToken: string): Promise<StravaRou
         endLat: lastPoint?.[0] ?? null,
         endLng: lastPoint?.[1] ?? null,
         summaryPolyline: polyline ?? null,
+        estimatedMovingTimeSec:
+          typeof route.estimated_moving_time === "number" ? route.estimated_moving_time : null,
       };
     });
 }

@@ -1507,6 +1507,28 @@ export function FuelingPlanner({
   // decimal figure the actual calculation still needs from these two.
   const [gpxHoursInput, setGpxHoursInput] = useState("2");
   const [gpxMinutesInput, setGpxMinutesInput] = useState("0");
+  // "Tiempo Estimado Autocompletado" para una ruta real de Strava — mismo
+  // par Horas/Minutos que GPX mode, pre-rellenado desde el propio
+  // `estimated_moving_time` de Strava (o el fallback distancia/velocidad
+  // media cuando Strava no lo tiene). Deliberately *not* synced via a
+  // `useEffect` (React's own `set-state-in-effect` lint rule flags a
+  // synchronous `setState` used purely to derive one value from another —
+  // see https://react.dev/learn/you-might-not-need-an-effect): instead,
+  // the default is recomputed fresh during render (`routeDurationDefault`
+  // below) and only an actual manual edit is ever written to state, tagged
+  // with the `routeId` it belongs to so switching routes reverts back to a
+  // fresh default automatically, with no reset call needed at all. This is
+  // also what avoids a real regression — if the athlete never touches this
+  // field, the calculation keeps using `estimateRideDurationHours()` (this
+  // app's own FTP/vatios objetivo/intensidad model, more precise than a
+  // plain distance/speed estimate); only an actual edit sends
+  // `durationHoursOverride` in the request body (see `handleCalculate`),
+  // exactly like GPX mode already does.
+  const [routeDurationOverride, setRouteDurationOverride] = useState<{
+    routeId: string;
+    hoursInput: string;
+    minutesInput: string;
+  } | null>(null);
   const [gpxError, setGpxError] = useState<string | null>(null);
   const [isDraggingGpx, setIsDraggingGpx] = useState(false);
   const [refreshingRoutes, setRefreshingRoutes] = useState(false);
@@ -1595,6 +1617,36 @@ export function FuelingPlanner({
     mode === "route" && stravaElevationProfile?.routeId === selectedRouteId
       ? stravaElevationProfile.profile
       : null;
+  // "Tiempo Estimado Autocompletado" — recomputed fresh on every render
+  // (cheap arithmetic, no `useEffect` needed): `estimated_moving_time` is
+  // already present on every route in `routes` (fetched in the same
+  // `/athlete/routes` list call, no extra network cost), falling back to
+  // the same distance/average-speed estimate GPX mode uses whenever Strava
+  // has no estimate for this particular route.
+  const routeDurationDefault = useMemo(() => {
+    if (!selectedRoute) return { hours: "", minutes: "" };
+    const speed = avgSpeedKmh && avgSpeedKmh > 0 ? avgSpeedKmh : FALLBACK_AVG_SPEED_KMH;
+    const estimatedHours = selectedRoute.estimatedMovingTimeSec
+      ? selectedRoute.estimatedMovingTimeSec / 3600
+      : selectedRoute.distanceKm / speed;
+    let wholeHours = Math.floor(estimatedHours);
+    let wholeMinutes = Math.round((estimatedHours - wholeHours) * 60);
+    if (wholeMinutes === 60) {
+      wholeHours += 1;
+      wholeMinutes = 0;
+    }
+    return { hours: String(wholeHours), minutes: String(wholeMinutes) };
+  }, [selectedRoute, avgSpeedKmh]);
+  // `routeDurationOverride` only ever holds a genuine manual edit, tagged
+  // with the route it belongs to — switching to a different route makes
+  // this tag stop matching, so the two fields below revert to the fresh
+  // default above automatically, with no reset needed.
+  const routeDurationOverridden = routeDurationOverride?.routeId === selectedRouteId;
+  const routeHoursInput = routeDurationOverridden ? routeDurationOverride.hoursInput : routeDurationDefault.hours;
+  const routeMinutesInput = routeDurationOverridden
+    ? routeDurationOverride.minutesInput
+    : routeDurationDefault.minutes;
+  const routeDurationHours = Math.max(0.25, (Number(routeHoursInput) || 0) + (Number(routeMinutesInput) || 0) / 60);
   // Drives the CTA's gating/helper-text/tooltip for the two route-based
   // modes — a route (or GPX) alone isn't enough to calculate against
   // without an intensity too, and vice versa.
@@ -1899,6 +1951,7 @@ export function FuelingPlanner({
     parsedGpx,
     quickDurationHours,
     gpxDurationHours,
+    routeDurationHours,
     intensity,
     departureLocal,
     isTargetEvent,
@@ -2037,6 +2090,11 @@ export function FuelingPlanner({
               endLat: selectedRoute.endLat,
               endLng: selectedRoute.endLng,
               routeId: selectedRoute.id,
+              // Only present once the athlete has actually edited "Tiempo
+              // estimado" for this route — otherwise the server keeps
+              // using its own FTP/intensity-aware `estimateRideDurationHours()`
+              // estimate, same as before this field existed.
+              ...(routeDurationOverridden ? { durationHoursOverride: routeDurationHours } : {}),
               intensity,
               isTargetEvent,
               pocketFood: pocketFoodPayload,
@@ -2564,7 +2622,7 @@ export function FuelingPlanner({
           </span>
 
           {mode === "route" && (
-            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className={cn("mt-2 grid grid-cols-1 gap-3", selectedRoute && "sm:grid-cols-3")}>
               <IntensityObjectiveSelect
                 id="intensity"
                 value={intensity}
@@ -2579,6 +2637,75 @@ export function FuelingPlanner({
                 hour={departureHour}
                 onHourChange={setDepartureHour}
               />
+              {/* "Tiempo Estimado Autocompletado" — mirrors GPX mode's own
+                  field exactly, pre-filled from Strava's own
+                  `estimated_moving_time` (or the distance/velocidad media
+                  fallback) the instant a route is selected. Editing it sets
+                  `routeDurationOverride`, which is what makes
+                  `handleCalculate` send a real `durationHoursOverride` for
+                  this route instead of leaving the server's own FTP-aware
+                  `estimateRideDurationHours()` estimate in charge. */}
+              {selectedRoute && (
+                <div className="flex flex-col gap-2">
+                  <label className={formFieldLabelClass}>
+                    <Pencil className="mr-1 inline size-3" />
+                    Tiempo estimado (editar)
+                  </label>
+                  <div className="grid grid-cols-2 gap-3 *:min-w-0">
+                    <div className="relative flex items-center">
+                      <input
+                        id="route-duration-hours"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        step={1}
+                        placeholder="0"
+                        aria-label="Horas"
+                        className={cn(inputClass, "pr-8")}
+                        value={routeHoursInput}
+                        onChange={(e) =>
+                          setRouteDurationOverride({
+                            routeId: selectedRouteId,
+                            hoursInput: e.target.value,
+                            minutesInput: routeMinutesInput,
+                          })
+                        }
+                      />
+                      <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                        h
+                      </span>
+                    </div>
+                    <div className="relative flex items-center">
+                      <input
+                        id="route-duration-minutes"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={59}
+                        step={5}
+                        placeholder="0"
+                        aria-label="Minutos"
+                        className={cn(inputClass, "pr-10")}
+                        value={routeMinutesInput}
+                        onChange={(e) =>
+                          setRouteDurationOverride({
+                            routeId: selectedRouteId,
+                            hoursInput: routeHoursInput,
+                            minutesInput: e.target.value,
+                          })
+                        }
+                      />
+                      <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                        min
+                      </span>
+                    </div>
+                  </div>
+                  <span className="font-mono text-xs whitespace-nowrap text-neutral-500">
+                    {formatHoursMinutes(routeDurationHours)}
+                    {!routeDurationOverridden && " (estimado)"}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

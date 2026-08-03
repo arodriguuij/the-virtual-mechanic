@@ -28,31 +28,82 @@ const OVERPASS_ENDPOINTS = [
 const OVERPASS_SEARCH_RADIUS_M = 1500;
 const OVERPASS_FETCH_TIMEOUT_MS = 8000;
 
-type OverpassElement = { tags?: { name?: string } };
+// Broad enough to classify which tier an element matched, not just read its
+// name — `getPeakName`'s own tiered search below needs to tell a real
+// pass/peak apart from a toponym fallback even though all 5 tag filters are
+// queried together in one request.
+type OverpassElement = {
+  tags?: {
+    name?: string;
+    mountain_pass?: string;
+    natural?: string;
+    tourism?: string;
+    place?: string;
+  };
+};
 type OverpassResponse = { elements: OverpassElement[] };
+
+// A named element's own tags decide which precedence tier it belongs to —
+// see `getPeakName`'s own doc comment for why a pass/saddle always outranks
+// a peak, which always outranks a generic toponym.
+function isPassOrSaddle(el: OverpassElement): boolean {
+  return el.tags?.mountain_pass === "yes" || el.tags?.natural === "saddle";
+}
+function isPeak(el: OverpassElement): boolean {
+  return el.tags?.natural === "peak";
+}
+function isToponym(el: OverpassElement): boolean {
+  return el.tags?.tourism === "viewpoint" || el.tags?.place === "locality";
+}
+
+// OSM contributors frequently enter a name in all-caps (or all-lowercase) —
+// title-cased reads as a genuine proper noun instead of shouting or looking
+// unfinished. Only applied when the name doesn't already contain a lowercase
+// letter, so a name that's already properly cased (mixed-case, accents,
+// "d'Ordino"-style apostrophes) is left completely untouched.
+function toTitleCaseIfShouting(name: string): string {
+  if (/[a-zà-ÿ]/.test(name)) return name;
+  return name
+    .toLowerCase()
+    .split(" ")
+    .map((word) => (word.length > 0 ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(" ");
+}
 
 /**
  * Resolves a mountain-pass/summit's real name from OpenStreetMap within
  * `OVERPASS_SEARCH_RADIUS_M` of the given point. Queries both `node` and
  * `way` geometries (a real col is sometimes mapped as a way — a short
- * ridgeline segment — rather than a single node) across 2 tag filters —
- * `mountain_pass=yes` (Pyrenees/Andorra cols are frequently tagged this
- * way, with no `natural=mountain_pass`/`saddle` counterpart) and
+ * ridgeline segment — rather than a single node) across the strict pass/
+ * peak tags — `mountain_pass=yes` (Pyrenees/Andorra cols are frequently
+ * tagged this way, with no `natural=mountain_pass`/`saddle` counterpart),
  * `natural=saddle` (the other common tagging convention for the same kind
- * of pass) — plus a plain `node["natural"="peak"]` for a true summit
- * rather than a through-pass. `out tags` (not `out body`) is deliberate:
- * a `way`'s full body includes every node reference along its geometry,
- * which we never use — only the `name` tag matters here, so `out tags`
- * keeps the response small regardless of how many `way`s match.
+ * of pass), and `natural=peak` for a true summit rather than a through-pass
+ * — plus, in the same single request, 2 more permissive toponym tags
+ * (`tourism=viewpoint`, `place=locality`) at a tighter radius, for a "hito
+ * ciego" whose road doesn't actually cross a node tagged as a real pass or
+ * peak (a ski-station finish, a mirador) but does sit near *something*
+ * named on OSM. `out tags` (not `out body`) is deliberate: a `way`'s full
+ * body includes every node reference along its geometry, which we never
+ * use — only the tags matter here, so `out tags` keeps the response small
+ * regardless of how many `way`s match.
+ *
+ * "Orden de Precedencia Estricto" — a single query returns every tier's
+ * matches together, so the *code*, not query order, decides precedence:
+ * a real pass/saddle always wins if one exists within range, then a plain
+ * peak, and only once neither exists does a generic toponym (viewpoint/
+ * locality) get used — a named mirador should never outrank a real,
+ * specifically-tagged col just because it happened to come back first in
+ * the response.
  *
  * "Fallback Minimalista Puro" — falls back to a bare `Km {distanceKm} ·
- * {elevationM}m` whenever OSM has nothing named at this exact spot (a
- * minor/unnamed summit) or every mirror in `OVERPASS_ENDPOINTS` fails.
- * Deliberately *not* prefixed with an invented label like "Cima" — this is
- * enrichment, not a required data source, and a numeric-only readout is
- * honest about not having found a real name, rather than dressing up a
- * coordinate with a word that implies a confirmed identification. Never
- * blocks the caller's own calculation on failure.
+ * {elevationM}m` whenever OSM has nothing named at this exact spot at any
+ * tier, or every mirror in `OVERPASS_ENDPOINTS` fails. Deliberately *not*
+ * prefixed with an invented label like "Cima" — this is enrichment, not a
+ * required data source, and a numeric-only readout is honest about not
+ * having found a real name, rather than dressing up a coordinate with a
+ * word that implies a confirmed identification. Never blocks the caller's
+ * own calculation on failure.
  */
 export async function getPeakName(
   lat: number,
@@ -61,7 +112,9 @@ export async function getPeakName(
   elevationM: number
 ): Promise<string> {
   const fallback = `Km ${Math.round(distanceKm)} · ${Math.round(elevationM)}m`;
-  const query = `[out:json][timeout:8];(node["mountain_pass"="yes"](around:${OVERPASS_SEARCH_RADIUS_M},${lat},${lon});node["natural"="saddle"](around:${OVERPASS_SEARCH_RADIUS_M},${lat},${lon});node["natural"="peak"](around:${OVERPASS_SEARCH_RADIUS_M},${lat},${lon});way["mountain_pass"="yes"](around:${OVERPASS_SEARCH_RADIUS_M},${lat},${lon});way["natural"="saddle"](around:${OVERPASS_SEARCH_RADIUS_M},${lat},${lon}););out tags 1;`;
+  const strictRadius = OVERPASS_SEARCH_RADIUS_M;
+  const toponymRadius = Math.round(OVERPASS_SEARCH_RADIUS_M * 0.53); // ~800m at the current 1500m default
+  const query = `[out:json][timeout:8];(node["mountain_pass"="yes"](around:${strictRadius},${lat},${lon});node["natural"="saddle"](around:${strictRadius},${lat},${lon});node["natural"="peak"](around:${strictRadius},${lat},${lon});way["mountain_pass"="yes"](around:${strictRadius},${lat},${lon});way["natural"="saddle"](around:${strictRadius},${lat},${lon});node["tourism"="viewpoint"](around:${toponymRadius},${lat},${lon});node["place"="locality"](around:${toponymRadius},${lat},${lon}););out tags 10;`;
 
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
@@ -87,8 +140,11 @@ export async function getPeakName(
         continue;
       }
       const data: OverpassResponse = await res.json();
-      const name = data.elements.find((el) => el.tags?.name)?.tags?.name?.trim();
-      return name || fallback;
+      const named = data.elements.filter((el) => el.tags?.name?.trim());
+      const match =
+        named.find(isPassOrSaddle) ?? named.find(isPeak) ?? named.find(isToponym) ?? named[0];
+      const name = match?.tags?.name?.trim();
+      return name ? toTitleCaseIfShouting(name) : fallback;
     } catch (err) {
       console.warn(`[Overpass] ${endpoint} falló (${err instanceof Error ? err.message : err}) — probando el siguiente mirror.`);
     }
