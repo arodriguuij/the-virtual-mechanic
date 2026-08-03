@@ -169,6 +169,8 @@ export function WeatherImpactCard({
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const isAtStart = scrollProgress <= 0.01;
+  const isAtEnd = scrollProgress >= 0.99;
 
   const sourceLabel =
     source === "dynamic"
@@ -277,7 +279,8 @@ export function WeatherImpactCard({
             <button
               type="button"
               onClick={() => handleArrowScroll("left")}
-              className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95"
+              disabled={isAtStart}
+              className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
               aria-label="Anterior"
             >
               <ArrowLeft className="size-4" />
@@ -285,7 +288,8 @@ export function WeatherImpactCard({
             <button
               type="button"
               onClick={() => handleArrowScroll("right")}
-              className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95"
+              disabled={isAtEnd}
+              className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
               aria-label="Siguiente"
             >
               <ArrowRight className="size-4" />

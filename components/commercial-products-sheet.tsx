@@ -12,13 +12,15 @@ const COMMERCIAL_PRODUCT_BRANDS = Array.from(new Set(COMMERCIAL_PRODUCTS.map((p)
 
 /** One "Marcas comerciales" catalog row — the same compact stepper
  * geometry as `PocketFoodStepperRow` (`components/fueling-planner.tsx`),
- * but the caption is the product's own real bracketed data line
- * (`[ Marca - Nombre (Xg HC · Ymg Na+) ]`) instead of a carb-only figure,
- * since every real product here carries a genuine sodium value the
- * generic pocket-food catalog never tracked. Exported since it renders in
- * two places: inside this sheet's own catalog list, and inline in Card
- * 04's "bolsillo" for whatever's already selected (see `FuelingPlanner`'s
- * own `selectedCommercialProducts`). */
+ * but the label renders as 2 stacked lines (brand in bronze up top, then
+ * product name + its real carb/sodium figures below) instead of one
+ * bracketed `[ Marca - Nombre (...) ]` string — that single-line format
+ * reliably truncated the brand/name/figures together on a narrow phone
+ * ("Nombres Cortos"-style clipping), which this 2-line split avoids since
+ * only the second line's own trailing figures need `truncate`. Exported
+ * since it renders in two places: inside this sheet's own catalog list,
+ * and inline in Card 04's "bolsillo" for whatever's already selected (see
+ * `FuelingPlanner`'s own `selectedCommercialProducts`). */
 export function CommercialProductStepperRow({
   product,
   qty,
@@ -30,9 +32,17 @@ export function CommercialProductStepperRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-2 border-b border-zinc-100 py-2 last:border-b-0">
-      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-zinc-600">
-        [ {product.brand} - {product.name} ({product.carbs}g HC · {product.sodium}mg Na+) ]
-      </span>
+      <div className="min-w-0 flex-1 pr-2">
+        <span className="mb-1 block font-mono text-[10px] font-bold tracking-wider text-[#70685b] uppercase leading-none">
+          {product.brand}
+        </span>
+        <span className="block truncate font-sans text-xs font-semibold text-zinc-900">
+          {product.name}{" "}
+          <span className="font-mono text-[11px] font-normal text-zinc-500">
+            · {product.carbs}g HC · {product.sodium}mg Na+
+          </span>
+        </span>
+      </div>
       <div className="flex h-7 min-w-20 shrink-0 items-center justify-between rounded-sm border border-zinc-200 bg-transparent px-2 py-0.5">
         <button
           type="button"

@@ -3008,7 +3008,9 @@ export function FuelingPlanner({
                 </span>
               </div>
 
-              <div className="mt-7 mb-2 flex flex-wrap items-center justify-between gap-2">
+              <hr className="border-t border-zinc-200/70 my-6" />
+
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <span className={formFieldLabelClass}>Configuración de bidones</span>
                 {/* "Micro-Edición In-Situ de Capacidad de Bidón" — a
                     display-only preview of a different bottle size than the
@@ -3101,11 +3103,13 @@ export function FuelingPlanner({
                 </div>
               )}
 
+              <hr className="border-t border-zinc-200/70 my-6" />
+
               {/* Inventario de Bolsillo Interactivo — only the athlete's
                   own "Mi Despensa" selection (every catalog item by
                   default, narrowed via "Editar mi despensa"), always
                   editable. */}
-              <div className="mt-8">
+              <div>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <span className={formFieldLabelClass}>Comida en bolsillo</span>
                   <button
@@ -3341,8 +3345,8 @@ export function FuelingPlanner({
                 <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3 shadow-xs">
                   <div className="flex items-center gap-2">
                     <TriangleAlert className="size-3.5 shrink-0 text-amber-700" />
-                    <span className="font-mono text-[11px] font-bold tracking-wider text-amber-900 uppercase">
-                      Alerta de déficit pendiente de cubrir
+                    <span className="font-mono text-[11px] font-bold tracking-wider text-amber-900 uppercase whitespace-nowrap">
+                      Alerta de déficit
                     </span>
                   </div>
                   <p className="mt-1 font-mono text-[11px] leading-tight text-amber-900/90">
