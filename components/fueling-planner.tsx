@@ -3041,14 +3041,11 @@ export function FuelingPlanner({
                   Card 05 explicitly, so a nonzero RESTANTE never reads as
                   this card having failed to do its job. Deliberately in
                   normal document flow, *not* inside the sticky strip below
-                  — the strip needs to stay an ultra-compact single line
-                  (~35px) so it never eats meaningful screen real estate
-                  while pinned; a full explanatory sentence baked into it
-                  would have forced it tall enough to compete with the
-                  content it's supposed to float quietly above. This
-                  paragraph itself scrolls away normally, same as any other
-                  static copy on the page. */}
-              <p className="mb-3 font-mono text-xs leading-relaxed text-zinc-500">
+                  (see that div's own doc comment for why), and now shrunk
+                  to a micro `text-[10px]` (was `text-xs`) to free up more
+                  vertical space above the sticky strip for whatever the
+                  athlete is actually configuring. */}
+              <p className="mb-3 font-mono text-[10px] leading-snug text-zinc-400 sm:text-[11px]">
                 Configura lo que llevarás físicamente en la bici. El restante lo cubrirás
                 con tus paradas en ruta o avituallamientos.
               </p>
@@ -3075,30 +3072,53 @@ export function FuelingPlanner({
                   (`#70685b`, this app's own terracotta/bronze accent) fill
                   — the HUD reads as its own distinct floating register
                   rather than blending into the same accent every selector's
-                  active state already uses. A single `justify-between` row
-                  with short labels (OBJETIVO/CASA/RESTANTE, not the fuller
-                  "OBJETIVO RUTA"/"CARGA DE CASA"/"RESTANTE RUTA" wording the
-                  static paragraph above already spells out in full) is what
-                  keeps this to one compact line instead of wrapping onto
-                  two — `getRemainingCarbsTextClass` (the shared 2-state
-                  amber/emerald semáforo, unchanged) still decides RESTANTE's
-                  color. */}
-              <div className="sticky top-14 z-30 my-3 rounded-xl border border-[#585248] bg-[#70685b] px-3 py-2.5 text-white shadow-md backdrop-blur-md transition-all lg:top-4">
-                <div className="flex items-center justify-between font-mono text-[11px] font-bold tracking-tight sm:text-xs">
-                  <div className="flex items-center gap-1">
-                    <span className="text-zinc-300">OBJETIVO:</span>
-                    <span>{result.totalRideCarbsG}g HC</span>
+                  active state already uses.
+
+                  "Grid de 3 Columnas" — the previous single
+                  `justify-between` row (label+value pairs inline,
+                  pipe-separated) could still wrap onto two lines or clip a
+                  figure on a narrow phone once numbers got large. Replaced
+                  with 3 equal-width `grid-cols-3` columns divided by a
+                  subtle `divide-x divide-white/15` hairline, each laid out
+                  vertically (short uppercase label on top, bold figure
+                  below) — a fixed-column layout can't reflow/wrap the way a
+                  flex row could, so no combination of real figures can ever
+                  break this onto a second line or truncate a value.
+                  `getRemainingCarbsTextClass` (the shared 2-state
+                  amber/emerald semáforo, unchanged) still decides
+                  RESTANTE's color. */}
+              <div className="sticky top-14 z-30 my-3 rounded-xl border border-[#585248] bg-[#70685b] p-2.5 text-white shadow-md backdrop-blur-md transition-all lg:top-4">
+                <div className="grid grid-cols-3 divide-x divide-white/15 text-center">
+                  <div className="flex flex-col items-center justify-center px-1">
+                    <span className="font-mono text-[9px] font-medium tracking-wider text-zinc-300 uppercase sm:text-[10px]">
+                      Objetivo
+                    </span>
+                    <span className="mt-0.5 font-mono text-xs font-bold text-white sm:text-sm">
+                      {result.totalRideCarbsG}
+                      <span className="ml-0.5 text-[10px] font-normal text-zinc-200">g HC</span>
+                    </span>
                   </div>
-                  <span className="text-white/30">|</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-zinc-300">CASA:</span>
-                    <span>{coveredCarbsG}g HC</span>
+                  <div className="flex flex-col items-center justify-center px-1">
+                    <span className="font-mono text-[9px] font-medium tracking-wider text-zinc-300 uppercase sm:text-[10px]">
+                      Casa
+                    </span>
+                    <span className="mt-0.5 font-mono text-xs font-bold text-white sm:text-sm">
+                      {coveredCarbsG}
+                      <span className="ml-0.5 text-[10px] font-normal text-zinc-200">g HC</span>
+                    </span>
                   </div>
-                  <span className="text-white/30">|</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-amber-200">RESTANTE:</span>
-                    <span className={getRemainingCarbsTextClass(remainingCarbsG)}>
-                      {remainingCarbsG}g HC
+                  <div className="flex flex-col items-center justify-center px-1">
+                    <span className="font-mono text-[9px] font-medium tracking-wider text-amber-200 uppercase sm:text-[10px]">
+                      Restante
+                    </span>
+                    <span
+                      className={cn(
+                        "mt-0.5 font-mono text-xs sm:text-sm",
+                        getRemainingCarbsTextClass(remainingCarbsG)
+                      )}
+                    >
+                      {remainingCarbsG}
+                      <span className="ml-0.5 text-[10px] font-normal opacity-80">g HC</span>
                     </span>
                   </div>
                 </div>
