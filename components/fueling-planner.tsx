@@ -3156,9 +3156,9 @@ export function FuelingPlanner({
                   one consistent language. */}
               {showWaterOnlyMixTip && (
                 <AlertBanner tone="warning" icon="💡" label="Tip de Eficiencia" className="mt-2.5">
-                  En rutas de alta exigencia o calor, cambiar 1 bidón a{" "}
-                  <span className="underline decoration-amber-400">Mix</span> libera espacio en tus
-                  bolsillos y acelera la hidratación.
+                  En rutas de alta exigencia o calor, cambiar{" "}
+                  <span className="underline decoration-amber-400">1 o ambos bidones</span> a Mix libera
+                  espacio en tus bolsillos y acelera la hidratación.
                 </AlertBanner>
               )}
 
@@ -3641,22 +3641,31 @@ export function FuelingPlanner({
                   `waterRefillLiters` for the unrelated plain-water fountain
                   refill note, which none of this affects. */}
 
-              {/* Estrategia de carga día −1 — supplementary, occasional
-                  content (only rendered on a long/target-event ride), kept
-                  outside the tiers above rather than forced into one of
-                  them. Given its own bronze-tinted "featured card"
-                  treatment (`bg-[#70685b]/10 border-[#70685b]/25`, the
-                  header row itself in bronze) rather than the plain gray
-                  nested-box every other block in this card uses — this is
-                  the one supplementary module worth visually standing out
-                  as its own highlighted strategy card. Always visible now
-                  (no more `<details>` collapse) — the whole point of this
-                  Card 05 pass is a fully static, at-a-glance manifest ready
-                  to screenshot, so hiding real content behind a tap works
-                  against that. The `CalendarDays` lucide icon stands in for
-                  a calendar glyph rather than a literal emoji, matching
-                  this app's no-emoji convention throughout. */}
-              {result.carbLoading && (
+              {/* Estrategia de carga día −1 — now always rendered
+                  (previously hidden entirely below the duration threshold),
+                  branching between the real calculated protocol
+                  (`result.carbLoading`, present whenever the ride is
+                  genuinely demanding — see `TARGET_EVENT_DURATION_
+                  THRESHOLD_HOURS`, 2.5h, in `POST /api/fueling/plan`,
+                  or whenever "Ruta objetivo" is checked regardless of
+                  duration) and a quiet reassurance note for a moderate
+                  ride that never needed supercompensación in the first
+                  place — a manifest that silently omits this module below
+                  the threshold reads as an oversight, not a deliberate
+                  "not needed here." The calculated case keeps its own
+                  bronze-tinted "featured card" treatment
+                  (`bg-[#70685b]/10 border-[#70685b]/25`) — this is the one
+                  supplementary module worth visually standing out; the
+                  moderate-ride case uses the same plain gray nested-box
+                  treatment every other block in this card uses, since
+                  there's nothing urgent to highlight. Both cases render
+                  unconditionally (no `<details>` collapse) — the whole
+                  point of this Card 05 pass is a fully static, at-a-glance
+                  manifest ready to screenshot. The `CalendarDays` lucide
+                  icon stands in for a calendar glyph rather than a literal
+                  emoji, matching this app's no-emoji convention
+                  throughout. */}
+              {result.carbLoading ? (
                 <div className="rounded-xl border border-[#70685b]/25 bg-[#70685b]/10 p-3.5">
                   <div className="flex items-center justify-between gap-2 font-mono text-xs font-bold text-[#70685b]">
                     <span className="flex items-center gap-1.5 tracking-widest uppercase">
@@ -3672,6 +3681,17 @@ export function FuelingPlanner({
                       <p key={guideline}>• {guideline}</p>
                     ))}
                   </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-zinc-200/70 bg-zinc-50 p-3.5">
+                  <span className="flex items-center gap-1.5 font-mono text-xs font-bold tracking-widest text-zinc-700 uppercase">
+                    <CalendarDays className="size-3.5 shrink-0 text-zinc-500" />
+                    Estrategia de carga día −1
+                  </span>
+                  <p className="mt-1.5 font-mono text-[11px] leading-tight text-zinc-600">
+                    Ruta moderada. Mantén tu alimentación habitual rica en carbohidratos sin
+                    necesidad de supercompensación previa.
+                  </p>
                 </div>
               )}
             </div>

@@ -48,8 +48,10 @@ const VALID_FUELING_MODES = new Set<FuelingMode>(["optimal", "inventory", "hybri
 
 // Above this ride duration, the pre-event carb-loading module shows
 // automatically — below it, only if the athlete flags the ride as a
-// target event/competition via the planner's optional switch.
-const TARGET_EVENT_DURATION_THRESHOLD_HOURS = 3.5;
+// target event/competition via the planner's optional switch. Lowered from
+// 3.5h to 2.5h — a genuinely demanding ride's glycogen stakes start well
+// before the old, more conservative cutoff.
+const TARGET_EVENT_DURATION_THRESHOLD_HOURS = 2.5;
 
 // Fallback climate for whenever there's no real forecast to sample (quick
 // calculator mode with no route coordinates, or Open-Meteo came back empty)

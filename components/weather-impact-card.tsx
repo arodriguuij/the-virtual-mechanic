@@ -595,35 +595,13 @@ export function WeatherImpactCard({
           </div>
 
           <div className="flex flex-col gap-3 border-t border-zinc-100 pt-3">
-            {/* Nav Header — the strip's own `←`/`→` controls, paired
-                with a short caption describing what the carousel below
-                shows (no repeated "Impacto Térmico" title here — the
-                header above already carries it). */}
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-[11px] font-medium whitespace-normal text-zinc-500">
-                Previsión por altimetría y hora de paso
-              </span>
-              <div className="flex shrink-0 items-center gap-1 text-zinc-800">
-                <button
-                  type="button"
-                  onClick={() => handleScrollToIndex("left")}
-                  disabled={isAtStart}
-                  className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
-                  aria-label="Anterior puerto"
-                >
-                  <ArrowLeft className="size-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleScrollToIndex("right")}
-                  disabled={isAtEnd}
-                  className="cursor-pointer rounded-full p-1.5 transition-colors hover:bg-zinc-100 active:scale-95 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-20 disabled:hover:bg-transparent disabled:active:scale-100"
-                  aria-label="Siguiente puerto"
-                >
-                  <ArrowRight className="size-3.5" />
-                </button>
-              </div>
-            </div>
+            {/* Nav Header — plain caption now, no loose arrows: the
+                ←/→ controls moved into the active hito card's own header
+                below, right next to the content they actually navigate,
+                instead of floating disconnected from it up here. */}
+            <span className="block font-mono text-[11px] font-medium whitespace-normal text-zinc-500">
+              Previsión por altimetría y hora de paso
+            </span>
 
             {/* Perfil Altimétrico 2D — 100% transparent now, no tint/frame
                 of its own: the SVG's own plotted line/axes already give it
@@ -679,27 +657,65 @@ export function WeatherImpactCard({
                     )}
                   >
                     {/* "Ajuste Tipográfico del Nombre de Cimas/Hitos" —
-                        stacked (name row, then Km/altitud row below it)
-                        rather than side-by-side, so a long real col name
-                        (or a long "Cima Km 41 · 2324m" fallback) gets the
-                        card's full width to itself instead of splitting it
-                        with a `shrink-0` sibling — `line-clamp-1` keeps it
-                        to one line without an aggressive mid-word cut. */}
+                        stacked (name+nav row, then Km/altitud row below it)
+                        rather than name/km side-by-side, so a long real col
+                        name (or a long "Cima Km 41 · 2324m" fallback) still
+                        gets room to itself instead of splitting it with a
+                        `shrink-0` sibling — `line-clamp-1` keeps it to one
+                        line without an aggressive mid-word cut.
+                        "Navegación Integrada" — the ←/→ controls (and the
+                        X/Y counter between them) now live directly in this
+                        header, right next to the hito they navigate,
+                        instead of floating disconnected above the SVG —
+                        visually linking the control to the content it
+                        actually operates on and making the swipeable strip
+                        read as an obvious carousel. Every card renders its
+                        own copy of this row, but only one card is ever
+                        visible at a time (each is `w-full snap-center`), so
+                        exactly one set is ever on screen; all of them
+                        share the same global `activeScrollIndex`/
+                        `isAtStart`/`isAtEnd` state, so navigation always
+                        acts on whichever hito is actually in view. */}
                     <div className="flex flex-col gap-0.5 border-b border-zinc-200/60 pb-1.5">
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <span
-                          className={cn(
-                            "size-2 shrink-0 rounded-full",
-                            isActive ? "bg-[#70685b]" : "bg-zinc-300"
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "size-2 shrink-0 rounded-full",
+                              isActive ? "bg-[#70685b]" : "bg-zinc-300"
+                            )}
+                          />
+                          {point.type === "peak" && (
+                            <Mountain className="size-3 shrink-0 text-[#70685b]" />
                           )}
-                        />
-                        {point.type === "peak" && (
-                          <Mountain className="size-3 shrink-0 text-[#70685b]" />
-                        )}
-                        <span className="line-clamp-1 font-mono text-[11px] font-bold tracking-tight text-zinc-900 uppercase">
-                          {point.locationName}
+                          <span className="line-clamp-1 font-mono text-[11px] font-bold tracking-tight text-zinc-900 uppercase">
+                            {point.locationName}
+                          </span>
                         </span>
-                      </span>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleScrollToIndex("left")}
+                            disabled={isAtStart}
+                            className="cursor-pointer rounded-md bg-zinc-100 p-1 text-zinc-700 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
+                            aria-label="Hito anterior"
+                          >
+                            <ArrowLeft className="size-3.5" />
+                          </button>
+                          <span className="px-0.5 font-mono text-[10px] text-zinc-400">
+                            {activeScrollIndex + 1}/{weatherPoints.length}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleScrollToIndex("right")}
+                            disabled={isAtEnd}
+                            className="cursor-pointer rounded-md bg-zinc-100 p-1 text-zinc-700 transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
+                            aria-label="Siguiente hito"
+                          >
+                            <ArrowRight className="size-3.5" />
+                          </button>
+                        </div>
+                      </div>
                       {/* Km/altitud — the real distance-along-route
                           whenever a granular server hito supplied one
                           (a 2-point altitude fallback never had a real km
