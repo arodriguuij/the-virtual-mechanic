@@ -26,11 +26,15 @@ const WIND_ALERT_THRESHOLD_KMH = 20;
 const HUMIDITY_ALERT_THRESHOLD_PCT = 75;
 
 // "Carrusel Híbrido PNS Style" — one horizontal swipeable strip of
-// "weather point" cards — width of one card (280px min) + its own `gap-3`
-// (12px), used by both the arrow buttons' own scroll-by amount, the
-// progress bar's translate math, and `handleContainerScroll`'s own
-// index-from-scroll-position estimate.
+// "weather point" cards — the real per-card width is measured live (see
+// `handleContainerScroll`), but before the strip has ever rendered a first
+// card to measure, this fallback assumes one card (280px min) + its own
+// `gap-3`.
 const CAROUSEL_CARD_SCROLL_AMOUNT_PX = 292;
+// The strip's own `gap-3` (12px) — added to the *real* measured card width
+// in `handleContainerScroll`, since Tailwind's `gap` isn't part of an
+// element's own `getBoundingClientRect()`.
+const CAROUSEL_CARD_GAP_PX = 12;
 
 const BRONZE = "#70685b";
 
@@ -204,17 +208,32 @@ function AltitudeProfileSvg({
       {areaPath && <path d={areaPath} fill={BRONZE} fillOpacity={0.08} stroke="none" />}
       <path d={linePath} fill="none" stroke={BRONZE} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.55} />
       {markerCoords.map((c, i) => (
-        <circle
-          key={points[i].key}
-          cx={c.x}
-          cy={c.y}
-          r={i === activeIndex ? 4.5 : 3}
-          fill={i === activeIndex ? BRONZE : "#ffffff"}
-          stroke={BRONZE}
-          strokeWidth={i === activeIndex ? 2 : 1.5}
-          className="cursor-pointer transition-all duration-150"
-          onClick={() => onPointClick(i)}
-        />
+        // "Sincronización Bidireccional" — 2 circles per hito: the small
+        // visible marker (design) and a much larger, fully transparent one
+        // stacked on top purely as a real touch target (`r=16`, ~32px
+        // across) — the visible dot alone (r 3.5-6) is smaller than any
+        // reasonable tap-accuracy tolerance on a real phone, so without this
+        // second hitbox circle a rider could tap right next to a hito and
+        // miss it entirely.
+        <g key={points[i].key}>
+          <circle
+            cx={c.x}
+            cy={c.y}
+            r={i === activeIndex ? 6 : 3.5}
+            fill={i === activeIndex ? BRONZE : "#a1a1aa"}
+            stroke={i === activeIndex ? "#ffffff" : "none"}
+            strokeWidth={i === activeIndex ? 2 : 0}
+            className="pointer-events-none transition-all duration-150"
+          />
+          <circle
+            cx={c.x}
+            cy={c.y}
+            r={16}
+            fill="transparent"
+            className="cursor-pointer touch-manipulation"
+            onClick={() => onPointClick(i)}
+          />
+        </g>
       ))}
     </svg>
   );
@@ -387,40 +406,48 @@ export function WeatherImpactCard({
   const isAtStart = activeScrollIndex === 0;
   const isAtEnd = activeScrollIndex >= weatherPoints.length - 1;
 
-  // "Fix de Scroll Magnético por Tarjetas" — a raw `scrollBy(292px)` drifts
-  // out of sync with each card's own real rendered width (it's a `min-w-70
-  // max-w-75` box, not a fixed 292px one) after a couple of arrow presses,
-  // landing mid-card instead of anchored to its `snap-start` edge. Scrolling
-  // straight to the target index's own DOM child via `scrollIntoView`
-  // anchors on that card's real boundary every time, however wide it
-  // actually rendered — `inline: "start"` matches the strip's own
-  // `snap-start` alignment, `block: "nearest"` keeps this a purely
-  // horizontal scroll with no vertical page movement.
+  // "Sincronización Bidireccional: SVG → Carrusel" — a tap on any hito in
+  // the altimetry SVG (or the `←`/`→` buttons) scrolls straight to that
+  // index's own DOM child via `scrollIntoView`, anchoring on its real
+  // rendered boundary rather than a raw `scrollBy` pixel guess (which used
+  // to drift out of sync with each card's own real width, `min-w-70
+  // max-w-75`, after a couple of presses). `inline: "center"` centers the
+  // target card in the visible strip — a clearer "this is the one you
+  // tapped" cue than aligning it flush to the left edge — `block: "nearest"`
+  // keeps this a purely horizontal scroll with no vertical page movement.
   function handleScrollToSpecificIndex(index: number) {
     const container = scrollContainerRef.current;
     if (!container) return;
     const clamped = Math.max(0, Math.min(weatherPoints.length - 1, index));
     const targetCard = container.children[clamped] as HTMLElement | undefined;
-    targetCard?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+    targetCard?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   }
 
   function handleScrollToIndex(direction: "left" | "right") {
     handleScrollToSpecificIndex(direction === "left" ? activeScrollIndex - 1 : activeScrollIndex + 1);
   }
 
-  // The one native `onScroll` handler both the button-triggered
-  // `scrollBy` and a raw touch/trackpad drag fire — this is what keeps
-  // `scrollProgress` (the progress bar) and `activeScrollIndex` (the
-  // altimetry sparkline's highlighted node) in sync regardless of which
-  // gesture drove the strip.
+  // "Sincronización Bidireccional: Carrusel → SVG" — the one native
+  // `onScroll` handler every gesture (a raw touch/trackpad drag, or the
+  // `scrollIntoView` calls above) fires, keeping `scrollProgress` (the
+  // progress bar) and `activeScrollIndex` (the altimetry SVG's highlighted
+  // node) in sync in real time regardless of which one actually drove the
+  // strip. The active index is derived from the *real* rendered width of
+  // the strip's own first card (`getBoundingClientRect`), not the fixed
+  // `CAROUSEL_CARD_SCROLL_AMOUNT_PX` guess (kept only as a fallback before
+  // the strip has rendered) — this app's cards are `min-w-70 max-w-75` (a
+  // range, not one fixed size), so measuring the real DOM node is what
+  // keeps this accurate instead of drifting the way a hardcoded constant
+  // would as content/viewport width changes.
   function handleContainerScroll() {
     const el = scrollContainerRef.current;
     if (!el) return;
     const { scrollLeft, scrollWidth, clientWidth } = el;
     const maxScroll = scrollWidth - clientWidth;
     setScrollProgress(maxScroll > 0 ? scrollLeft / maxScroll : 0);
+    const firstCardWidth = el.children[0]?.getBoundingClientRect().width || CAROUSEL_CARD_SCROLL_AMOUNT_PX;
     const currentIndex = Math.min(
-      Math.round(scrollLeft / CAROUSEL_CARD_SCROLL_AMOUNT_PX),
+      Math.round(scrollLeft / (firstCardWidth + CAROUSEL_CARD_GAP_PX)),
       weatherPoints.length - 1
     );
     setActiveScrollIndex(Math.max(0, currentIndex));
@@ -585,7 +612,12 @@ export function WeatherImpactCard({
                     key={point.key}
                     className={cn(
                       "min-w-70 max-w-75 shrink-0 snap-start rounded-xl border p-3.5 shadow-xs transition-colors",
-                      index === activeScrollIndex ? "border-[#70685b]/40 bg-white" : "border-zinc-200/80 bg-white"
+                      // "Sincronización Bidireccional" — a solid, fully-
+                      // opaque bronze border (not the previous `/40`
+                      // translucent one) so the active card gives a
+                      // clearly visible continuity cue back to whichever
+                      // hito is highlighted on the SVG above it.
+                      index === activeScrollIndex ? "border-[#70685b] bg-white" : "border-zinc-200/80 bg-white"
                     )}
                   >
                     <span className="mb-0.5 flex items-center gap-1 truncate font-mono text-[10px] font-bold tracking-wider text-[#70685b] uppercase">
