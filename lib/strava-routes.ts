@@ -233,3 +233,57 @@ export async function fetchRouteElevationExtremes(
     elevationProfile: downsampleElevationProfile(elevationProfile),
   };
 }
+
+type StravaSummarySegment = {
+  name?: string;
+  start_latlng?: [number, number];
+};
+
+type StravaRouteDetailResponse = {
+  segments?: StravaSummarySegment[];
+};
+
+/**
+ * "Segmentos Nativos de Strava" — a saved route built with Strava's own
+ * route-builder often already passes through named, official Strava
+ * segments (real climbs like "Alpe d'Huez," annotated by Strava itself or
+ * by other athletes) — a stronger signal for a hito's name than an OSM
+ * Overpass lookup at the same point, so it's checked first (see
+ * `findNearestWaypointName` in `lib/overpass.ts`, reused here against each
+ * segment's own `start_latlng` the exact same way it matches a GPX file's
+ * `<wpt>` waypoints). This is the plain route detail endpoint
+ * (`GET /routes/{id}`), distinct from `/streams` (`fetchRouteElevationExtremes`
+ * above, which has no segment data at all) — fetched in parallel with it
+ * whenever a strategy is calculated for a saved route. Returns `[]` (never
+ * throws) on any failure, an unauthorized/missing route, or a route with no
+ * annotated segments at all — same "enrichment, not a required data
+ * source" convention as `fetchRouteElevationExtremes`.
+ *
+ * Implemented against Strava's own documented `Route` resource schema
+ * (`segments: SummarySegment[]`) — not verified against a live response in
+ * this environment (no network access to Strava's API here). Flag for a
+ * real-world check (a real saved route that passes through an official
+ * Strava segment) the next time this path can be exercised live.
+ */
+export async function fetchRouteSegments(
+  accessToken: string,
+  routeId: string
+): Promise<{ lat: number; lng: number; name: string }[]> {
+  const res = await fetch(`${STRAVA_API_BASE}/routes/${routeId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return [];
+
+  const route: StravaRouteDetailResponse = await res.json();
+  if (!Array.isArray(route.segments)) return [];
+
+  return route.segments
+    .filter(
+      (s): s is StravaSummarySegment & { start_latlng: [number, number]; name: string } =>
+        Array.isArray(s.start_latlng) &&
+        s.start_latlng.length === 2 &&
+        typeof s.name === "string" &&
+        s.name.trim().length > 0
+    )
+    .map((s) => ({ lat: s.start_latlng[0], lng: s.start_latlng[1], name: s.name.trim() }));
+}

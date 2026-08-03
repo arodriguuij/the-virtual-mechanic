@@ -8,7 +8,7 @@ import {
   isBeyondForecastRange,
   type PointSample,
 } from "@/lib/open-meteo";
-import { fetchRouteElevationExtremes } from "@/lib/strava-routes";
+import { fetchRouteElevationExtremes, fetchRouteSegments } from "@/lib/strava-routes";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { logFuelingPlan } from "@/lib/fueling-logs";
 import { findNearestWaypointName, getPeakName, type GpxWaypoint } from "@/lib/overpass";
@@ -374,6 +374,14 @@ export async function POST(request: NextRequest) {
   // A saved Strava route has no equivalent concept, so this stays `[]`
   // whenever `body.waypoints` isn't present.
   const gpxWaypoints: GpxWaypoint[] = sanitizeGpxWaypoints(body.waypoints);
+  // "Segmentos Nativos de Strava" — a saved route's own named segments
+  // (see `fetchRouteSegments` in `lib/strava-routes.ts`), fetched below
+  // alongside the route's elevation streams whenever `routeId` is present.
+  // Same naming-priority tier as `gpxWaypoints` above — the two are
+  // mutually exclusive in practice (a GPX upload has no `routeId`, a saved
+  // route sends no client-side waypoints), so both lists are simply
+  // combined at the naming-loop call site instead of branching on mode.
+  let stravaSegmentPoints: GpxWaypoint[] = [];
   // Real per-milestone weather (Temp/Viento/Humedad), one entry per detected
   // hito, in route order — `[]` on a flat/short route with no genuine
   // pass/valley to report, or on any weather-sampling failure.
@@ -441,7 +449,15 @@ export async function POST(request: NextRequest) {
             : null;
         if ((!peak || !trough) && routeId) {
           const accessToken = await getValidStravaAccessToken(supabase, userId);
-          const extremes = accessToken ? await fetchRouteElevationExtremes(accessToken, routeId) : null;
+          // Fetched in parallel — `/routes/{id}/streams` (elevation) and
+          // plain `/routes/{id}` (segments) are two independent Strava
+          // calls with no dependency on each other's result.
+          const [extremes, segments] = accessToken
+            ? await Promise.all([
+                fetchRouteElevationExtremes(accessToken, routeId),
+                fetchRouteSegments(accessToken, routeId),
+              ])
+            : [null, []];
           if (extremes) {
             peak ??= extremes.peak;
             trough ??= extremes.trough;
@@ -454,6 +470,7 @@ export async function POST(request: NextRequest) {
             elevationMilestones = extremes.elevationMilestones;
             elevationProfile = extremes.elevationProfile;
           }
+          stravaSegmentPoints = segments;
         }
         if (peak && trough) {
           peakElevationM = peak.elevationM;
@@ -528,22 +545,38 @@ export async function POST(request: NextRequest) {
               // "Regla de Oro: Sin Inferencia de Nombres" — a "peak" hito's
               // name is resolved 100% deterministically, in this exact
               // order, never guessed from the GPX's own title/filename:
-              // 1. A real, explicit `<wpt>` waypoint close enough to this
-              //    point (`findNearestWaypointName` — GPX Híbrido only, `[]`
-              //    for a saved Strava route).
+              // 1. A real, explicit `<wpt>` waypoint (GPX Híbrido) or a
+              //    named Strava segment (saved route) close enough to this
+              //    point (`findNearestWaypointName` — the two source lists
+              //    are mutually exclusive per request, so combining them
+              //    here is safe and avoids branching on mode).
               // 2. A real OpenStreetMap tag via Overpass (`getPeakName`).
               // 3. The minimalist numeric fallback `getPeakName` itself
               //    already returns when neither of the above has anything —
               //    `Km {distanceKm} · {elevationM}m`, no invented label.
-              const locationName =
-                m.type === "peak"
-                  ? (findNearestWaypointName(m.lat, m.lng, gpxWaypoints) ??
-                    (await getPeakName(m.lat, m.lng, m.distanceKm, m.elevationM)))
-                  : m.type === "valley"
+              let locationName: string;
+              if (m.type === "peak") {
+                console.log(
+                  `[Peak Analyzer] Coordenadas en Cima Km ${Math.round(m.distanceKm)}: Lat ${m.lat}, Lon ${m.lng}`
+                );
+                const namedPointMatch = findNearestWaypointName(m.lat, m.lng, [
+                  ...gpxWaypoints,
+                  ...stravaSegmentPoints,
+                ]);
+                const numericFallback = `Km ${Math.round(m.distanceKm)} · ${Math.round(m.elevationM)}m`;
+                locationName = namedPointMatch ?? (await getPeakName(m.lat, m.lng, m.distanceKm, m.elevationM));
+                console.log(
+                  `[Peak Analyzer] Resultado OSM / Strava:`,
+                  locationName === numericFallback ? `Sin resultado (Fallback a ${numericFallback})` : locationName
+                );
+              } else {
+                locationName =
+                  m.type === "valley"
                     ? `Valle Km ${Math.round(m.distanceKm)}`
                     : m.type === "start"
                       ? "Salida"
                       : "Llegada";
+              }
               return {
                 key: `${m.type}-${i}`,
                 locationName,
