@@ -102,26 +102,6 @@ function decimalHoursToParts(hours: number): { hours: string; minutes: string } 
   return { hours: String(wholeHours), minutes: String(wholeMinutes) };
 }
 
-/** "Race Day Manifest" hydration HUD — the recurring `HH:MMh` marks under
- * the big "cada N min" figure (e.g. "00:33h — 01:06h — 01:39h"), a plain
- * multiplication table of the hydration interval capped at
- * `HYDRATION_MARK_LIMIT` entries (or the ride's own duration, whichever is
- * shorter) — a 6h ride at a 20min interval has 18 real intervals, and this
- * is a quick-glance strip, not the full "Cronograma dinámico" timeline
- * below it, which already lists every real milestone individually. */
-const HYDRATION_MARK_LIMIT = 5;
-function getHydrationMarks(intervalMinutes: number, durationHours: number): string[] {
-  if (intervalMinutes <= 0 || durationHours <= 0) return [];
-  const totalMinutes = Math.round(durationHours * 60);
-  const marks: string[] = [];
-  for (let m = intervalMinutes; m <= totalMinutes && marks.length < HYDRATION_MARK_LIMIT; m += intervalMinutes) {
-    const h = Math.floor(m / 60);
-    const mm = m % 60;
-    marks.push(`${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}h`);
-  }
-  return marks;
-}
-
 // "Limpieza de Despensa Genérica" — the 4 generic gel dose tiers
 // (`gel_small`/`gel_standard`/`gel_high`/`gel_ultra`) were removed from this
 // catalog outright: a rider reaching for a gel now picks the *real* branded
@@ -1925,13 +1905,6 @@ export function FuelingPlanner({
           approx: true,
         })),
       ].sort((a, b) => a.atMinutes - b.atMinutes)
-    : [];
-
-  // "Race Day Manifest" HUD's quick-reference clock-mark strip — see
-  // `getHydrationMarks`'s own doc comment for why this is capped rather
-  // than listing every real interval on a long ride.
-  const hydrationMarks = result
-    ? getHydrationMarks(result.timingTimeline.hydrationIntervalMinutes, result.durationHours)
     : [];
 
   // "Modo Cobertura Limitada" — if the athlete opens the app with no
@@ -3794,47 +3767,24 @@ export function FuelingPlanner({
                 </div>
               )}
 
-              {/* Bloque 1 · Display Táctico de Hidratación — a nested
-                  light `bg-zinc-50` box (matching the card's own now-white
-                  fill, `border-zinc-200/70`), leading with the one number
-                  that matters mid-ride — how often to drink — with the
-                  calculated clock marks underneath as a quick reference
-                  strip. The detailed solid/gel/caffeine milestone rail
-                  below it is unchanged in substance. A left-edge bronze
-                  accent border (`border-l-4 border-l-[#70685b]`) marks this
-                  as the card's own featured/primary block, the same accent
-                  every selector's active state already uses elsewhere. */}
+              {/* "Purga de Píldoras de Hidratación" — the recurring `HH:MMh`
+                  clock-mark strip (`getHydrationMarks`, since removed
+                  outright) added visual noise with zero operational value:
+                  an athlete mid-ride reads "every N minutes," not a fixed
+                  list of clock times against a departure they may not have
+                  left at exactly on schedule. Replaced with one clean,
+                  high-contrast line — the single number that actually
+                  matters. Same nested `bg-zinc-50` box + left-edge bronze
+                  accent border as before, just without the badge strip. */}
               <div className="rounded-xl border border-zinc-200/70 border-l-4 border-l-[#70685b] bg-zinc-50 p-4">
-                {/* Cabecera compacta — reemplaza el antiguo número grande
-                    ("Beber 1 bidón cada X min") por una sola línea con la
-                    capacidad/intervalo a la derecha, dejando sitio para las
-                    píldoras de tiempo debajo como el elemento principal del
-                    bloque. */}
-                <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 font-mono text-xs font-bold text-zinc-800">
-                    <Droplet className="size-3.5 shrink-0 text-[#70685b]" />
-                    Cadencia de hidratación
-                  </span>
-                  <span className="shrink-0 font-mono text-[11px] text-zinc-500">
-                    1 bidón (~{displayBottlePlan!.bottleSizeMl}ml) / {result.timingTimeline.hydrationIntervalMinutes}{" "}
-                    min
-                  </span>
-                </div>
-                {/* Píldoras de tiempo — cada marca horaria calculada
-                    (`getHydrationMarks`) como su propio badge sobrio, en
-                    vez de una lista unida por guiones. */}
-                {hydrationMarks.length > 0 && (
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    {hydrationMarks.map((time, i) => (
-                      <span
-                        key={i}
-                        className="rounded-md border border-zinc-200 bg-white px-2 py-1 font-mono text-[10px] text-zinc-700 shadow-xs"
-                      >
-                        {time}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-wider text-zinc-400 uppercase">
+                  <Droplet className="size-3.5 shrink-0 text-[#70685b]" />
+                  Cadencia de hidratación
+                </span>
+                <p className="mt-1 text-sm font-bold text-zinc-900">
+                  Beber 1 bidón (~{displayBottlePlan!.bottleSizeMl}ml) cada{" "}
+                  <span className="text-[#70685b]">{result.timingTimeline.hydrationIntervalMinutes} min</span>
+                </p>
                 {/* "Sensibilidad a Cafeína e Horario Nocturno" — the server
                     already dropped every caffeine milestone below when the
                     estimated arrival lands at/after 18:30 local; this is
