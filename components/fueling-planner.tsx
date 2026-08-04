@@ -2656,153 +2656,186 @@ export function FuelingPlanner({
 
             {mode === "quick" && (
               <div className="mt-4 flex flex-col gap-4">
-                {/* 1. Selector de Terreno */}
+                {/* 1. Terreno de la Salida (Grid Horizontal 3 Columnas) */}
                 <div className="flex flex-col gap-1.5">
                   <label className={formFieldLabelClass}>Terreno de la Salida</label>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 *:min-w-0">
-                    {MANUAL_TERRAIN_OPTIONS.map((opt) => (
+                  <div className="grid grid-cols-3 gap-2 *:min-w-0">
+                    {MANUAL_TERRAIN_OPTIONS.map((opt) => {
+                      const isSelected = manualTerrain === opt.id;
+                      const title =
+                        opt.id === "flat"
+                          ? "Llano"
+                          : opt.id === "medium_mountain"
+                            ? "M. Montaña"
+                            : "G. Montaña";
+                      const subtext =
+                        opt.id === "flat"
+                          ? "~300m D+"
+                          : opt.id === "medium_mountain"
+                            ? "~1000m D+"
+                            : ">1800m D+";
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => setManualTerrain(opt.id)}
+                          className={cn(
+                            segmentedButtonClass,
+                            "flex flex-col items-center justify-center py-2 px-1 text-center transition-all duration-200",
+                            isSelected
+                              ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                              : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+                            loading && "cursor-not-allowed opacity-60"
+                          )}
+                        >
+                          <span className="font-semibold text-xs tracking-tight">{title}</span>
+                          <span
+                            className={cn(
+                              "text-[11px] font-mono",
+                              isSelected ? "text-zinc-200" : "text-neutral-400"
+                            )}
+                          >
+                            {subtext}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Selector de Intensidad Objetivo (Posicionado inmediatamente después del Terreno) */}
+                <IntensityObjectiveSelect
+                  id="intensity-quick"
+                  value={manualIntensity}
+                  onChange={setManualIntensity}
+                  error={intensityError}
+                  disabled={loading}
+                />
+
+                {/* 3. Modo y Parámetros de Ruta (Tarjeta de Control Integrada) */}
+                <div className="flex flex-col gap-3.5 rounded-xl border border-zinc-200/80 bg-zinc-50/50 p-3.5 shadow-xs">
+                  {/* Selector Segmentado: Por Tiempo vs Por Distancia */}
+                  <div className="flex flex-col gap-1">
+                    <label className={formFieldLabelClass}>Parámetros de la Salida</label>
+                    <div className="grid grid-cols-2 gap-2 *:min-w-0">
                       <button
-                        key={opt.id}
                         type="button"
                         disabled={loading}
-                        onClick={() => setManualTerrain(opt.id)}
+                        onClick={() => setManualCalcMode("time")}
                         className={cn(
                           segmentedButtonClass,
-                          "flex flex-col items-center justify-center py-2 px-2 text-center",
-                          manualTerrain === opt.id
+                          manualCalcMode === "time"
                             ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
                             : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
                           loading && "cursor-not-allowed opacity-60"
                         )}
                       >
-                        <span className="font-semibold text-xs">{opt.label}</span>
-                        <span className={cn("text-[10px] font-mono", manualTerrain === opt.id ? "text-zinc-200" : "text-zinc-500")}>
-                          {opt.sublabel}
-                        </span>
+                        <span className={segmentedButtonLabelClass}>Por Tiempo (Horas)</span>
                       </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 2. Selector de Modo de Cálculo */}
-                <div className="flex flex-col gap-1.5">
-                  <label className={formFieldLabelClass}>Modo de Cálculo</label>
-                  <div className="grid grid-cols-2 gap-2 *:min-w-0">
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={() => setManualCalcMode("time")}
-                      className={cn(
-                        segmentedButtonClass,
-                        manualCalcMode === "time"
-                          ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
-                          : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
-                        loading && "cursor-not-allowed opacity-60"
-                      )}
-                    >
-                      <span className={segmentedButtonLabelClass}>Por Tiempo (Horas)</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={() => setManualCalcMode("distance")}
-                      className={cn(
-                        segmentedButtonClass,
-                        manualCalcMode === "distance"
-                          ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
-                          : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
-                        loading && "cursor-not-allowed opacity-60"
-                      )}
-                    >
-                      <span className={segmentedButtonLabelClass}>Por Distancia (km)</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 3. Inputs segun Modo de Cálculo */}
-                {manualCalcMode === "time" ? (
-                  <div className="flex flex-col gap-2">
-                    <label className={formFieldLabelClass}>Duración estimada</label>
-                    <div className="grid grid-cols-2 gap-3 *:min-w-0">
-                      <div className="relative flex items-center">
-                        <input
-                          id="duration-hours"
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          step={1}
-                          placeholder="0"
-                          aria-label="Horas"
-                          disabled={loading}
-                          className={cn(
-                            inputClass,
-                            "pr-8",
-                            routeError && "border-2 border-amber-400 bg-amber-50/20",
-                            loading && "cursor-not-allowed opacity-60"
-                          )}
-                          value={quickHoursInput}
-                          onChange={(e) => {
-                            setQuickHoursInput(e.target.value);
-                            setRouteError(false);
-                          }}
-                        />
-                        <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
-                          h
-                        </span>
-                      </div>
-                      <div className="relative flex items-center">
-                        <input
-                          id="duration-minutes"
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          max={59}
-                          step={5}
-                          placeholder="0"
-                          aria-label="Minutos"
-                          disabled={loading}
-                          className={cn(inputClass, "pr-10", loading && "cursor-not-allowed opacity-60")}
-                          value={quickMinutesInput}
-                          onChange={(e) => {
-                            setQuickMinutesInput(e.target.value);
-                            setRouteError(false);
-                          }}
-                        />
-                        <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
-                          min
-                        </span>
-                      </div>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => setManualCalcMode("distance")}
+                        className={cn(
+                          segmentedButtonClass,
+                          manualCalcMode === "distance"
+                            ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                            : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+                          loading && "cursor-not-allowed opacity-60"
+                        )}
+                      >
+                        <span className={segmentedButtonLabelClass}>Por Distancia (km)</span>
+                      </button>
                     </div>
-                    {/* Lectura informativa y edición bidireccional de distancia */}
-                    {manualCalcResults.durationHours > 0 && (
-                      <div className="mt-1 flex flex-col gap-1.5 rounded-sm bg-zinc-50 p-2.5 border border-zinc-200/80">
-                        <div className="flex items-center justify-between text-xs text-zinc-600">
-                          <span>Distancia estimada:</span>
-                          <span className="font-mono font-semibold text-zinc-800">
-                            ~{manualCalcResults.distanceKm} km
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs text-zinc-500">
-                          <span>Velocidad media proyectada:</span>
-                          <span className="font-mono text-zinc-700">
-                            {manualCalcResults.effectiveSpeedKmh} km/h
-                          </span>
-                        </div>
-                        <div className="mt-1 flex items-center gap-2">
-                          <label htmlFor="custom-distance" className="text-[11px] font-mono text-zinc-500 whitespace-nowrap">
-                            Ajustar km manualmente:
-                          </label>
+                  </div>
+
+                  {/* Inputs Unificados según Modo */}
+                  {manualCalcMode === "time" ? (
+                    <div className="flex flex-col gap-3">
+                      <div className="grid grid-cols-2 gap-3 *:min-w-0">
+                        <div className="relative flex items-center">
                           <input
-                            id="custom-distance"
+                            id="duration-hours"
                             type="number"
-                            inputMode="decimal"
-                            step={0.5}
-                            placeholder={`${manualCalcResults.distanceKm}`}
+                            inputMode="numeric"
+                            min={0}
+                            step={1}
+                            placeholder="0"
+                            aria-label="Horas"
                             disabled={loading}
-                            className={cn(inputClass, "h-7 text-xs px-2 py-0 w-24 font-mono", loading && "opacity-60")}
-                            value={manualCustomDistanceInput}
-                            onChange={(e) => setManualCustomDistanceInput(e.target.value)}
+                            className={cn(
+                              inputClass,
+                              "pr-8 font-mono text-sm",
+                              routeError && "border-2 border-amber-400 bg-amber-50/20",
+                              loading && "cursor-not-allowed opacity-60"
+                            )}
+                            value={quickHoursInput}
+                            onChange={(e) => {
+                              setQuickHoursInput(e.target.value);
+                              setRouteError(false);
+                            }}
                           />
+                          <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                            h
+                          </span>
+                        </div>
+                        <div className="relative flex items-center">
+                          <input
+                            id="duration-minutes"
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            max={59}
+                            step={5}
+                            placeholder="0"
+                            aria-label="Minutos"
+                            disabled={loading}
+                            className={cn(
+                              inputClass,
+                              "pr-10 font-mono text-sm",
+                              loading && "cursor-not-allowed opacity-60"
+                            )}
+                            value={quickMinutesInput}
+                            onChange={(e) => {
+                              setQuickMinutesInput(e.target.value);
+                              setRouteError(false);
+                            }}
+                          />
+                          <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                            min
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Lectura limpia de Distancia Estimada + Ajuste opcional */}
+                      {manualCalcResults.durationHours > 0 && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-mono text-zinc-500">
+                              Distancia estimada:
+                            </span>
+                            <span className="font-mono font-bold text-zinc-900">
+                              ~{manualCalcResults.distanceKm} km
+                            </span>
+                            <span className="text-[11px] font-mono text-zinc-400">| Ajustar:</span>
+                            <input
+                              id="custom-distance"
+                              type="number"
+                              inputMode="decimal"
+                              step={0.5}
+                              placeholder={`${Math.round(manualCalcResults.durationHours * projectedSpeedKmh * 10) / 10}`}
+                              disabled={loading}
+                              className={cn(
+                                inputClass,
+                                "h-7 text-xs px-2 py-0 w-20 font-mono text-center",
+                                loading && "opacity-60"
+                              )}
+                              value={manualCustomDistanceInput}
+                              onChange={(e) => setManualCustomDistanceInput(e.target.value)}
+                            />
+                            <span className="font-mono text-xs text-zinc-500">km</span>
+                          </div>
                           {manualCustomDistanceInput !== "" && (
                             <button
                               type="button"
@@ -2814,67 +2847,56 @@ export function FuelingPlanner({
                             </button>
                           )}
                         </div>
-                      </div>
-                    )}
-                    {routeError && (
-                      <span className="mt-1 block font-mono text-[10px] text-amber-700">
-                        * Por favor, introduce una duración
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    <label className={formFieldLabelClass}>Distancia estimada (km)</label>
-                    <div className="relative flex items-center">
-                      <input
-                        id="distance-km"
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        step={1}
-                        placeholder="ej. 60"
-                        aria-label="Distancia en km"
-                        disabled={loading}
-                        className={cn(
-                          inputClass,
-                          "pr-12",
-                          routeError && "border-2 border-amber-400 bg-amber-50/20",
-                          loading && "cursor-not-allowed opacity-60"
-                        )}
-                        value={manualDistanceKmInput}
-                        onChange={(e) => {
-                          setManualDistanceKmInput(e.target.value);
-                          setManualDurationOverride(null);
-                          setRouteError(false);
-                        }}
-                      />
-                      <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
-                        km
-                      </span>
+                      )}
+
+                      {routeError && (
+                        <span className="font-mono text-[10px] text-amber-700">
+                          * Por favor, introduce una duración válida
+                        </span>
+                      )}
                     </div>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      <div className="relative flex items-center">
+                        <input
+                          id="distance-km"
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          step={1}
+                          placeholder="ej. 60"
+                          aria-label="Distancia en km"
+                          disabled={loading}
+                          className={cn(
+                            inputClass,
+                            "pr-12 font-mono text-sm",
+                            routeError && "border-2 border-amber-400 bg-amber-50/20",
+                            loading && "cursor-not-allowed opacity-60"
+                          )}
+                          value={manualDistanceKmInput}
+                          onChange={(e) => {
+                            setManualDistanceKmInput(e.target.value);
+                            setManualDurationOverride(null);
+                            setRouteError(false);
+                          }}
+                        />
+                        <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                          km
+                        </span>
+                      </div>
 
-                    {manualCalcResults.distanceKm > 0 && (
-                      <div className="mt-1 flex flex-col gap-2 rounded-sm bg-zinc-50 p-2.5 border border-zinc-200/80">
-                        <div className="flex items-center justify-between text-xs text-zinc-600">
-                          <span>Duración estimada:</span>
-                          <span className="font-mono font-semibold text-zinc-800">
-                            {formatHoursMinutes(manualCalcResults.durationHours)}
-                            {manualCalcResults.isDurationEdited && " (manual)"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs text-zinc-500">
-                          <span>Velocidad media proyectada:</span>
-                          <span className="font-mono text-zinc-700">
-                            {manualCalcResults.effectiveSpeedKmh} km/h
-                          </span>
-                        </div>
-
-                        <div className="mt-1 flex flex-col gap-1 border-t border-zinc-200/60 pt-2">
-                          <span className="text-[11px] font-mono text-zinc-500">
-                            Ajustar tiempo manualmente:
-                          </span>
-                          <div className="grid grid-cols-2 gap-2 *:min-w-0">
-                            <div className="relative flex items-center">
+                      {/* Lectura limpia de Tiempo Estimado + Ajuste opcional */}
+                      {manualCalcResults.distanceKm > 0 && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-mono text-zinc-500">
+                              Tiempo estimado:
+                            </span>
+                            <span className="font-mono font-bold text-zinc-900">
+                              ~{formatHoursMinutes(manualCalcResults.durationHours)}
+                            </span>
+                            <span className="text-[11px] font-mono text-zinc-400">| Ajustar:</span>
+                            <div className="flex items-center gap-1">
                               <input
                                 type="number"
                                 inputMode="numeric"
@@ -2882,7 +2904,11 @@ export function FuelingPlanner({
                                 step={1}
                                 placeholder="h"
                                 disabled={loading}
-                                className={cn(inputClass, "h-7 text-xs pr-6", loading && "opacity-60")}
+                                className={cn(
+                                  inputClass,
+                                  "h-7 text-xs px-1.5 py-0 w-12 font-mono text-center",
+                                  loading && "opacity-60"
+                                )}
                                 value={manualCalcResults.hoursInput}
                                 onChange={(e) =>
                                   setManualDurationOverride({
@@ -2891,20 +2917,20 @@ export function FuelingPlanner({
                                   })
                                 }
                               />
-                              <span className="pointer-events-none absolute right-2 font-mono text-[10px] text-zinc-400">
-                                h
-                              </span>
-                            </div>
-                            <div className="relative flex items-center">
+                              <span className="font-mono text-[10px] text-zinc-400">h</span>
                               <input
                                 type="number"
                                 inputMode="numeric"
                                 min={0}
                                 max={59}
                                 step={5}
-                                placeholder="min"
+                                placeholder="m"
                                 disabled={loading}
-                                className={cn(inputClass, "h-7 text-xs pr-8", loading && "opacity-60")}
+                                className={cn(
+                                  inputClass,
+                                  "h-7 text-xs px-1.5 py-0 w-12 font-mono text-center",
+                                  loading && "opacity-60"
+                                )}
                                 value={manualCalcResults.minutesInput}
                                 onChange={(e) =>
                                   setManualDurationOverride({
@@ -2913,9 +2939,7 @@ export function FuelingPlanner({
                                   })
                                 }
                               />
-                              <span className="pointer-events-none absolute right-2 font-mono text-[10px] text-zinc-400">
-                                min
-                              </span>
+                              <span className="font-mono text-[10px] text-zinc-400">m</span>
                             </div>
                           </div>
                           {manualCalcResults.isDurationEdited && (
@@ -2923,30 +2947,30 @@ export function FuelingPlanner({
                               type="button"
                               disabled={loading}
                               onClick={() => setManualDurationOverride(null)}
-                              className="mt-1 text-left text-[10px] text-zinc-400 hover:text-zinc-700 underline font-mono"
+                              className="text-[10px] text-zinc-400 hover:text-zinc-700 underline font-mono"
                             >
-                              Restablecer tiempo estimado
+                              Restablecer
                             </button>
                           )}
                         </div>
-                      </div>
-                    )}
-                    {routeError && (
-                      <span className="mt-1 block font-mono text-[10px] text-amber-700">
-                        * Por favor, introduce la distancia en km
-                      </span>
-                    )}
-                  </div>
-                )}
+                      )}
 
-                {/* 4. Selector de Intensidad Objetivo */}
-                <IntensityObjectiveSelect
-                  id="intensity-quick"
-                  value={manualIntensity}
-                  onChange={setManualIntensity}
-                  error={intensityError}
-                  disabled={loading}
-                />
+                      {routeError && (
+                        <span className="font-mono text-[10px] text-amber-700">
+                          * Por favor, introduce la distancia en km
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Badge Micro-Stat de Velocidad Proyectada */}
+                  <div className="flex items-center justify-between border-t border-zinc-200/60 pt-2 font-mono text-[12px] text-zinc-500">
+                    <span>Velocidad proyectada:</span>
+                    <span className="font-semibold text-zinc-900">
+                      {manualCalcResults.effectiveSpeedKmh} km/h
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
