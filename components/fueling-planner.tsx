@@ -393,6 +393,7 @@ function IntensityObjectiveSelect({
   value,
   onChange,
   error,
+  disabled = false,
 }: {
   id: string;
   value: IntensityLevel | "";
@@ -402,6 +403,10 @@ function IntensityObjectiveSelect({
    * Purely a border/micro-text highlight, same amber treatment as the
    * route select below — never forces the native picker open itself. */
   error?: boolean;
+  /** "Bloqueo de Formulario durante isCalculating" — true for the whole
+   * duration of `handleCalculate`'s in-flight request, so the athlete can't
+   * change the very inputs a calculation is already running against. */
+  disabled?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -414,7 +419,12 @@ function IntensityObjectiveSelect({
       <div className="relative">
         <select
           id={id}
-          className={cn(selectableInputClass, error && "border-2 border-amber-400 bg-amber-50/20")}
+          disabled={disabled}
+          className={cn(
+            selectableInputClass,
+            error && "border-2 border-amber-400 bg-amber-50/20",
+            disabled && "cursor-not-allowed opacity-60"
+          )}
           value={value}
           onChange={(e) => onChange(e.target.value as IntensityLevel)}
         >
@@ -1121,6 +1131,7 @@ function DeparturePicker({
   onCustomDateChange,
   hour,
   onHourChange,
+  disabled = false,
 }: {
   dayMode: DepartureDayMode;
   onDayModeChange: (mode: DepartureDayMode) => void;
@@ -1128,6 +1139,9 @@ function DeparturePicker({
   onCustomDateChange: (date: string) => void;
   hour: string;
   onHourChange: (hour: string) => void;
+  /** "Bloqueo de Formulario durante isCalculating" — see
+   * `IntensityObjectiveSelect`'s own doc comment above. */
+  disabled?: boolean;
 }) {
   return (
     <div className="flex w-full min-w-0 max-w-full flex-col gap-2">
@@ -1137,12 +1151,14 @@ function DeparturePicker({
           <button
             key={opt.value}
             type="button"
+            disabled={disabled}
             onClick={() => onDayModeChange(opt.value)}
             className={cn(
               segmentedButtonClass,
               dayMode === opt.value
                 ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
-                : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
+                : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+              disabled && "cursor-not-allowed opacity-60"
             )}
           >
             <span className={segmentedButtonLabelClass}>{opt.label}</span>
@@ -1226,11 +1242,13 @@ function DeparturePicker({
             aria-label="Fecha de salida"
             min={todayIsoDate()}
             value={customDate}
+            disabled={disabled}
             onChange={(e) => onCustomDateChange(e.target.value)}
             className={cn(
               fieldClass,
               "block w-full max-w-[calc(100vw-4rem)] min-w-0 box-border appearance-none",
-              "[&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:w-full [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:p-0 [&::-webkit-date-and-time-value]:text-left"
+              "[&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:w-full [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:p-0 [&::-webkit-date-and-time-value]:text-left",
+              disabled && "cursor-not-allowed opacity-60"
             )}
           />
         </div>
@@ -1238,7 +1256,8 @@ function DeparturePicker({
       <div className="relative">
         <select
           aria-label="Hora de salida"
-          className={selectableFieldClass}
+          disabled={disabled}
+          className={cn(selectableFieldClass, disabled && "cursor-not-allowed opacity-60")}
           value={hour}
           onChange={(e) => onHourChange(e.target.value)}
         >
@@ -2533,10 +2552,12 @@ export function FuelingPlanner({
                         step={1}
                         placeholder="0"
                         aria-label="Horas"
+                        disabled={loading}
                         className={cn(
                           inputClass,
                           "pr-8",
-                          routeError && "border-2 border-amber-400 bg-amber-50/20"
+                          routeError && "border-2 border-amber-400 bg-amber-50/20",
+                          loading && "cursor-not-allowed opacity-60"
                         )}
                         value={quickHoursInput}
                         onChange={(e) => {
@@ -2558,7 +2579,8 @@ export function FuelingPlanner({
                         step={5}
                         placeholder="0"
                         aria-label="Minutos"
-                        className={cn(inputClass, "pr-10")}
+                        disabled={loading}
+                        className={cn(inputClass, "pr-10", loading && "cursor-not-allowed opacity-60")}
                         value={quickMinutesInput}
                         onChange={(e) => {
                           setQuickMinutesInput(e.target.value);
@@ -2591,6 +2613,7 @@ export function FuelingPlanner({
                   value={intensity}
                   onChange={setIntensity}
                   error={intensityError}
+                  disabled={loading}
                 />
               </div>
             )}
@@ -2642,8 +2665,23 @@ export function FuelingPlanner({
             get the tighter `space-y-3` scale, not the looser `gap-5` this
             used to carry). The `mt-2` right under the eyebrow (down from
             `mt-4`) is that same pass's "título numerado → primer campo"
-            micro-spacing rule. */}
-        <div className="rounded-sm bg-white p-4 sm:p-6 shadow-none">
+            micro-spacing rule.
+            "Bloqueo de Formulario durante isCalculating" — every real
+            control inside this card (`IntensityObjectiveSelect`/
+            `DeparturePicker`'s own `disabled` props, the duration inputs,
+            the Paradas previstas buttons, both checkboxes below) already
+            gets `disabled={loading}` individually — genuinely inert to
+            keyboard/programmatic interaction, not just a visual dim. The
+            `pointer-events-none`/`opacity-60` pair on this wrapper is the
+            belt-and-suspenders layer on top: an instant, uniform "this
+            whole card is inert" cue the moment `handleCalculate` starts,
+            with zero per-control flicker while `loading` flips. */}
+        <div
+          className={cn(
+            "rounded-sm bg-white p-4 sm:p-6 shadow-none transition-opacity duration-200",
+            loading && "pointer-events-none opacity-60"
+          )}
+        >
           <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
             02 · Condiciones de la salida
           </span>
@@ -2655,6 +2693,7 @@ export function FuelingPlanner({
                 value={intensity}
                 onChange={setIntensity}
                 error={intensityError}
+                disabled={loading}
               />
               <DeparturePicker
                 dayMode={departureDayMode}
@@ -2663,6 +2702,7 @@ export function FuelingPlanner({
                 onCustomDateChange={setDepartureCustomDate}
                 hour={departureHour}
                 onHourChange={setDepartureHour}
+                disabled={loading}
               />
               {/* "Tiempo Estimado Condicionado a la Intensidad" — stays
                   blank (`-- h -- min`) until an intensity zone is chosen;
@@ -2691,7 +2731,8 @@ export function FuelingPlanner({
                             step={1}
                             placeholder="0"
                             aria-label="Horas"
-                            className={cn(inputClass, "pr-8")}
+                            disabled={loading}
+                            className={cn(inputClass, "pr-8", loading && "cursor-not-allowed opacity-60")}
                             value={routeHoursInput}
                             onChange={(e) =>
                               setRouteDurationOverride({
@@ -2716,7 +2757,8 @@ export function FuelingPlanner({
                             step={5}
                             placeholder="0"
                             aria-label="Minutos"
-                            className={cn(inputClass, "pr-10")}
+                            disabled={loading}
+                            className={cn(inputClass, "pr-10", loading && "cursor-not-allowed opacity-60")}
                             value={routeMinutesInput}
                             onChange={(e) =>
                               setRouteDurationOverride({
@@ -2761,6 +2803,7 @@ export function FuelingPlanner({
                 onCustomDateChange={setDepartureCustomDate}
                 hour={departureHour}
                 onHourChange={setDepartureHour}
+                disabled={loading}
               />
             </div>
           )}
@@ -2780,6 +2823,7 @@ export function FuelingPlanner({
                   value={intensity}
                   onChange={setIntensity}
                   error={intensityError}
+                  disabled={loading}
                 />
                 <DeparturePicker
                   dayMode={departureDayMode}
@@ -2788,6 +2832,7 @@ export function FuelingPlanner({
                   onCustomDateChange={setDepartureCustomDate}
                   hour={departureHour}
                   onHourChange={setDepartureHour}
+                  disabled={loading}
                 />
                 <div className="flex flex-col gap-2">
                   <label className={formFieldLabelClass}>
@@ -2813,7 +2858,8 @@ export function FuelingPlanner({
                             step={1}
                             placeholder="0"
                             aria-label="Horas"
-                            className={cn(inputClass, "pr-8")}
+                            disabled={loading}
+                            className={cn(inputClass, "pr-8", loading && "cursor-not-allowed opacity-60")}
                             value={gpxHoursInput}
                             onChange={(e) =>
                               setGpxDurationOverride({
@@ -2837,7 +2883,8 @@ export function FuelingPlanner({
                             step={5}
                             placeholder="0"
                             aria-label="Minutos"
-                            className={cn(inputClass, "pr-10")}
+                            disabled={loading}
+                            className={cn(inputClass, "pr-10", loading && "cursor-not-allowed opacity-60")}
                             value={gpxMinutesInput}
                             onChange={(e) =>
                               setGpxDurationOverride({
@@ -2899,12 +2946,14 @@ export function FuelingPlanner({
                 <button
                   key={opt.value}
                   type="button"
+                  disabled={loading}
                   onClick={() => setCafeteriaStopCount(opt.value)}
                   className={cn(
                     segmentedButtonClass,
                     cafeteriaStopCount === opt.value
                       ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
-                      : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
+                      : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+                    loading && "cursor-not-allowed opacity-60"
                   )}
                 >
                   <span className={segmentedButtonLabelClass}>{opt.label}</span>
@@ -2943,12 +2992,18 @@ export function FuelingPlanner({
               rather than a fourth sibling condition alongside route/quick/
               gpx above it. */}
           <div className="mt-3 border-t border-zinc-100 pt-3">
-            <label className="flex cursor-pointer items-center gap-2 font-mono text-xs text-zinc-600">
+            <label
+              className={cn(
+                "flex items-center gap-2 font-mono text-xs",
+                loading ? "cursor-not-allowed text-zinc-400" : "cursor-pointer text-zinc-600"
+              )}
+            >
               <input
                 type="checkbox"
                 checked={isTargetEvent}
+                disabled={loading}
                 onChange={(e) => setIsTargetEvent(e.target.checked)}
-                className="size-3.5 cursor-pointer accent-terracotta"
+                className="size-3.5 cursor-pointer accent-terracotta disabled:cursor-not-allowed"
               />
               Ruta objetivo / Competición
             </label>
@@ -2978,7 +3033,7 @@ export function FuelingPlanner({
             <label
               className={cn(
                 "flex items-center gap-2 font-mono text-xs",
-                trainLowIncompatible
+                trainLowIncompatible || loading
                   ? "cursor-not-allowed text-zinc-400"
                   : "cursor-pointer text-zinc-600"
               )}
@@ -2986,7 +3041,7 @@ export function FuelingPlanner({
               <input
                 type="checkbox"
                 checked={trainLowEffective}
-                disabled={trainLowIncompatible}
+                disabled={trainLowIncompatible || loading}
                 onChange={(e) => setTrainLow(e.target.checked)}
                 className="size-3.5 accent-terracotta disabled:cursor-not-allowed"
               />
