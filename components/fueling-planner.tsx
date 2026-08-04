@@ -134,21 +134,35 @@ function decimalHoursToParts(hours: number): { hours: string; minutes: string } 
 const POCKET_FOOD_TYPES: PocketFoodItemType[] = ["banana", "dates", "gummies"];
 const MAX_POCKET_FOOD_QTY = 6;
 
-// "Balance de Sodio (marcas comerciales)" — Card 05 flags a real sodium gap
+// "Balance de Sodio (Bici + Bolsillos)" — Card 05 flags a real sodium gap
 // only on a genuinely hot ride (where under-replacing sodium is a real
 // cramping/hyponatremia risk, see `getSodiumLossMgPerHour` in
 // `lib/metabolic-engine.ts`) — a cool ride sweats far less sodium to begin
-// with, so a low commercial-product contribution there isn't a gap worth
-// flagging. Deliberately scoped to commercial-product sodium alone, not the
-// ride's *total* sodium plan: the DIY bottle recipe already sizes its own
-// salt content to hit the full target on its own (see "Bottle architecture
-// & osmolarity control"), so this only fires once the athlete has actually
-// opted into real-brand products and *those* alone would fall meaningfully
-// short of the target — never on an athlete who hasn't touched this
-// optional selector at all, which would otherwise read as a false-positive
-// warning against a DIY plan that's already fully covering sodium.
+// with, so a shortfall there isn't a gap worth flagging. Used to be scoped
+// to commercial-product sodium alone (assuming a DIY-only athlete's bottle
+// always covered the full target) — a real bug once "Configuración de
+// bidones" could genuinely be set to "Solo Agua" (zero mix bottles, zero
+// bottle sodium): that athlete's real sodium coverage could fall well short
+// with no warning ever firing, since the check only ever looked at
+// `commercialSodiumMg`. Now compares against the *combined* real coverage
+// (bottle-mix sodium + commercial products, see `getBottleSodiumContributionMg`
+// above), so it fires whenever that combined total falls short, regardless
+// of whether the athlete touched the optional commercial-products selector
+// at all.
 const SODIUM_SUGGESTION_HOT_ROUTE_THRESHOLD_C = 28;
 const SODIUM_SUGGESTION_COVERAGE_FRACTION = 0.8;
+
+// "Traducción de Déficit a Unidades Operativas" — plain reference doses for
+// translating a raw sodium-deficit milligram figure into something an
+// athlete can actually go buy/measure: a standard electrolyte salt capsule
+// (~450mg Na+ each, a commonly-cited figure across mainstream electrolyte-
+// capsule products) and this app's own Evolytes-style powder concentration
+// (~280mg Na+ per gram — the same ratio the DIY bottle's own real sodium
+// dose is built from, see `getBottleSodiumContributionMg` above). Purely a
+// unit conversion for the suggestion banner below, not a second sodium
+// target model — the deficit itself is still `sodiumDeficitMg`.
+const SALT_CAPSULE_SODIUM_MG = 450;
+const EVOLYTES_SODIUM_MG_PER_G = 280;
 
 // "Tip de Eficiencia: Mix vs. Solo Agua" — a demanding ride (long or hot)
 // run entirely on plain water leaves the athlete carrying their whole carb
@@ -751,6 +765,39 @@ function getBottleCarbsContributionG(
       return singleBottleCarbsG;
     case "both_mix":
       return singleBottleCarbsG * athleteBottleCount;
+    default:
+      return 0;
+  }
+}
+
+/** "Corrección de Lógica de Sodio: Inclusión de Mezcla Casera" — the sodium
+ * mirror of `getBottleCarbsContributionG` above, same exact shape and same
+ * reasoning: a Mezcla Casera bottle's own real per-bottle sodium split
+ * (`fuelBottles.sodiumMgPerBottle`, driven by the athlete's actual sweat
+ * rate/salty-sweater flag — see `getSodiumLossMgPerHour` in
+ * `lib/metabolic-engine.ts`) genuinely contributes sodium toward the ride's
+ * target, exactly like it already contributes carbs — but until now, only
+ * `commercialSodiumMg` (real branded products) fed the "sodium covered"
+ * figure below, silently crediting 0mg Na+ to whatever real Evolytes/salt
+ * the athlete's own homemade bottle carries. Deliberately *not* a second,
+ * hardcoded per-bottle-size sodium table — this app already computes a
+ * real, athlete-specific sodium dose for the DIY bottle; a second, brand-
+ * specific figure would just be two competing sodium models disagreeing
+ * with each other. */
+function getBottleSodiumContributionMg(
+  config: BottleConfigOption,
+  bottlePlan: PlanResult["bottlePlan"],
+  athleteBottleCount: number
+): number {
+  const { fuelBottles } = bottlePlan;
+  if (fuelBottles.count === 0) return 0;
+  switch (config) {
+    case "water_only":
+      return 0;
+    case "one_mix":
+      return fuelBottles.sodiumMgPerBottle;
+    case "both_mix":
+      return fuelBottles.sodiumMgPerBottle * athleteBottleCount;
     default:
       return 0;
   }
@@ -1821,19 +1868,40 @@ export function FuelingPlanner({
   const coveredCarbsG = bottlesAndPocketCoveredCarbsG + cafeteriaStopCarbsG;
   const remainingCarbsG = result ? Math.max(0, result.totalRideCarbsG - coveredCarbsG) : 0;
 
-  // "Balance de Sodio (marcas comerciales)" — see the module-level doc
-  // comment above `SODIUM_SUGGESTION_HOT_ROUTE_THRESHOLD_C` for the full
-  // reasoning. `isHotRouteForSodium` defaults to `false` with no `result`
-  // (falls back to `-Infinity` against the threshold).
+  // "Corrección de Lógica de Sodio: Inclusión de Mezcla Casera" — the
+  // selected bottle configuration's own real sodium content (Evolytes/salt
+  // dissolved into a Mix bottle) now counts toward the ride's sodium
+  // coverage, exactly like it already counts toward carbs via
+  // `bottleCarbsContributionG` above — previously silently 0mg regardless
+  // of how much sodium the DIY bottle actually carried.
+  const bottleSodiumContributionMg =
+    result && displayBottlePlan
+      ? getBottleSodiumContributionMg(bottleConfig, displayBottlePlan, result.athleteBottleCount)
+      : 0;
+  const totalSodiumCoveredMg = commercialSodiumMg + bottleSodiumContributionMg;
+  // "Balance de Sodio (Bici + Bolsillos)" — see the module-level doc comment
+  // above `SODIUM_SUGGESTION_HOT_ROUTE_THRESHOLD_C` for the full reasoning.
+  // `isHotRouteForSodium` defaults to `false` with no `result` (falls back
+  // to `-Infinity` against the threshold).
   const isHotRouteForSodium =
     (result?.weather.temperatureMaxC ?? result?.weather.temperatureC ?? -Infinity) >=
     SODIUM_SUGGESTION_HOT_ROUTE_THRESHOLD_C;
-  const sodiumDeficitMg = Math.max(0, totalSodiumMg - commercialSodiumMg);
+  const sodiumDeficitMg = Math.max(0, totalSodiumMg - totalSodiumCoveredMg);
   const showSodiumSuggestion =
     result != null &&
-    commercialSodiumMg > 0 &&
     isHotRouteForSodium &&
-    commercialSodiumMg < totalSodiumMg * SODIUM_SUGGESTION_COVERAGE_FRACTION;
+    totalSodiumCoveredMg < totalSodiumMg * SODIUM_SUGGESTION_COVERAGE_FRACTION;
+  // "Traducción de Déficit a Unidades Operativas" — a raw milligram figure
+  // ("faltan 340mg de sodio") gives the athlete nothing to actually act on;
+  // both conversions are real, commonly-cited reference doses (a standard
+  // electrolyte salt capsule, and this app's own Evolytes-style Na+/g
+  // figure — see `getBottleSodiumContributionMg`'s own doc comment for why
+  // this stays a conversion layer rather than a second competing sodium
+  // model), so the suggestion can name a concrete number of capsules or
+  // grams to add, not just a quantity with no unit a rider can measure.
+  const saltCapsulesNeeded = sodiumDeficitMg > 0 ? Math.ceil(sodiumDeficitMg / SALT_CAPSULE_SODIUM_MG) : 0;
+  const evolytesGramsNeeded =
+    sodiumDeficitMg > 0 ? (sodiumDeficitMg / EVOLYTES_SODIUM_MG_PER_G).toFixed(1) : "0.0";
 
   // Which bottle-config buttons Card 04 actually renders — see
   // `getBottleConfigOptions` above for why a 1-cage athlete never sees
@@ -3587,9 +3655,10 @@ export function FuelingPlanner({
                   already-selected rows (`selectedCommercialProducts`) plus
                   a small trigger link. Every selection still feeds both
                   the CUBIERTO/RESTANTE pill above (`commercialCarbsG`) and
-                  Card 05's sodium balance check (`commercialSodiumMg`),
-                  live, whether it was just added from the sheet or is
-                  being adjusted right here. */}
+                  Card 05's sodium balance check (`commercialSodiumMg`,
+                  combined with the bottle's own sodium into
+                  `totalSodiumCoveredMg`), live, whether it was just added
+                  from the sheet or is being adjusted right here. */}
               <div className="mt-8">
                 <span className={formFieldLabelClass}>Productos de nutrición</span>
                 {selectedCommercialProducts.length > 0 && (
@@ -3742,16 +3811,20 @@ export function FuelingPlanner({
                 </>
               )}
 
-              {/* "Sugerencia de Sodio (marcas comerciales)" — only ever
-                  fires once the athlete has actually selected real branded
-                  products *and* the ride is hot enough that under-replacing
-                  sodium is a real risk (see `showSodiumSuggestion`'s own
-                  doc comment above) — never against an athlete running the
-                  default DIY bottle alone, which already sizes its own
-                  salt content to the full target. Reuses the exact same
-                  amber "aviso técnico" classes as the déficit alert above
-                  and Card 03's heat-warning banner, so every alert in this
-                  results flow reads as one consistent language. */}
+              {/* "Sugerencia de Sodio (Bici + Bolsillos)" — fires once the
+                  ride's real combined sodium coverage (bottle-mix Evolytes +
+                  commercial products, `totalSodiumCoveredMg`) falls short on
+                  a genuinely hot ride (see `showSodiumSuggestion`'s own doc
+                  comment above) — no longer gated on having touched the
+                  commercial-products selector at all, since a "Solo Agua"
+                  bottle configuration can now genuinely leave a real gap on
+                  its own. "Traducción de Déficit a Unidades Operativas" —
+                  names the deficit in units an athlete can actually act on
+                  (a capsule count, a gram figure), not a bare milligram
+                  number with nothing to measure it against. Reuses the exact
+                  same amber "aviso técnico" classes as the déficit alert
+                  above and Card 03's heat-warning banner, so every alert in
+                  this results flow reads as one consistent language. */}
               {showSodiumSuggestion && (
                 <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3.5 shadow-xs">
                   <div className="mb-1 flex items-center gap-2">
@@ -3760,9 +3833,14 @@ export function FuelingPlanner({
                       Sugerencia de electrolitos
                     </span>
                   </div>
-                  <p className="pl-6 font-mono text-xs leading-snug text-amber-900/90">
-                    Considera incluir electrolitos o cápsulas de sal (Déficit de Na+:{" "}
-                    <span className="font-semibold text-amber-800">{Math.round(sodiumDeficitMg)} mg</span>).
+                  <p className="pl-6 font-mono text-xs leading-relaxed text-amber-900/90">
+                    Te faltan <strong className="font-bold">{Math.round(sodiumDeficitMg)} mg de sodio</strong>{" "}
+                    para cubrir tu ruta. Equivale a añadir{" "}
+                    <strong className="font-bold">
+                      {saltCapsulesNeeded} cápsula{saltCapsulesNeeded !== 1 ? "s" : ""} de sal
+                    </strong>{" "}
+                    en tus bolsillos o <strong className="font-bold">{evolytesGramsNeeded}g extra de Evolytes</strong>{" "}
+                    en tus recargas de agua.
                   </p>
                 </div>
               )}
@@ -3836,18 +3914,21 @@ export function FuelingPlanner({
                 )}
               </div>
 
-              {/* "Balance de Sodio (marcas comerciales)" — a plain,
-                  always-visible readout (not an alert — that's the
-                  conditional suggestion above) so the athlete can evaluate
-                  their electrolyte balance any time real branded products
-                  are selected, even when coverage is already fine. Same
-                  neutral `bg-zinc-50` nested-box treatment as Bloque 1. */}
-              {commercialSodiumMg > 0 && (
+              {/* "Sodio total aportado (Bici + Bolsillos)" — renamed from
+                  "Sodio desde marcas comerciales" and now reads the combined
+                  real total (bottle-mix Evolytes + commercial products, see
+                  `totalSodiumCoveredMg` above), not commercial products
+                  alone. A plain, always-visible readout (not an alert —
+                  that's the conditional suggestion above) so the athlete can
+                  evaluate their electrolyte balance any time either source
+                  contributes sodium, even when coverage is already fine.
+                  Same neutral `bg-zinc-50` nested-box treatment as Bloque 1. */}
+              {totalSodiumCoveredMg > 0 && (
                 <div className="rounded-xl border border-zinc-200/70 bg-zinc-50 p-4">
-                  <span className={manifestSubtitleClass}>Sodio desde marcas comerciales</span>
+                  <span className={manifestSubtitleClass}>Sodio total aportado (Bici + Bolsillos)</span>
                   <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm text-zinc-700">
                     <FlaskConical className="size-3.5 shrink-0 self-center text-zinc-500" />
-                    <span className="font-mono text-xl font-bold text-zinc-900">{commercialSodiumMg} mg</span>
+                    <span className="font-mono text-xl font-bold text-zinc-900">{totalSodiumCoveredMg} mg</span>
                     <span className="font-mono text-xs text-zinc-500">de {totalSodiumMg} mg objetivo</span>
                   </p>
                 </div>

@@ -437,6 +437,20 @@ export function getFluidLossMlPerHour(
 const SODIUM_CONCENTRATION_MG_PER_L = 700;
 const SALTY_SWEATER_SODIUM_CONCENTRATION_MG_PER_L = 1200;
 
+/** "Techo Práctico de Reposición de Sodio" — real sweat-sodium concentration
+ * varies wildly (400-1500+ mg/L) and scales with fluid volume in a way that
+ * a straight concentration × volume model can recommend practically
+ * impossible hourly targets on a long, hot ride for a genuine salty
+ * sweater (e.g. >2000mg/h, >8000mg over a whole route — far more sodium
+ * than the gut can absorb, or than any real dosing schedule could actually
+ * deliver). Mainstream cycling-nutrition guidance caps *recommended
+ * intake* at a sustainable 400-800mg Na+/h regardless of the athlete's own
+ * exact sweat concentration — this is the practical band the
+ * concentration-based estimate below gets clamped into, rather than a flat
+ * number disconnected from the ride's real conditions. */
+export const SODIUM_TARGET_MIN_MG_PER_HOUR = 400;
+export const SODIUM_TARGET_MAX_MG_PER_HOUR = 800;
+
 export function getSodiumLossMgPerHour(
   fluidLossMlPerHour: number,
   isSaltySweater: boolean = false,
@@ -453,7 +467,13 @@ export function getSodiumLossMgPerHour(
   if (extremeHeat) {
     concentration = Math.max(concentration, EXTREME_HEAT_MIN_SODIUM_CONCENTRATION_MG_PER_L);
   }
-  return Math.round((fluidLossMlPerHour / 1000) * concentration);
+  const physiologicalEstimateMgPerHour = (fluidLossMlPerHour / 1000) * concentration;
+  return Math.round(
+    Math.min(
+      SODIUM_TARGET_MAX_MG_PER_HOUR,
+      Math.max(SODIUM_TARGET_MIN_MG_PER_HOUR, physiologicalEstimateMgPerHour)
+    )
+  );
 }
 
 /** Common table salt (NaCl) is only ~39.3% pure sodium by weight — every
