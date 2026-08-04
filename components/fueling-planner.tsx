@@ -472,6 +472,7 @@ function IntensityObjectiveSelect({
   onChange,
   error,
   disabled = false,
+  isModified = false,
 }: {
   id: string;
   value: IntensityLevel | "";
@@ -485,13 +486,20 @@ function IntensityObjectiveSelect({
    * duration of `handleCalculate`'s in-flight request, so the athlete can't
    * change the very inputs a calculation is already running against. */
   disabled?: boolean;
+  isModified?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         <label htmlFor={id} className={cn(formFieldLabelClass, "block")}>
           Intensidad objetivo
         </label>
+        {isModified && (
+          <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+            <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+            Modificado
+          </span>
+        )}
         <InfoTooltip label="Guía de zonas de intensidad" note={INTENSITY_ZONE_TOOLTIP_NOTE} />
       </div>
       <div className="relative">
@@ -1115,6 +1123,7 @@ function DeparturePicker({
   hour,
   onHourChange,
   disabled = false,
+  isModified = false,
 }: {
   dayMode: DepartureDayMode;
   onDayModeChange: (mode: DepartureDayMode) => void;
@@ -1122,13 +1131,20 @@ function DeparturePicker({
   onCustomDateChange: (date: string) => void;
   hour: string;
   onHourChange: (hour: string) => void;
-  /** "Bloqueo de Formulario durante isCalculating" — see
-   * `IntensityObjectiveSelect`'s own doc comment above. */
   disabled?: boolean;
+  isModified?: boolean;
 }) {
   return (
     <div className="flex w-full min-w-0 max-w-full flex-col gap-2">
-      <span className={formFieldLabelClass}>Fecha y hora de salida</span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className={formFieldLabelClass}>Fecha y hora de salida</span>
+        {isModified && (
+          <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+            <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+            Modificado
+          </span>
+        )}
+      </div>
       <div className="grid grid-cols-3 gap-2 *:min-w-0">
         {DEPARTURE_DAY_MODE_OPTIONS.map((opt) => (
           <button
@@ -1947,6 +1963,51 @@ export function FuelingPlanner({
     if (!activeLastCalculatedInputs) return false;
     return !areInputsEqual(currentInputs, activeLastCalculatedInputs);
   }, [currentInputs, activeLastCalculatedInputs]);
+
+  const changedFields = useMemo(() => {
+    if (!activeLastCalculatedInputs) {
+      return {
+        mode: false,
+        route: false,
+        terrain: false,
+        duration: false,
+        intensity: false,
+        stops: false,
+        trainLow: false,
+        departure: false,
+        isTargetEvent: false,
+      };
+    }
+    return {
+      mode: currentInputs.mode !== activeLastCalculatedInputs.mode,
+      route:
+        currentInputs.selectedRouteId !== activeLastCalculatedInputs.selectedRouteId ||
+        currentInputs.gpxIdentifier !== activeLastCalculatedInputs.gpxIdentifier,
+      terrain: mode === "quick" && currentInputs.manualTerrain !== activeLastCalculatedInputs.manualTerrain,
+      duration: Math.abs(currentInputs.durationHours - activeLastCalculatedInputs.durationHours) > 0.01,
+      intensity: currentInputs.intensity !== activeLastCalculatedInputs.intensity,
+      stops: currentInputs.cafeteriaStopCount !== activeLastCalculatedInputs.cafeteriaStopCount,
+      trainLow: currentInputs.trainLowEffective !== activeLastCalculatedInputs.trainLowEffective,
+      departure:
+        currentInputs.departureDayMode !== activeLastCalculatedInputs.departureDayMode ||
+        currentInputs.departureCustomDate !== activeLastCalculatedInputs.departureCustomDate ||
+        currentInputs.departureHour !== activeLastCalculatedInputs.departureHour,
+      isTargetEvent: currentInputs.isTargetEvent !== activeLastCalculatedInputs.isTargetEvent,
+    };
+  }, [currentInputs, activeLastCalculatedInputs, mode]);
+
+  const changedFieldLabels = useMemo(() => {
+    const labels: string[] = [];
+    if (changedFields.route) labels.push("Ruta");
+    if (changedFields.terrain) labels.push("Terreno");
+    if (changedFields.intensity) labels.push("Intensidad");
+    if (changedFields.duration) labels.push("Duración/Distancia");
+    if (changedFields.departure) labels.push("Fecha/Hora");
+    if (changedFields.stops) labels.push("Paradas");
+    if (changedFields.trainLow) labels.push("Train Low");
+    if (changedFields.isTargetEvent) labels.push("Ruta Objetivo");
+    return labels;
+  }, [changedFields]);
   // Drives the CTA's gating/helper-text/tooltip for the two route-based
   // modes — a route (or GPX) alone isn't enough to calculate against
   // without an intensity too, and vice versa.
@@ -2501,9 +2562,17 @@ export function FuelingPlanner({
                     {routes.length > 0 ? (
                       <div>
                         <div className="flex items-center justify-between gap-2">
-                          <label htmlFor="route" className={formFieldLabelClass}>
-                            Ruta
-                          </label>
+                          <div className="flex items-center gap-1.5">
+                            <label htmlFor="route" className={formFieldLabelClass}>
+                              Ruta
+                            </label>
+                            {changedFields.route && (
+                              <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+                                <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                Modificado
+                              </span>
+                            )}
+                          </div>
                           <button
                             type="button"
                             onClick={handleRefreshRoutes}
@@ -2658,7 +2727,15 @@ export function FuelingPlanner({
               <div className="mt-4 flex flex-col gap-4">
                 {/* 1. Terreno de la Salida (Grid Horizontal 3 Columnas) */}
                 <div className="flex flex-col gap-1.5">
-                  <label className={formFieldLabelClass}>Terreno de la Salida</label>
+                  <div className="flex items-center gap-1.5">
+                    <label className={formFieldLabelClass}>Terreno de la Salida</label>
+                    {changedFields.terrain && (
+                      <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+                        <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        Modificado
+                      </span>
+                    )}
+                  </div>
                   <div className="grid grid-cols-3 gap-2 *:min-w-0">
                     {MANUAL_TERRAIN_OPTIONS.map((opt) => {
                       const isSelected = manualTerrain === opt.id;
@@ -2711,13 +2788,22 @@ export function FuelingPlanner({
                   onChange={setManualIntensity}
                   error={intensityError}
                   disabled={loading}
+                  isModified={changedFields.intensity}
                 />
 
                 {/* 3. Modo y Parámetros de Ruta (Tarjeta de Control Integrada) */}
                 <div className="flex flex-col gap-3.5 rounded-xl border border-zinc-200/80 bg-zinc-50/50 p-3.5 shadow-xs">
                   {/* Selector Segmentado: Por Tiempo vs Por Distancia */}
                   <div className="flex flex-col gap-1">
-                    <label className={formFieldLabelClass}>Parámetros de la Salida</label>
+                    <div className="flex items-center gap-1.5">
+                      <label className={formFieldLabelClass}>Parámetros de la Salida</label>
+                      {changedFields.duration && (
+                        <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+                          <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          Modificado
+                        </span>
+                      )}
+                    </div>
                     <div className="grid grid-cols-2 gap-2 *:min-w-0">
                       <button
                         type="button"
@@ -3052,6 +3138,7 @@ export function FuelingPlanner({
                 onChange={setIntensity}
                 error={intensityError}
                 disabled={loading}
+                isModified={changedFields.intensity}
               />
               <DeparturePicker
                 dayMode={departureDayMode}
@@ -3061,22 +3148,22 @@ export function FuelingPlanner({
                 hour={departureHour}
                 onHourChange={setDepartureHour}
                 disabled={loading}
+                isModified={changedFields.departure}
               />
-              {/* "Tiempo Estimado Condicionado a la Intensidad" — stays
-                  blank (`-- h -- min`) until an intensity zone is chosen;
-                  once it is, `routeDurationDefault` (above) pre-fills these
-                  two fields via `estimateRideDurationHours()` (real FTP/
-                  peso + the zone's %FTP + the route's own distance/
-                  desnivel). Editing it sets `routeDurationOverride`
-                  (now tagged by route *and* intensity), which is what makes
-                  `handleCalculate` send a real `durationHoursOverride`
-                  instead of leaving the server re-run the same estimate. */}
               {selectedRoute && (
                 <div className="flex flex-col gap-2">
-                  <label className={formFieldLabelClass}>
-                    <Pencil className="mr-1 inline size-3" />
-                    Tiempo estimado (editar)
-                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <label className={formFieldLabelClass}>
+                      <Pencil className="mr-1 inline size-3" />
+                      Tiempo estimado (editar)
+                    </label>
+                    {changedFields.duration && (
+                      <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+                        <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        Modificado
+                      </span>
+                    )}
+                  </div>
                   {intensity ? (
                     <>
                       <div className="grid grid-cols-2 gap-3 *:min-w-0">
@@ -3162,6 +3249,7 @@ export function FuelingPlanner({
                 hour={departureHour}
                 onHourChange={setDepartureHour}
                 disabled={loading}
+                isModified={changedFields.departure}
               />
             </div>
           )}
@@ -3182,6 +3270,7 @@ export function FuelingPlanner({
                   onChange={setIntensity}
                   error={intensityError}
                   disabled={loading}
+                  isModified={changedFields.intensity}
                 />
                 <DeparturePicker
                   dayMode={departureDayMode}
@@ -3191,19 +3280,21 @@ export function FuelingPlanner({
                   hour={departureHour}
                   onHourChange={setDepartureHour}
                   disabled={loading}
+                  isModified={changedFields.departure}
                 />
                 <div className="flex flex-col gap-2">
-                  <label className={formFieldLabelClass}>
-                    <Pencil className="mr-1 inline size-3" />
-                    Tiempo estimado (editar)
-                  </label>
-                  {/* "Tiempo Estimado Condicionado a la Intensidad" — same
-                      blank-until-intensity rule as Route mode: no generic
-                      distance/velocidad-media guess shown before an
-                      intensity zone is chosen. Once it is,
-                      `gpxDurationDefault` pre-fills these two fields via
-                      `estimateRideDurationHours()` (real FTP/peso + the
-                      zone's %FTP + the file's own distance/desnivel). */}
+                  <div className="flex items-center gap-1.5">
+                    <label className={formFieldLabelClass}>
+                      <Pencil className="mr-1 inline size-3" />
+                      Tiempo estimado (editar)
+                    </label>
+                    {changedFields.duration && (
+                      <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+                        <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        Modificado
+                      </span>
+                    )}
+                  </div>
                   {intensity ? (
                     <>
                       <div className="grid grid-cols-2 gap-3 *:min-w-0">
@@ -3277,23 +3368,16 @@ export function FuelingPlanner({
             </div>
           )}
 
-          {/* Paradas previstas en ruta — relocated here from Card 04
-              ("Reubicación de Paradas al Paso 02"): a café/gasolinera stop
-              is a departure-planning decision, made alongside intensity and
-              fecha/hora, not an avituallamiento config choice, so it sits
-              in the same card as those two rather than one step later.
-              Zero-friction by default ("Sin paradas," 0 taps needed).
-              "Desvinculación de Paradas del Cálculo de Carbohidratos" — this
-              used to also render a live preview of an auto-generated
-              purchase suggestion per stop ("☕ Parada 1: ~171g HC (Refresco
-              + Bollo)"), pulled straight from whatever deficit bottles/
-              pocket food still left uncovered — removed outright along with
-              the carb-suggestion engine behind it (see `coveredCarbsG`'s
-              own doc comment above). This selector is now a plain logistics
-              input with no downstream preview at all: how many road-side
-              stops the athlete plans to make, nothing more. */}
           <div className="mt-4">
-            <span className={cn(formFieldLabelClass, "mb-2 block")}>Paradas previstas en ruta</span>
+            <div className="mb-2 flex items-center gap-1.5">
+              <span className={formFieldLabelClass}>Paradas previstas en ruta</span>
+              {changedFields.stops && (
+                <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+                  <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Modificado
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-3 gap-2 *:min-w-0">
               {CAFETERIA_STOP_COUNT_OPTIONS.map((opt) => (
                 <button
@@ -3315,12 +3399,6 @@ export function FuelingPlanner({
             </div>
           </div>
 
-          {/* Modo Competición / Ruta Objetivo — integrated strictly inside
-              Card 02 (it used to float on the porcelain canvas between this
-              card and the CTA button), at the bottom, separated by a thin
-              divider so it reads as this card's own trailing sub-section
-              rather than a fourth sibling condition alongside route/quick/
-              gpx above it. */}
           <div className="mt-3 border-t border-zinc-100 pt-3">
             <label
               className={cn(
@@ -3335,7 +3413,15 @@ export function FuelingPlanner({
                 onChange={(e) => setIsTargetEvent(e.target.checked)}
                 className="size-3.5 cursor-pointer accent-terracotta disabled:cursor-not-allowed"
               />
-              Ruta objetivo / Competición
+              <span className="font-semibold text-[#70685b]">
+                Ruta objetivo / Competición
+              </span>
+              {changedFields.isTargetEvent && (
+                <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+                  <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Modificado
+                </span>
+              )}
             </label>
             {isTargetEvent && (
               <p className="mt-1.5 text-[11px] text-neutral-500">
@@ -3346,19 +3432,6 @@ export function FuelingPlanner({
             )}
           </div>
 
-          {/* "Entrenamientos en Ayunas / Z2 Low Carb (Train Low)" — a
-              deliberate low-carb-availability session; checking this
-              overrides the usual intensity-driven carb target with a fixed
-              0-25g/h electrolyte-only floor (`result.trainLow`), while
-              hydration/sodium stay at their normal, full targets.
-              "Reglas de Incompatibilidad Fisiológica" — disabled outright
-              (real `disabled`, not just a visual dim) whenever
-              `trainLowIncompatible`; `checked`/the request body both read
-              `trainLowEffective` (see its own doc comment above) rather
-              than raw `trainLow`, so the box reads as unchecked and nothing
-              incompatible is ever sent the instant intensity/"Ruta
-              objetivo" makes this incompatible — with no corrective effect
-              needed. */}
           <div className="mt-3 border-t border-zinc-100 pt-3">
             <label
               className={cn(
@@ -3373,9 +3446,17 @@ export function FuelingPlanner({
                 checked={trainLowEffective}
                 disabled={trainLowIncompatible || loading}
                 onChange={(e) => setTrainLow(e.target.checked)}
-                className="size-3.5 accent-terracotta disabled:cursor-not-allowed"
+                className="size-3.5 cursor-pointer accent-terracotta disabled:cursor-not-allowed"
               />
-              Modo Eficiencia Metabólica (Train Low / Ayunas)
+              <span className="font-semibold text-zinc-800">
+                Modo Eficiencia Metabólica (Train Low / Ayunas)
+              </span>
+              {changedFields.trainLow && (
+                <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+                  <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Modificado
+                </span>
+              )}
             </label>
             {trainLowIncompatible ? (
               <p className="mt-1.5 text-[11px] text-neutral-400">
@@ -3477,9 +3558,14 @@ export function FuelingPlanner({
 
             <div className={cn(numberedCardClass, isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
               {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="mb-3 flex w-fit items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] text-amber-600 shadow-xs">
+                <div className="mb-3 flex w-fit flex-wrap items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] text-amber-600 shadow-xs">
                   <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  Estrategia previa — Pendiente de recalcular
+                  <span>Estrategia previa — Pendiente de recalcular</span>
+                  {changedFieldLabels.length > 0 && (
+                    <span className="font-normal text-amber-700/80">
+                      (Modificados: {changedFieldLabels.join(", ")})
+                    </span>
+                  )}
                 </div>
               )}
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
@@ -3666,9 +3752,14 @@ export function FuelingPlanner({
                 planned stop). */}
             <div className={cn(numberedCardClass, isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
               {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="mb-3 flex w-fit items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] text-amber-600 shadow-xs">
+                <div className="mb-3 flex w-fit flex-wrap items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] text-amber-600 shadow-xs">
                   <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  Estrategia previa — Pendiente de recalcular
+                  <span>Estrategia previa — Pendiente de recalcular</span>
+                  {changedFieldLabels.length > 0 && (
+                    <span className="font-normal text-amber-700/80">
+                      (Modificados: {changedFieldLabels.join(", ")})
+                    </span>
+                  )}
                 </div>
               )}
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
@@ -3976,9 +4067,14 @@ export function FuelingPlanner({
                 it — no export button lives here. */}
             <div className={cn(numberedCardClass, "flex flex-col gap-4", isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
               {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="flex w-fit items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] text-amber-600 shadow-xs">
+                <div className="flex w-fit flex-wrap items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] text-amber-600 shadow-xs">
                   <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  Estrategia previa — Pendiente de recalcular
+                  <span>Estrategia previa — Pendiente de recalcular</span>
+                  {changedFieldLabels.length > 0 && (
+                    <span className="font-normal text-amber-700/80">
+                      (Modificados: {changedFieldLabels.join(", ")})
+                    </span>
+                  )}
                 </div>
               )}
               <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
