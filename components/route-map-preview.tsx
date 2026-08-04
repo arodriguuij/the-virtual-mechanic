@@ -38,10 +38,11 @@ const TILE_ATTRIBUTION =
 // terrain, the olive tone didn't hold enough contrast/precision at a
 // glance (a rider needs to read the exact line at a glance, not blend it
 // into the landscape) — obsidian black is the maximum-contrast choice,
-// kept fine (`weight: 2.5`) rather than bold so it still reads as a
-// precise technical trace, not a heavy UI accent. Kept as a literal hex
-// rather than a Tailwind class, since Leaflet's `Polyline` `color` prop
-// needs a plain string.
+// kept fine (`weight: 2`, down from `2.5` — "Trazo Fino de Mapa: Vector
+// Elegance") rather than bold so it still reads as a precise technical
+// trace, not a heavy UI accent. Kept as a literal hex rather than a
+// Tailwind class, since Leaflet's `Polyline` `color` prop needs a plain
+// string.
 const ROUTE_LINE_COLOR = "#18181B";
 // A wider, softer, near-black line rendered directly underneath the route
 // itself — Leaflet's `Polyline` has no `box-shadow`-style prop of its own, so
@@ -243,21 +244,23 @@ export function RouteMapPreview({
           positions={points}
           pathOptions={{
             color: ROUTE_SHADOW_COLOR,
-            weight: 4,
+            weight: 3,
             opacity: 0.15,
             lineCap: "round",
             lineJoin: "round",
           }}
         />
-        {/* Fine, technical stroke — `weight: 2.5`/`opacity: 0.95` reads as a
-            deliberately thin, elegant trace rather than a bold UI element,
-            per "Estilizado Minimalista de la Ruta en Mapa." */}
+        {/* Fine, technical stroke — `weight: 2`/`opacity: 0.9` reads as a
+            deliberately thin, elegant vector trace rather than a bold UI
+            element, per "Trazo Fino de Mapa: Vector Elegance" (tightened
+            further from the prior `2.5`/`0.95` pass, "Estilizado Minimalista
+            de la Ruta en Mapa"). */}
         <Polyline
           positions={points}
           pathOptions={{
             color: ROUTE_LINE_COLOR,
-            weight: 2.5,
-            opacity: 0.95,
+            weight: 2,
+            opacity: 0.9,
             lineCap: "round",
             lineJoin: "round",
           }}
