@@ -45,6 +45,7 @@ import {
 } from "@/lib/ui-classes";
 import {
   calculateHouseholdMeasures,
+  estimateRideDurationHours,
   getBottlePlan,
   getPocketFoodTotalCarbsG,
   getTableSaltGrams,
@@ -62,12 +63,6 @@ import {
   CommercialProductsSheet,
   CommercialProductStepperRow,
 } from "@/components/commercial-products-sheet";
-
-// Assumed pace when the athlete has no Strava ride history to derive a real
-// average speed from (brand-new account, or Strava never connected) — a
-// plausible "typical road ride" pace, not a personalized figure; the UI
-// flags this explicitly so the athlete knows to double-check the estimate.
-const FALLBACK_AVG_SPEED_KMH = 25;
 
 // Leaflet reads `window`/`document` at module scope, which breaks Next's
 // server render pass — `ssr: false` is what actually prevents that, not
@@ -91,6 +86,20 @@ function formatHoursMinutes(hours: number): string {
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+}
+
+/** Converts a decimal-hours figure into whole Horas/Minutos strings for the
+ * "Tiempo estimado" dual-input fields (Ruta and GPX mode both use this) —
+ * rounds to the nearest whole minute and rolls a rounded-up "60" over into
+ * the next whole hour instead of ever displaying "X h 60 min". */
+function decimalHoursToParts(hours: number): { hours: string; minutes: string } {
+  let wholeHours = Math.floor(hours);
+  let wholeMinutes = Math.round((hours - wholeHours) * 60);
+  if (wholeMinutes === 60) {
+    wholeHours += 1;
+    wholeMinutes = 0;
+  }
+  return { hours: String(wholeHours), minutes: String(wholeMinutes) };
 }
 
 /** "Race Day Manifest" hydration HUD — the recurring `HH:MMh` marks under
@@ -576,21 +585,6 @@ type PlanResult = {
 // on `/perfil`.
 const BOTTLE_CAPACITY_QUICK_OPTIONS = [550, 750, 950];
 
-// "Micro-Gauges de 2px" — Card 03's own reference ceilings for how far each
-// metric's current value sits along its own real-world demand range, purely
-// illustrative (a visual "how hot is this ride" read, not a second copy of
-// the actual computed figure above it). Each ceiling is grounded in a real
-// constraint already established elsewhere in this app rather than a bare
-// guess: carbs at 100g/h is the practical gut-absorption ceiling
-// `getCarbOxidationRateGPerHour` (`lib/metabolic-engine.ts`) already bands
-// every intensity against; duration/fluid/sodium ceilings are a generous
-// "hardest realistic single-day effort" reference (an ultra-distance
-// gran fondo, worst-case heat) so a normal ride's bar sits comfortably
-// short of full, not pinned at 100% by default.
-const DURATION_GAUGE_MAX_HOURS = 8;
-const CARB_DEMAND_GAUGE_MAX_G_PER_HOUR = 100;
-const FLUID_DEMAND_GAUGE_MAX_ML_PER_HOUR = 1500;
-const SODIUM_DEMAND_GAUGE_MAX_MG_PER_HOUR = 2000;
 
 // "Semáforo Dinámico" — the one place Card 04's sticky bar decides
 // RESTANTE's traffic-light color, so a future call site can't invent a
@@ -669,18 +663,20 @@ function AlertBanner({
   );
 }
 
-// "Unificación de Lienzo Claro" — this component's only 4 call sites all
-// live inside Card 03's now-light `bg-zinc-50` tiles, so its colors were
-// restyled directly for that light surface: a `zinc-200` track and a
-// Bronce Táctico (`#70685b`) fill, this app's "state accent" color, in
-// place of the earlier dark card's low-opacity-white/emerald pairing.
-function MicroGauge({ pct }: { pct: number }) {
-  const clamped = Math.max(0, Math.min(100, pct));
-  return (
-    <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-zinc-200" aria-hidden>
-      <div className="h-full bg-[#70685b]" style={{ width: `${clamped}%` }} />
-    </div>
-  );
+// "Rediseño de Barras de Progreso" — this used to be a proportional 0-100%
+// fill (a `pct` prop sized against a fixed physiological reference ceiling
+// per metric), which read as an incomplete loading bar with no visible
+// scale to judge it against — nothing on screen told a viewer whether a
+// half-filled bar meant "using half of a sane physiological ceiling" or
+// "still loading." Rather than adding a micro-legend spelling out each
+// metric's own max (which would clutter an already-dense 2x2 grid, and risk
+// disagreeing with whichever reference ceiling this app's own engine
+// actually uses for that metric — see `getCarbOxidationRateGPerHour`'s real
+// 100g/h gut-absorption ceiling, e.g.), this is now a plain, always-full
+// solid accent line instead: it reads as a deliberate divider/underline
+// beneath each tile's own figure, never as an ambiguous progress meter.
+function MetricAccentLine() {
+  return <div className="mt-1.5 h-0.5 w-full rounded-full bg-[#70685b]" aria-hidden />;
 }
 
 // "Configuración de bidones" — a lightweight planning preference, not a
@@ -888,31 +884,33 @@ function getBikeManifestItems(
 }
 
 /** Tarjeta 05's "Plan de agua en ruta" — plain water beyond what fits in
- * the bike's own cages is never a Ziploc powder concern (concentrate isn't
- * available at a fountain — see `getReloadStrategy`'s own
- * `waterRefillCount`/`waterRefillLiters`), so it's listed here as a
- * fountain-refill action rather than as a phantom bottle in the "En bici"
- * checklist above or folded into the powder-reload accordion.
+ * the athlete's real installed bottle capacity is never a Ziploc powder
+ * concern (concentrate isn't available at a fountain — see
+ * `getReloadStrategy`'s own `ziplocBagsCount`/`ziplocDose`, for mix bottles
+ * specifically), so it's listed here as a fountain-refill action instead of
+ * a phantom bottle in the "En bici" checklist above.
  *
- * "Neutralidad Absoluta en el Plan de Agua en Ruta" — a plain, direct
- * `Recarga de agua en ruta: N recarga(s) de ~Xml/L` line, no parenthetical
- * qualifiers. `waterRefillLiters` is the *total* across every refill
- * (`extraWaterBottles * bottleSizeMl`, see `getReloadStrategy` in
- * `lib/metabolic-engine.ts`) — displayed in ml under 1L (matching a single
- * refill's own bottle-size volume 1:1, e.g. "1 recarga de ~550ml" for one
- * 550ml refill) and in L above that, rather than always showing a bare
- * "0.55L" that reads awkwardly at small volumes. */
-function getWaterPlanLines(result: PlanResult): string[] {
-  const reload = result.reloadStrategy;
-  if (!reload || reload.waterRefillCount <= 0) return [];
-  const volumeLabel =
-    reload.waterRefillLiters < 1
-      ? `${Math.round(reload.waterRefillLiters * 1000)}ml`
-      : `${reload.waterRefillLiters}L`;
+ * "Fix Matemático del Plan de Agua en Ruta" — takes the already-computed
+ * `waterDeficitMl`/`fullRefillsNeeded`/`refillVolumePerStopMl` (derived
+ * live from the athlete's real cage count × the *current* bottle size, see
+ * that computation's own doc comment above) rather than reaching into
+ * `result.reloadStrategy` itself, whose `waterRefillCount`/`waterRefillLiters`
+ * are frozen at whatever bottle size the server used for the last
+ * calculation — a real, reported incoherence once the bottle size is
+ * overridden locally (e.g. a 2600ml deficit shown next to "1 recarga de
+ * 600ml", when the real deficit needs ~5). Names the deficit explicitly in
+ * the sentence itself, rather than just the refill count/volume, so the
+ * "why" is visible right alongside the "what to do." */
+function getWaterPlanLines(
+  waterDeficitMl: number,
+  fullRefillsNeeded: number,
+  refillVolumePerStopMl: number
+): string[] {
+  if (fullRefillsNeeded <= 0) return [];
   return [
-    `Recarga de agua en ruta: ${reload.waterRefillCount} recarga${
-      reload.waterRefillCount > 1 ? "s" : ""
-    } de ~${volumeLabel}`,
+    `Plan de agua en ruta: ${fullRefillsNeeded} recarga${
+      fullRefillsNeeded > 1 ? "s" : ""
+    } en ruta (~${refillVolumePerStopMl}ml por parada para cubrir los ${waterDeficitMl}ml de déficit)`,
   ];
 }
 
@@ -1358,11 +1356,20 @@ function PocketFoodStepperRow({
 
 export function FuelingPlanner({
   routes,
-  avgSpeedKmh,
+  ftp,
+  weightKg,
   isProfileComplete,
 }: {
   routes: StravaRoute[];
-  avgSpeedKmh: number | null;
+  // The athlete's real FTP/peso — needed client-side so "Tiempo estimado"
+  // (Card 02, Ruta/GPX mode) can run the same `estimateRideDurationHours()`
+  // physics model the server itself uses, once an intensity zone is
+  // chosen. `0` is a real, guaranteed-unreachable-in-practice sentinel
+  // (never a fabricated plausible number) — see `FuelingPlannerSection`'s
+  // own doc comment for why a complete profile is a guaranteed invariant
+  // by the time this renders.
+  ftp: number;
+  weightKg: number;
   isProfileComplete: boolean;
 }) {
   const [mode, setMode] = useState<"route" | "quick" | "gpx">(routes.length > 0 ? "route" : "quick");
@@ -1499,33 +1506,30 @@ export function FuelingPlanner({
   const [intensityError, setIntensityError] = useState(false);
   const [isOfflineCache, setIsOfflineCache] = useState(false);
   const [parsedGpx, setParsedGpx] = useState<ParsedGpxRoute | null>(null);
-  // "Selector Dual de Horas y Minutos" — replaces a single decimal-hours
-  // input (which rendered raw values like "2.35") with the same Horas/
-  // Minutos pair Entreno Manual's own "Duración estimada" already uses
-  // (`quickHoursInput`/`quickMinutesInput` above) — plain integers on
-  // screen, never a decimal. `gpxDurationHours` below derives the one
-  // decimal figure the actual calculation still needs from these two.
-  const [gpxHoursInput, setGpxHoursInput] = useState("2");
-  const [gpxMinutesInput, setGpxMinutesInput] = useState("0");
-  // "Tiempo Estimado Autocompletado" para una ruta real de Strava — mismo
-  // par Horas/Minutos que GPX mode, pre-rellenado desde el propio
-  // `estimated_moving_time` de Strava (o el fallback distancia/velocidad
-  // media cuando Strava no lo tiene). Deliberately *not* synced via a
-  // `useEffect` (React's own `set-state-in-effect` lint rule flags a
-  // synchronous `setState` used purely to derive one value from another —
-  // see https://react.dev/learn/you-might-not-need-an-effect): instead,
-  // the default is recomputed fresh during render (`routeDurationDefault`
-  // below) and only an actual manual edit is ever written to state, tagged
-  // with the `routeId` it belongs to so switching routes reverts back to a
-  // fresh default automatically, with no reset call needed at all. This is
-  // also what avoids a real regression — if the athlete never touches this
-  // field, the calculation keeps using `estimateRideDurationHours()` (this
-  // app's own FTP/vatios objetivo/intensidad model, more precise than a
-  // plain distance/speed estimate); only an actual edit sends
-  // `durationHoursOverride` in the request body (see `handleCalculate`),
-  // exactly like GPX mode already does.
+  // "Tiempo Estimado Condicionado a la Intensidad" — blank (no default
+  // duration guessed at all) until an intensity zone is chosen, then
+  // auto-computed via `estimateRideDurationHours()` (this app's own real
+  // FTP/peso/VAM physics model, using the athlete's actual profile —
+  // `ftp`/`weightKg` props) — for both Ruta and GPX mode. Deliberately
+  // *not* synced via a `useEffect` (React's own `set-state-in-effect` lint
+  // rule flags a synchronous `setState` used purely to derive one value
+  // from another — see https://react.dev/learn/you-might-not-need-an-effect):
+  // the default is recomputed fresh during render (`gpxDurationDefault`/
+  // `routeDurationDefault` below), tagged with whichever route/GPX +
+  // intensity it belongs to, so switching either automatically reverts to
+  // a fresh estimate for the new inputs with no reset call needed. Only an
+  // actual manual edit is ever written to state — and only then does
+  // `handleCalculate` send a real `durationHoursOverride`, leaving
+  // `estimateRideDurationHours()` in charge of every calculation the
+  // athlete hasn't explicitly overridden.
+  const [gpxDurationOverride, setGpxDurationOverride] = useState<{
+    intensity: IntensityLevel | "";
+    hoursInput: string;
+    minutesInput: string;
+  } | null>(null);
   const [routeDurationOverride, setRouteDurationOverride] = useState<{
     routeId: string;
+    intensity: IntensityLevel | "";
     hoursInput: string;
     minutesInput: string;
   } | null>(null);
@@ -1561,13 +1565,34 @@ export function FuelingPlanner({
   const quickDurationHours = quickHoursNum + quickMinutesNum / 60;
   const quickValid = quickDurationHours > 0 && intensity !== "";
 
-  // Same "combine Horas + Minutos into one decimal-hours figure" pattern as
-  // `quickDurationHours` above — this is the one value GPX mode's own
-  // `durationHoursOverride` request-body field and `formatHoursMinutes()`
-  // caption actually read; the two integer inputs are purely a UI concern.
-  const gpxHoursNum = Number(gpxHoursInput) || 0;
-  const gpxMinutesNum = Number(gpxMinutesInput) || 0;
-  const gpxDurationHours = Math.max(0.25, gpxHoursNum + gpxMinutesNum / 60);
+  // "Algoritmo Físico Dinámico" — blank (`{ hours: "", minutes: "" }`) until
+  // an intensity zone is actually chosen; once it is, `estimateRideDurationHours()`
+  // combines the athlete's real FTP/peso with the zone's own %FTP and the
+  // file's real distance/desnivel — the same VAM-based climb estimate +
+  // aerodynamic flat-speed model this app's server already uses for a
+  // saved Strava route, now also driving this on-screen estimate the
+  // instant intensity changes, rather than a generic distance/speed guess
+  // with no relationship to how hard the athlete says they'll actually
+  // ride.
+  const gpxDurationDefault = useMemo(() => {
+    if (!parsedGpx || !intensity || !ftp || !weightKg) return { hours: "", minutes: "" };
+    const estimatedHours = estimateRideDurationHours({
+      distanceKm: parsedGpx.distanceKm,
+      elevationGainM: parsedGpx.elevationGainM,
+      ftp,
+      weightKg,
+      intensity,
+    });
+    return decimalHoursToParts(estimatedHours);
+  }, [parsedGpx, intensity, ftp, weightKg]);
+  // `gpxDurationOverride` only ever holds a genuine manual edit, tagged
+  // with the intensity it was made against — switching intensity makes
+  // this tag stop matching, so the two fields below revert to the fresh
+  // default above automatically, with no reset needed.
+  const gpxDurationOverridden = gpxDurationOverride?.intensity === intensity;
+  const gpxHoursInput = gpxDurationOverridden ? gpxDurationOverride.hoursInput : gpxDurationDefault.hours;
+  const gpxMinutesInput = gpxDurationOverridden ? gpxDurationOverride.minutesInput : gpxDurationDefault.minutes;
+  const gpxDurationHours = Math.max(0.25, (Number(gpxHoursInput) || 0) + (Number(gpxMinutesInput) || 0) / 60);
 
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === selectedRouteId) ?? null,
@@ -1617,31 +1642,31 @@ export function FuelingPlanner({
     mode === "route" && stravaElevationProfile?.routeId === selectedRouteId
       ? stravaElevationProfile.profile
       : null;
-  // "Tiempo Estimado Autocompletado" — recomputed fresh on every render
-  // (cheap arithmetic, no `useEffect` needed): `estimated_moving_time` is
-  // already present on every route in `routes` (fetched in the same
-  // `/athlete/routes` list call, no extra network cost), falling back to
-  // the same distance/average-speed estimate GPX mode uses whenever Strava
-  // has no estimate for this particular route.
+  // "Algoritmo Físico Dinámico" — blank until an intensity zone is chosen
+  // (no generic distance/average-speed guess shown in the meantime), then
+  // `estimateRideDurationHours()` combines the athlete's real FTP/peso with
+  // the zone's own %FTP and the route's real distance/desnivel — the exact
+  // same VAM-based climb estimate + aerodynamic flat-speed model
+  // `POST /api/fueling/plan` itself already runs server-side for a route
+  // with no historical Strava moving-time to lean on, now also driving
+  // this on-screen estimate live as intensity changes.
   const routeDurationDefault = useMemo(() => {
-    if (!selectedRoute) return { hours: "", minutes: "" };
-    const speed = avgSpeedKmh && avgSpeedKmh > 0 ? avgSpeedKmh : FALLBACK_AVG_SPEED_KMH;
-    const estimatedHours = selectedRoute.estimatedMovingTimeSec
-      ? selectedRoute.estimatedMovingTimeSec / 3600
-      : selectedRoute.distanceKm / speed;
-    let wholeHours = Math.floor(estimatedHours);
-    let wholeMinutes = Math.round((estimatedHours - wholeHours) * 60);
-    if (wholeMinutes === 60) {
-      wholeHours += 1;
-      wholeMinutes = 0;
-    }
-    return { hours: String(wholeHours), minutes: String(wholeMinutes) };
-  }, [selectedRoute, avgSpeedKmh]);
+    if (!selectedRoute || !intensity || !ftp || !weightKg) return { hours: "", minutes: "" };
+    const estimatedHours = estimateRideDurationHours({
+      distanceKm: selectedRoute.distanceKm,
+      elevationGainM: selectedRoute.elevationGainM,
+      ftp,
+      weightKg,
+      intensity,
+    });
+    return decimalHoursToParts(estimatedHours);
+  }, [selectedRoute, intensity, ftp, weightKg]);
   // `routeDurationOverride` only ever holds a genuine manual edit, tagged
-  // with the route it belongs to — switching to a different route makes
-  // this tag stop matching, so the two fields below revert to the fresh
-  // default above automatically, with no reset needed.
-  const routeDurationOverridden = routeDurationOverride?.routeId === selectedRouteId;
+  // with the route + intensity it was made against — switching either
+  // makes this tag stop matching, so the two fields below revert to the
+  // fresh default above automatically, with no reset needed.
+  const routeDurationOverridden =
+    routeDurationOverride?.routeId === selectedRouteId && routeDurationOverride?.intensity === intensity;
   const routeHoursInput = routeDurationOverridden ? routeDurationOverride.hoursInput : routeDurationDefault.hours;
   const routeMinutesInput = routeDurationOverridden
     ? routeDurationOverride.minutesInput
@@ -1680,20 +1705,35 @@ export function FuelingPlanner({
     [result, bottleCapacityOverrideMl]
   );
 
-  // "Diagnóstico de Parada — Déficit Hídrico" — `reloadStrategy.
-  // waterRefillCount > 0` is the real, already-computed signal that the
-  // athlete's installed bottle capacity falls short of the ride's total
-  // fluid demand (see `getReloadStrategy` in `lib/metabolic-engine.ts`):
-  // whenever more bottles are needed than physically fit on the bike at
-  // once, the surplus becomes a road-side fountain refill rather than a
-  // bottle carried from home. `installedBottleVolumeMl` is what's actually
-  // mounted at departure (`reloadStrategy.startingBottleCount`, capped at
-  // real cage count — falling back to the recipe's own `totalBottles` when
-  // there's no reload need at all, i.e. everything fits).
-  const needsWaterRefill = (result?.reloadStrategy?.waterRefillCount ?? 0) > 0;
-  const installedBottleVolumeMl = displayBottlePlan
-    ? displayBottlePlan.bottleSizeMl * (result?.reloadStrategy?.startingBottleCount ?? displayBottlePlan.totalBottles)
-    : 0;
+  // "Fix Matemático del Plan de Agua en Ruta" — this used to read
+  // `result.reloadStrategy.waterRefillCount`/`waterRefillLiters`, both
+  // frozen at whatever bottle size the *server* used for the last
+  // calculation. Once the athlete overrides the bottle size for this one
+  // preview (`bottleCapacityOverrideMl`, above), `installedBottleVolumeMl`
+  // recomputed off the *live* `displayBottlePlan.bottleSizeMl` while the
+  // recommended refill count/volume stayed pinned to the old, now-stale
+  // `reloadStrategy` — a real, reported incoherence (a 2600ml deficit
+  // shown next to "1 recarga de 600ml," an amount the real deficit would
+  // need ~5 of). Recomputed directly and consistently from the same two
+  // live figures instead: real cage count (`result.athleteBottleCount`,
+  // never affected by a bottle-size override) × the current bottle size —
+  // both always in sync with each other and with `totalFluidMl` above,
+  // so this can never drift the way reading a separately-computed,
+  // possibly-stale `reloadStrategy` could. Each "recarga" tops up the
+  // *entire* installed capacity again (a fountain stop isn't limited to
+  // one bottle's worth), so the deficit splits evenly across however many
+  // full refills are actually needed.
+  const installedCapacityMl =
+    result && displayBottlePlan ? result.athleteBottleCount * displayBottlePlan.bottleSizeMl : 0;
+  const waterDeficitMl = Math.max(0, totalFluidMl - installedCapacityMl);
+  const fullRefillsNeeded =
+    waterDeficitMl > 0 && installedCapacityMl > 0 ? Math.ceil(waterDeficitMl / installedCapacityMl) : 0;
+  const refillVolumePerStopMl = fullRefillsNeeded > 0 ? Math.round(waterDeficitMl / fullRefillsNeeded) : 0;
+  const needsWaterRefill = fullRefillsNeeded > 0;
+  // Kept under its old name for the "Déficit hídrico" bullet below, which
+  // already reads it — now sourced from the live, consistent figure above
+  // instead of a stale `reloadStrategy.startingBottleCount`-derived one.
+  const installedBottleVolumeMl = installedCapacityMl;
 
   // "Conversión Dinámica a Medidas Caseras" — recomputed from the last
   // calculated result whenever it changes; cheap pure arithmetic, no memo
@@ -1830,7 +1870,7 @@ export function FuelingPlanner({
     ...getPocketManifestItems(pocketFood, customCarbsG),
     ...commercialManifestItems,
   ];
-  const waterPlanChecklistLines = result ? getWaterPlanLines(result) : [];
+  const waterPlanChecklistLines = getWaterPlanLines(waterDeficitMl, fullRefillsNeeded, refillVolumePerStopMl);
   const cafeteriaChecklistLines = getCafeteriaStopChecklistLines(cafeteriaStopPlans);
 
   // Card 05's "Cronograma Dinámico de Ingesta" merges the server-computed
@@ -1978,22 +2018,9 @@ export function FuelingPlanner({
         return;
       }
       setParsedGpx(parsed);
-      const speed = avgSpeedKmh && avgSpeedKmh > 0 ? avgSpeedKmh : FALLBACK_AVG_SPEED_KMH;
-      const estimatedHours = parsed.distanceKm / speed;
-      let wholeHours = Math.floor(estimatedHours);
-      // Rounds to the nearest whole minute — the two integer inputs below
-      // can't represent a fractional minute anyway, and `gpxDurationHours`
-      // (derived from these two) is what the actual calculation reads, not
-      // this intermediate estimate. Rounding up to a full 60 (e.g. an
-      // estimate of 2.995h) rolls over into the next whole hour instead of
-      // ever displaying "60 min".
-      let wholeMinutes = Math.round((estimatedHours - wholeHours) * 60);
-      if (wholeMinutes === 60) {
-        wholeHours += 1;
-        wholeMinutes = 0;
-      }
-      setGpxHoursInput(String(wholeHours));
-      setGpxMinutesInput(String(wholeMinutes));
+      // No duration is set here anymore — `gpxDurationDefault` (above)
+      // derives it fresh from `parsedGpx`/`intensity` the moment both are
+      // known, same "blank until intensity is chosen" rule as Route mode.
       // A successful upload makes the GPX the active route source — the
       // Strava selector resets/clears rather than sitting alongside it, so
       // there's only ever one route "in play" at a time.
@@ -2637,73 +2664,89 @@ export function FuelingPlanner({
                 hour={departureHour}
                 onHourChange={setDepartureHour}
               />
-              {/* "Tiempo Estimado Autocompletado" — mirrors GPX mode's own
-                  field exactly, pre-filled from Strava's own
-                  `estimated_moving_time` (or the distance/velocidad media
-                  fallback) the instant a route is selected. Editing it sets
-                  `routeDurationOverride`, which is what makes
-                  `handleCalculate` send a real `durationHoursOverride` for
-                  this route instead of leaving the server's own FTP-aware
-                  `estimateRideDurationHours()` estimate in charge. */}
+              {/* "Tiempo Estimado Condicionado a la Intensidad" — stays
+                  blank (`-- h -- min`) until an intensity zone is chosen;
+                  once it is, `routeDurationDefault` (above) pre-fills these
+                  two fields via `estimateRideDurationHours()` (real FTP/
+                  peso + the zone's %FTP + the route's own distance/
+                  desnivel). Editing it sets `routeDurationOverride`
+                  (now tagged by route *and* intensity), which is what makes
+                  `handleCalculate` send a real `durationHoursOverride`
+                  instead of leaving the server re-run the same estimate. */}
               {selectedRoute && (
                 <div className="flex flex-col gap-2">
                   <label className={formFieldLabelClass}>
                     <Pencil className="mr-1 inline size-3" />
                     Tiempo estimado (editar)
                   </label>
-                  <div className="grid grid-cols-2 gap-3 *:min-w-0">
-                    <div className="relative flex items-center">
-                      <input
-                        id="route-duration-hours"
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        step={1}
-                        placeholder="0"
-                        aria-label="Horas"
-                        className={cn(inputClass, "pr-8")}
-                        value={routeHoursInput}
-                        onChange={(e) =>
-                          setRouteDurationOverride({
-                            routeId: selectedRouteId,
-                            hoursInput: e.target.value,
-                            minutesInput: routeMinutesInput,
-                          })
-                        }
-                      />
-                      <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
-                        h
+                  {intensity ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-3 *:min-w-0">
+                        <div className="relative flex items-center">
+                          <input
+                            id="route-duration-hours"
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            step={1}
+                            placeholder="0"
+                            aria-label="Horas"
+                            className={cn(inputClass, "pr-8")}
+                            value={routeHoursInput}
+                            onChange={(e) =>
+                              setRouteDurationOverride({
+                                routeId: selectedRouteId,
+                                intensity,
+                                hoursInput: e.target.value,
+                                minutesInput: routeMinutesInput,
+                              })
+                            }
+                          />
+                          <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                            h
+                          </span>
+                        </div>
+                        <div className="relative flex items-center">
+                          <input
+                            id="route-duration-minutes"
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            max={59}
+                            step={5}
+                            placeholder="0"
+                            aria-label="Minutos"
+                            className={cn(inputClass, "pr-10")}
+                            value={routeMinutesInput}
+                            onChange={(e) =>
+                              setRouteDurationOverride({
+                                routeId: selectedRouteId,
+                                intensity,
+                                hoursInput: routeHoursInput,
+                                minutesInput: e.target.value,
+                              })
+                            }
+                          />
+                          <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                            min
+                          </span>
+                        </div>
+                      </div>
+                      <span className="font-mono text-xs whitespace-nowrap text-neutral-500">
+                        {formatHoursMinutes(routeDurationHours)}
+                        {!routeDurationOverridden && " (estimado)"}
                       </span>
-                    </div>
-                    <div className="relative flex items-center">
-                      <input
-                        id="route-duration-minutes"
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        max={59}
-                        step={5}
-                        placeholder="0"
-                        aria-label="Minutos"
-                        className={cn(inputClass, "pr-10")}
-                        value={routeMinutesInput}
-                        onChange={(e) =>
-                          setRouteDurationOverride({
-                            routeId: selectedRouteId,
-                            hoursInput: routeHoursInput,
-                            minutesInput: e.target.value,
-                          })
-                        }
-                      />
-                      <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
-                        min
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex h-9 items-center rounded-sm bg-zinc-100 px-3 font-mono text-sm text-zinc-400">
+                        -- h -- min
+                      </div>
+                      <span className="font-mono text-xs text-neutral-500">
+                        Selecciona la intensidad objetivo para calcular la duración prevista.
                       </span>
-                    </div>
-                  </div>
-                  <span className="font-mono text-xs whitespace-nowrap text-neutral-500">
-                    {formatHoursMinutes(routeDurationHours)}
-                    {!routeDurationOverridden && " (estimado)"}
-                  </span>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -2751,60 +2794,81 @@ export function FuelingPlanner({
                     <Pencil className="mr-1 inline size-3" />
                     Tiempo estimado (editar)
                   </label>
-                  {/* "Selector Dual de Horas y Minutos" — same 2-col
-                      Horas/Minutos grid as Entreno Manual's own "Duración
-                      estimada" (`quickHoursInput`/`quickMinutesInput`
-                      above), replacing the old single decimal-hours input
-                      (which rendered raw values like "2.35") — plain
-                      integers on screen, the "Xh Ym" caption still gives
-                      the same at-a-glance readout as before. */}
-                  <div className="grid grid-cols-2 gap-3 *:min-w-0">
-                    <div className="relative flex items-center">
-                      <input
-                        id="gpx-duration-hours"
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        step={1}
-                        placeholder="0"
-                        aria-label="Horas"
-                        className={cn(inputClass, "pr-8")}
-                        value={gpxHoursInput}
-                        onChange={(e) => setGpxHoursInput(e.target.value)}
-                      />
-                      <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
-                        h
+                  {/* "Tiempo Estimado Condicionado a la Intensidad" — same
+                      blank-until-intensity rule as Route mode: no generic
+                      distance/velocidad-media guess shown before an
+                      intensity zone is chosen. Once it is,
+                      `gpxDurationDefault` pre-fills these two fields via
+                      `estimateRideDurationHours()` (real FTP/peso + the
+                      zone's %FTP + the file's own distance/desnivel). */}
+                  {intensity ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-3 *:min-w-0">
+                        <div className="relative flex items-center">
+                          <input
+                            id="gpx-duration-hours"
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            step={1}
+                            placeholder="0"
+                            aria-label="Horas"
+                            className={cn(inputClass, "pr-8")}
+                            value={gpxHoursInput}
+                            onChange={(e) =>
+                              setGpxDurationOverride({
+                                intensity,
+                                hoursInput: e.target.value,
+                                minutesInput: gpxMinutesInput,
+                              })
+                            }
+                          />
+                          <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                            h
+                          </span>
+                        </div>
+                        <div className="relative flex items-center">
+                          <input
+                            id="gpx-duration-minutes"
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            max={59}
+                            step={5}
+                            placeholder="0"
+                            aria-label="Minutos"
+                            className={cn(inputClass, "pr-10")}
+                            value={gpxMinutesInput}
+                            onChange={(e) =>
+                              setGpxDurationOverride({
+                                intensity,
+                                hoursInput: gpxHoursInput,
+                                minutesInput: e.target.value,
+                              })
+                            }
+                          />
+                          <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                            min
+                          </span>
+                        </div>
+                      </div>
+                      <span className="font-mono text-xs whitespace-nowrap text-neutral-500">
+                        {formatHoursMinutes(gpxDurationHours)}
+                        {!gpxDurationOverridden && " (estimado)"}
                       </span>
-                    </div>
-                    <div className="relative flex items-center">
-                      <input
-                        id="gpx-duration-minutes"
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        max={59}
-                        step={5}
-                        placeholder="0"
-                        aria-label="Minutos"
-                        className={cn(inputClass, "pr-10")}
-                        value={gpxMinutesInput}
-                        onChange={(e) => setGpxMinutesInput(e.target.value)}
-                      />
-                      <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
-                        min
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex h-9 items-center rounded-sm bg-zinc-100 px-3 font-mono text-sm text-zinc-400">
+                        -- h -- min
+                      </div>
+                      <span className="font-mono text-xs text-neutral-500">
+                        Selecciona la intensidad objetivo para calcular la duración prevista.
                       </span>
-                    </div>
-                  </div>
-                  <span className="font-mono text-xs whitespace-nowrap text-neutral-500">
-                    {formatHoursMinutes(gpxDurationHours)}
-                  </span>
+                    </>
+                  )}
                 </div>
               </div>
-              <p className="text-xs text-neutral-500">
-                {avgSpeedKmh
-                  ? `Estimado a tu ritmo medio real de Strava (${Math.round(avgSpeedKmh)}km/h) — edítalo si lo necesitas.`
-                  : `Sin historial de Strava suficiente — estimación genérica a ${FALLBACK_AVG_SPEED_KMH}km/h, ajusta el tiempo manualmente.`}
-              </p>
             </div>
           )}
 
@@ -3104,7 +3168,7 @@ export function FuelingPlanner({
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {formatHoursMinutes(result.durationHours)}
                   </span>
-                  <MicroGauge pct={(result.durationHours / DURATION_GAUGE_MAX_HOURS) * 100} />
+                  <MetricAccentLine />
                 </div>
                 <div className="relative flex flex-col justify-between gap-1 overflow-visible rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
                   <span className="flex items-center gap-1">
@@ -3118,7 +3182,7 @@ export function FuelingPlanner({
                   <span className="font-mono text-[11px] text-zinc-500">
                     Total: {result.totalRideCarbsG} g
                   </span>
-                  <MicroGauge pct={(result.carbsGPerHour / CARB_DEMAND_GAUGE_MAX_G_PER_HOUR) * 100} />
+                  <MetricAccentLine />
                 </div>
                 <div className="flex flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
                   <span className="font-mono text-[11px] text-zinc-500">Hidratación</span>
@@ -3129,7 +3193,7 @@ export function FuelingPlanner({
                   <span className="font-mono text-[11px] text-zinc-500">
                     Total: {(totalFluidMl / 1000).toFixed(1)} L
                   </span>
-                  <MicroGauge pct={(result.fluidLossMlPerHour / FLUID_DEMAND_GAUGE_MAX_ML_PER_HOUR) * 100} />
+                  <MetricAccentLine />
                 </div>
                 <div className="flex flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
                   <span className="font-mono text-[11px] text-zinc-500">Sodio</span>
@@ -3140,7 +3204,7 @@ export function FuelingPlanner({
                   <span className="font-mono text-[11px] text-zinc-500">
                     Total: {totalSodiumMg} mg
                   </span>
-                  <MicroGauge pct={(result.sodiumMgPerHour / SODIUM_DEMAND_GAUGE_MAX_MG_PER_HOUR) * 100} />
+                  <MetricAccentLine />
                 </div>
               </div>
 
@@ -3972,10 +4036,12 @@ export function FuelingPlanner({
                   possible via "Personalizado" (free grams) or a real
                   branded product from Marcas Comerciales, without a
                   dedicated generic catalog row for it. `result.reloadStrategy`
-                  itself is untouched server-side — `getWaterPlanLines`
-                  above still reads its `waterRefillCount`/
-                  `waterRefillLiters` for the unrelated plain-water fountain
-                  refill note, which none of this affects. */}
+                  itself is untouched server-side and still drives
+                  `ziplocBagsCount`/`ziplocDose` for a mix-bottle overflow
+                  (unaffected by any of this) — the unrelated plain-water
+                  fountain refill note above (`getWaterPlanLines`) no
+                  longer reads it at all, see "Fix Matemático del Plan de
+                  Agua en Ruta" above for why. */}
 
               {/* Estrategia de carga día −1 — now always rendered
                   (previously hidden entirely below the duration threshold),

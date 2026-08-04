@@ -8,7 +8,7 @@ import { PostRideAnalysis } from "@/components/post-ride-analysis";
 import { ProfileSavedToast } from "@/components/profile-saved-toast";
 import {
   ensureLatestActivitySynced,
-  getAthleteAverageSpeedKmh,
+  getAthleteProfile,
   getRecentActivities,
   getStravaRoutes,
   getViewerIdentity,
@@ -62,10 +62,26 @@ function GreetingSkeleton() {
 // `FuelingPlanner`'s own internal lock-button/`ProfileRequiredBanner`
 // handling stays in place as a harmless defensive layer (see that
 // component's own doc comment), it's just permanently unreachable through
-// this call site now.
+// this call site now. `ftp`/`weightKg` are passed through too — needed so
+// "Tiempo estimado" (Card 02) can run the same real, athlete-specific
+// `estimateRideDurationHours()` physics model client-side, the instant an
+// intensity zone is chosen, instead of a generic distance/speed guess with
+// no relationship to the athlete's own real power profile. This physics
+// model — real FTP/peso + the route's own distance/desnivel — replaced the
+// old Strava-average-speed-based duration guess entirely, which is why
+// `getAthleteAverageSpeedKmh()` is no longer fetched here at all.
+// `getAthleteProfile()` is `cache()`-deduped, so calling it here costs no
+// extra query beyond whatever already resolved it earlier this request.
 async function FuelingPlannerSection() {
-  const [routes, avgSpeedKmh] = await Promise.all([getStravaRoutes(), getAthleteAverageSpeedKmh()]);
-  return <FuelingPlanner routes={routes} avgSpeedKmh={avgSpeedKmh} isProfileComplete />;
+  const [routes, athleteProfile] = await Promise.all([getStravaRoutes(), getAthleteProfile()]);
+  return (
+    <FuelingPlanner
+      routes={routes}
+      ftp={athleteProfile?.ftp ?? 0}
+      weightKg={athleteProfile?.weight_kg ?? 0}
+      isProfileComplete
+    />
+  );
 }
 
 // Generic loading placeholder for `PostRideAnalysisSection` below — an icon+

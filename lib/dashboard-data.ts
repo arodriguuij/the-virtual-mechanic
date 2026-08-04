@@ -6,7 +6,7 @@ import { unstable_cache } from "next/cache";
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import type { AthleteType, GutTrainingLevel, SweatRate } from "@/lib/metabolic-engine";
 import { isProfileDataComplete } from "@/lib/profile-completeness";
-import { fetchAthlete, fetchAthleteStats } from "@/lib/strava";
+import { fetchAthlete } from "@/lib/strava";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { fetchAthleteRoutes, type StravaRoute } from "@/lib/strava-routes";
 import { syncLatestActivity } from "@/lib/strava-sync";
@@ -580,37 +580,6 @@ export const getStravaRoutes = cache(async (): Promise<StravaRoute[]> => {
     { revalidate: STRAVA_ROUTES_REVALIDATE_SECONDS, tags: [stravaRoutesCacheTag(userId)] }
   );
   return fetchCachedRoutes();
-});
-
-/**
- * The athlete's historical average speed (km/h), for the GPX Híbrido
- * uploader's time estimate — prefers the rolling last-4-weeks pace over the
- * all-time one (see `fetchAthleteStats`), and returns `null` (never a
- * fabricated number) when Strava isn't connected or has no ride history to
- * derive a pace from; the uploader falls back to a fixed generic assumption
- * in that case, with a note that it's not personalized.
- */
-export const getAthleteAverageSpeedKmh = cache(async (): Promise<number | null> => {
-  const supabase = await getAuthenticatedSupabaseClient();
-
-  const { data: authData, error: authError } = await supabase.auth.getUser();
-  if (authError) throw authError;
-  const userId = authData.user?.id;
-  if (!userId) return null;
-
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("strava_athlete_id")
-    .eq("id", userId)
-    .maybeSingle();
-  if (profileError) throw profileError;
-  if (!profile?.strava_athlete_id) return null;
-
-  const accessToken = await getValidStravaAccessToken(supabase, userId);
-  if (!accessToken) return null;
-
-  const stats = await fetchAthleteStats(accessToken, profile.strava_athlete_id);
-  return stats.recentAvgSpeedKmh ?? stats.allTimeAvgSpeedKmh;
 });
 
 export const getProfile = cache(async (): Promise<Profile | null> => {
