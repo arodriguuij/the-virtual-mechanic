@@ -693,8 +693,8 @@ const BOTTLE_CAPACITY_QUICK_OPTIONS = [550, 750, 950];
 // planned stop, or more load in the pockets); only the fully-covered case
 // (0g) gets its own distinct, positive color.
 function getRemainingCarbsTextClass(remainingCarbsG: number): string {
-  if (remainingCarbsG > 0) return "text-amber-400 font-bold";
-  return "text-emerald-400 font-bold";
+  if (remainingCarbsG > 0) return "text-amber-700 font-bold";
+  return "text-emerald-700 font-bold";
 }
 
 const ALERT_BANNER_TONE_CLASSES: Record<
@@ -702,25 +702,25 @@ const ALERT_BANNER_TONE_CLASSES: Record<
   { border: string; bg: string; icon: string; text: string; label: string }
 > = {
   info: {
-    border: "border-neutral-900",
-    bg: "bg-neutral-50/80",
+    border: "border-neutral-300",
+    bg: "bg-neutral-50",
     icon: "text-neutral-900",
     text: "text-neutral-700",
     label: "text-neutral-900",
   },
   warning: {
     border: "border-amber-500",
-    bg: "bg-neutral-900",
-    icon: "text-amber-400",
-    text: "text-neutral-200",
-    label: "text-amber-400",
+    bg: "bg-amber-500/5",
+    icon: "text-amber-700",
+    text: "text-neutral-700",
+    label: "text-amber-700",
   },
   success: {
     border: "border-emerald-500",
-    bg: "bg-neutral-900",
-    icon: "text-emerald-400",
-    text: "text-neutral-200",
-    label: "text-emerald-400",
+    bg: "bg-emerald-500/5",
+    icon: "text-emerald-700",
+    text: "text-neutral-700",
+    label: "text-emerald-700",
   },
 };
 
@@ -1647,22 +1647,43 @@ export function FuelingPlanner({
   const hasCalculatedOnce = activeModeGroup === "manual" ? manualHasCalculatedOnce : routeHasCalculatedOnce;
   const activeLastCalculatedInputs = activeModeGroup === "manual" ? manualLastCalculatedInputs : routeLastCalculatedInputs;
 
-  // "Hoy" stays the default day (a same-day departure is still the single
-  // most common case, and picking a day is a low-stakes default unlike a
-  // route or intensity choice that could silently drive a wrong
-  // calculation) — only the route/intensity selections above lost their
-  // defaults. The hour, though, starts rounded to the current time rather
-  // than a fixed "08:00" so it reads as "now-ish" instead of an arbitrary
-  // stand-in the athlete has to notice and correct.
-  const [departureDayMode, setDepartureDayMode] = useState<DepartureDayMode>("today");
-  const [departureCustomDate, setDepartureCustomDate] = useState(todayIsoDate);
-  const [departureHour, setDepartureHour] = useState(getRoundedCurrentHour);
+  // "Aislamiento Total de Estado de Formulario" (Strava/GPX vs Entreno Manual)
+  const [routeDepartureDayMode, setRouteDepartureDayMode] = useState<DepartureDayMode>("today");
+  const [routeDepartureCustomDate, setRouteDepartureCustomDate] = useState(todayIsoDate);
+  const [routeDepartureHour, setRouteDepartureHour] = useState(getRoundedCurrentHour);
+  const [routeIsTargetEvent, setRouteIsTargetEvent] = useState(false);
+  const [routeTrainLow, setRouteTrainLow] = useState(false);
+  const [routeCafeteriaStopCount, setRouteCafeteriaStopCount] = useState<CafeteriaStopCount>(0);
+
+  const [manualDepartureDayMode, setManualDepartureDayMode] = useState<DepartureDayMode>("today");
+  const [manualDepartureCustomDate, setManualDepartureCustomDate] = useState(todayIsoDate);
+  const [manualDepartureHour, setManualDepartureHour] = useState(getRoundedCurrentHour);
+  const [manualIsTargetEvent, setManualIsTargetEvent] = useState(false);
+  const [manualTrainLow, setManualTrainLow] = useState(false);
+  const [manualCafeteriaStopCount, setManualCafeteriaStopCount] = useState<CafeteriaStopCount>(0);
+
+  const departureDayMode = mode === "quick" ? manualDepartureDayMode : routeDepartureDayMode;
+  const setDepartureDayMode = mode === "quick" ? setManualDepartureDayMode : setRouteDepartureDayMode;
+
+  const departureCustomDate = mode === "quick" ? manualDepartureCustomDate : routeDepartureCustomDate;
+  const setDepartureCustomDate = mode === "quick" ? setManualDepartureCustomDate : setRouteDepartureCustomDate;
+
+  const departureHour = mode === "quick" ? manualDepartureHour : routeDepartureHour;
+  const setDepartureHour = mode === "quick" ? setManualDepartureHour : setRouteDepartureHour;
+
+  const isTargetEvent = mode === "quick" ? manualIsTargetEvent : routeIsTargetEvent;
+  const setIsTargetEvent = mode === "quick" ? setManualIsTargetEvent : setRouteIsTargetEvent;
+
+  const trainLow = mode === "quick" ? manualTrainLow : routeTrainLow;
+  const setTrainLow = mode === "quick" ? setManualTrainLow : setRouteTrainLow;
+
+  const cafeteriaStopCount = mode === "quick" ? manualCafeteriaStopCount : routeCafeteriaStopCount;
+  const setCafeteriaStopCount = mode === "quick" ? setManualCafeteriaStopCount : setRouteCafeteriaStopCount;
+
   const departureLocal = useMemo(
     () => buildDepartureLocal(departureDayMode, departureCustomDate, departureHour),
     [departureDayMode, departureCustomDate, departureHour]
   );
-  const [isTargetEvent, setIsTargetEvent] = useState(false);
-  const [trainLow, setTrainLow] = useState(false);
   const trainLowIncompatible =
     isTargetEvent || (intensity !== "" && intensity !== "recovery" && intensity !== "endurance");
   const trainLowEffective = trainLow && !trainLowIncompatible;
@@ -1675,7 +1696,6 @@ export function FuelingPlanner({
   const [bottleCapacityOverrideMl, setBottleCapacityOverrideMl] = useState<number | null>(null);
   const [bottleCapacityEditorOpen, setBottleCapacityEditorOpen] = useState(false);
   const [showBikeScoops, setShowBikeScoops] = useState(false);
-  const [cafeteriaStopCount, setCafeteriaStopCount] = useState<CafeteriaStopCount>(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // "Validación Secuencial Inteligente" — `handleCalculate` below checks
@@ -3830,26 +3850,26 @@ export function FuelingPlanner({
                   amber/emerald semáforo) still decides RESTANTE's color —
                   a ride that's already fully covered reads emerald here,
                   not a flat amber regardless of state. */}
-              <div className="sticky top-16 z-20 my-3 rounded-md border border-neutral-800 bg-neutral-900 p-3.5 text-white shadow-md transition-all lg:top-4">
+              <div className="sticky top-16 z-20 my-3 rounded-md border border-neutral-200/80 bg-[#fcfbf9] p-3.5 text-neutral-900 shadow-xs transition-all lg:top-4">
                 <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 font-mono text-xs font-bold">
-                  <span>OBJETIVO: {result.totalRideCarbsG}g HC</span>
-                  <span className="opacity-30">|</span>
-                  <span>CASA: {coveredCarbsG}g HC</span>
-                  <span className="opacity-30">|</span>
+                  <span className="text-neutral-900">OBJETIVO: {result.totalRideCarbsG}g HC</span>
+                  <span className="text-neutral-300">|</span>
+                  <span className="text-neutral-900">CASA: {coveredCarbsG}g HC</span>
+                  <span className="text-neutral-300">|</span>
                   <span className={getRemainingCarbsTextClass(remainingCarbsG)}>
                     RESTANTE: {remainingCarbsG}g HC
                   </span>
                 </div>
                 <div className="mt-2.5 flex items-center gap-2">
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200">
                     <div
-                      className="h-full bg-white transition-all duration-300"
+                      className="h-full bg-[#70685b] transition-all duration-300"
                       style={{
                         width: `${Math.min(100, Math.round((coveredCarbsG / (result.totalRideCarbsG || 1)) * 100))}%`,
                       }}
                     />
                   </div>
-                  <span className="shrink-0 font-mono text-[10px] font-semibold text-neutral-400">
+                  <span className="shrink-0 font-mono text-[10px] font-semibold text-neutral-500">
                     {Math.min(100, Math.round((coveredCarbsG / (result.totalRideCarbsG || 1)) * 100))}%
                   </span>
                 </div>
