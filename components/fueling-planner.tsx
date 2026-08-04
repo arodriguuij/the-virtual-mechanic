@@ -3,12 +3,14 @@
 import {
   Bike,
   CalendarDays,
+  CheckCircle2,
   ChevronDown,
   Droplet,
   FlaskConical,
   Gauge,
   Lightbulb,
   Lock,
+  MapPin,
   Moon,
   Pencil,
   RefreshCw,
@@ -1354,6 +1356,221 @@ function PocketFoodStepperRow({
   );
 }
 
+function StintStrategyTimeline({
+  cafeteriaStopCount,
+  durationHours,
+  distanceKm,
+  entries,
+  remainingCarbsG,
+}: {
+  cafeteriaStopCount: CafeteriaStopCount;
+  durationHours: number;
+  distanceKm: number | null;
+  entries: {
+    key: string;
+    atMinutes: number;
+    atKm: number | null;
+    icon: string;
+    label: string;
+    approx: boolean;
+  }[];
+  remainingCarbsG: number;
+}) {
+  const totalMins = Math.round(durationHours * 60);
+
+  const formatMins = (mins: number) => {
+    if (mins < 60) return `Min ${Math.round(mins)}`;
+    const h = Math.floor(mins / 60);
+    const m = Math.round(mins % 60);
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  };
+
+  const renderEntry = (entry: (typeof entries)[0], i: number, arrLen: number) => (
+    <li key={entry.key} className="relative flex gap-2.5 pb-3 last:pb-0">
+      {i < arrLen - 1 && (
+        <span aria-hidden className="absolute top-3 left-1.25 h-full w-px bg-zinc-200" />
+      )}
+      <span
+        aria-hidden
+        className="relative z-10 mt-1 size-2.75 shrink-0 rounded-full border-2 border-terracotta bg-zinc-50"
+      />
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="font-mono text-[10px] text-zinc-500">
+          {entry.approx ? "~" : ""}
+          {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
+        </span>
+        <span className="flex items-center gap-1.5 text-sm text-zinc-700">
+          {entry.icon === "solid" && <Utensils className="size-3.5 shrink-0 text-zinc-500" />}
+          {entry.icon === "gel" && <Zap className="size-3.5 shrink-0 text-zinc-500" />}
+          {entry.icon === "caffeine" && <FlaskConical className="size-3.5 shrink-0 text-zinc-500" />}
+          {entry.label}
+        </span>
+      </div>
+    </li>
+  );
+
+  const renderStopCard = (stopNum: number, stopMins: number, stopKm: number | null) => (
+    <div className="my-3 rounded-xl border border-sky-200/80 bg-sky-50/70 p-3 shadow-xs">
+      <div className="flex items-center gap-2 font-mono text-xs font-bold text-sky-900">
+        <MapPin className="size-4 shrink-0 text-sky-600" />
+        <span>
+          Parada {stopNum} ({stopKm != null ? `Km ~${stopKm}` : ""} · ~{formatMins(stopMins)})
+        </span>
+      </div>
+      <p className="mt-1 font-mono text-[11px] text-sky-900/90 pl-6">
+        💧 <strong>Rellenar bidones con agua y sales</strong>
+        {remainingCarbsG > 0 && (
+          <span className="block mt-0.5 text-sky-800">
+            🥪 Comprar refresco/lata o bocadillo en cafetería para reposición de carbohidratos.
+          </span>
+        )}
+      </p>
+    </div>
+  );
+
+  if (cafeteriaStopCount === 0) {
+    return (
+      <div className="mt-3 border-t border-zinc-200 pt-3 flex flex-col gap-2">
+        <div className="flex items-center justify-between font-mono text-[11px] font-bold text-zinc-600">
+          <span>Tramo Único (Salida → Meta)</span>
+          <span className="font-normal text-zinc-400">100% de la salida</span>
+        </div>
+        {entries.length > 0 ? (
+          <ol className="mt-1 flex flex-col">
+            {entries.map((entry, i) => renderEntry(entry, i, entries.length))}
+          </ol>
+        ) : (
+          <p className="font-mono text-xs text-zinc-400">Sin ingestas programadas para este tramo.</p>
+        )}
+      </div>
+    );
+  }
+
+  if (cafeteriaStopCount === 1) {
+    const halfMins = totalMins * 0.5;
+    const halfKm = distanceKm != null ? Math.round(distanceKm * 0.5) : null;
+    const stint1Entries = entries.filter((e) => e.atMinutes <= halfMins);
+    const stint2Entries = entries.filter((e) => e.atMinutes > halfMins);
+
+    return (
+      <div className="mt-3 border-t border-zinc-200 pt-3 flex flex-col gap-4">
+        {/* Tramo 1 */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between font-mono text-[11px] font-bold text-zinc-700">
+            <span className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-zinc-700" />
+              Tramo 1 (Salida → Parada 1)
+            </span>
+            <span className="text-zinc-400 font-normal">0% - 50%</span>
+          </div>
+          {stint1Entries.length > 0 ? (
+            <ol className="mt-1 flex flex-col">
+              {stint1Entries.map((entry, i) => renderEntry(entry, i, stint1Entries.length))}
+            </ol>
+          ) : (
+            <p className="font-mono text-xs text-zinc-400 pl-3">Sin ingestas en este tramo.</p>
+          )}
+        </div>
+
+        {/* Hito Intermedio: Parada 1 */}
+        {renderStopCard(1, halfMins, halfKm)}
+
+        {/* Tramo 2 */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between font-mono text-[11px] font-bold text-zinc-700">
+            <span className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-zinc-700" />
+              Tramo 2 (Parada 1 → Meta)
+            </span>
+            <span className="text-zinc-400 font-normal">50% - 100%</span>
+          </div>
+          {stint2Entries.length > 0 ? (
+            <ol className="mt-1 flex flex-col">
+              {stint2Entries.map((entry, i) => renderEntry(entry, i, stint2Entries.length))}
+            </ol>
+          ) : (
+            <p className="font-mono text-xs text-zinc-400 pl-3">Sin ingestas en este tramo.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // cafeteriaStopCount === 2
+  const third1Mins = totalMins * 0.33;
+  const third2Mins = totalMins * 0.66;
+  const stop1Km = distanceKm != null ? Math.round(distanceKm * 0.33) : null;
+  const stop2Km = distanceKm != null ? Math.round(distanceKm * 0.66) : null;
+
+  const stint1Entries = entries.filter((e) => e.atMinutes <= third1Mins);
+  const stint2Entries = entries.filter((e) => e.atMinutes > third1Mins && e.atMinutes <= third2Mins);
+  const stint3Entries = entries.filter((e) => e.atMinutes > third2Mins);
+
+  return (
+    <div className="mt-3 border-t border-zinc-200 pt-3 flex flex-col gap-4">
+      {/* Tramo 1 */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between font-mono text-[11px] font-bold text-zinc-700">
+          <span className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-zinc-700" />
+            Tramo 1 (Salida → Parada 1)
+          </span>
+          <span className="text-zinc-400 font-normal">0% - 33%</span>
+        </div>
+        {stint1Entries.length > 0 ? (
+          <ol className="mt-1 flex flex-col">
+            {stint1Entries.map((entry, i) => renderEntry(entry, i, stint1Entries.length))}
+          </ol>
+        ) : (
+          <p className="font-mono text-xs text-zinc-400 pl-3">Sin ingestas en este tramo.</p>
+        )}
+      </div>
+
+      {/* Parada 1 */}
+      {renderStopCard(1, third1Mins, stop1Km)}
+
+      {/* Tramo 2 */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between font-mono text-[11px] font-bold text-zinc-700">
+          <span className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-zinc-700" />
+            Tramo 2 (Parada 1 → Parada 2)
+          </span>
+          <span className="text-zinc-400 font-normal">33% - 66%</span>
+        </div>
+        {stint2Entries.length > 0 ? (
+          <ol className="mt-1 flex flex-col">
+            {stint2Entries.map((entry, i) => renderEntry(entry, i, stint2Entries.length))}
+          </ol>
+        ) : (
+          <p className="font-mono text-xs text-zinc-400 pl-3">Sin ingestas en este tramo.</p>
+        )}
+      </div>
+
+      {/* Parada 2 */}
+      {renderStopCard(2, third2Mins, stop2Km)}
+
+      {/* Tramo 3 */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between font-mono text-[11px] font-bold text-zinc-700">
+          <span className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-zinc-700" />
+            Tramo 3 (Parada 2 → Meta)
+          </span>
+          <span className="text-zinc-400 font-normal">66% - 100%</span>
+        </div>
+        {stint3Entries.length > 0 ? (
+          <ol className="mt-1 flex flex-col">
+            {stint3Entries.map((entry, i) => renderEntry(entry, i, stint3Entries.length))}
+          </ol>
+        ) : (
+          <p className="font-mono text-xs text-zinc-400 pl-3">Sin ingestas en este tramo.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function FuelingPlanner({
   routes,
   ftp,
@@ -1404,8 +1621,20 @@ export function FuelingPlanner({
   const [manualCustomDistanceInput, setManualCustomDistanceInput] = useState("");
   const [manualDurationOverride, setManualDurationOverride] = useState<{ hours: string; minutes: string } | null>(null);
 
-  // "Comparación Inteligente de Estado para Re-calcular"
-  const [lastCalculatedInputs, setLastCalculatedInputs] = useState<CalculatedInputsSnapshot | null>(null);
+  // "Aislamiento de Estado de Cálculo por Modo" (Strava/GPX vs Entreno Manual)
+  const [routeResult, setRouteResult] = useState<PlanResult | null>(null);
+  const [routeHasCalculatedOnce, setRouteHasCalculatedOnce] = useState(false);
+  const [routeLastCalculatedInputs, setRouteLastCalculatedInputs] = useState<CalculatedInputsSnapshot | null>(null);
+
+  const [manualResult, setManualResult] = useState<PlanResult | null>(null);
+  const [manualHasCalculatedOnce, setManualHasCalculatedOnce] = useState(false);
+  const [manualLastCalculatedInputs, setManualLastCalculatedInputs] = useState<CalculatedInputsSnapshot | null>(null);
+
+  const activeModeGroup = mode === "quick" ? "manual" : "route";
+  const result = activeModeGroup === "manual" ? manualResult : routeResult;
+  const hasCalculatedOnce = activeModeGroup === "manual" ? manualHasCalculatedOnce : routeHasCalculatedOnce;
+  const activeLastCalculatedInputs = activeModeGroup === "manual" ? manualLastCalculatedInputs : routeLastCalculatedInputs;
+
   // "Hoy" stays the default day (a same-day departure is still the single
   // most common case, and picking a day is a low-stakes default unlike a
   // route or intensity choice that could silently drive a wrong
@@ -1421,92 +1650,20 @@ export function FuelingPlanner({
     [departureDayMode, departureCustomDate, departureHour]
   );
   const [isTargetEvent, setIsTargetEvent] = useState(false);
-  // "Modo Eficiencia Metabólica (Train Low / Ayunas)" — a deliberate
-  // low-carb session; the server caps the carb target to a fixed 0-25g/h
-  // electrolyte-only band and the deficit/gut-cap warnings below suppress
-  // themselves accordingly (see `result.trainLow`).
   const [trainLow, setTrainLow] = useState(false);
-  // "Reglas de Incompatibilidad Fisiológica" — Train Low (a deliberate
-  // low-glycogen-availability session) is only physiologically sound at an
-  // easy aerobic pace; riding it hard on an empty tank risks real muscle
-  // catabolism, not just a slower ride. Incompatible with a target-event/
-  // competition ride outright (that's the one scenario where carbs are
-  // least optional) and with any intensity at/above Tempo (Z3) — only
-  // Recuperación (Z1) and Fondo Aeróbico (Z2) stay compatible, matching
-  // this exact toggle's own "solo electrolitos, para estimular oxidación
-  // de grasas" framing, which only makes physiological sense at an easy
-  // aerobic pace to begin with.
   const trainLowIncompatible =
     isTargetEvent || (intensity !== "" && intensity !== "recovery" && intensity !== "endurance");
-  // The checkbox is `disabled` whenever incompatible, so `trainLow` itself
-  // can only ever be *set* to `true` while compatible — but it can still
-  // *hold* a stale `true` from before intensity/"Ruta objetivo" changed
-  // underneath it (e.g. picking Z2, checking this, then switching to
-  // Z4 — raw `trainLow` never gets touched by that intensity change).
-  // `trainLowEffective` is what every real consumer (the checkbox's own
-  // `checked`, the request body, `handleCalculate`) reads instead of raw
-  // `trainLow` directly, so it "se desmarca de inmediato" the moment it
-  // becomes incompatible with zero risk of silently sending a stale
-  // `trainLow: true` the UI itself no longer shows as checked. A `useEffect`
-  // that called `setTrainLow(false)` here was the first approach, reverted
-  // in favor of this plain derived value once React's own exhaustive-deps/
-  // "no setState-in-effect" lint rule flagged it as an unnecessary
-  // synchronous state sync — deriving avoids the extra render pass a
-  // corrective effect would otherwise cost.
   const trainLowEffective = trainLow && !trainLowIncompatible;
   const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
   const [customCarbsG, setCustomCarbsG] = useState(0);
-  // "Marcas comerciales (opcional)" — real branded products, tracked
-  // separately from `pocketFood` since each one carries a real sodium
-  // figure the generic catalog never had (see
-  // `lib/constants/nutrition-brands.ts`). Same `Record<id, qty>` shape/
-  // reset convention as `pocketFood` above. The full catalog lives behind
-  // `CommercialProductsSheet`, a bottom-sheet modal — Card 04 itself only
-  // ever renders the athlete's own already-selected rows plus a small
-  // trigger link, see `selectedCommercialProducts` below.
   const [commercialProducts, setCommercialProducts] = useState<Record<string, number>>({});
   const [commercialProductsSheetOpen, setCommercialProductsSheetOpen] = useState(false);
-  // "Estrategia nutricional" (Óptimo/Mi Inventario/Híbrido) was removed
-  // entirely from this UI — "Reestructuración Integral de Resultados"
-  // collapsed it and the bottle-config selector down to one always-visible,
-  // always-editable pocket-food inventory instead, to cut the two
-  // duplicated top-level selectors down to one. The API/engine still accept
-  // "optimal"/"hybrid" server-side (untouched) — this is a UI-only
-  // simplification, not a removal of that capability from the data model,
-  // so `fuelingMode` is now a fixed constant rather than editable state.
   const fuelingMode: FuelingMode = "inventory";
-  // Card 04's own bottle-role preference — defaults to "Solo Agua," the
-  // most conservative assumption, and is what the reset effect below
-  // returns it to on every Paso 01/02 change (see `DEFAULT_BOTTLE_CONFIG`).
   const [bottleConfig, setBottleConfig] = useState<BottleConfigOption>(DEFAULT_BOTTLE_CONFIG);
-  // "Micro-Edición In-Situ de Capacidad de Bidón" — a display-only override
-  // of the athlete's real `athlete_profiles.bottle_capacity_ml` for this one
-  // calculated strategy, letting them preview a different bottle size (e.g.
-  // borrowing a teammate's 950ml bottle) without leaving the planner or
-  // editing their saved profile. `null` means "use the server's real
-  // figure" (`result.bottlePlan.bottleSizeMl`) — see `displayBottlePlan`
-  // below for the client-side recompute this drives.
   const [bottleCapacityOverrideMl, setBottleCapacityOverrideMl] = useState<number | null>(null);
   const [bottleCapacityEditorOpen, setBottleCapacityEditorOpen] = useState(false);
-  // "Eliminación de la Caja Negra 'Dosis Ejecutiva'" — the scoop-equivalence
-  // breakdown that used to live inside Card 05's hero box now surfaces as an
-  // inline reveal directly under the checklist's own mix-bottle line
-  // instead ("[ Ver en cazos ]"), so this one boolean replaces what used to
-  // be a plain `<details>` element's own native open state.
   const [showBikeScoops, setShowBikeScoops] = useState(false);
-  // "Paradas en ruta" — a pure logistics input (how many café/gasolinera/
-  // fuente stops the athlete plans to make), 0 (zero-friction default), 1,
-  // or 2. Deliberately contributes *nothing* to `coveredCarbsG` — see that
-  // variable's own doc comment for why a planned stop no longer auto-
-  // generates a carb-coverage estimate. Resets to `0` on every Paso 01/02
-  // change, same as `bottleConfig` (see the reset effect below).
   const [cafeteriaStopCount, setCafeteriaStopCount] = useState<CafeteriaStopCount>(0);
-  const [result, setResult] = useState<PlanResult | null>(null);
-  // Tracks whether the athlete has *ever* successfully calculated a
-  // strategy in this session — drives the CTA's label ("Calcular..." the
-  // first time, "Re-calcular..." every time after) independently of
-  // whether a result is currently showing.
-  const [hasCalculatedOnce, setHasCalculatedOnce] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // "Validación Secuencial Inteligente" — `handleCalculate` below checks
@@ -1787,9 +1944,9 @@ export function FuelingPlanner({
   ]);
 
   const isInputsChanged = useMemo(() => {
-    if (!lastCalculatedInputs) return true;
-    return !areInputsEqual(currentInputs, lastCalculatedInputs);
-  }, [currentInputs, lastCalculatedInputs]);
+    if (!activeLastCalculatedInputs) return false;
+    return !areInputsEqual(currentInputs, activeLastCalculatedInputs);
+  }, [currentInputs, activeLastCalculatedInputs]);
   // Drives the CTA's gating/helper-text/tooltip for the two route-based
   // modes — a route (or GPX) alone isn't enough to calculate against
   // without an intensity too, and vice versa.
@@ -2023,7 +2180,14 @@ export function FuelingPlanner({
       try {
         const cached = localStorage.getItem(LAST_FUELING_STRATEGY_KEY);
         if (!cached) return;
-        setResult(JSON.parse(cached));
+        const parsed = JSON.parse(cached);
+        if (activeModeGroup === "manual") {
+          setManualResult(parsed);
+          setManualHasCalculatedOnce(true);
+        } else {
+          setRouteResult(parsed);
+          setRouteHasCalculatedOnce(true);
+        }
         setIsOfflineCache(true);
       } catch {
         // Corrupt/unavailable cache — just leave the planner empty, same as
@@ -2034,7 +2198,7 @@ export function FuelingPlanner({
     loadCachedStrategyIfOffline();
     window.addEventListener("offline", loadCachedStrategyIfOffline);
     return () => window.removeEventListener("offline", loadCachedStrategyIfOffline);
-  }, []);
+  }, [activeModeGroup]);
 
   // A freshly calculated strategy renders below the fold on most phones —
   // without this, "Calcular estrategia" appears to do nothing until the
@@ -2045,43 +2209,13 @@ export function FuelingPlanner({
     }
   }, [result]);
 
-  // "Reseteo Automático del Estado de Cálculo" — a previously-calculated
-  // result is only ever valid for the exact inputs it was computed from;
-  // editing any of them (switching tabs, picking a different route/GPX,
-  // changing duration/intensity/departure date-time, toggling "Ruta
-  // objetivo / Competición") immediately hides it again rather than leaving
-  // a stale strategy on screen that no longer matches what's currently
-  // selected — the CTA's own `disabled` gating already re-enables itself
-  // the moment its own conditions are met again, so this just needs to
-  // clear `result` for the result panel to disappear along with it. The
-  // same trigger also resets Card 04's own downstream state (bottle
-  // config back to "Solo Agua," planned café/gasolinera stops back to 0,
-  // every pocket-food quantity back to 0) —
-  // those figures were computed against the *old* target and would
-  // otherwise silently carry over into a strategy they were never
-  // actually chosen for. `isInitialInputRender` skips the very first run
-  // on mount specifically so this can never race the offline-cache-load
-  // effect above and wipe out a just-restored cached result before the
-  // athlete ever sees it — this effect must only fire in response to a
-  // genuine *change*, not simply existing with its own initial values.
   const isInitialInputRender = useRef(true);
   useEffect(() => {
     if (isInitialInputRender.current) {
       isInitialInputRender.current = false;
       return;
     }
-    setResult(null);
-    setBottleConfig(DEFAULT_BOTTLE_CONFIG);
-    setCafeteriaStopCount(0);
-    setPocketFood({});
-    setCustomCarbsG(0);
-    setCommercialProducts({});
-    setBottleCapacityOverrideMl(null);
-    setBottleCapacityEditorOpen(false);
-    setShowBikeScoops(false);
-    // A route/GPX/duration or intensity change means whichever error was
-    // showing may no longer apply — cleared here rather than left stale
-    // for `handleCalculate`'s next run to silently correct.
+    // Cleared error state on input changes
     setRouteError(false);
     setIntensityError(false);
   }, [
@@ -2250,15 +2384,27 @@ export function FuelingPlanner({
             ? "Configura tu perfil fisiológico antes de planificar una ruta."
             : "No se pudo calcular la estrategia de fueling."
         );
-        setResult(null);
+        if (activeModeGroup === "manual") {
+          setManualResult(null);
+        } else {
+          setRouteResult(null);
+        }
         return;
       }
-      setResult(data);
-      setHasCalculatedOnce(true);
-      setLastCalculatedInputs(currentInputs);
+
+      const snapshot: CalculatedInputsSnapshot = { ...currentInputs };
+      if (activeModeGroup === "manual") {
+        setManualResult(data);
+        setManualHasCalculatedOnce(true);
+        setManualLastCalculatedInputs(snapshot);
+      } else {
+        setRouteResult(data);
+        setRouteHasCalculatedOnce(true);
+        setRouteLastCalculatedInputs(snapshot);
+      }
+
       setIsOfflineCache(false);
       setBottleCapacityOverrideMl(null);
-      setBottleCapacityEditorOpen(false);
       setBottleCapacityEditorOpen(false);
       setShowBikeScoops(false);
       try {
@@ -3239,7 +3385,7 @@ export function FuelingPlanner({
             disabled={
               loading ||
               !isProfileComplete ||
-              (Boolean(lastCalculatedInputs) && !isInputsChanged)
+              (Boolean(activeLastCalculatedInputs) && !isInputsChanged)
             }
             title={
               isProfileComplete && routeModeIncomplete
@@ -3251,7 +3397,7 @@ export function FuelingPlanner({
               isProfileComplete
                 ? cn(
                     bronzeCtaButtonClass,
-                    isInputsChanged && lastCalculatedInputs && "ring-2 ring-[#70685b]/60 ring-offset-2 shadow-md animate-pulse"
+                    isInputsChanged && activeLastCalculatedInputs && "ring-2 ring-[#70685b]/60 ring-offset-2 shadow-md animate-pulse"
                   )
                 : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
             )}
@@ -3293,7 +3439,7 @@ export function FuelingPlanner({
             ref={resultRef}
             className={cn(
               "scroll-mt-20 border-t border-neutral-200 pt-4 transition-all duration-300",
-              isInputsChanged && lastCalculatedInputs
+              isInputsChanged && activeLastCalculatedInputs
                 ? "opacity-75 grayscale-[20%]"
                 : "opacity-100"
             )}
@@ -3305,8 +3451,8 @@ export function FuelingPlanner({
               </div>
             )}
 
-            <div className={numberedCardClass}>
-              {isInputsChanged && lastCalculatedInputs && (
+            <div className={cn(numberedCardClass, isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
+              {isInputsChanged && activeLastCalculatedInputs && (
                 <div className="mb-3 flex w-fit items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] text-amber-600 shadow-xs">
                   <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
                   Estrategia previa — Pendiente de recalcular
@@ -3494,7 +3640,13 @@ export function FuelingPlanner({
                 interactive simulator, nothing else (Card 05 is where the
                 remainder — RESTANTE RUTA — gets reconciled against a
                 planned stop). */}
-            <div className={numberedCardClass}>
+            <div className={cn(numberedCardClass, isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
+              {isInputsChanged && activeLastCalculatedInputs && (
+                <div className="mb-3 flex w-fit items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] text-amber-600 shadow-xs">
+                  <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Estrategia previa — Pendiente de recalcular
+                </div>
+              )}
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 04 · Logística de salida (Carga desde casa)
               </span>
@@ -3798,7 +3950,13 @@ export function FuelingPlanner({
                 as before, just restyled onto the shared light palette. The
                 athlete screenshots this card if they want to save or share
                 it — no export button lives here. */}
-            <div className={cn(numberedCardClass, "flex flex-col gap-4")}>
+            <div className={cn(numberedCardClass, "flex flex-col gap-4", isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
+              {isInputsChanged && activeLastCalculatedInputs && (
+                <div className="flex w-fit items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] text-amber-600 shadow-xs">
+                  <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Estrategia previa — Pendiente de recalcular
+                </div>
+              )}
               <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 05 · Manifiesto de salida
               </span>
@@ -3823,62 +3981,51 @@ export function FuelingPlanner({
                   to reconcile or celebrate. */}
               {!result.trainLow && (
                 <>
-                  {/* Caso A — a stop is already planned and there's no
-                      separate fluid gap, so the carb remainder isn't a gap
-                      to close, it's simply the share of the target that
-                      stop is expected to cover. Names a Refresco/Lata
-                      explicitly as the road-side purchase example — the
-                      concept dropped from Card 04's own home-load catalog
-                      (see "Ajuste de Realismo" above) moved here instead,
-                      since a can of soda genuinely is a plausible café/
-                      gasolinera-stop purchase, just never something
-                      carried from home. */}
-                  {remainingCarbsG > 0 && cafeteriaStopCount > 0 && !needsWaterRefill && (
+                  {/* Validador Hídrico: Recargas de agua necesarias vs Paradas seleccionadas */}
+                  {fullRefillsNeeded > cafeteriaStopCount && (
+                    <div className="mb-4 rounded-xl border border-amber-300/80 bg-amber-50/90 p-3.5 shadow-xs">
+                      <div className="mb-1.5 flex items-center gap-2 font-mono text-xs font-bold text-amber-900">
+                        <TriangleAlert className="size-4 shrink-0 text-amber-700" />
+                        <span className="uppercase tracking-wider">Incompatibilidad Hídrica</span>
+                      </div>
+                      <p className="font-mono text-xs leading-relaxed text-amber-900/90">
+                        Tu tasa de sudoración requiere <strong className="font-bold">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""} de agua</strong>, pero has seleccionado <strong className="font-bold">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""}</strong>. Aumenta el tamaño de tus bidones desde casa o añade paradas para evitar deshidratación.
+                      </p>
+                    </div>
+                  )}
+
+                  {fullRefillsNeeded > 0 && cafeteriaStopCount >= fullRefillsNeeded && (
+                    <div className="mb-4 rounded-xl border border-emerald-300/80 bg-emerald-50/90 p-3.5 shadow-xs">
+                      <div className="mb-1.5 flex items-center gap-2 font-mono text-xs font-bold text-emerald-900">
+                        <CheckCircle2 className="size-4 shrink-0 text-emerald-700" />
+                        <span className="uppercase tracking-wider">Plan Hídrico Cubierto</span>
+                      </div>
+                      <p className="font-mono text-xs leading-relaxed text-emerald-900/90">
+                        Tus <strong className="font-bold">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""} prevista{cafeteriaStopCount !== 1 ? "s" : ""}</strong> cubren las <strong className="font-bold">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""} de agua</strong> necesaria{fullRefillsNeeded !== 1 ? "s" : ""} para esta ruta.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Nutrición en ruta (Carbohidratos) */}
+                  {remainingCarbsG > 0 && cafeteriaStopCount > 0 && (
                     <AlertBanner tone="info" icon="ℹ️" label="Estrategia de Ruta" className="mb-4">
-                      Llevas <span className="font-bold text-sky-950">{coveredCarbsG}g HC</span> desde
-                      casa. Los <span className="font-bold text-sky-950">{remainingCarbsG}g HC</span>{" "}
-                      restantes se cubrirán en tu(s) parada(s) en ruta (ej. 1 Refresco/Lata + 1
-                      Bocadillo en cafetería o gasolinera).
+                      Llevas <span className="font-bold text-sky-950">{coveredCarbsG}g HC</span> desde casa. Los <span className="font-bold text-sky-950">{remainingCarbsG}g HC</span> restantes se cubrirán en tu(s) parada(s) en ruta (ej. 1 Refresco/Lata + 1 Bocadillo en cafetería o gasolinera).
                     </AlertBanner>
                   )}
-                  {/* Caso B · "Diagnóstico Específico de Parada" — replaces
-                      the old single-sentence generic warning with an
-                      explicit bullet breakdown of *why* a road-side stop
-                      is actually needed: a carb gap (no stop planned yet
-                      to cover it), a fluid gap (installed bottle capacity
-                      falls short of the ride's own thermal demand), or
-                      both at once. Not built on the shared `AlertBanner`
-                      (its single `<p>` body can't hold a `<ul>`), but
-                      reuses the exact same amber "aviso técnico" tones as
-                      every other alert in this card. */}
-                  {((remainingCarbsG > 0 && cafeteriaStopCount === 0) || needsWaterRefill) && (
+
+                  {remainingCarbsG > 0 && cafeteriaStopCount === 0 && (
                     <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/70 p-3.5">
                       <div className="mb-1.5 flex items-center gap-2 font-mono text-xs font-bold text-amber-900">
                         <TriangleAlert className="size-4 shrink-0 text-amber-700" />
-                        <span className="uppercase tracking-wider">Reposición en ruta necesaria</span>
+                        <span className="uppercase tracking-wider">Déficit de Nutrición</span>
                       </div>
-                      <ul className="flex flex-col gap-1 font-mono text-[11px] leading-relaxed text-amber-900/90">
-                        {remainingCarbsG > 0 && cafeteriaStopCount === 0 && (
-                          <li>
-                            • <strong className="font-bold">Déficit de nutrición:</strong> faltan{" "}
-                            <strong className="font-bold">{remainingCarbsG}g HC</strong> para cubrir el
-                            gasto glucogénico de la ruta ({result.totalRideCarbsG}g HC).
-                          </li>
-                        )}
-                        {needsWaterRefill && (
-                          <li>
-                            • <strong className="font-bold">Déficit hídrico:</strong> tu capacidad
-                            instalada ({installedBottleVolumeMl}ml) es inferior a la demanda térmica
-                            estimada ({(totalFluidMl / 1000).toFixed(1)}L).
-                          </li>
-                        )}
-                      </ul>
+                      <p className="font-mono text-xs leading-relaxed text-amber-900/90">
+                        Faltan <strong className="font-bold">{remainingCarbsG}g HC</strong> para cubrir el gasto glucogénico de la ruta ({result.totalRideCarbsG}g HC). Selecciona más comida de bolsillo o añade paradas en ruta.
+                      </p>
                     </div>
                   )}
-                  {/* Caso C — the home load alone already covers both
-                      carbs and fluids; no road-side reposición needed at
-                      all. */}
-                  {remainingCarbsG === 0 && !needsWaterRefill && (
+
+                  {remainingCarbsG === 0 && fullRefillsNeeded === 0 && (
                     <AlertBanner tone="success" icon="✅" label="Cobertura Completa" className="mb-4">
                       Tu carga inicial de casa cubre el 100% del objetivo de la salida.
                     </AlertBanner>
@@ -3886,20 +4033,7 @@ export function FuelingPlanner({
                 </>
               )}
 
-              {/* "Sugerencia de Sodio (Bici + Bolsillos)" — fires once the
-                  ride's real combined sodium coverage (bottle-mix Evolytes +
-                  commercial products, `totalSodiumCoveredMg`) falls short on
-                  a genuinely hot ride (see `showSodiumSuggestion`'s own doc
-                  comment above) — no longer gated on having touched the
-                  commercial-products selector at all, since a "Solo Agua"
-                  bottle configuration can now genuinely leave a real gap on
-                  its own. "Traducción de Déficit a Unidades Operativas" —
-                  names the deficit in units an athlete can actually act on
-                  (a capsule count, a gram figure), not a bare milligram
-                  number with nothing to measure it against. Reuses the exact
-                  same amber "aviso técnico" classes as the déficit alert
-                  above and Card 03's heat-warning banner, so every alert in
-                  this results flow reads as one consistent language. */}
+              {/* "Sugerencia de Sodio (Bici + Bolsillos)" */}
               {showSodiumSuggestion && (
                 <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3.5 shadow-xs">
                   <div className="mb-1 flex items-center gap-2">
@@ -3920,29 +4054,16 @@ export function FuelingPlanner({
                 </div>
               )}
 
-              {/* "Purga de Píldoras de Hidratación" — the recurring `HH:MMh`
-                  clock-mark strip (`getHydrationMarks`, since removed
-                  outright) added visual noise with zero operational value:
-                  an athlete mid-ride reads "every N minutes," not a fixed
-                  list of clock times against a departure they may not have
-                  left at exactly on schedule. Replaced with one clean,
-                  high-contrast line — the single number that actually
-                  matters. Same nested `bg-zinc-50` box + left-edge bronze
-                  accent border as before, just without the badge strip. */}
+              {/* Cadencia de hidratación y Estrategia por Tramos (Stint Strategy) */}
               <div className="rounded-xl border border-zinc-200/70 border-l-4 border-l-[#70685b] bg-zinc-50 p-4">
                 <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-wider text-zinc-400 uppercase">
                   <Droplet className="size-3.5 shrink-0 text-[#70685b]" />
-                  Cadencia de hidratación
+                  Cadencia de hidratación & Estrategia por Tramos
                 </span>
                 <p className="mt-1 text-sm font-bold text-zinc-900">
                   Beber 1 bidón (~{displayBottlePlan!.bottleSizeMl}ml) cada{" "}
                   <span className="text-[#70685b]">{result.timingTimeline.hydrationIntervalMinutes} min</span>
                 </p>
-                {/* "Sensibilidad a Cafeína e Horario Nocturno" — the server
-                    already dropped every caffeine milestone below when the
-                    estimated arrival lands at/after 18:30 local; this is
-                    just the visible explanation for why none show up even
-                    though a gel with caffeine was selected. */}
                 {result.caffeineSuppressed && (
                   <p className="mt-3 flex items-start gap-1.5 text-xs text-zinc-500">
                     <Moon className="mt-0.5 size-3.5 shrink-0 text-zinc-600" />
@@ -3950,40 +4071,15 @@ export function FuelingPlanner({
                     para proteger tu descanso nocturno.
                   </p>
                 )}
-                {mergedTimelineEntries.length > 0 && (
-                  <ol className="mt-3 flex flex-col border-t border-zinc-200 pt-3">
-                    {mergedTimelineEntries.map((entry, i) => (
-                      <li key={entry.key} className="relative flex gap-2.5 pb-3 last:pb-0">
-                        {i < mergedTimelineEntries.length - 1 && (
-                          <span
-                            aria-hidden
-                            className="absolute top-3 left-1.25 h-full w-px bg-zinc-200"
-                          />
-                        )}
-                        <span
-                          aria-hidden
-                          className="relative z-10 mt-1 size-2.75 shrink-0 rounded-full border-2 border-terracotta bg-zinc-50"
-                        />
-                        <div className="flex min-w-0 flex-col gap-0.5">
-                          <span className="font-mono text-[10px] text-zinc-500">
-                            {entry.approx ? "~" : ""}
-                            {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
-                          </span>
-                          <span className="flex items-center gap-1.5 text-sm text-zinc-700">
-                            {entry.icon === "solid" && (
-                              <Utensils className="size-3.5 shrink-0 text-zinc-500" />
-                            )}
-                            {entry.icon === "gel" && <Zap className="size-3.5 shrink-0 text-zinc-500" />}
-                            {entry.icon === "caffeine" && (
-                              <FlaskConical className="size-3.5 shrink-0 text-zinc-500" />
-                            )}
-                            {entry.label}
-                          </span>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                )}
+
+                {/* Stint Strategy Timeline */}
+                <StintStrategyTimeline
+                  cafeteriaStopCount={cafeteriaStopCount}
+                  durationHours={result.durationHours}
+                  distanceKm={selectedRoute?.distanceKm ?? parsedGpx?.distanceKm ?? manualCalcResults?.distanceKm ?? null}
+                  entries={mergedTimelineEntries}
+                  remainingCarbsG={remainingCarbsG}
+                />
               </div>
 
               {/* "Sodio total aportado (Bici + Bolsillos)" — renamed from
