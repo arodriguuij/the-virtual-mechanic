@@ -693,46 +693,34 @@ const BOTTLE_CAPACITY_QUICK_OPTIONS = [550, 750, 950];
 // planned stop, or more load in the pockets); only the fully-covered case
 // (0g) gets its own distinct, positive color.
 function getRemainingCarbsTextClass(remainingCarbsG: number): string {
-  if (remainingCarbsG > 0) return "text-amber-200 font-bold";
-  return "text-emerald-300 font-bold";
+  if (remainingCarbsG > 0) return "text-amber-400 font-bold";
+  return "text-emerald-400 font-bold";
 }
 
-// "Unificación de Alertas en 2 Columnas" — Card 04's "Tip de Eficiencia" and
-// every "aviso" in Card 05 (Estrategia de Ruta / Reposición en Ruta
-// Necesaria / Cobertura Completa) now render through this one shared
-// component instead of near-identical hand-copied markup drifting apart —
-// an icon column (`shrink-0`) beside one inline paragraph carrying a bold
-// label followed by regular text, same shape regardless of tone. `tone`
-// picks the one color family (border/background/icon/text/label) every
-// call site otherwise had to spell out by hand; info/warning/success each
-// keep their own real color (sky/amber/emerald) rather than collapsing
-// every tone into one color, since that tone is real, load-bearing signal
-// (whether the athlete still has a gap to close, and how urgent it is) —
-// only the layout/typography is unified, not the semantics.
 const ALERT_BANNER_TONE_CLASSES: Record<
   "info" | "warning" | "success",
   { border: string; bg: string; icon: string; text: string; label: string }
 > = {
   info: {
-    border: "border-sky-200/80",
-    bg: "bg-sky-50/70",
-    icon: "text-sky-700",
-    text: "text-sky-900/90",
-    label: "text-sky-950",
+    border: "border-neutral-900",
+    bg: "bg-neutral-50/80",
+    icon: "text-neutral-900",
+    text: "text-neutral-700",
+    label: "text-neutral-900",
   },
   warning: {
-    border: "border-amber-200/80",
-    bg: "bg-amber-50/70",
-    icon: "text-amber-700",
-    text: "text-amber-900/90",
-    label: "text-amber-950",
+    border: "border-amber-500",
+    bg: "bg-neutral-900",
+    icon: "text-amber-400",
+    text: "text-neutral-200",
+    label: "text-amber-400",
   },
   success: {
-    border: "border-emerald-200/80",
-    bg: "bg-emerald-50/70",
-    icon: "text-emerald-700",
-    text: "text-emerald-900/90",
-    label: "text-emerald-950",
+    border: "border-emerald-500",
+    bg: "bg-neutral-900",
+    icon: "text-emerald-400",
+    text: "text-neutral-200",
+    label: "text-emerald-400",
   },
 };
 
@@ -751,10 +739,10 @@ function AlertBanner({
 }) {
   const c = ALERT_BANNER_TONE_CLASSES[tone];
   return (
-    <div className={cn("flex items-start gap-2.5 rounded-xl border p-3 shadow-xs", c.border, c.bg, className)}>
+    <div className={cn("flex items-start gap-2.5 rounded-r-md border-l-2 p-3 font-mono text-xs shadow-xs", c.border, c.bg, className)}>
       <span className={cn("shrink-0 pt-0.5 text-sm", c.icon)}>{icon}</span>
-      <p className={cn("font-mono text-xs leading-snug", c.text)}>
-        <span className={cn("mr-1 font-bold", c.label)}>{label}:</span>
+      <p className={cn("leading-snug", c.text)}>
+        <span className={cn("mr-1 font-bold uppercase tracking-wide", c.label)}>{label}:</span>
         {children}
       </p>
     </div>
@@ -2684,22 +2672,22 @@ export function FuelingPlanner({
                           }}
                           id="gpx-dropzone"
                           className={cn(
-                            "flex flex-col items-center justify-center gap-2 border-2 border-dashed px-4 py-8 text-center transition-colors duration-150",
+                            "flex flex-col items-center justify-center gap-2 rounded-md border border-dashed bg-neutral-50/60 px-4 py-8 text-center transition-colors duration-150 hover:border-neutral-900",
                             isDraggingGpx
-                              ? "border-neutral-900 bg-neutral-50"
+                              ? "border-neutral-900 bg-neutral-100"
                               : routeError
-                                ? "border-amber-400 bg-amber-50/20"
+                                ? "border-amber-500 bg-amber-50/20"
                                 : "border-neutral-300",
                             loading && "pointer-events-none opacity-50"
                           )}
                         >
-                          <Upload className="size-5 text-neutral-400" />
-                          <p className="text-sm text-neutral-600">
+                          <Upload className="size-5 text-neutral-500" />
+                          <p className="font-mono text-[11px] uppercase tracking-wide text-neutral-500">
                             Arrastra tu archivo .gpx aquí, o{" "}
                             <label
                               htmlFor="gpx-upload"
                               className={cn(
-                                "cursor-pointer font-semibold text-neutral-900 underline underline-offset-2",
+                                "cursor-pointer font-bold text-neutral-900 underline underline-offset-2",
                                 loading && "cursor-not-allowed"
                               )}
                             >
@@ -3419,7 +3407,7 @@ export function FuelingPlanner({
                 checked={isTargetEvent}
                 disabled={loading}
                 onChange={(e) => setIsTargetEvent(e.target.checked)}
-                className="size-3.5 cursor-pointer accent-terracotta disabled:cursor-not-allowed"
+                className="size-3.5 cursor-pointer accent-neutral-900 disabled:cursor-not-allowed"
               />
               <span className="font-semibold text-[#70685b]">
                 Ruta objetivo / Competición
@@ -3454,7 +3442,7 @@ export function FuelingPlanner({
                 checked={trainLowEffective}
                 disabled={trainLowIncompatible || loading}
                 onChange={(e) => setTrainLow(e.target.checked)}
-                className="size-3.5 cursor-pointer accent-terracotta disabled:cursor-not-allowed"
+                className="size-3.5 cursor-pointer accent-neutral-900 disabled:cursor-not-allowed"
               />
               <span className="font-semibold text-zinc-800">
                 Modo Eficiencia Metabólica (Train Low / Ayunas)
@@ -3842,7 +3830,7 @@ export function FuelingPlanner({
                   amber/emerald semáforo) still decides RESTANTE's color —
                   a ride that's already fully covered reads emerald here,
                   not a flat amber regardless of state. */}
-              <div className="sticky top-16 z-20 my-3 rounded-xl border border-[#585248] bg-[#70685b] p-3 text-white shadow-md transition-all lg:top-4">
+              <div className="sticky top-16 z-20 my-3 rounded-md border border-neutral-800 bg-neutral-900 p-3.5 text-white shadow-md transition-all lg:top-4">
                 <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 font-mono text-xs font-bold">
                   <span>OBJETIVO: {result.totalRideCarbsG}g HC</span>
                   <span className="opacity-30">|</span>
@@ -3850,6 +3838,19 @@ export function FuelingPlanner({
                   <span className="opacity-30">|</span>
                   <span className={getRemainingCarbsTextClass(remainingCarbsG)}>
                     RESTANTE: {remainingCarbsG}g HC
+                  </span>
+                </div>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
+                    <div
+                      className="h-full bg-white transition-all duration-300"
+                      style={{
+                        width: `${Math.min(100, Math.round((coveredCarbsG / (result.totalRideCarbsG || 1)) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="shrink-0 font-mono text-[10px] font-semibold text-neutral-400">
+                    {Math.min(100, Math.round((coveredCarbsG / (result.totalRideCarbsG || 1)) * 100))}%
                   </span>
                 </div>
               </div>
@@ -4117,8 +4118,16 @@ export function FuelingPlanner({
                           <TriangleAlert className="size-3.5 text-amber-400" />
                           Incompatibilidad Hídrica
                         </div>
-                        <p className="text-xs text-neutral-200">
-                          Tu tasa de sudoración requiere <span className="font-semibold text-white">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""} de agua</span>, pero has seleccionado <span className="font-semibold text-white">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""}</span>. Aumenta el tamaño de tus bidones desde casa o añade paradas en ruta.
+                        <p className="font-mono text-xs leading-relaxed text-neutral-200">
+                          {cafeteriaStopCount === 0 ? (
+                            <>
+                              Tu tasa de sudoración requiere <span className="font-semibold text-white">{totalFluidMl} ml</span> de agua, pero solo dispones de <span className="font-semibold text-white">{installedCapacityMl} ml</span> (2 bidones de 550ml). Al seleccionar 0 paradas entrarás en déficit hídrico severo. Se recomienda planificar al menos 1 parada técnica en fuente o cafetería.
+                            </>
+                          ) : (
+                            <>
+                              Tu tasa de sudoración requiere <span className="font-semibold text-white">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""} de agua</span>, pero has seleccionado <span className="font-semibold text-white">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""}</span>. Aumenta el tamaño de tus bidones desde casa o añade paradas en ruta.
+                            </>
+                          )}
                         </p>
                       </div>
                     </div>
