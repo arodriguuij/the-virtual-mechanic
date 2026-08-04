@@ -24,7 +24,6 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { stripEmoji } from "@/lib/gpx-export";
@@ -38,7 +37,6 @@ import { InfoTooltip } from "@/components/info-tooltip";
 import { ProfileRequiredBanner } from "@/components/profile-required-banner";
 import {
   fieldClass,
-  flatMobileCardClass,
   formFieldLabelClass,
   selectableFieldClass,
   selectChevronClass,
@@ -63,6 +61,25 @@ import {
   CommercialProductsSheet,
   CommercialProductStepperRow,
 } from "@/components/commercial-products-sheet";
+
+// "Estandarización de Tarjetas (Cards 01 a 05)" — every numbered card
+// wrapper in this component (01 Selección y origen de ruta, 02 Condiciones
+// de la salida, 03 Metabolismo y objetivos calculados, 04 Logística de
+// salida, 05 Manifiesto de salida) now shares this exact visual chrome at
+// every breakpoint — a real, visible `border-zinc-200/90` border,
+// `rounded-2xl` corners, a white fill, and a soft shadow, both on mobile
+// and desktop. This is a deliberate reversal of this app's earlier
+// "100%-frameless, mobile-flattened" card system for *this specific
+// component* — 01 and 02 used to have no border at all (relying on
+// `flatMobileCardClass`'s mobile-flattening + background contrast alone),
+// and 02 used the app-wide `rounded-sm` scale while 01/03/04/05 already
+// used `rounded-xl`/`rounded-2xl` — a real, reported inconsistency, not a
+// stylistic nuance. `mb-5 sm:mb-6` gives each card its own spacing from the
+// next, so the two containers that used to supply that spacing (the root
+// `<Card>`'s `CardContent` `gap-6`, the results wrapper's own `gap-4`) were
+// both dropped in favor of letting each card manage its own margin,
+// exactly like `/perfil`'s numbered cards already do.
+const numberedCardClass = "mb-5 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm sm:mb-6 sm:p-5 md:p-6";
 
 // Leaflet reads `window`/`document` at module scope, which breaks Next's
 // server render pass — `ssr: false` is what actually prevents that, not
@@ -2307,51 +2324,31 @@ export function FuelingPlanner({
   }
 
   return (
-    // `overflow-visible` overrides the base `Card` primitive's own
-    // `overflow-hidden` (needed elsewhere for image-corner clipping,
-    // untouched at the shared-component level) specifically for this one
-    // call site — `overflow: hidden` on any ancestor establishes a "scroll
-    // container" per the CSS Overflow spec even with nothing to actually
-    // scroll, which silently defeats `position: sticky` on any descendant
-    // (verified live: Card 04's balance pill scrolled away with the page
-    // instead of sticking, until this override was added). Safe here since
-    // the one thing inside this component that genuinely needs corner
-    // clipping — the Paso 01 map — already has its own *local*
-    // `overflow-hidden` wrapper div, independent of this outer Card.
-    // "Unificación de Negro Obsidiana" — the "Planificador de nutrición"
-    // `CardTitle` that used to open this card is gone outright, not just
-    // restyled: the Pre-ruta/Post-ruta tabs immediately above it already
-    // name the section, so the subtitle was pure vertical redundancy on
-    // mobile. `Card`'s own `py-(--card-spacing)` still supplies the correct
-    // top gap above Paso 01 with no header present — `flatMobileCardClass`
-    // zeroes that spacing on mobile (so the card starts flush, which is
-    // exactly the tightened footprint this removal is for) and restores a
-    // real `--spacing(5)` gap at `sm:` and up, same as it always did.
-    <Card className={cn(flatMobileCardClass, "overflow-visible")}>
-      <CardContent className="flex flex-col gap-6">
+    // No more shared root `<Card>` — "Estandarización de Tarjetas" moved
+    // every numbered card's own visual chrome (border/radius/bg/shadow/
+    // margin) onto each card's own wrapper div (`numberedCardClass`), so a
+    // shared outer Card supplying its own background/padding/gap would
+    // just double up against that. A plain `<div>` has no `overflow-hidden`
+    // of its own to begin with (unlike the base `Card` primitive), so
+    // Card 04's sticky OBJETIVO/CUBIERTO/RESTANTE bar (see its own doc
+    // comment further down) no longer needs the explicit `overflow-visible`
+    // override this root used to carry just to fight that default.
+    <div>
         {/* PASO 01 · Selección y origen de ruta — the mode toggle plus
             whichever source-specific fields that mode needs (Strava route
-            select + map, manual duration/watts, or a GPX upload + map). Full
-            white "tarjeta madre" (`bg-white`, zero border, zero shadow)
-            matching `/perfil`'s own numbered-card convention — see the
-            `01 ·`/`02 ·`/`03 ·` eyebrow labels throughout this component.
-            The map sits flush against this card's own left/right/bottom
-            edges (the label/select/dropzone portion above it keeps its own
-            `p-4 sm:p-6` padding, but `RouteMapPreview` is a direct sibling
-            with none of its own) — `RouteMapPreview` now renders its own
-            `rounded-xl` on every corner rather than bleeding flush into the
-            parent's rounding (the earlier "full-bleed photo in a card"
-            convention, dropped once a rounded top edge was explicitly
-            requested), so this wrapper's own radius was bumped to match —
-            see the comment on this `div` below. */}
-        {/* `rounded-xl` here (up from this app's usual `rounded-sm`) is a
-            deliberate, scoped exception matching the map's own new
-            `rounded-xl` corners (see `RouteMapPreview`) — both containers
-            share one radius now so the map's bottom corners clip cleanly
-            against this wrapper's own `overflow-hidden` instead of a
-            smaller radius flattening them back down. */}
-        <div className="overflow-hidden rounded-xl bg-white shadow-none">
-          <div className="p-4 sm:p-6">
+            select + map, manual duration/watts, or a GPX upload + map).
+            Shares the exact same border/radius/bg/shadow/margin as every
+            other numbered card (`numberedCardClass`) — its own padding is
+            cancelled on the outer wrapper (`p-0`) and moved to the inner
+            `<div>` instead, since `RouteMapPreview` needs to bleed flush
+            against this card's own left/right/bottom edges (the label/
+            select/dropzone portion above it keeps the real padding). This
+            card's own `overflow-hidden` (needed so the map's bottom corners
+            clip against this wrapper's `rounded-2xl` instead of the map's
+            own square corners showing through) is independent of the outer
+            `<div>` above, which carries no `overflow` class of its own. */}
+        <div className={cn(numberedCardClass, "overflow-hidden p-0 sm:p-0 md:p-0")}>
+          <div className="p-4 sm:p-5 md:p-6">
             <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
               01 · Selección y origen de ruta
             </span>
@@ -2721,13 +2718,14 @@ export function FuelingPlanner({
         {/* PASO 02 · Condiciones de la salida — Intensidad Objetivo (Sub-
             sección A, skipped in Entreno Manual mode since real watts already
             *is* the intensity input there) and Fecha y Hora de Salida (Sub-
-            sección B, every mode). One flat white "tarjeta madre," no nested
-            sub-cards — `gap-3` alone separates the sub-sections ("Jerarquía
-            de Espaciado Editorial": related controls sitting side by side
-            get the tighter `space-y-3` scale, not the looser `gap-5` this
-            used to carry). The `mt-2` right under the eyebrow (down from
-            `mt-4`) is that same pass's "título numerado → primer campo"
-            micro-spacing rule.
+            sección B, every mode). Shares the same border/radius/bg/shadow/
+            margin as every other numbered card (`numberedCardClass`) — no
+            nested sub-cards, `gap-3` alone separates the sub-sections
+            ("Jerarquía de Espaciado Editorial": related controls sitting
+            side by side get the tighter `space-y-3` scale, not the looser
+            `gap-5` this used to carry). The `mt-2` right under the eyebrow
+            (down from `mt-4`) is that same pass's "título numerado → primer
+            campo" micro-spacing rule.
             "Bloqueo de Formulario durante isCalculating" — every real
             control inside this card (`IntensityObjectiveSelect`/
             `DeparturePicker`'s own `disabled` props, the duration inputs,
@@ -2740,7 +2738,8 @@ export function FuelingPlanner({
             with zero per-control flicker while `loading` flips. */}
         <div
           className={cn(
-            "rounded-sm bg-white p-4 sm:p-6 shadow-none transition-opacity duration-200",
+            numberedCardClass,
+            "transition-opacity duration-200",
             loading && "pointer-events-none opacity-60"
           )}
         >
@@ -3138,8 +3137,12 @@ export function FuelingPlanner({
             "Ruta objetivo / Competición" checkbox above is a card 02
             sub-section (a departure condition), but the button itself is
             an action, matching `/perfil`'s own "single full-width action
-            button after the numbered cards" convention. */}
-        <div className="flex flex-col gap-3">
+            button after the numbered cards" convention. Card 02's own
+            `mb-5 sm:mb-6` (`numberedCardClass`) already supplies the gap
+            above this block now that the shared parent has no `gap-6` of
+            its own; this block adds the matching gap *below* itself so the
+            error line/results container aren't flush against the button. */}
+        <div className="mb-5 flex flex-col gap-3 sm:mb-6">
           <button
             type="button"
             onClick={handleCalculate}
@@ -3204,9 +3207,9 @@ export function FuelingPlanner({
         {error && <p className="text-sm text-status-warning">{error}</p>}
 
         {result && (
-          <div ref={resultRef} className="flex scroll-mt-20 flex-col gap-4 border-t border-neutral-200 pt-4">
+          <div ref={resultRef} className="scroll-mt-20 border-t border-neutral-200 pt-4">
             {isOfflineCache && (
-              <div className="flex items-center gap-1.5 border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-700">
+              <div className="mb-4 flex items-center gap-1.5 border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-700">
                 <Zap className="size-3.5 shrink-0" />
                 Estrategia guardada en caché (Modo Offline)
               </div>
@@ -3214,13 +3217,11 @@ export function FuelingPlanner({
 
             {/* "Agrupación Estructurada de Resultados" — every calculated
                 output lives inside one of 3 independent white "tarjeta
-                madre" cards (bg-white border border-zinc-200 rounded-2xl p-5
-                shadow-none) on the porcelain canvas. `rounded-2xl` is a
-                deliberate, scoped exception to this app's app-wide
-                `rounded-sm` "Radio de Bordes Pequeño Global" convention (see
-                the design-system history below "PNS premium redesign") —
-                just these 3 result cards; every other card/button/select in
-                the app is unaffected. Cards 03 and 05 were each briefly
+                madre" cards, now sharing `numberedCardClass` with every
+                other numbered card in this component (01-05 alike, see
+                "Estandarización de Tarjetas" above) — a real border,
+                `rounded-2xl` corners, and a soft shadow at every breakpoint.
+                Cards 03 and 05 were each briefly
                 their own dark-surface exception (a "Verde Oliva Táctico"
                 olive panel and an obsidian-black "Manifiesto" respectively)
                 before "Unificación de Lienzo Claro" reverted both back to
@@ -3260,7 +3261,7 @@ export function FuelingPlanner({
                 app-wide in favor of one coherent light palette with the
                 Bronce Táctico (`#70685b`) accent doing the "state" work a
                 dark panel used to. */}
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-none">
+            <div className={numberedCardClass}>
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 03 · Metabolismo y objetivos calculados
               </span>
@@ -3443,7 +3444,7 @@ export function FuelingPlanner({
                 interactive simulator, nothing else (Card 05 is where the
                 remainder — RESTANTE RUTA — gets reconciled against a
                 planned stop). */}
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-none">
+            <div className={numberedCardClass}>
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 04 · Logística de salida (Carga desde casa)
               </span>
@@ -3495,12 +3496,13 @@ export function FuelingPlanner({
                   header's real bottom edge, clipping visibly behind it on
                   a real device; desktop has no such header, so it sticks
                   close to the viewport's own top instead — this only works
-                  because the root `<Card>` this whole component renders
-                  into overrides its own base `overflow-hidden` with
-                  `overflow-visible` (see that Card's own doc comment) —
-                  `position: sticky` is silently defeated by any
-                  `overflow: hidden`/`clip`/`auto` ancestor, and Card 04's
-                  own container below carries no such class either. Bronce
+                  because none of this component's ancestors (a plain `<div>`
+                  root, per "Estandarización de Tarjetas" above — no more
+                  shared `<Card>` primitive, which used to need an explicit
+                  `overflow-visible` override to stop its own base
+                  `overflow-hidden` from defeating this) set `overflow:
+                  hidden`/`clip`/`auto`, and Card 04's own container below
+                  carries no such class either. Bronce
                   elegante (`#70685b`, this app's own terracotta/bronze
                   accent) fill — the HUD reads as its own distinct floating
                   register rather than blending into the same accent every
@@ -3744,7 +3746,7 @@ export function FuelingPlanner({
                 as before, just restyled onto the shared light palette. The
                 athlete screenshots this card if they want to save or share
                 it — no export button lives here. */}
-            <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-none">
+            <div className={cn(numberedCardClass, "flex flex-col gap-4")}>
               <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 05 · Manifiesto de salida
               </span>
@@ -4214,7 +4216,6 @@ export function FuelingPlanner({
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
 }
