@@ -294,18 +294,20 @@ export function DashboardShell({
         {/* "Fix Definitivo de Header Fijo" — `sticky` was silently defeated
             by `<body>`'s own `overflow-x-hidden` (`app/layout.tsx`): setting
             `overflow-x` to anything but `visible` while `overflow-y` stays
-            unset forces `overflow-y: auto` implicitly per spec, which makes
+            unset forces `overflow-y: auto` implicitly per spec, which made
             `<body>` itself the page's real scrolling element instead of the
             viewport — the same "an `overflow` ancestor silently breaks
             `position: sticky`" bug class already documented once in this
             app's history (`components/fueling-planner.tsx`'s Card 04
             balance pill), just one level higher up the tree this time.
-            Rather than chase exactly which scroll-container quirk mobile
-            Safari adds on top of that, this switched to `fixed` — immune to
-            *any* ancestor's `overflow`/scroll-container behavior, since a
-            `fixed` element always positions against the true viewport (or a
-            transformed/filtered ancestor, and nothing between here and
-            `<body>` sets one). `top-0 right-0 left-0` (plus the redundant
+            That root cause has since been removed entirely (`app/layout.tsx`'s
+            own doc comment — `overflow-x-hidden` no longer exists on
+            `<html>`/`<body>` at all), but this header stays `fixed` anyway:
+            immune to *any* ancestor's `overflow`/scroll-container behavior
+            regardless of what future changes touch there, and — independent
+            of the overflow bug entirely — deliberately out of document flow
+            (see below) in a way `sticky` never was. `top-0 right-0 left-0`
+            (plus the redundant
             but explicit `w-full`) pins it edge-to-edge; `z-50` still sits
             comfortably below the mobile drawer's own `z-9999`/`z-10000`, so
             opening the drawer still fully covers it. Background/border

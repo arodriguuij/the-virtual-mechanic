@@ -148,7 +148,31 @@ export default function RootLayout({
           design-system token rather than a hardcoded `#F8F7F5` literal —
           same value (see the token's own comment above `viewport`), this
           app's own "reuse the token, never hardcode the hex" convention. */}
-      <body className="flex min-h-dvh flex-col overflow-x-hidden bg-background text-foreground">
+      {/* "Fix Definitivo de CSS position: sticky" — `overflow-x-hidden` used
+          to live here (a defensive backstop against a stray wide/absolutely-
+          positioned descendant causing a horizontal pan on iOS Safari — see
+          the matching `html, body` rule this once paired with in
+          `app/globals.css`). Removed outright: any non-`visible` value on
+          either `overflow-x`/`overflow-y` of the root `<html>`/`<body>`
+          forces the *other* axis to compute to `auto` too (a CSS Overflow
+          Module rule, not a bug), which makes both elements genuine scroll
+          containers distinct from "the viewport" as far as `position:
+          sticky`'s own containing-block search is concerned — verified live
+          (a temporary Playwright scroll test): every `position: sticky`
+          element in this app, not just this one, silently stopped sticking
+          and scrolled away with the page the instant this was set, with
+          zero visual/console indication anything was wrong. This is the
+          exact same root cause `components/dashboard-shell.tsx`'s own
+          header comment already diagnosed once (and worked around locally
+          by switching that one header to `fixed`) — removing it here fixes
+          every current and future `sticky` element at the source instead of
+          requiring a per-component `fixed`-position workaround each time one
+          is discovered. `max-width: 100%` (`app/globals.css`) stays as the
+          remaining horizontal-overflow guard — the actual per-component
+          overflow bugs this was ever meant to catch were already fixed at
+          the layout level (per this rule's own prior comment), so this was
+          strictly a "belt and suspenders" duplicate, not load-bearing. */}
+      <body className="flex min-h-dvh flex-col bg-background text-foreground">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
