@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Droplet,
+  Droplets,
   FlaskConical,
   Gauge,
   Lightbulb,
@@ -14,6 +15,7 @@ import {
   Moon,
   Pencil,
   RefreshCw,
+  ShoppingBag,
   Snowflake,
   Sun,
   TriangleAlert,
@@ -1402,23 +1404,23 @@ function StintStrategyTimeline({
   };
 
   const renderEntry = (entry: (typeof entries)[0], i: number, arrLen: number) => (
-    <li key={entry.key} className="relative flex gap-2.5 pb-3 last:pb-0">
+    <li key={entry.key} className="relative flex gap-3 pb-3 last:pb-0">
       {i < arrLen - 1 && (
-        <span aria-hidden className="absolute top-3 left-1.25 h-full w-px bg-zinc-200" />
+        <span aria-hidden className="absolute top-3 left-1.25 h-full w-px bg-neutral-200" />
       )}
       <span
         aria-hidden
-        className="relative z-10 mt-1 size-2.75 shrink-0 rounded-full border-2 border-terracotta bg-zinc-50"
+        className="relative z-10 mt-1 size-2.5 shrink-0 rounded-full bg-neutral-900"
       />
       <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="font-mono text-[10px] text-zinc-500">
+        <span className="font-mono text-[10px] font-semibold text-neutral-400">
           {entry.approx ? "~" : ""}
           {entry.atKm != null ? `Km ${entry.atKm}` : `Min ${entry.atMinutes}`}
         </span>
-        <span className="flex items-center gap-1.5 text-sm text-zinc-700">
-          {entry.icon === "solid" && <Utensils className="size-3.5 shrink-0 text-zinc-500" />}
-          {entry.icon === "gel" && <Zap className="size-3.5 shrink-0 text-zinc-500" />}
-          {entry.icon === "caffeine" && <FlaskConical className="size-3.5 shrink-0 text-zinc-500" />}
+        <span className="flex items-center gap-2 font-mono text-xs text-neutral-900">
+          {entry.icon === "solid" && <Utensils className="size-3.5 shrink-0 text-neutral-700" />}
+          {entry.icon === "gel" && <Zap className="size-3.5 shrink-0 text-neutral-700" />}
+          {entry.icon === "caffeine" && <FlaskConical className="size-3.5 shrink-0 text-neutral-700" />}
           {entry.label}
         </span>
       </div>
@@ -1426,21 +1428,27 @@ function StintStrategyTimeline({
   );
 
   const renderStopCard = (stopNum: number, stopMins: number, stopKm: number | null) => (
-    <div className="my-3 rounded-xl border border-sky-200/80 bg-sky-50/70 p-3 shadow-xs">
-      <div className="flex items-center gap-2 font-mono text-xs font-bold text-sky-900">
-        <MapPin className="size-4 shrink-0 text-sky-600" />
-        <span>
-          Parada {stopNum} ({stopKm != null ? `Km ~${stopKm}` : ""} · ~{formatMins(stopMins)})
+    <div className="my-3 rounded-md border border-neutral-200/80 bg-neutral-50/90 p-3.5 shadow-xs">
+      <div className="flex items-center gap-2">
+        <span className="rounded-xs bg-neutral-900 px-2 py-0.5 font-mono text-[10px] font-semibold text-white uppercase tracking-wide">
+          Parada {stopNum}
+        </span>
+        <span className="font-mono text-xs font-semibold text-neutral-900">
+          {stopKm != null ? `Km ~${stopKm}` : ""} · ~{formatMins(stopMins)}
         </span>
       </div>
-      <p className="mt-1 font-mono text-[11px] text-sky-900/90 pl-6">
-        💧 <strong>Rellenar bidones con agua y sales</strong>
+      <div className="mt-2.5 space-y-1.5 pl-0.5">
+        <div className="flex items-center gap-2 font-mono text-xs text-neutral-700">
+          <Droplets className="size-3.5 shrink-0 text-neutral-900" />
+          <span>Rellenar bidones con agua + electrolitos</span>
+        </div>
         {remainingCarbsG > 0 && (
-          <span className="block mt-0.5 text-sky-800">
-            🥪 Comprar refresco/lata o bocadillo en cafetería para reposición de carbohidratos.
-          </span>
+          <div className="flex items-center gap-2 font-mono text-xs text-neutral-700">
+            <ShoppingBag className="size-3.5 shrink-0 text-neutral-900" />
+            <span>Comprar refresco o bocadillo para reposición de HC</span>
+          </div>
         )}
-      </p>
+      </div>
     </div>
   );
 
@@ -4103,74 +4111,75 @@ export function FuelingPlanner({
                 <>
                   {/* Validador Hídrico: Recargas de agua necesarias vs Paradas seleccionadas */}
                   {fullRefillsNeeded > cafeteriaStopCount && (
-                    <div className="mb-4 rounded-xl border border-amber-300/80 bg-amber-50/90 p-3.5 shadow-xs">
-                      <div className="mb-1.5 flex items-center gap-2 font-mono text-xs font-bold text-amber-900">
-                        <TriangleAlert className="size-4 shrink-0 text-amber-700" />
-                        <span className="uppercase tracking-wider">Incompatibilidad Hídrica</span>
+                    <div className="mb-4 rounded-r-md border-l-2 border-amber-500 bg-neutral-900 p-4 text-white shadow-xs">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-amber-400">
+                          <TriangleAlert className="size-3.5 text-amber-400" />
+                          Incompatibilidad Hídrica
+                        </div>
+                        <p className="text-xs text-neutral-200">
+                          Tu tasa de sudoración requiere <span className="font-semibold text-white">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""} de agua</span>, pero has seleccionado <span className="font-semibold text-white">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""}</span>. Aumenta el tamaño de tus bidones desde casa o añade paradas en ruta.
+                        </p>
                       </div>
-                      <p className="font-mono text-xs leading-relaxed text-amber-900/90">
-                        Tu tasa de sudoración requiere <strong className="font-bold">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""} de agua</strong>, pero has seleccionado <strong className="font-bold">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""}</strong>. Aumenta el tamaño de tus bidones desde casa o añade paradas para evitar deshidratación.
-                      </p>
                     </div>
                   )}
 
                   {fullRefillsNeeded > 0 && cafeteriaStopCount >= fullRefillsNeeded && (
-                    <div className="mb-4 rounded-xl border border-emerald-300/80 bg-emerald-50/90 p-3.5 shadow-xs">
-                      <div className="mb-1.5 flex items-center gap-2 font-mono text-xs font-bold text-emerald-900">
-                        <CheckCircle2 className="size-4 shrink-0 text-emerald-700" />
-                        <span className="uppercase tracking-wider">Plan Hídrico Cubierto</span>
+                    <div className="mb-4 flex items-center justify-between rounded-md bg-neutral-900 p-4 text-white shadow-xs">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-neutral-400">
+                          <CheckCircle2 className="size-3.5 text-emerald-400" />
+                          Plan Hídrico Validado
+                        </div>
+                        <p className="text-xs text-neutral-200">
+                          Tus <span className="font-semibold text-white">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""}</span> cubren las{" "}
+                          <span className="font-semibold text-white">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""}</span> requerida{fullRefillsNeeded !== 1 ? "s" : ""}.
+                        </p>
                       </div>
-                      <p className="font-mono text-xs leading-relaxed text-emerald-900/90">
-                        Tus <strong className="font-bold">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""} prevista{cafeteriaStopCount !== 1 ? "s" : ""}</strong> cubren las <strong className="font-bold">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""} de agua</strong> necesaria{fullRefillsNeeded !== 1 ? "s" : ""} para esta ruta.
-                      </p>
                     </div>
                   )}
 
                   {/* Nutrición en ruta (Carbohidratos) */}
                   {remainingCarbsG > 0 && cafeteriaStopCount > 0 && (
-                    <AlertBanner tone="info" icon="ℹ️" label="Estrategia de Ruta" className="mb-4">
-                      Llevas <span className="font-bold text-sky-950">{coveredCarbsG}g HC</span> desde casa. Los <span className="font-bold text-sky-950">{remainingCarbsG}g HC</span> restantes se cubrirán en tu(s) parada(s) en ruta (ej. 1 Refresco/Lata + 1 Bocadillo en cafetería o gasolinera).
-                    </AlertBanner>
+                    <div className="mb-4 rounded-r-md border-l-2 border-neutral-900 bg-neutral-50/80 p-3 font-mono text-xs text-neutral-700">
+                      <span className="font-bold uppercase tracking-wide text-neutral-900">Estrategia de Ruta:</span> Llevas{" "}
+                      <strong className="text-neutral-900">{coveredCarbsG}g HC</strong> desde casa. Los{" "}
+                      <strong className="text-neutral-900">{remainingCarbsG}g HC</strong> restantes se reponen en tus paradas.
+                    </div>
                   )}
 
                   {remainingCarbsG > 0 && cafeteriaStopCount === 0 && (
-                    <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/70 p-3.5">
-                      <div className="mb-1.5 flex items-center gap-2 font-mono text-xs font-bold text-amber-900">
-                        <TriangleAlert className="size-4 shrink-0 text-amber-700" />
-                        <span className="uppercase tracking-wider">Déficit de Nutrición</span>
+                    <div className="mb-4 rounded-r-md border-l-2 border-amber-500 bg-neutral-900 p-3.5 font-mono text-xs text-neutral-200">
+                      <div className="mb-1 flex items-center gap-1.5 font-bold uppercase tracking-wide text-amber-400">
+                        <TriangleAlert className="size-3.5 text-amber-400" />
+                        Déficit de Nutrición
                       </div>
-                      <p className="font-mono text-xs leading-relaxed text-amber-900/90">
-                        Faltan <strong className="font-bold">{remainingCarbsG}g HC</strong> para cubrir el gasto glucogénico de la ruta ({result.totalRideCarbsG}g HC). Selecciona más comida de bolsillo o añade paradas en ruta.
-                      </p>
+                      Faltan <strong className="text-white">{remainingCarbsG}g HC</strong> para cubrir el gasto glucogénico ({result.totalRideCarbsG}g HC). Selecciona más comida de bolsillo o añade paradas en ruta.
                     </div>
                   )}
 
                   {remainingCarbsG === 0 && fullRefillsNeeded === 0 && (
-                    <AlertBanner tone="success" icon="✅" label="Cobertura Completa" className="mb-4">
-                      Tu carga inicial de casa cubre el 100% del objetivo de la salida.
-                    </AlertBanner>
+                    <div className="mb-4 rounded-r-md border-l-2 border-emerald-500 bg-neutral-900 p-3.5 font-mono text-xs text-neutral-200">
+                      <div className="mb-1 flex items-center gap-1.5 font-bold uppercase tracking-wide text-emerald-400">
+                        <CheckCircle2 className="size-3.5 text-emerald-400" />
+                        Cobertura Completa
+                      </div>
+                      Tu carga inicial de casa cubre el 100% del objetivo glucogénico de la salida.
+                    </div>
                   )}
                 </>
               )}
 
               {/* "Sugerencia de Sodio (Bici + Bolsillos)" */}
               {showSodiumSuggestion && (
-                <div className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/80 p-3.5 shadow-xs">
-                  <div className="mb-1 flex items-center gap-2">
-                    <Lightbulb className="size-4 shrink-0 text-amber-700" />
-                    <span className="font-mono text-xs font-bold tracking-wider text-amber-900 uppercase">
-                      Sugerencia de electrolitos
-                    </span>
+                <div className="mb-4 rounded-r-md border-l-2 border-neutral-900 bg-neutral-50/80 p-3.5 font-mono text-xs text-neutral-700">
+                  <div className="mb-1 flex items-center gap-1.5 font-bold uppercase tracking-wide text-neutral-900">
+                    <Lightbulb className="size-3.5 text-neutral-900" />
+                    Sugerencia de electrolitos
                   </div>
-                  <p className="pl-6 font-mono text-xs leading-relaxed text-amber-900/90">
-                    Te faltan <strong className="font-bold">{Math.round(sodiumDeficitMg)} mg Na+</strong>{" "}
-                    para cubrir tu ruta. Equivale a añadir{" "}
-                    <strong className="font-bold">
-                      {saltCapsulesNeeded} cápsula{saltCapsulesNeeded !== 1 ? "s" : ""} de sal
-                    </strong>{" "}
-                    en tus bolsillos o <strong className="font-bold">{evolytesGramsNeeded}g extra de Evolytes</strong>{" "}
-                    en tus recargas de agua.
-                  </p>
+                  Te faltan <strong className="text-neutral-900">{Math.round(sodiumDeficitMg)} mg Na+</strong> para cubrir tu ruta. Equivale a añadir{" "}
+                  <strong className="text-neutral-900">{saltCapsulesNeeded} cápsula{saltCapsulesNeeded !== 1 ? "s" : ""} de sal</strong> en bolsillo o{" "}
+                  <strong className="text-neutral-900">{evolytesGramsNeeded}g de Evolytes</strong> extra en recargas.
                 </div>
               )}
 
