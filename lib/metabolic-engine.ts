@@ -130,6 +130,63 @@ export function estimateRideDurationHours({
   return rawTotalHours * STOPPAGE_MARGIN;
 }
 
+export type ManualTerrain = "flat" | "medium_mountain" | "high_mountain";
+export type ManualCalcMode = "time" | "distance";
+
+export interface ManualTerrainOption {
+  id: ManualTerrain;
+  label: string;
+  sublabel: string;
+  elevationMPerKm: number;
+}
+
+export const MANUAL_TERRAIN_OPTIONS: ManualTerrainOption[] = [
+  {
+    id: "flat",
+    label: "Llano / Rodador",
+    sublabel: "~300m D+ / 100km",
+    elevationMPerKm: 3,
+  },
+  {
+    id: "medium_mountain",
+    label: "Media Montaña",
+    sublabel: "~1000m D+ / 100km",
+    elevationMPerKm: 10,
+  },
+  {
+    id: "high_mountain",
+    label: "Gran Montaña",
+    sublabel: ">1800m D+ / 100km",
+    elevationMPerKm: 18,
+  },
+];
+
+export function getProjectedSpeedKmh({
+  ftp,
+  weightKg,
+  intensity = "endurance",
+  terrain = "medium_mountain",
+}: {
+  ftp: number;
+  weightKg: number;
+  intensity?: IntensityLevel | "";
+  terrain?: ManualTerrain;
+}): number {
+  const terrainOpt = MANUAL_TERRAIN_OPTIONS.find((t) => t.id === terrain) ?? MANUAL_TERRAIN_OPTIONS[1];
+  const refDistanceKm = 100;
+  const refElevationGainM = refDistanceKm * terrainOpt.elevationMPerKm;
+  const effectiveIntensity: IntensityLevel = intensity || "endurance";
+  const refDurationHours = estimateRideDurationHours({
+    distanceKm: refDistanceKm,
+    elevationGainM: refElevationGainM,
+    ftp: ftp || 200,
+    weightKg: weightKg || 70,
+    intensity: effectiveIntensity,
+  });
+  return refDurationHours > 0 ? Math.round((refDistanceKm / refDurationHours) * 10) / 10 : 25;
+}
+
+
 /**
  * Carbohydrate oxidation rate (g/h) by relative intensity (%FTP). Bands
  * follow the widely-cited progression from ~30g/h at low aerobic intensity

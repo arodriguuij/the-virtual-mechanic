@@ -45,12 +45,16 @@ import {
   estimateRideDurationHours,
   getBottlePlan,
   getPocketFoodTotalCarbsG,
+  getProjectedSpeedKmh,
   getTableSaltGrams,
   HYPERTONIC_THRESHOLD_PCT,
+  MANUAL_TERRAIN_OPTIONS,
   pocketFoodCarbsG as POCKET_FOOD_CARBS_G,
   pocketFoodLabels,
   type FuelingMode,
   type IntensityLevel,
+  type ManualCalcMode,
+  type ManualTerrain,
   type PocketFoodItemType,
   type PocketFoodSelection,
 } from "@/lib/metabolic-engine";
@@ -200,6 +204,46 @@ const EVOLYTES_GRAMS_BY_BOTTLE_SIZE: Record<number, number> = {
 };
 function getEvolytesGramsForBottleSize(bottleSizeMl: number): number {
   return EVOLYTES_GRAMS_BY_BOTTLE_SIZE[bottleSizeMl] ?? Math.round((bottleSizeMl / 550) * 2);
+}
+
+interface CalculatedInputsSnapshot {
+  mode: "route" | "quick" | "gpx";
+  selectedRouteId: string;
+  gpxIdentifier: string;
+  durationHours: number;
+  intensity: IntensityLevel | "";
+  departureDayMode: DepartureDayMode;
+  departureCustomDate: string;
+  departureHour: string;
+  isTargetEvent: boolean;
+  trainLowEffective: boolean;
+  cafeteriaStopCount: CafeteriaStopCount;
+  manualTerrain: ManualTerrain;
+  manualCalcMode: ManualCalcMode;
+  manualDistanceKm: number;
+}
+
+function areInputsEqual(a: CalculatedInputsSnapshot, b: CalculatedInputsSnapshot): boolean {
+  if (a.mode !== b.mode) return false;
+  if (a.intensity !== b.intensity) return false;
+  if (a.departureDayMode !== b.departureDayMode) return false;
+  if (a.departureCustomDate !== b.departureCustomDate) return false;
+  if (a.departureHour !== b.departureHour) return false;
+  if (a.isTargetEvent !== b.isTargetEvent) return false;
+  if (a.trainLowEffective !== b.trainLowEffective) return false;
+  if (a.cafeteriaStopCount !== b.cafeteriaStopCount) return false;
+  if (Math.abs(a.durationHours - b.durationHours) > 0.001) return false;
+
+  if (a.mode === "route") {
+    if (a.selectedRouteId !== b.selectedRouteId) return false;
+  } else if (a.mode === "gpx") {
+    if (a.gpxIdentifier !== b.gpxIdentifier) return false;
+  } else if (a.mode === "quick") {
+    if (a.manualTerrain !== b.manualTerrain) return false;
+    if (a.manualCalcMode !== b.manualCalcMode) return false;
+    if (Math.abs(a.manualDistanceKm - b.manualDistanceKm) > 0.01) return false;
+  }
+  return true;
 }
 
 // "Tip de Eficiencia: Mix vs. Solo Agua" — a demanding ride (long or hot)
@@ -1337,16 +1381,31 @@ export function FuelingPlanner({
   // choice is made.
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [gpxUploadOpen, setGpxUploadOpen] = useState(false);
-  // No intensity pre-selected either ("Fondo Z2" used to be silently
-  // assumed) — same reasoning, an unintentional calculation is worse than
-  // one extra required click.
-  const [intensity, setIntensity] = useState<IntensityLevel | "">("");
-  // No pre-filled defaults — the athlete must explicitly enter a real
-  // duration rather than silently calculating against whatever placeholder
-  // happened to be in the field. "Vatios Objetivo" no longer has its own
-  // input at all here — see `quickValid`'s own comment below.
+  // "Aislamiento de Estado entre Modos" — Strava/GPX and Entreno Manual keep
+  // strictly independent intensity and input states so switching tabs never
+  // pollutes or overwrites the other mode's selections.
+  const [routeIntensity, setRouteIntensity] = useState<IntensityLevel | "">("");
+  const [manualIntensity, setManualIntensity] = useState<IntensityLevel | "">("");
+  const intensity = mode === "quick" ? manualIntensity : routeIntensity;
+  const setIntensity = (val: IntensityLevel | "") => {
+    if (mode === "quick") {
+      setManualIntensity(val);
+    } else {
+      setRouteIntensity(val);
+    }
+  };
+
+  // "Entreno Manual Avanzado" — Terrain, Calculation Mode & Inputs
+  const [manualTerrain, setManualTerrain] = useState<ManualTerrain>("medium_mountain");
+  const [manualCalcMode, setManualCalcMode] = useState<ManualCalcMode>("time");
   const [quickHoursInput, setQuickHoursInput] = useState("");
   const [quickMinutesInput, setQuickMinutesInput] = useState("");
+  const [manualDistanceKmInput, setManualDistanceKmInput] = useState("");
+  const [manualCustomDistanceInput, setManualCustomDistanceInput] = useState("");
+  const [manualDurationOverride, setManualDurationOverride] = useState<{ hours: string; minutes: string } | null>(null);
+
+  // "Comparación Inteligente de Estado para Re-calcular"
+  const [lastCalculatedInputs, setLastCalculatedInputs] = useState<CalculatedInputsSnapshot | null>(null);
   // "Hoy" stays the default day (a same-day departure is still the single
   // most common case, and picking a day is a low-stakes default unlike a
   // route or intensity choice that could silently drive a wrong
@@ -1505,18 +1564,74 @@ export function FuelingPlanner({
     }
   }
 
-  // Derived from the 2 raw text inputs above — `0` (not `NaN`) for a blank
-  // field, so `quickValid` below cleanly reads "not entered yet" rather than
-  // a broken calculation. Horas + Minutos combine into one decimal-hours
-  // figure, same unit `handleCalculate`'s request body always expected.
-  // "Vatios Objetivo" was removed entirely (see the API route's own quick-
-  // mode branch) — the engine now derives relative intensity purely from
-  // the shared Intensidad Objetivo selector's %FTP figure, so a real
-  // intensity selection is mandatory here too, not just duration.
-  const quickHoursNum = Number(quickHoursInput) || 0;
-  const quickMinutesNum = Number(quickMinutesInput) || 0;
-  const quickDurationHours = quickHoursNum + quickMinutesNum / 60;
-  const quickValid = quickDurationHours > 0 && intensity !== "";
+  // "Entreno Manual Avanzado: Cálculo Bidireccional de Velocidad y Duración/Distancia"
+  const projectedSpeedKmh = useMemo(
+    () => getProjectedSpeedKmh({ ftp, weightKg, intensity: manualIntensity, terrain: manualTerrain }),
+    [ftp, weightKg, manualIntensity, manualTerrain]
+  );
+
+  const manualCalcResults = useMemo(() => {
+    if (manualCalcMode === "time") {
+      const timeDurationHours = (Number(quickHoursInput) || 0) + (Number(quickMinutesInput) || 0) / 60;
+      const customDist = Number(manualCustomDistanceInput);
+      const isDistanceEdited = manualCustomDistanceInput !== "" && !isNaN(customDist) && customDist > 0;
+      const distanceKm = isDistanceEdited ? customDist : Math.round(timeDurationHours * projectedSpeedKmh * 10) / 10;
+      const effectiveSpeed = timeDurationHours > 0 ? Math.round((distanceKm / timeDurationHours) * 10) / 10 : projectedSpeedKmh;
+      return {
+        durationHours: timeDurationHours,
+        distanceKm,
+        effectiveSpeedKmh: effectiveSpeed,
+        isDistanceEdited,
+        isDurationEdited: false,
+        hoursInput: quickHoursInput,
+        minutesInput: quickMinutesInput,
+      };
+    } else {
+      const distKm = Number(manualDistanceKmInput) || 0;
+      const terrainOpt = MANUAL_TERRAIN_OPTIONS.find((t) => t.id === manualTerrain) ?? MANUAL_TERRAIN_OPTIONS[1];
+      const elevationGainM = distKm * terrainOpt.elevationMPerKm;
+      const estHours = distKm > 0
+        ? estimateRideDurationHours({
+            distanceKm: distKm,
+            elevationGainM,
+            ftp: ftp || 200,
+            weightKg: weightKg || 70,
+            intensity: manualIntensity || "endurance",
+          })
+        : 0;
+      const isDurationEdited = manualDurationOverride !== null;
+      const hoursInput = isDurationEdited ? manualDurationOverride.hours : (distKm > 0 ? decimalHoursToParts(estHours).hours : "");
+      const minutesInput = isDurationEdited ? manualDurationOverride.minutes : (distKm > 0 ? decimalHoursToParts(estHours).minutes : "");
+      const durationHours = isDurationEdited
+        ? (Number(hoursInput) || 0) + (Number(minutesInput) || 0) / 60
+        : estHours;
+      const effectiveSpeed = durationHours > 0 ? Math.round((distKm / durationHours) * 10) / 10 : projectedSpeedKmh;
+      return {
+        durationHours,
+        distanceKm: distKm,
+        effectiveSpeedKmh: effectiveSpeed,
+        isDistanceEdited: false,
+        isDurationEdited,
+        hoursInput,
+        minutesInput,
+      };
+    }
+  }, [
+    manualCalcMode,
+    quickHoursInput,
+    quickMinutesInput,
+    manualCustomDistanceInput,
+    manualDistanceKmInput,
+    manualTerrain,
+    manualDurationOverride,
+    projectedSpeedKmh,
+    ftp,
+    weightKg,
+    manualIntensity,
+  ]);
+
+  const quickDurationHours = manualCalcResults.durationHours;
+  const quickValid = quickDurationHours > 0 && manualIntensity !== "";
 
   // "Algoritmo Físico Dinámico" — blank (`{ hours: "", minutes: "" }`) until
   // an intensity zone is actually chosen; once it is, `estimateRideDurationHours()`
@@ -1625,6 +1740,56 @@ export function FuelingPlanner({
     ? routeDurationOverride.minutesInput
     : routeDurationDefault.minutes;
   const routeDurationHours = Math.max(0.25, (Number(routeHoursInput) || 0) + (Number(routeMinutesInput) || 0) / 60);
+
+  const effectiveDurationHours = useMemo(() => {
+    if (mode === "route") return routeDurationHours;
+    if (mode === "gpx") return gpxDurationHours;
+    return manualCalcResults.durationHours;
+  }, [mode, routeDurationHours, gpxDurationHours, manualCalcResults.durationHours]);
+
+  const gpxIdentifier = useMemo(() => {
+    if (mode === "gpx" && parsedGpx) {
+      return `${parsedGpx.name}_${parsedGpx.distanceKm}_${parsedGpx.elevationGainM}`;
+    }
+    return "";
+  }, [mode, parsedGpx]);
+
+  const currentInputs = useMemo<CalculatedInputsSnapshot>(() => ({
+    mode,
+    selectedRouteId: mode === "route" ? selectedRouteId : "",
+    gpxIdentifier,
+    durationHours: effectiveDurationHours,
+    intensity,
+    departureDayMode,
+    departureCustomDate,
+    departureHour,
+    isTargetEvent,
+    trainLowEffective,
+    cafeteriaStopCount,
+    manualTerrain,
+    manualCalcMode,
+    manualDistanceKm: mode === "quick" ? manualCalcResults.distanceKm : 0,
+  }), [
+    mode,
+    selectedRouteId,
+    gpxIdentifier,
+    effectiveDurationHours,
+    intensity,
+    departureDayMode,
+    departureCustomDate,
+    departureHour,
+    isTargetEvent,
+    trainLowEffective,
+    cafeteriaStopCount,
+    manualTerrain,
+    manualCalcMode,
+    manualCalcResults.distanceKm,
+  ]);
+
+  const isInputsChanged = useMemo(() => {
+    if (!lastCalculatedInputs) return true;
+    return !areInputsEqual(currentInputs, lastCalculatedInputs);
+  }, [currentInputs, lastCalculatedInputs]);
   // Drives the CTA's gating/helper-text/tooltip for the two route-based
   // modes — a route (or GPX) alone isn't enough to calculate against
   // without an intensity too, and vice versa.
@@ -1952,12 +2117,6 @@ export function FuelingPlanner({
         return;
       }
       setParsedGpx(parsed);
-      // No duration is set here anymore — `gpxDurationDefault` (above)
-      // derives it fresh from `parsedGpx`/`intensity` the moment both are
-      // known, same "blank until intensity is chosen" rule as Route mode.
-      // A successful upload makes the GPX the active route source — the
-      // Strava selector resets/clears rather than sitting alongside it, so
-      // there's only ever one route "in play" at a time.
       setMode("gpx");
       setSelectedRouteId("");
       setGpxUploadOpen(false);
@@ -1968,18 +2127,6 @@ export function FuelingPlanner({
   }
 
   async function handleCalculate() {
-    // "Validación Secuencial Inteligente" — the CTA stays clickable even
-    // while Paso 01/02 is still incomplete (see the button's own
-    // `disabled` condition below, which no longer covers these cases)
-    // specifically so a click still lands here and can guide the athlete
-    // to whatever's missing — but one gap at a time, in the order the form
-    // itself reads (route/GPX/duración first, intensidad second), rather
-    // than reporting both at once. Never calls `.focus()` on a `<select>`:
-    // on iOS Safari, programmatically focusing a `<select>` pops its
-    // native picker wheel open uninvited, which read as the page "forcing"
-    // a menu open rather than simply pointing at what's missing — a real
-    // `<input>` (Duración) has no such side effect, so that one still gets
-    // `.focus()` for a real keyboard. Returns before ever calling the API.
     if (mode === "route") {
       if (!selectedRoute) {
         setRouteError(true);
@@ -2009,12 +2156,9 @@ export function FuelingPlanner({
     } else if (mode === "quick") {
       if (quickDurationHours <= 0) {
         setRouteError(true);
-        scrollToFieldError("duration-hours");
-        // A real `<input>`, safe to focus programmatically (unlike a
-        // `<select>` — see this function's own top comment) — deferred
-        // alongside the scroll itself so focus lands after the browser has
-        // actually settled the scroll position, not before it.
-        requestAnimationFrame(() => document.getElementById("duration-hours")?.focus());
+        const targetId = manualCalcMode === "time" ? "duration-hours" : "distance-km";
+        scrollToFieldError(targetId);
+        requestAnimationFrame(() => document.getElementById(targetId)?.focus());
         return;
       }
       setRouteError(false);
@@ -2030,11 +2174,6 @@ export function FuelingPlanner({
     setError(null);
     try {
       const departureIso = new Date(departureLocal).toISOString();
-      // `includeCaffeine` is no longer sent at all — it was only ever a
-      // modifier on the now-removed generic gel catalog (see "Limpieza de
-      // Despensa Genérica"); `PocketFoodSelection.includeCaffeine` stays
-      // optional in `lib/metabolic-engine.ts` and simply defaults falsy
-      // server-side when omitted, so no caffeine milestone is scheduled.
       const pocketFoodPayload = {
         ...pocketFood,
         customCarbsG,
@@ -2051,10 +2190,6 @@ export function FuelingPlanner({
               endLat: selectedRoute.endLat,
               endLng: selectedRoute.endLng,
               routeId: selectedRoute.id,
-              // Only present once the athlete has actually edited "Tiempo
-              // estimado" for this route — otherwise the server keeps
-              // using its own FTP/intensity-aware `estimateRideDurationHours()`
-              // estimate, same as before this field existed.
               ...(routeDurationOverridden ? { durationHoursOverride: routeDurationHours } : {}),
               intensity,
               isTargetEvent,
@@ -2081,24 +2216,9 @@ export function FuelingPlanner({
                 troughLng: parsedGpx.troughLng,
                 troughDistanceFraction: parsedGpx.troughDistanceFraction,
                 troughElevationM: parsedGpx.troughElevationM,
-                // "Rutas Multipuerto de Alta Montaña" — a GPX track already
-                // has per-point altitude, so the passes are detected locally
-                // (see `lib/gpx-import.ts`) rather than needing a Strava
-                // streams call the way a saved route does.
                 mountainPasses: parsedGpx.mountainPasses,
-                // "Algoritmo de Detección de Puertos/Valles" — the same
-                // Salida/Valle/Cima/Llegada milestone list and elevation
-                // curve a Strava route resolves server-side via its own
-                // streams call, computed locally instead since a GPX file
-                // already carries per-point altitude — feeds Card 03's
-                // thermal-impact carousel with real per-hito weather.
                 elevationMilestones: parsedGpx.elevationMilestones,
                 elevationProfile: parsedGpx.elevationProfile,
-                // "Regla de Oro: Sin Inferencia de Nombres" — real, explicit
-                // `<wpt>` waypoints from the file itself, checked server-side
-                // before Overpass for a "peak" hito's name (see
-                // `findNearestWaypointName` in `lib/overpass.ts`). Never a
-                // name guessed from the GPX's own title/filename.
                 waypoints: parsedGpx.waypoints,
                 intensity,
                 isTargetEvent,
@@ -2110,10 +2230,6 @@ export function FuelingPlanner({
                 mode: "quick",
                 departureIso,
                 durationHours: quickDurationHours,
-                // No more "Vatios Objetivo" input — the server derives
-                // relative intensity purely from this zone's %FTP against
-                // the athlete's real profile FTP, same shared selector as
-                // route/GPX mode.
                 intensity,
                 isTargetEvent,
                 pocketFood: pocketFoodPayload,
@@ -2139,11 +2255,10 @@ export function FuelingPlanner({
       }
       setResult(data);
       setHasCalculatedOnce(true);
+      setLastCalculatedInputs(currentInputs);
       setIsOfflineCache(false);
-      // A fresh calculation already used the athlete's real profile bottle
-      // size — any in-situ override from a previous result no longer
-      // applies to this new one.
       setBottleCapacityOverrideMl(null);
+      setBottleCapacityEditorOpen(false);
       setBottleCapacityEditorOpen(false);
       setShowBikeScoops(false);
       try {
@@ -2173,53 +2288,38 @@ export function FuelingPlanner({
         {/* PASO 01 · Selección y origen de ruta — the mode toggle plus
             whichever source-specific fields that mode needs (Strava route
             select + map, manual duration/watts, or a GPX upload + map).
-            Shares the exact same border/radius/bg/shadow/margin as every
-            other numbered card (`numberedCardClass`) — its own padding is
-            cancelled on the outer wrapper (`p-0`) and moved to the inner
-            `<div>` instead, since `RouteMapPreview` needs to bleed flush
-            against this card's own left/right/bottom edges (the label/
-            select/dropzone portion above it keeps the real padding). This
-            card's own `overflow-hidden` (needed so the map's bottom corners
-            clip against this wrapper's `rounded-2xl` instead of the map's
-            own square corners showing through) is independent of the outer
-            `<div>` above, which carries no `overflow` class of its own. */}
-        <div className={cn(numberedCardClass, "overflow-hidden p-0 sm:p-0 md:p-0")}>
+            other numbered card (`numberedCardClass`). */}
+        <div className={cn(numberedCardClass, "overflow-hidden p-0 sm:p-0 md:p-0 transition-opacity duration-200", loading && "pointer-events-none opacity-50")}>
           <div className="p-4 sm:p-5 md:p-6">
             <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
               01 · Selección y origen de ruta
             </span>
 
-            {/* Simplified from 3 tabs to 2 — "Ruta / GPX" absorbs the old
-                standalone "Subir GPX" tab as a nested secondary action
-                inside the Strava-route tab instead of a third top-level
-                mode, since both are really the same underlying concept ("a
-                route with real geometry") differing only in *where* that
-                geometry comes from. `mode` itself still has 3 internal
-                values (route/quick/gpx) — everything downstream (Paso 02's
-                conditionals, the map render, `handleCalculate`'s request
-                body) is untouched; only this toggle and Paso 01's own
-                internals changed. */}
             <div className="mt-2 grid grid-cols-2 gap-2 *:min-w-0">
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => setMode(parsedGpx ? "gpx" : "route")}
                 className={cn(
                   segmentedButtonClass,
                   mode === "route" || mode === "gpx"
                     ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
-                    : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
+                    : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+                  loading && "cursor-not-allowed opacity-60"
                 )}
               >
                 <span className={segmentedButtonLabelClass}>Strava / GPX</span>
               </button>
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => setMode("quick")}
                 className={cn(
                   segmentedButtonClass,
                   mode === "quick"
                     ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
-                    : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
+                    : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+                  loading && "cursor-not-allowed opacity-60"
                 )}
               >
                 <span className={segmentedButtonLabelClass}>Entreno Manual</span>
@@ -2229,10 +2329,6 @@ export function FuelingPlanner({
             {(mode === "route" || mode === "gpx") && (
               <div className="mt-4">
                 {mode === "gpx" && parsedGpx ? (
-                  // A GPX has been uploaded and is the active route source —
-                  // the Strava selector is hidden entirely (not just cleared)
-                  // while it's active, so there's only ever one visible
-                  // "current route" at a time.
                   <div className="flex items-center justify-between gap-3 rounded-sm bg-[#F8F7F5] px-4 py-2.5">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-zinc-900">{parsedGpx.name}</p>
@@ -2242,16 +2338,14 @@ export function FuelingPlanner({
                     </div>
                     <button
                       type="button"
+                      disabled={loading}
                       onClick={() => {
                         setParsedGpx(null);
                         setGpxError(null);
                         setMode("route");
-                        // Back to a genuinely empty selection, not the first
-                        // Strava route — same "never silently pick one for
-                        // the athlete" rule the initial state follows.
                         setSelectedRouteId("");
                       }}
-                      className="shrink-0 cursor-pointer text-[11px] font-semibold tracking-widest text-zinc-500 uppercase transition-colors duration-150 hover:text-zinc-900"
+                      className="shrink-0 cursor-pointer text-[11px] font-semibold tracking-widest text-zinc-500 uppercase transition-colors duration-150 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Quitar GPX
                     </button>
@@ -2267,7 +2361,7 @@ export function FuelingPlanner({
                           <button
                             type="button"
                             onClick={handleRefreshRoutes}
-                            disabled={refreshingRoutes}
+                            disabled={refreshingRoutes || loading}
                             title="Recargar rutas desde Strava"
                             className="flex cursor-pointer items-center gap-1 text-[10px] font-mono font-semibold text-[#70685b] transition-colors duration-150 hover:text-[#585248] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           >
@@ -2275,28 +2369,12 @@ export function FuelingPlanner({
                             {refreshingRoutes ? "Sincronizando…" : "Recargar"}
                           </button>
                         </div>
-                        {/* "Unificación de Estilo en Input/Select de Ruta" —
-                            this select used to carry its own bespoke
-                            porcelain `bg-[#F8F7F5]`/`border-0` treatment,
-                            reading as visually distinct from every other
-                            select in the app (Card 02's Intensidad
-                            objetivo, Fecha y hora de salida, etc.). Now the
-                            exact same shared `selectableFieldClass` those
-                            use — white fill, thin `border-zinc-200/80`,
-                            border-color-only focus state — so this is
-                            genuinely the same design-system token, not a
-                            visually-matching one-off copy of it. The
-                            select's own background/native arrow still
-                            render unconditionally regardless of
-                            `refreshingRoutes` — a refresh never swaps this
-                            control for a generic loading block, just dims
-                            its text and overlays a spinner (below). */}
                         <div className="relative mt-1.5">
                           <select
                             id="route"
                             className={cn(
                               selectableFieldClass,
-                              refreshingRoutes && "text-zinc-400",
+                              (refreshingRoutes || loading) && "text-zinc-400",
                               routeError && "border-2 border-amber-400 bg-amber-50/20"
                             )}
                             value={refreshingRoutes ? "__syncing" : selectedRouteId}
@@ -2304,7 +2382,7 @@ export function FuelingPlanner({
                               setSelectedRouteId(e.target.value);
                               setRouteError(false);
                             }}
-                            disabled={refreshingRoutes}
+                            disabled={refreshingRoutes || loading}
                           >
                             {refreshingRoutes ? (
                               <option value="__syncing" className="font-mono text-xs text-neutral-400">
@@ -2346,7 +2424,7 @@ export function FuelingPlanner({
                         <button
                           type="button"
                           onClick={handleRefreshRoutes}
-                          disabled={refreshingRoutes}
+                          disabled={refreshingRoutes || loading}
                           className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold tracking-widest text-neutral-600 uppercase transition-colors duration-150 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <RefreshCw className={cn("size-3.5", refreshingRoutes && "animate-spin")} />
@@ -2355,14 +2433,11 @@ export function FuelingPlanner({
                       </div>
                     )}
 
-                    {/* Compact secondary action — GPX upload is nested here
-                        rather than a third top-level tab, since uploading a
-                        file is just an alternate way of arriving at the same
-                        "route with real geometry" this whole card is about. */}
                     <button
                       type="button"
+                      disabled={loading}
                       onClick={() => setGpxUploadOpen((v) => !v)}
-                      className="mt-2 flex cursor-pointer items-center gap-1.5 font-mono text-[11px] font-semibold text-[#70685b] transition-colors duration-150 hover:text-[#585248] hover:underline"
+                      className="mt-2 flex cursor-pointer items-center gap-1.5 font-mono text-[11px] font-semibold text-[#70685b] transition-colors duration-150 hover:text-[#585248] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Upload className="size-3.5" />
                       {gpxUploadOpen ? "Cancelar" : "+ Subir GPX"}
@@ -2372,11 +2447,13 @@ export function FuelingPlanner({
                       <div className="mt-2">
                         <div
                           onDragOver={(e) => {
+                            if (loading) return;
                             e.preventDefault();
                             setIsDraggingGpx(true);
                           }}
                           onDragLeave={() => setIsDraggingGpx(false)}
                           onDrop={(e) => {
+                            if (loading) return;
                             e.preventDefault();
                             setIsDraggingGpx(false);
                             const file = e.dataTransfer.files?.[0];
@@ -2389,7 +2466,8 @@ export function FuelingPlanner({
                               ? "border-neutral-900 bg-neutral-50"
                               : routeError
                                 ? "border-amber-400 bg-amber-50/20"
-                                : "border-neutral-300"
+                                : "border-neutral-300",
+                            loading && "pointer-events-none opacity-50"
                           )}
                         >
                           <Upload className="size-5 text-neutral-400" />
@@ -2397,7 +2475,10 @@ export function FuelingPlanner({
                             Arrastra tu archivo .gpx aquí, o{" "}
                             <label
                               htmlFor="gpx-upload"
-                              className="cursor-pointer font-semibold text-neutral-900 underline underline-offset-2"
+                              className={cn(
+                                "cursor-pointer font-semibold text-neutral-900 underline underline-offset-2",
+                                loading && "cursor-not-allowed"
+                              )}
                             >
                               selecciona un archivo
                             </label>
@@ -2406,6 +2487,7 @@ export function FuelingPlanner({
                             id="gpx-upload"
                             type="file"
                             accept=".gpx"
+                            disabled={loading}
                             className="hidden"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
@@ -2428,85 +2510,294 @@ export function FuelingPlanner({
 
             {mode === "quick" && (
               <div className="mt-4 flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <label className={formFieldLabelClass}>Duración estimada</label>
-                  {/* Horas/Minutos used to be two full-width stacked inputs
-                      (each its own grid cell in a 3-col row alongside Vatios
-                      Objetivo) — on mobile that meant two full-width boxes
-                      taking double the vertical space for one logical
-                      value. Merged into one label with a 2-col inner grid
-                      instead, each input carrying its own unit suffix so
-                      there's no separate text label needed per field. */}
-                  <div className="grid grid-cols-2 gap-3 *:min-w-0">
+                {/* 1. Selector de Terreno */}
+                <div className="flex flex-col gap-1.5">
+                  <label className={formFieldLabelClass}>Terreno de la Salida</label>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 *:min-w-0">
+                    {MANUAL_TERRAIN_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        disabled={loading}
+                        onClick={() => setManualTerrain(opt.id)}
+                        className={cn(
+                          segmentedButtonClass,
+                          "flex flex-col items-center justify-center py-2 px-2 text-center",
+                          manualTerrain === opt.id
+                            ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                            : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+                          loading && "cursor-not-allowed opacity-60"
+                        )}
+                      >
+                        <span className="font-semibold text-xs">{opt.label}</span>
+                        <span className={cn("text-[10px] font-mono", manualTerrain === opt.id ? "text-zinc-200" : "text-zinc-500")}>
+                          {opt.sublabel}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Selector de Modo de Cálculo */}
+                <div className="flex flex-col gap-1.5">
+                  <label className={formFieldLabelClass}>Modo de Cálculo</label>
+                  <div className="grid grid-cols-2 gap-2 *:min-w-0">
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => setManualCalcMode("time")}
+                      className={cn(
+                        segmentedButtonClass,
+                        manualCalcMode === "time"
+                          ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                          : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+                        loading && "cursor-not-allowed opacity-60"
+                      )}
+                    >
+                      <span className={segmentedButtonLabelClass}>Por Tiempo (Horas)</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => setManualCalcMode("distance")}
+                      className={cn(
+                        segmentedButtonClass,
+                        manualCalcMode === "distance"
+                          ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                          : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+                        loading && "cursor-not-allowed opacity-60"
+                      )}
+                    >
+                      <span className={segmentedButtonLabelClass}>Por Distancia (km)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Inputs segun Modo de Cálculo */}
+                {manualCalcMode === "time" ? (
+                  <div className="flex flex-col gap-2">
+                    <label className={formFieldLabelClass}>Duración estimada</label>
+                    <div className="grid grid-cols-2 gap-3 *:min-w-0">
+                      <div className="relative flex items-center">
+                        <input
+                          id="duration-hours"
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          step={1}
+                          placeholder="0"
+                          aria-label="Horas"
+                          disabled={loading}
+                          className={cn(
+                            inputClass,
+                            "pr-8",
+                            routeError && "border-2 border-amber-400 bg-amber-50/20",
+                            loading && "cursor-not-allowed opacity-60"
+                          )}
+                          value={quickHoursInput}
+                          onChange={(e) => {
+                            setQuickHoursInput(e.target.value);
+                            setRouteError(false);
+                          }}
+                        />
+                        <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                          h
+                        </span>
+                      </div>
+                      <div className="relative flex items-center">
+                        <input
+                          id="duration-minutes"
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          max={59}
+                          step={5}
+                          placeholder="0"
+                          aria-label="Minutos"
+                          disabled={loading}
+                          className={cn(inputClass, "pr-10", loading && "cursor-not-allowed opacity-60")}
+                          value={quickMinutesInput}
+                          onChange={(e) => {
+                            setQuickMinutesInput(e.target.value);
+                            setRouteError(false);
+                          }}
+                        />
+                        <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
+                          min
+                        </span>
+                      </div>
+                    </div>
+                    {/* Lectura informativa y edición bidireccional de distancia */}
+                    {manualCalcResults.durationHours > 0 && (
+                      <div className="mt-1 flex flex-col gap-1.5 rounded-sm bg-zinc-50 p-2.5 border border-zinc-200/80">
+                        <div className="flex items-center justify-between text-xs text-zinc-600">
+                          <span>Distancia estimada:</span>
+                          <span className="font-mono font-semibold text-zinc-800">
+                            ~{manualCalcResults.distanceKm} km
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-zinc-500">
+                          <span>Velocidad media proyectada:</span>
+                          <span className="font-mono text-zinc-700">
+                            {manualCalcResults.effectiveSpeedKmh} km/h
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <label htmlFor="custom-distance" className="text-[11px] font-mono text-zinc-500 whitespace-nowrap">
+                            Ajustar km manualmente:
+                          </label>
+                          <input
+                            id="custom-distance"
+                            type="number"
+                            inputMode="decimal"
+                            step={0.5}
+                            placeholder={`${manualCalcResults.distanceKm}`}
+                            disabled={loading}
+                            className={cn(inputClass, "h-7 text-xs px-2 py-0 w-24 font-mono", loading && "opacity-60")}
+                            value={manualCustomDistanceInput}
+                            onChange={(e) => setManualCustomDistanceInput(e.target.value)}
+                          />
+                          {manualCustomDistanceInput !== "" && (
+                            <button
+                              type="button"
+                              disabled={loading}
+                              onClick={() => setManualCustomDistanceInput("")}
+                              className="text-[10px] text-zinc-400 hover:text-zinc-700 underline font-mono"
+                            >
+                              Restablecer
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {routeError && (
+                      <span className="mt-1 block font-mono text-[10px] text-amber-700">
+                        * Por favor, introduce una duración
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <label className={formFieldLabelClass}>Distancia estimada (km)</label>
                     <div className="relative flex items-center">
                       <input
-                        id="duration-hours"
+                        id="distance-km"
                         type="number"
-                        inputMode="numeric"
+                        inputMode="decimal"
                         min={0}
                         step={1}
-                        placeholder="0"
-                        aria-label="Horas"
+                        placeholder="ej. 60"
+                        aria-label="Distancia en km"
                         disabled={loading}
                         className={cn(
                           inputClass,
-                          "pr-8",
+                          "pr-12",
                           routeError && "border-2 border-amber-400 bg-amber-50/20",
                           loading && "cursor-not-allowed opacity-60"
                         )}
-                        value={quickHoursInput}
+                        value={manualDistanceKmInput}
                         onChange={(e) => {
-                          setQuickHoursInput(e.target.value);
+                          setManualDistanceKmInput(e.target.value);
+                          setManualDurationOverride(null);
                           setRouteError(false);
                         }}
                       />
                       <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
-                        h
+                        km
                       </span>
                     </div>
-                    <div className="relative flex items-center">
-                      <input
-                        id="duration-minutes"
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        max={59}
-                        step={5}
-                        placeholder="0"
-                        aria-label="Minutos"
-                        disabled={loading}
-                        className={cn(inputClass, "pr-10", loading && "cursor-not-allowed opacity-60")}
-                        value={quickMinutesInput}
-                        onChange={(e) => {
-                          setQuickMinutesInput(e.target.value);
-                          setRouteError(false);
-                        }}
-                      />
-                      <span className="pointer-events-none absolute right-3 font-mono text-xs text-zinc-400">
-                        min
+
+                    {manualCalcResults.distanceKm > 0 && (
+                      <div className="mt-1 flex flex-col gap-2 rounded-sm bg-zinc-50 p-2.5 border border-zinc-200/80">
+                        <div className="flex items-center justify-between text-xs text-zinc-600">
+                          <span>Duración estimada:</span>
+                          <span className="font-mono font-semibold text-zinc-800">
+                            {formatHoursMinutes(manualCalcResults.durationHours)}
+                            {manualCalcResults.isDurationEdited && " (manual)"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-zinc-500">
+                          <span>Velocidad media proyectada:</span>
+                          <span className="font-mono text-zinc-700">
+                            {manualCalcResults.effectiveSpeedKmh} km/h
+                          </span>
+                        </div>
+
+                        <div className="mt-1 flex flex-col gap-1 border-t border-zinc-200/60 pt-2">
+                          <span className="text-[11px] font-mono text-zinc-500">
+                            Ajustar tiempo manualmente:
+                          </span>
+                          <div className="grid grid-cols-2 gap-2 *:min-w-0">
+                            <div className="relative flex items-center">
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min={0}
+                                step={1}
+                                placeholder="h"
+                                disabled={loading}
+                                className={cn(inputClass, "h-7 text-xs pr-6", loading && "opacity-60")}
+                                value={manualCalcResults.hoursInput}
+                                onChange={(e) =>
+                                  setManualDurationOverride({
+                                    hours: e.target.value,
+                                    minutes: manualCalcResults.minutesInput,
+                                  })
+                                }
+                              />
+                              <span className="pointer-events-none absolute right-2 font-mono text-[10px] text-zinc-400">
+                                h
+                              </span>
+                            </div>
+                            <div className="relative flex items-center">
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min={0}
+                                max={59}
+                                step={5}
+                                placeholder="min"
+                                disabled={loading}
+                                className={cn(inputClass, "h-7 text-xs pr-8", loading && "opacity-60")}
+                                value={manualCalcResults.minutesInput}
+                                onChange={(e) =>
+                                  setManualDurationOverride({
+                                    hours: manualCalcResults.hoursInput,
+                                    minutes: e.target.value,
+                                  })
+                                }
+                              />
+                              <span className="pointer-events-none absolute right-2 font-mono text-[10px] text-zinc-400">
+                                min
+                              </span>
+                            </div>
+                          </div>
+                          {manualCalcResults.isDurationEdited && (
+                            <button
+                              type="button"
+                              disabled={loading}
+                              onClick={() => setManualDurationOverride(null)}
+                              className="mt-1 text-left text-[10px] text-zinc-400 hover:text-zinc-700 underline font-mono"
+                            >
+                              Restablecer tiempo estimado
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {routeError && (
+                      <span className="mt-1 block font-mono text-[10px] text-amber-700">
+                        * Por favor, introduce la distancia en km
                       </span>
-                    </div>
+                    )}
                   </div>
-                  {routeError && (
-                    <span className="mt-1 block font-mono text-[10px] text-amber-700">
-                      * Por favor, introduce una duración
-                    </span>
-                  )}
-                </div>
-                {/* "Vatios Objetivo" was removed entirely — its own input
-                    used to sit here, next to Duración, as an independent
-                    watts-based intensity source. The shared Intensidad
-                    Objetivo selector now covers that role for every mode
-                    (unlike before, where leaving this on its placeholder
-                    was a valid choice in Entreno Manual specifically) —
-                    the engine derives relative intensity purely from this
-                    zone's %FTP against the athlete's real profile FTP, so
-                    a real selection is mandatory here too (see
-                    `quickValid`). */}
+                )}
+
+                {/* 4. Selector de Intensidad Objetivo */}
                 <IntensityObjectiveSelect
                   id="intensity-quick"
-                  value={intensity}
-                  onChange={setIntensity}
+                  value={manualIntensity}
+                  onChange={setManualIntensity}
                   error={intensityError}
                   disabled={loading}
                 />
@@ -2957,19 +3248,7 @@ export function FuelingPlanner({
             disabled={
               loading ||
               !isProfileComplete ||
-              // "Ciclo de Vida del Botón Principal" — once a result exists
-              // for the current inputs, the button disables itself
-              // immediately (nothing left to (re)calculate until something
-              // changes) — the "Reseteo Automático" effect above is what
-              // clears `result` and re-enables it the instant any Paso
-              // 01/02 input actually changes.
-              Boolean(result)
-              // Deliberately *not* disabled just because the route/GPX/
-              // duration input is still incomplete — `handleCalculate`
-              // itself checks that first and, when it's missing, scrolls/
-              // focuses the relevant Paso 01/02 control instead of the
-              // button silently refusing to respond (see its own doc
-              // comment above).
+              (Boolean(lastCalculatedInputs) && !isInputsChanged)
             }
             title={
               isProfileComplete && routeModeIncomplete
