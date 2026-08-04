@@ -1,4 +1,4 @@
-import { TriangleAlert } from "lucide-react";
+import { Lock, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { memo, type ReactNode } from "react";
 
@@ -167,17 +167,19 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
                 stat-grid pattern, the Fueling Planner's terracotta-accented
                 recommendation block). The 3 sub-blocks (route header, stat
                 row, ingesta block) are separated by thin `divide-y
-                divide-zinc-200/80` rules, each with generous `py-4 sm:py-5`
-                padding so text never sits flush against a line. A
-                continuous `border-l-2 border-terracotta` runs down the
-                *outside* of the whole group (not on any one sub-block) —
-                one elegant accent marking this entire data section as a
-                single unit, rather than the left-accent bar an earlier
-                design put on just the ingesta block alone. 100%
-                typographic — no icons, no emoji — and every figure here is
-                illustrative/static. */}
+                divide-zinc-200/80` rules, `py-3 sm:py-3.5` padding (down
+                from `py-4 sm:py-5` — "Optimización de Espacio Vertical,"
+                a deliberate re-compaction once the new reassurance
+                micro-text below the CTA needed the extra room back) so
+                text never sits flush against a line. A continuous
+                `border-l-2 border-terracotta` runs down the *outside* of
+                the whole group (not on any one sub-block) — one elegant
+                accent marking this entire data section as a single unit,
+                rather than the left-accent bar an earlier design put on
+                just the ingesta block alone. 100% typographic — no icons,
+                no emoji — and every figure here is illustrative/static. */}
             <div className="w-full divide-y divide-zinc-200/80 border-l-2 border-terracotta pl-4 text-left sm:pl-5">
-              <div className="py-4 sm:py-5">
+              <div className="py-3 sm:py-3.5">
                 <p className="truncate font-mono text-xs font-bold text-neutral-900 sm:text-sm">
                   Sa Calobra – Coll dels Reis
                 </p>
@@ -186,7 +188,7 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
                 </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 py-4 text-center sm:gap-6 sm:py-5">
+              <div className="grid grid-cols-3 gap-4 py-3 text-center sm:gap-6 sm:py-3.5">
                 {telemetryStats.map((stat) => (
                   <div key={stat.label}>
                     <p className="truncate font-mono text-[9px] uppercase text-neutral-400 sm:text-[10px]">
@@ -199,7 +201,7 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
                 ))}
               </div>
 
-              <div className="py-4 sm:py-5">
+              <div className="py-3 sm:py-3.5">
                 <span className="mb-0.5 block font-mono text-[9px] text-neutral-400 uppercase sm:text-[10px]">
                   Pauta de ingesta (tolerancia media)
                 </span>
@@ -228,6 +230,23 @@ export function LoginHeroLayout({ cta, error }: { cta: ReactNode; error?: string
                   {error}
                 </div>
               )}
+
+              {/* "Micro-texto Tranquilizador" — a specific, concrete
+                  reassurance about *what* Strava access is actually used
+                  for (read-only, route data alone), sitting directly above
+                  the CTA where an athlete's last hesitation before clicking
+                  actually lives — distinct from the generic "conexión
+                  segura" + privacy-policy link below the button, which is
+                  about the connection/legal side rather than the specific
+                  data-use worry this answers. A lucide `Lock` icon stands
+                  in for the literal 🔒 glyph a first draft of this copy
+                  used — this app's no-emoji convention applies here too,
+                  same as everywhere else on this screen. */}
+              <p className="mb-1 flex items-center justify-center gap-1 text-center text-[10px] leading-tight text-zinc-500 sm:text-xs">
+                <Lock className="size-3 shrink-0" />
+                Solo leemos tus rutas para calcular desnivel y perfil altimétrico. Nunca
+                publicaremos nada en tu cuenta.
+              </p>
 
               {cta}
 
