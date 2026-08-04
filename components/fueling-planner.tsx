@@ -164,6 +164,28 @@ const SODIUM_SUGGESTION_COVERAGE_FRACTION = 0.8;
 const SALT_CAPSULE_SODIUM_MG = 450;
 const EVOLYTES_SODIUM_MG_PER_G = 280;
 
+// "Receta Mezcla Casera: Especificación de Evolytes" — the "Ver en cazos"
+// reveal used to show a generic "Sal común: Xg (~Y cdta.)" line, derived
+// from the athlete's own computed sodium target — "sal" (table salt) reads
+// as plain sodium chloride, which invites confusion with literal kitchen
+// salt rather than a complete electrolyte complex (Na/K/Mg/Ca). Replaced
+// with the app's own official Evolytes dosing table, a fixed reference
+// gram figure per the app's 3 supported bottle sizes (`BOTTLE_CAPACITY_
+// QUICK_OPTIONS`) — a practical, real-world serving suggestion (how a
+// rider actually doses electrolyte powder into a bottle) rather than the
+// mg-precise sodium target used elsewhere (Card 03/05's own sodium
+// balance, unaffected by this table). The fallback for a bottle size
+// outside the fixed 3 keeps the same ~2g-per-550ml ratio as the reference
+// values, rather than assuming one of them.
+const EVOLYTES_GRAMS_BY_BOTTLE_SIZE: Record<number, number> = {
+  550: 2,
+  750: 3,
+  950: 4,
+};
+function getEvolytesGramsForBottleSize(bottleSizeMl: number): number {
+  return EVOLYTES_GRAMS_BY_BOTTLE_SIZE[bottleSizeMl] ?? Math.round((bottleSizeMl / 550) * 2);
+}
+
 // "Tip de Eficiencia: Mix vs. Solo Agua" — a demanding ride (long or hot)
 // run entirely on plain water leaves the athlete carrying their whole carb
 // target as pocket food, when dissolving even one bottle into a Mix would
@@ -846,7 +868,7 @@ type BikeManifestItem = ManifestItem & { kind: "mix" | "water" | "gel_ultra" };
  * this list could show more physical bottles than a bike has cages for
  * (e.g. "3x Bidón (Agua / Electrolitos)" on a 2-cage bike) — any water need
  * beyond that cap is a fountain refill, not a bottle to carry from home,
- * and is listed separately by `getWaterPlanLines` below instead.
+ * and is listed separately by `getWaterPlanLine` below instead.
  *
  * The "Productos Comerciales de Alta Densidad" sachet prep line (a
  * Maurten/Beta Fuel 80g HC sachet dissolved into its own bottle) used to
@@ -927,28 +949,18 @@ function getBikeManifestItems(
  * specifically), so it's listed here as a fountain-refill action instead of
  * a phantom bottle in the "En bici" checklist above.
  *
- * "Fix Matemático del Plan de Agua en Ruta" — takes the already-computed
- * `waterDeficitMl`/`fullRefillsNeeded`/`refillVolumePerStopMl` (derived
- * live from the athlete's real cage count × the *current* bottle size, see
- * that computation's own doc comment above) rather than reaching into
- * `result.reloadStrategy` itself, whose `waterRefillCount`/`waterRefillLiters`
- * are frozen at whatever bottle size the server used for the last
- * calculation — a real, reported incoherence once the bottle size is
- * overridden locally (e.g. a 2600ml deficit shown next to "1 recarga de
- * 600ml", when the real deficit needs ~5). Names the deficit explicitly in
- * the sentence itself, rather than just the refill count/volume, so the
- * "why" is visible right alongside the "what to do." */
-function getWaterPlanLines(
-  waterDeficitMl: number,
-  fullRefillsNeeded: number,
-  refillVolumePerStopMl: number
-): string[] {
-  if (fullRefillsNeeded <= 0) return [];
-  return [
-    `Plan de agua en ruta: ${fullRefillsNeeded} recarga${
-      fullRefillsNeeded > 1 ? "s" : ""
-    } en ruta (~${refillVolumePerStopMl}ml por parada para cubrir los ${waterDeficitMl}ml de déficit)`,
-  ];
+ * "Plan de Agua por Botellas Completas" — a rider refills at a fountain or
+ * gasolinera in whole bottles, never a fractional volume ("939ml") they'd
+ * need a measuring cup for on the road. Takes `stopsNeeded` (already
+ * computed live from the athlete's real cage count × the *current* bottle
+ * size, see that computation's own doc comment above) and states the plan
+ * purely in terms of full bottles — `${bottleCount}x ${bottleCapacityMl}ml
+ * completos` — rather than a per-stop ml figure. Always returns a real
+ * message (never `[]`) so the athlete sees an explicit "ya te alcanza"
+ * confirmation when no refill is needed, not silence. */
+function getWaterPlanLine(stopsNeeded: number, bottleCount: number, bottleCapacityMl: number): string {
+  if (stopsNeeded <= 0) return "Suficiente con el agua instalada en la bici.";
+  return `${stopsNeeded} ${stopsNeeded === 1 ? "parada" : "paradas"} en ruta (rellenar ${bottleCount}x ${bottleCapacityMl}ml completos)`;
 }
 
 function getPocketManifestItems(
@@ -1772,9 +1784,15 @@ export function FuelingPlanner({
   const installedCapacityMl =
     result && displayBottlePlan ? result.athleteBottleCount * displayBottlePlan.bottleSizeMl : 0;
   const waterDeficitMl = Math.max(0, totalFluidMl - installedCapacityMl);
+  // "Plan de Agua por Botellas Completas" — a rider always refills from a
+  // fountain/gasolinera in whole bottles, never a fractional volume like
+  // "939ml" a kitchen measuring cup would be needed for on the road. Each
+  // stop tops the *entire* installed capacity back up again (every cage,
+  // not one bottle at a time), so the number of stops is simply the
+  // deficit divided by that whole capacity, rounded up — no per-stop
+  // partial-volume figure needed at all.
   const fullRefillsNeeded =
     waterDeficitMl > 0 && installedCapacityMl > 0 ? Math.ceil(waterDeficitMl / installedCapacityMl) : 0;
-  const refillVolumePerStopMl = fullRefillsNeeded > 0 ? Math.round(waterDeficitMl / fullRefillsNeeded) : 0;
   const needsWaterRefill = fullRefillsNeeded > 0;
   // Kept under its old name for the "Déficit hídrico" bullet below, which
   // already reads it — now sourced from the live, consistent figure above
@@ -1937,7 +1955,10 @@ export function FuelingPlanner({
     ...getPocketManifestItems(pocketFood, customCarbsG),
     ...commercialManifestItems,
   ];
-  const waterPlanChecklistLines = getWaterPlanLines(waterDeficitMl, fullRefillsNeeded, refillVolumePerStopMl);
+  const waterPlanLine =
+    result && displayBottlePlan
+      ? getWaterPlanLine(fullRefillsNeeded, result.athleteBottleCount, displayBottlePlan.bottleSizeMl)
+      : "";
   const cafeteriaChecklistLines = getCafeteriaStopChecklistLines(cafeteriaStopPlans);
 
   // Card 05's "Cronograma Dinámico de Ingesta" merges the server-computed
@@ -3292,13 +3313,13 @@ export function FuelingPlanner({
                   <MetricAccentLine />
                 </div>
                 <div className="flex flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
-                  <span className="font-mono text-[11px] text-zinc-500">Sodio</span>
+                  <span className="font-mono text-[11px] text-zinc-500">Sodio (Na+)</span>
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
                     {result.sodiumMgPerHour}
                     <span className="ml-1 text-xs font-normal text-zinc-500">mg/h</span>
                   </span>
                   <span className="font-mono text-[11px] text-zinc-500">
-                    Total: {totalSodiumMg} mg
+                    Total: {totalSodiumMg} mg Na+
                   </span>
                   <MetricAccentLine />
                 </div>
@@ -3834,7 +3855,7 @@ export function FuelingPlanner({
                     </span>
                   </div>
                   <p className="pl-6 font-mono text-xs leading-relaxed text-amber-900/90">
-                    Te faltan <strong className="font-bold">{Math.round(sodiumDeficitMg)} mg de sodio</strong>{" "}
+                    Te faltan <strong className="font-bold">{Math.round(sodiumDeficitMg)} mg Na+</strong>{" "}
                     para cubrir tu ruta. Equivale a añadir{" "}
                     <strong className="font-bold">
                       {saltCapsulesNeeded} cápsula{saltCapsulesNeeded !== 1 ? "s" : ""} de sal
@@ -3922,15 +3943,28 @@ export function FuelingPlanner({
                   that's the conditional suggestion above) so the athlete can
                   evaluate their electrolyte balance any time either source
                   contributes sodium, even when coverage is already fine.
-                  Same neutral `bg-zinc-50` nested-box treatment as Bloque 1. */}
+                  Same neutral `bg-zinc-50` nested-box treatment as Bloque 1.
+                  "Nomenclatura Unificada Na+" — every sodium figure in this
+                  card now reads "mg Na+" explicitly rather than a bare "mg,"
+                  and the still-outstanding deficit (if any) is translated to
+                  operational units directly under the readout — same
+                  capsule/Evolytes-gram conversion as the "Sugerencia de
+                  electrolitos" banner above, just as a quieter micro-text
+                  here rather than a full alert. */}
               {totalSodiumCoveredMg > 0 && (
                 <div className="rounded-xl border border-zinc-200/70 bg-zinc-50 p-4">
                   <span className={manifestSubtitleClass}>Sodio total aportado (Bici + Bolsillos)</span>
                   <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm text-zinc-700">
                     <FlaskConical className="size-3.5 shrink-0 self-center text-zinc-500" />
-                    <span className="font-mono text-xl font-bold text-zinc-900">{totalSodiumCoveredMg} mg</span>
-                    <span className="font-mono text-xs text-zinc-500">de {totalSodiumMg} mg objetivo</span>
+                    <span className="font-mono text-xl font-bold text-zinc-900">{totalSodiumCoveredMg} mg Na+</span>
+                    <span className="font-mono text-xs text-zinc-500">de {totalSodiumMg} mg Na+ objetivo</span>
                   </p>
+                  {sodiumDeficitMg > 0 && (
+                    <p className="mt-1 font-mono text-[11px] text-zinc-400">
+                      Faltan {Math.round(sodiumDeficitMg)} mg Na+ (≈ {saltCapsulesNeeded} caps. de sal o{" "}
+                      {evolytesGramsNeeded}g de Evolytes)
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -3951,7 +3985,7 @@ export function FuelingPlanner({
                   pill in Card 04, so it's never out of sync with what
                   CUBIERTO/RESTANTE currently shows — see
                   `getBikeManifestItems`/`getPocketManifestItems`/
-                  `getWaterPlanLines`/`getCafeteriaStopChecklistLines`
+                  `getWaterPlanLine`/`getCafeteriaStopChecklistLines`
                   above. "Bici (bidones)" still renders specially (not
                   through a shared item-list helper) since it alone
                   carries the inline "[ Ver en cazos ]" reveal and the
@@ -3966,7 +4000,7 @@ export function FuelingPlanner({
                 </span>
                 {bikeManifestItems.length === 0 &&
                 pocketManifestItems.length === 0 &&
-                waterPlanChecklistLines.length === 0 &&
+                !waterPlanLine &&
                 cafeteriaChecklistLines.length === 0 ? (
                   <p className="text-sm text-zinc-500">
                     Sin bidones ni comida de bolsillo seleccionados todavía.
@@ -4036,12 +4070,11 @@ export function FuelingPlanner({
                               {fuelBottleMeasures!.fructoseScoops} cazos)
                             </p>
                             <p>
-                              Sal común: {getTableSaltGrams(displayBottlePlan!.fuelBottles.sodiumMgPerBottle)}g (~
-                              {fuelBottleMeasures!.saltTeaspoons} cdta.)
+                              Evolytes (electrolitos): {getEvolytesGramsForBottleSize(displayBottlePlan!.bottleSizeMl)}g
                             </p>
                             <p className="text-[10px] text-zinc-500">
-                              *Equivalencias de referencia: 1 cazo = 30 g de polvo | 1 cdta. de café = 5 g de
-                              sal.
+                              *Equivalencias: 1 cazo de carbos = 30 g | 1 g de Evolytes aporta ~
+                              {EVOLYTES_SODIUM_MG_PER_G} mg Na+
                             </p>
                           </div>
                         )}
@@ -4092,19 +4125,15 @@ export function FuelingPlanner({
                       </div>
                     )}
 
-                    {waterPlanChecklistLines.length > 0 && (
+                    {waterPlanLine && (
                       <div className="flex flex-col gap-1.5 rounded-xl border border-zinc-200 bg-white p-3.5">
                         <span className="flex items-center gap-1.5 border-b border-zinc-100 pb-1.5 text-[11px] font-bold tracking-wider text-zinc-400 uppercase">
                           <Droplet className="size-3.5 shrink-0" />
                           Plan de agua en ruta
                         </span>
-                        <div className="flex flex-col gap-1.5 pt-1">
-                          {waterPlanChecklistLines.map((line, i) => (
-                            <p key={i} className="text-left text-xs leading-snug font-semibold text-zinc-800">
-                              {line}
-                            </p>
-                          ))}
-                        </div>
+                        <p className="pt-1 text-left text-xs leading-snug font-semibold text-zinc-800">
+                          {waterPlanLine}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -4125,9 +4154,9 @@ export function FuelingPlanner({
                   itself is untouched server-side and still drives
                   `ziplocBagsCount`/`ziplocDose` for a mix-bottle overflow
                   (unaffected by any of this) — the unrelated plain-water
-                  fountain refill note above (`getWaterPlanLines`) no
-                  longer reads it at all, see "Fix Matemático del Plan de
-                  Agua en Ruta" above for why. */}
+                  fountain refill note above (`getWaterPlanLine`) no
+                  longer reads it at all, see "Plan de Agua por Botellas
+                  Completas" above for why. */}
 
               {/* Estrategia de carga día −1 — now always rendered
                   (previously hidden entirely below the duration threshold),
