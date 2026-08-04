@@ -3232,15 +3232,6 @@ export function FuelingPlanner({
             being asked to plan how to cover them, rather than configuring
             a food strategy against a target they haven't seen yet. */}
 
-        {/* Final CTA — sits directly below Card 02, not inside it — the
-            "Ruta objetivo / Competición" checkbox above is a card 02
-            sub-section (a departure condition), but the button itself is
-            an action, matching `/perfil`'s own "single full-width action
-            button after the numbered cards" convention. Card 02's own
-            `mb-5 sm:mb-6` (`numberedCardClass`) already supplies the gap
-            above this block now that the shared parent has no `gap-6` of
-            its own; this block adds the matching gap *below* itself so the
-            error line/results container aren't flush against the button. */}
         <div className="mb-5 flex flex-col gap-3 sm:mb-6">
           <button
             type="button"
@@ -3256,10 +3247,14 @@ export function FuelingPlanner({
                 : undefined
             }
             className={cn(
-              "h-11 w-full text-sm",
+              "h-11 w-full text-sm transition-all duration-300",
               isProfileComplete
-                ? bronzeCtaButtonClass
-                : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"            )}
+                ? cn(
+                    bronzeCtaButtonClass,
+                    isInputsChanged && lastCalculatedInputs && "ring-2 ring-[#70685b]/60 ring-offset-2 shadow-md animate-pulse"
+                  )
+                : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
+            )}
           >
             {isProfileComplete ? (
               <>
@@ -3294,7 +3289,15 @@ export function FuelingPlanner({
         {error && <p className="text-sm text-status-warning">{error}</p>}
 
         {result && (
-          <div ref={resultRef} className="scroll-mt-20 border-t border-neutral-200 pt-4">
+          <div
+            ref={resultRef}
+            className={cn(
+              "scroll-mt-20 border-t border-neutral-200 pt-4 transition-all duration-300",
+              isInputsChanged && lastCalculatedInputs
+                ? "opacity-75 grayscale-[20%]"
+                : "opacity-100"
+            )}
+          >
             {isOfflineCache && (
               <div className="mb-4 flex items-center gap-1.5 border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-700">
                 <Zap className="size-3.5 shrink-0" />
@@ -3302,53 +3305,13 @@ export function FuelingPlanner({
               </div>
             )}
 
-            {/* "Agrupación Estructurada de Resultados" — every calculated
-                output lives inside one of 3 independent white "tarjeta
-                madre" cards, now sharing `numberedCardClass` with every
-                other numbered card in this component (01-05 alike, see
-                "Estandarización de Tarjetas" above) — a real border,
-                `rounded-2xl` corners, and a soft shadow at every breakpoint.
-                Cards 03 and 05 were each briefly
-                their own dark-surface exception (a "Verde Oliva Táctico"
-                olive panel and an obsidian-black "Manifiesto" respectively)
-                before "Unificación de Lienzo Claro" reverted both back to
-                this same light standard, with the Bronce Táctico (`#70685b`)
-                accent — already every selector's active-state color — doing
-                the "state" work the dark panels used to (see Card 04's own
-                sticky OBJETIVO/CUBIERTO/RESTANTE bar). Weather, the Hero
-                card's per-bottle dose callout, and the gut-training warning
-                weren't named in the original 3-card outline, but dropping
-                real, already-computed data or a deliberately-tuned design
-                element would contradict this app's "never silently drop
-                real data" convention — all three are folded into Tarjeta 1
-                instead, the card whose "objetivos calculados" concern
-                they're most directly part of. */}
-
-            {/* 🎴 Tarjeta 1 · 03 · Metabolismo y objetivos calculados —
-                exclusively the theoretical/environmental targets for this
-                ride; no dosing recipe here. The old "Dosis casera por
-                bidón" dark hero preview (per-bottle Malto/Fructosa/Sal plus
-                the hydration-frequency line) was removed outright — showing
-                a bottle recipe before the athlete has configured bottle
-                role or pocket food in Card 04 below is a physiological
-                contradiction (the recipe depends on what's left uncovered
-                by pocket food, which isn't chosen yet at this point in the
-                flow). Neither figure is lost: the hydration-interval line
-                still lives in Card 05's "Cronograma dinámico de ingesta,"
-                and the per-bottle recipe lives in Card 05's own "Receta de
-                laboratorio casero," both computed from the athlete's real
-                Card 04 configuration instead of a premature preview.
-
-                "Unificación de Lienzo Claro" — this card was briefly a
-                "Verde Oliva Táctico" dark instrument panel
-                (`bg-[#222A23]`, `border-emerald-900/40`); reverted back to
-                the same flat white "tarjeta madre" every other card in the
-                results flow uses (`bg-white border border-zinc-200`), per
-                an explicit request to remove every dark-surface exception
-                app-wide in favor of one coherent light palette with the
-                Bronce Táctico (`#70685b`) accent doing the "state" work a
-                dark panel used to. */}
             <div className={numberedCardClass}>
+              {isInputsChanged && lastCalculatedInputs && (
+                <div className="mb-3 flex w-fit items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] text-amber-600 shadow-xs">
+                  <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Estrategia previa — Pendiente de recalcular
+                </div>
+              )}
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 03 · Metabolismo y objetivos calculados
               </span>
