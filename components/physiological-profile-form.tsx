@@ -21,6 +21,7 @@ import {
   sweatRateDescriptions,
   sweatRateLabels,
   type AthleteType,
+  type ExperienceMode,
   type GutTrainingLevel,
   type SweatRate,
 } from "@/lib/metabolic-engine";
@@ -172,6 +173,9 @@ export function PhysiologicalProfileForm({
   // shipping a value the live database would still reject.
   const [bottleCapacityMl, setBottleCapacityMl] = useState(profile?.bottle_capacity_ml ?? 550);
   const [isSaltySweater, setIsSaltySweater] = useState(profile?.is_salty_sweater ?? false);
+  const [experienceMode, setExperienceMode] = useState<ExperienceMode>(
+    profile?.experience_mode ?? "standard"
+  );
   const [touched, setTouched] = useState<Partial<Record<RequiredField, boolean>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   // "Aviso de Campos Obligatorios" — set only by a genuine submit attempt
@@ -233,7 +237,8 @@ export function PhysiologicalProfileForm({
       gutTrainingLevel !== (profile?.gut_training_level ?? null) ||
       bottleCount !== (profile?.bottle_count ?? 2) ||
       bottleCapacityMl !== (profile?.bottle_capacity_ml ?? 550) ||
-      isSaltySweater !== (profile?.is_salty_sweater ?? false),
+      isSaltySweater !== (profile?.is_salty_sweater ?? false) ||
+      experienceMode !== (profile?.experience_mode ?? "standard"),
     [
       weight,
       ftp,
@@ -243,6 +248,7 @@ export function PhysiologicalProfileForm({
       bottleCount,
       bottleCapacityMl,
       isSaltySweater,
+      experienceMode,
       profile,
     ]
   );
@@ -748,6 +754,62 @@ export function PhysiologicalProfileForm({
               </p>
             </div>
           </details>
+        </CardContent>
+      </Card>
+
+      {/* Card 04 · Modo de Experiencia Usuario */}
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          <span className={cardNumberHeading}>04 · Modo de experiencia usuario</span>
+          <p className="text-xs font-mono leading-relaxed text-neutral-500">
+            Elige el nivel de complejidad de la interfaz. El modo Avanzado desbloquea controles de carga previa de glucógeno y timing de ingesta.
+          </p>
+          <input type="hidden" name="experience_mode" value={experienceMode} />
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => {
+                setExperienceMode("standard");
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("ratio_experience_mode", "standard");
+                }
+              }}
+              className={cn(
+                selectableProfileInputClass,
+                "flex flex-col items-start p-3.5 text-left transition-colors duration-150",
+                experienceMode === "standard"
+                  ? "border-[#70685b] bg-[#70685b]/5 ring-1 ring-[#70685b]"
+                  : "border-neutral-200 bg-white hover:border-neutral-300"
+              )}
+            >
+              <span className="font-mono text-xs font-bold text-neutral-900">Estándar</span>
+              <span className="mt-1 font-mono text-[11px] leading-snug text-neutral-500">
+                Interfaz limpia con parámetros esenciales de nutrición e hidratación.
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setExperienceMode("advanced");
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("ratio_experience_mode", "advanced");
+                }
+              }}
+              className={cn(
+                selectableProfileInputClass,
+                "flex flex-col items-start p-3.5 text-left transition-colors duration-150",
+                experienceMode === "advanced"
+                  ? "border-[#70685b] bg-[#70685b]/5 ring-1 ring-[#70685b]"
+                  : "border-neutral-200 bg-white hover:border-neutral-300"
+              )}
+            >
+              <span className="font-mono text-xs font-bold text-neutral-900">Avanzado</span>
+              <span className="mt-1 font-mono text-[11px] leading-snug text-neutral-500">
+                Desbloquea control de Carga Previa (glucógeno/timing) en el planificador.
+              </span>
+            </button>
+          </div>
         </CardContent>
       </Card>
 

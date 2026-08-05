@@ -9,6 +9,10 @@
  * and client components.
  */
 
+export type ExperienceMode = "standard" | "advanced";
+export type PreRideGlycogenLoad = "normal" | "high" | "fasted";
+export type LastMealTiming = "more_than_3h" | "1_2h" | "less_than_30m";
+
 export type SweatRate = "low" | "medium" | "high";
 
 // "competition" added alongside the original 5 bands so the Fueling

@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
   // Unchecked checkboxes simply aren't present in FormData at all — this is
   // "checked or not", never invalid input, so there's no validation branch.
   const isSaltySweater = formData.get("is_salty_sweater") != null;
+  const experienceMode = formData.get("experience_mode")?.toString() === "advanced" ? "advanced" : "standard";
 
   if (!Number.isFinite(weightKg) || weightKg <= 0) {
     return redirectWithError("invalid_weight");
@@ -66,21 +67,36 @@ export async function POST(request: NextRequest) {
     return redirectWithError("no_session");
   }
 
-  const { data: updated, error: upsertError } = await supabase
+  const payload: Record<string, unknown> = {
+    id: userId,
+    weight_kg: weightKg,
+    ftp,
+    sweat_rate: sweatRate,
+    gut_training_level: gutTrainingLevel,
+    athlete_type: athleteType,
+    bottle_count: bottleCount,
+    bottle_capacity_ml: bottleCapacityMl,
+    is_salty_sweater: isSaltySweater,
+    experience_mode: experienceMode,
+  };
+
+  let { data: updated, error: upsertError } = await supabase
     .from("athlete_profiles")
-    .upsert({
-      id: userId,
-      weight_kg: weightKg,
-      ftp,
-      sweat_rate: sweatRate,
-      gut_training_level: gutTrainingLevel,
-      athlete_type: athleteType,
-      bottle_count: bottleCount,
-      bottle_capacity_ml: bottleCapacityMl,
-      is_salty_sweater: isSaltySweater,
-    })
+    .upsert(payload)
     .select("id")
     .maybeSingle();
+
+  // If experience_mode column is not in DB schema yet, fall back without it
+  if (upsertError && upsertError.message?.includes("experience_mode")) {
+    delete payload.experience_mode;
+    const retry = await supabase
+      .from("athlete_profiles")
+      .upsert(payload)
+      .select("id")
+      .maybeSingle();
+    updated = retry.data;
+    upsertError = retry.error;
+  }
   if (upsertError) throw upsertError;
   if (!updated) {
     // RLS silently matched zero rows instead of erroring — surface that

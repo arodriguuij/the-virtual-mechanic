@@ -55,12 +55,15 @@ import {
   MANUAL_TERRAIN_OPTIONS,
   pocketFoodCarbsG as POCKET_FOOD_CARBS_G,
   pocketFoodLabels,
+  type ExperienceMode,
   type FuelingMode,
   type IntensityLevel,
+  type LastMealTiming,
   type ManualCalcMode,
   type ManualTerrain,
   type PocketFoodItemType,
   type PocketFoodSelection,
+  type PreRideGlycogenLoad,
 } from "@/lib/metabolic-engine";
 import type { StravaRoute } from "@/lib/strava-routes";
 import { COMMERCIAL_PRODUCTS } from "@/lib/constants/nutrition-brands";
@@ -225,6 +228,8 @@ interface CalculatedInputsSnapshot {
   manualTerrain: ManualTerrain;
   manualCalcMode: ManualCalcMode;
   manualDistanceKm: number;
+  preRideGlycogenLoad?: PreRideGlycogenLoad;
+  lastMealTiming?: LastMealTiming;
 }
 
 function areInputsEqual(a: CalculatedInputsSnapshot, b: CalculatedInputsSnapshot): boolean {
@@ -236,6 +241,8 @@ function areInputsEqual(a: CalculatedInputsSnapshot, b: CalculatedInputsSnapshot
   if (a.isTargetEvent !== b.isTargetEvent) return false;
   if (a.trainLowEffective !== b.trainLowEffective) return false;
   if (a.cafeteriaStopCount !== b.cafeteriaStopCount) return false;
+  if (a.preRideGlycogenLoad !== b.preRideGlycogenLoad) return false;
+  if (a.lastMealTiming !== b.lastMealTiming) return false;
   if (Math.abs(a.durationHours - b.durationHours) > 0.001) return false;
 
   if (a.mode === "route") {
@@ -1587,32 +1594,32 @@ export function FuelingPlanner({
   routes,
   ftp,
   weightKg,
+  experienceMode: initialExperienceMode = "standard",
   isProfileComplete,
 }: {
   routes: StravaRoute[];
-  // The athlete's real FTP/peso — needed client-side so "Tiempo estimado"
-  // (Card 02, Ruta/GPX mode) can run the same `estimateRideDurationHours()`
-  // physics model the server itself uses, once an intensity zone is
-  // chosen. `0` is a real, guaranteed-unreachable-in-practice sentinel
-  // (never a fabricated plausible number) — see `FuelingPlannerSection`'s
-  // own doc comment for why a complete profile is a guaranteed invariant
-  // by the time this renders.
   ftp: number;
   weightKg: number;
+  experienceMode?: ExperienceMode;
   isProfileComplete: boolean;
 }) {
+  const [experienceMode, setExperienceMode] = useState<ExperienceMode>(initialExperienceMode);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("ratio_experience_mode") as ExperienceMode | null;
+      if (stored === "standard" || stored === "advanced") {
+        setExperienceMode(stored);
+      } else if (initialExperienceMode) {
+        setExperienceMode(initialExperienceMode);
+      }
+    }
+  }, [initialExperienceMode]);
+
   const [mode, setMode] = useState<"route" | "quick" | "gpx">(routes.length > 0 ? "route" : "quick");
-  // No route pre-selected — even with saved Strava routes on hand, loading
-  // the athlete's last ride automatically risked silently calculating
-  // against the wrong route if they didn't notice/change it. The select
-  // itself renders a disabled placeholder option for this empty value (see
-  // below), and the map shows its own neutral empty state until a real
-  // choice is made.
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [gpxUploadOpen, setGpxUploadOpen] = useState(false);
-  // "Aislamiento de Estado entre Modos" — Strava/GPX and Entreno Manual keep
-  // strictly independent intensity and input states so switching tabs never
-  // pollutes or overwrites the other mode's selections.
+
   const [routeIntensity, setRouteIntensity] = useState<IntensityLevel | "">("");
   const [manualIntensity, setManualIntensity] = useState<IntensityLevel | "">("");
   const intensity = mode === "quick" ? manualIntensity : routeIntensity;
@@ -1624,7 +1631,6 @@ export function FuelingPlanner({
     }
   };
 
-  // "Entreno Manual Avanzado" — Terrain, Calculation Mode & Inputs
   const [manualTerrain, setManualTerrain] = useState<ManualTerrain>("medium_mountain");
   const [manualCalcMode, setManualCalcMode] = useState<ManualCalcMode>("time");
   const [quickHoursInput, setQuickHoursInput] = useState("");
@@ -1633,7 +1639,6 @@ export function FuelingPlanner({
   const [manualCustomDistanceInput, setManualCustomDistanceInput] = useState("");
   const [manualDurationOverride, setManualDurationOverride] = useState<{ hours: string; minutes: string } | null>(null);
 
-  // "Aislamiento de Estado de Cálculo por Modo" (Strava/GPX vs Entreno Manual)
   const [routeResult, setRouteResult] = useState<PlanResult | null>(null);
   const [routeHasCalculatedOnce, setRouteHasCalculatedOnce] = useState(false);
   const [routeLastCalculatedInputs, setRouteLastCalculatedInputs] = useState<CalculatedInputsSnapshot | null>(null);
@@ -1647,7 +1652,6 @@ export function FuelingPlanner({
   const hasCalculatedOnce = activeModeGroup === "manual" ? manualHasCalculatedOnce : routeHasCalculatedOnce;
   const activeLastCalculatedInputs = activeModeGroup === "manual" ? manualLastCalculatedInputs : routeLastCalculatedInputs;
 
-  // "Aislamiento Total de Estado de Formulario" (Strava/GPX vs Entreno Manual)
   const [routeDepartureDayMode, setRouteDepartureDayMode] = useState<DepartureDayMode>("today");
   const [routeDepartureCustomDate, setRouteDepartureCustomDate] = useState(todayIsoDate);
   const [routeDepartureHour, setRouteDepartureHour] = useState(getRoundedCurrentHour);
@@ -1661,6 +1665,18 @@ export function FuelingPlanner({
   const [manualIsTargetEvent, setManualIsTargetEvent] = useState(false);
   const [manualTrainLow, setManualTrainLow] = useState(false);
   const [manualCafeteriaStopCount, setManualCafeteriaStopCount] = useState<CafeteriaStopCount>(0);
+
+  const [routePreRideGlycogenLoad, setRoutePreRideGlycogenLoad] = useState<PreRideGlycogenLoad>("normal");
+  const [routeLastMealTiming, setRouteLastMealTiming] = useState<LastMealTiming>("1_2h");
+
+  const [manualPreRideGlycogenLoad, setManualPreRideGlycogenLoad] = useState<PreRideGlycogenLoad>("normal");
+  const [manualLastMealTiming, setManualLastMealTiming] = useState<LastMealTiming>("1_2h");
+
+  const preRideGlycogenLoad = mode === "quick" ? manualPreRideGlycogenLoad : routePreRideGlycogenLoad;
+  const setPreRideGlycogenLoad = mode === "quick" ? setManualPreRideGlycogenLoad : setRoutePreRideGlycogenLoad;
+
+  const lastMealTiming = mode === "quick" ? manualLastMealTiming : routeLastMealTiming;
+  const setLastMealTiming = mode === "quick" ? setManualLastMealTiming : setRouteLastMealTiming;
 
   const departureDayMode = mode === "quick" ? manualDepartureDayMode : routeDepartureDayMode;
   const setDepartureDayMode = mode === "quick" ? setManualDepartureDayMode : setRouteDepartureDayMode;
@@ -1958,6 +1974,8 @@ export function FuelingPlanner({
     manualTerrain,
     manualCalcMode,
     manualDistanceKm: mode === "quick" ? manualCalcResults.distanceKm : 0,
+    preRideGlycogenLoad,
+    lastMealTiming,
   }), [
     mode,
     selectedRouteId,
@@ -1973,6 +1991,8 @@ export function FuelingPlanner({
     manualTerrain,
     manualCalcMode,
     manualCalcResults.distanceKm,
+    preRideGlycogenLoad,
+    lastMealTiming,
   ]);
 
   const isInputsChanged = useMemo(() => {
@@ -1992,6 +2012,8 @@ export function FuelingPlanner({
         trainLow: false,
         departure: false,
         isTargetEvent: false,
+        preRideGlycogenLoad: false,
+        lastMealTiming: false,
       };
     }
     return {
@@ -2009,6 +2031,8 @@ export function FuelingPlanner({
         currentInputs.departureCustomDate !== activeLastCalculatedInputs.departureCustomDate ||
         currentInputs.departureHour !== activeLastCalculatedInputs.departureHour,
       isTargetEvent: currentInputs.isTargetEvent !== activeLastCalculatedInputs.isTargetEvent,
+      preRideGlycogenLoad: currentInputs.preRideGlycogenLoad !== activeLastCalculatedInputs.preRideGlycogenLoad,
+      lastMealTiming: currentInputs.lastMealTiming !== activeLastCalculatedInputs.lastMealTiming,
     };
   }, [currentInputs, activeLastCalculatedInputs, mode]);
 
@@ -2021,6 +2045,7 @@ export function FuelingPlanner({
     if (changedFields.departure) labels.push("Fecha/Hora");
     if (changedFields.stops) labels.push("Paradas");
     if (changedFields.trainLow) labels.push("Train Low");
+    if (changedFields.preRideGlycogenLoad || changedFields.lastMealTiming) labels.push("Carga Previa");
     if (changedFields.isTargetEvent) labels.push("Ruta Objetivo");
     return labels;
   }, [changedFields]);
@@ -2235,18 +2260,25 @@ export function FuelingPlanner({
   // removed along with the rest of the auto-carb-suggestion system (see
   // `coveredCarbsG`'s own doc comment above): a logistics-only stop has no
   // nutritional content of its own to schedule into an *ingesta* timeline.
-  const mergedTimelineEntries = result
-    ? result.timingTimeline.entries
-        .map((entry, i) => ({
+  const mergedTimelineEntries = useMemo(() => {
+    if (!result) return [];
+    return result.timingTimeline.entries
+      .map((entry, i) => {
+        let atMins = entry.atMinutes;
+        if (experienceMode === "advanced" && i === 0) {
+          atMins = lastMealTiming === "less_than_30m" ? 45 : lastMealTiming === "more_than_3h" ? 15 : 30;
+        }
+        return {
           key: `srv-${i}`,
-          atMinutes: entry.atMinutes,
+          atMinutes: atMins,
           atKm: entry.atKm,
           icon: entry.type,
           label: stripEmoji(entry.label),
           approx: false,
-        }))
-        .sort((a, b) => a.atMinutes - b.atMinutes)
-    : [];
+        };
+      })
+      .sort((a, b) => a.atMinutes - b.atMinutes);
+  }, [result, experienceMode, lastMealTiming]);
 
   // "Modo Cobertura Limitada" — if the athlete opens the app with no
   // connection at all (mid-climb, no signal), load the last strategy that
@@ -3489,6 +3521,96 @@ export function FuelingPlanner({
               )
             )}
           </div>
+
+          {/* Modo Avanzado: Carga Previa & Timing de Ingesta */}
+          {experienceMode === "advanced" && (
+            <div className="mt-3 border-t border-zinc-100 pt-3">
+              <span className="mb-2.5 block font-mono text-xs font-semibold uppercase tracking-wider text-neutral-800">
+                Carga Previa & Timing de Ingesta
+              </span>
+
+              <div className="flex flex-col gap-3">
+                {/* Nivel de Carga de Glucógeno */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[11px] text-neutral-600">Nivel de carga previa</span>
+                    {changedFields.preRideGlycogenLoad && (
+                      <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+                        <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        Modificado
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { value: "normal", label: "Normal (~70%)" },
+                      { value: "high", label: "Carga Alta" },
+                      { value: "fasted", label: "Ayunas" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        disabled={loading}
+                        onClick={() => setPreRideGlycogenLoad(opt.value as PreRideGlycogenLoad)}
+                        className={cn(
+                          segmentedButtonClass,
+                          preRideGlycogenLoad === opt.value
+                            ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                            : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+                          loading && "cursor-not-allowed opacity-60"
+                        )}
+                      >
+                        <span className={segmentedButtonLabelClass}>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Timing de Última Ingesta */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[11px] text-neutral-600">Última ingesta pre-salida</span>
+                    {changedFields.lastMealTiming && (
+                      <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+                        <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        Modificado
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { value: "more_than_3h", label: ">3h antes" },
+                      { value: "1_2h", label: "1-2h antes" },
+                      { value: "less_than_30m", label: "<30m (Snack)" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        disabled={loading}
+                        onClick={() => setLastMealTiming(opt.value as LastMealTiming)}
+                        className={cn(
+                          segmentedButtonClass,
+                          lastMealTiming === opt.value
+                            ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                            : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+                          loading && "cursor-not-allowed opacity-60"
+                        )}
+                      >
+                        <span className={segmentedButtonLabelClass}>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-[10px] font-mono leading-snug text-neutral-400">
+                    {lastMealTiming === "less_than_30m"
+                      ? "Ingesta pre-salida reciente (<30m): la primera toma en ruta se traslada al minuto 45."
+                      : lastMealTiming === "more_than_3h"
+                        ? "Salida en ayunas/sin comer (>3h): la primera toma en ruta se adelanta al minuto 15."
+                        : "Ingesta normal (1-2h): la primera toma en ruta comenzará en el minuto 30."}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Paso 03 (Estrategia nutricional + Comida en bolsillo) used to
@@ -3574,14 +3696,16 @@ export function FuelingPlanner({
 
             <div className={cn(numberedCardClass, isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
               {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="mb-3 flex w-fit flex-wrap items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] text-amber-600 shadow-xs">
-                  <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  <span>Estrategia previa — Pendiente de recalcular</span>
-                  {changedFieldLabels.length > 0 && (
-                    <span className="font-normal text-amber-700/80">
-                      (Modificados: {changedFieldLabels.join(", ")})
-                    </span>
-                  )}
+                <div className="mb-3 flex w-full sm:w-fit items-start sm:items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 font-mono text-[11px] leading-tight text-amber-900 shadow-xs">
+                  <span className="mt-0.5 sm:mt-0 size-2 shrink-0 rounded-full bg-amber-500 animate-pulse" />
+                  <span>
+                    <strong className="font-semibold text-amber-950">Estrategia previa — Pendiente de recalcular</strong>
+                    {changedFieldLabels.length > 0 && (
+                      <span className="block sm:inline sm:ml-1 text-amber-800/80">
+                        (Modificados: {changedFieldLabels.join(", ")})
+                      </span>
+                    )}
+                  </span>
                 </div>
               )}
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
@@ -3768,14 +3892,16 @@ export function FuelingPlanner({
                 planned stop). */}
             <div className={cn(numberedCardClass, isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
               {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="mb-3 flex w-fit flex-wrap items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] text-amber-600 shadow-xs">
-                  <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  <span>Estrategia previa — Pendiente de recalcular</span>
-                  {changedFieldLabels.length > 0 && (
-                    <span className="font-normal text-amber-700/80">
-                      (Modificados: {changedFieldLabels.join(", ")})
-                    </span>
-                  )}
+                <div className="mb-3 flex w-full sm:w-fit items-start sm:items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 font-mono text-[11px] leading-tight text-amber-900 shadow-xs">
+                  <span className="mt-0.5 sm:mt-0 size-2 shrink-0 rounded-full bg-amber-500 animate-pulse" />
+                  <span>
+                    <strong className="font-semibold text-amber-950">Estrategia previa — Pendiente de recalcular</strong>
+                    {changedFieldLabels.length > 0 && (
+                      <span className="block sm:inline sm:ml-1 text-amber-800/80">
+                        (Modificados: {changedFieldLabels.join(", ")})
+                      </span>
+                    )}
+                  </span>
                 </div>
               )}
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
@@ -4096,14 +4222,16 @@ export function FuelingPlanner({
                 it — no export button lives here. */}
             <div className={cn(numberedCardClass, "flex flex-col gap-4", isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
               {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="flex w-fit flex-wrap items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] text-amber-600 shadow-xs">
-                  <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  <span>Estrategia previa — Pendiente de recalcular</span>
-                  {changedFieldLabels.length > 0 && (
-                    <span className="font-normal text-amber-700/80">
-                      (Modificados: {changedFieldLabels.join(", ")})
-                    </span>
-                  )}
+                <div className="mb-3 flex w-full sm:w-fit items-start sm:items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 font-mono text-[11px] leading-tight text-amber-900 shadow-xs">
+                  <span className="mt-0.5 sm:mt-0 size-2 shrink-0 rounded-full bg-amber-500 animate-pulse" />
+                  <span>
+                    <strong className="font-semibold text-amber-950">Estrategia previa — Pendiente de recalcular</strong>
+                    {changedFieldLabels.length > 0 && (
+                      <span className="block sm:inline sm:ml-1 text-amber-800/80">
+                        (Modificados: {changedFieldLabels.join(", ")})
+                      </span>
+                    )}
+                  </span>
                 </div>
               )}
               <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
@@ -4132,39 +4260,35 @@ export function FuelingPlanner({
                 <>
                   {/* Validador Hídrico: Recargas de agua necesarias vs Paradas seleccionadas */}
                   {fullRefillsNeeded > cafeteriaStopCount && (
-                    <div className="mb-4 rounded-r-md border-l-2 border-amber-500 bg-neutral-900 p-4 text-white shadow-xs">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-amber-400">
-                          <TriangleAlert className="size-3.5 text-amber-400" />
-                          Incompatibilidad Hídrica
-                        </div>
-                        <p className="font-mono text-xs leading-relaxed text-neutral-200">
-                          {cafeteriaStopCount === 0 ? (
-                            <>
-                              Tu tasa de sudoración requiere <span className="font-semibold text-white">{totalFluidMl} ml</span> de agua, pero solo dispones de <span className="font-semibold text-white">{installedCapacityMl} ml</span> (2 bidones de 550ml). Al seleccionar 0 paradas entrarás en déficit hídrico severo. Se recomienda planificar al menos 1 parada técnica en fuente o cafetería.
-                            </>
-                          ) : (
-                            <>
-                              Tu tasa de sudoración requiere <span className="font-semibold text-white">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""} de agua</span>, pero has seleccionado <span className="font-semibold text-white">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""}</span>. Aumenta el tamaño de tus bidones desde casa o añade paradas en ruta.
-                            </>
-                          )}
-                        </p>
+                    <div className="mb-4 space-y-1.5 rounded-r-md border-l-2 border-y border-r border-amber-600 border-amber-200/60 bg-[#fcf8f2] p-3.5 shadow-xs">
+                      <div className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-wider text-amber-900">
+                        <TriangleAlert className="size-3.5 shrink-0 text-amber-600" />
+                        <span>Incompatibilidad Hídrica</span>
                       </div>
+                      <p className="font-mono text-xs leading-relaxed text-neutral-800">
+                        {cafeteriaStopCount === 0 ? (
+                          <>
+                            Tu tasa de sudoración requiere <span className="font-semibold text-amber-950">{totalFluidMl} ml</span> de agua, pero solo dispones de <span className="font-semibold text-amber-950">{installedCapacityMl} ml</span> (2 bidones de 550ml). Al seleccionar 0 paradas entrarás en déficit hídrico severo. Se recomienda planificar al menos 1 parada técnica en fuente o cafetería.
+                          </>
+                        ) : (
+                          <>
+                            Tu tasa de sudoración requiere <span className="font-semibold text-amber-950">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""} de agua</span>, pero has seleccionado <span className="font-semibold text-amber-950">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""}</span>. Aumenta el tamaño de tus bidones desde casa o añade paradas en ruta.
+                          </>
+                        )}
+                      </p>
                     </div>
                   )}
 
                   {fullRefillsNeeded > 0 && cafeteriaStopCount >= fullRefillsNeeded && (
-                    <div className="mb-4 flex items-center justify-between rounded-md bg-neutral-900 p-4 text-white shadow-xs">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-neutral-400">
-                          <CheckCircle2 className="size-3.5 text-emerald-400" />
-                          Plan Hídrico Validado
-                        </div>
-                        <p className="text-xs text-neutral-200">
-                          Tus <span className="font-semibold text-white">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""}</span> cubren las{" "}
-                          <span className="font-semibold text-white">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""}</span> requerida{fullRefillsNeeded !== 1 ? "s" : ""}.
-                        </p>
+                    <div className="mb-4 space-y-1.5 rounded-r-md border-l-2 border-y border-r border-emerald-600 border-emerald-200/60 bg-[#f6fbf8] p-3.5 shadow-xs">
+                      <div className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-wider text-emerald-900">
+                        <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" />
+                        <span>Plan Hídrico Validado</span>
                       </div>
+                      <p className="font-mono text-xs leading-relaxed text-neutral-800">
+                        Tus <span className="font-semibold text-emerald-950">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""}</span> cubren las{" "}
+                        <span className="font-semibold text-emerald-950">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""}</span> requerida{fullRefillsNeeded !== 1 ? "s" : ""}.
+                      </p>
                     </div>
                   )}
 
@@ -4178,22 +4302,26 @@ export function FuelingPlanner({
                   )}
 
                   {remainingCarbsG > 0 && cafeteriaStopCount === 0 && (
-                    <div className="mb-4 rounded-r-md border-l-2 border-amber-500 bg-neutral-900 p-3.5 font-mono text-xs text-neutral-200">
-                      <div className="mb-1 flex items-center gap-1.5 font-bold uppercase tracking-wide text-amber-400">
-                        <TriangleAlert className="size-3.5 text-amber-400" />
-                        Déficit de Nutrición
+                    <div className="mb-4 space-y-1.5 rounded-r-md border-l-2 border-y border-r border-amber-600 border-amber-200/60 bg-[#fcf8f2] p-3.5 shadow-xs">
+                      <div className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-wider text-amber-900">
+                        <TriangleAlert className="size-3.5 shrink-0 text-amber-600" />
+                        <span>Déficit de Nutrición</span>
                       </div>
-                      Faltan <strong className="text-white">{remainingCarbsG}g HC</strong> para cubrir el gasto glucogénico ({result.totalRideCarbsG}g HC). Selecciona más comida de bolsillo o añade paradas en ruta.
+                      <p className="font-mono text-xs leading-relaxed text-neutral-800">
+                        Faltan <strong className="font-semibold text-amber-950">{remainingCarbsG}g HC</strong> para cubrir el gasto glucogénico ({result.totalRideCarbsG}g HC). Selecciona más comida de bolsillo o añade paradas en ruta.
+                      </p>
                     </div>
                   )}
 
                   {remainingCarbsG === 0 && fullRefillsNeeded === 0 && (
-                    <div className="mb-4 rounded-r-md border-l-2 border-emerald-500 bg-neutral-900 p-3.5 font-mono text-xs text-neutral-200">
-                      <div className="mb-1 flex items-center gap-1.5 font-bold uppercase tracking-wide text-emerald-400">
-                        <CheckCircle2 className="size-3.5 text-emerald-400" />
-                        Cobertura Completa
+                    <div className="mb-4 space-y-1.5 rounded-r-md border-l-2 border-y border-r border-emerald-600 border-emerald-200/60 bg-[#f6fbf8] p-3.5 shadow-xs">
+                      <div className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-wider text-emerald-900">
+                        <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" />
+                        <span>Cobertura Completa</span>
                       </div>
-                      Tu carga inicial de casa cubre el 100% del objetivo glucogénico de la salida.
+                      <p className="font-mono text-xs leading-relaxed text-neutral-800">
+                        Tu carga inicial de casa cubre el 100% del objetivo glucogénico de la salida.
+                      </p>
                     </div>
                   )}
                 </>

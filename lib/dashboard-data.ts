@@ -4,7 +4,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 
 import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
-import type { AthleteType, GutTrainingLevel, SweatRate } from "@/lib/metabolic-engine";
+import type { AthleteType, ExperienceMode, GutTrainingLevel, SweatRate } from "@/lib/metabolic-engine";
 import { isProfileDataComplete } from "@/lib/profile-completeness";
 import { fetchAthlete } from "@/lib/strava";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
@@ -21,6 +21,7 @@ export type AthleteProfile = {
   bottle_count: number;
   bottle_capacity_ml: number;
   is_salty_sweater: boolean;
+  experience_mode?: ExperienceMode;
 };
 
 export type Activity = {
