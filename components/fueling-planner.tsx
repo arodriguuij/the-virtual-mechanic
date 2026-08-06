@@ -3945,21 +3945,24 @@ export function FuelingPlanner({
                 03 · Metabolismo y objetivos calculados
               </span>
 
-              {/* Cuadrícula 2x2 de objetivos por hora + total — `*:min-w-0`
-                  lets each cell shrink below its content's intrinsic width
-                  instead of forcing the grid track wider (the default
-                  `min-width: auto` grid items get otherwise), so a long
-                  number/tooltip trigger can never push this card past the
-                  viewport edge on a narrow phone. "Test A/B/C/D" converged
-                  — this card briefly ran 4 side-by-side tile treatments
-                  (Crema Táctico, Taupe/Bronce Sutil, Blanco Puro + Borde
-                  Bronce, Gris Táctico Suave) as a deliberately inconsistent
-                  live comparison; a DevTools-inspected winner (flat
-                  `#f0f0f0`, no border, a small `4px` radius) now applies to
-                  all 4 tiles identically. Labels stay the plain
+              {/* Cuadrícula de objetivos por hora + total — 2x2 en móvil,
+                  una sola fila de 4 columnas a partir de `lg:` ("Layout
+                  Desktop Responsive para Card 03"), ya que en escritorio hay
+                  ancho de sobra para las 4 tarjetas sin comprimirlas.
+                  `*:min-w-0` lets each cell shrink below its content's
+                  intrinsic width instead of forcing the grid track wider
+                  (the default `min-width: auto` grid items get otherwise),
+                  so a long number/tooltip trigger can never push this card
+                  past the viewport edge on a narrow phone. "Test A/B/C/D"
+                  converged — this card briefly ran 4 side-by-side tile
+                  treatments (Crema Táctico, Taupe/Bronce Sutil, Blanco Puro +
+                  Borde Bronce, Gris Táctico Suave) as a deliberately
+                  inconsistent live comparison; a DevTools-inspected winner
+                  (flat `#f0f0f0`, no border, a small `4px` radius) now
+                  applies to all 4 tiles identically. Labels stay the plain
                   "Duración"/"Carbohidratos"/"Hidratación"/"Sodio" text and
                   the big figure stays high-contrast `zinc-900`. */}
-              <div className="grid grid-cols-2 gap-3 *:min-w-0">
+              <div className="grid grid-cols-2 gap-3 *:min-w-0 lg:grid-cols-4">
                 <div className="flex flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
                   <span className="font-mono text-[11px] text-zinc-500">Duración</span>
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
