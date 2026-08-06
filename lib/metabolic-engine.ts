@@ -1629,6 +1629,43 @@ export function getBottlePlan(
   };
 }
 
+export type ElectrolyteRecommendation = {
+  type: "estandar" | "calor";
+  label: "Mix Estándar" | "Mix Calor";
+  saltGrams: number;
+  sodiumMg: number;
+};
+
+/**
+ * Cálculo de Concentración de Electrolitos por Tamaño de Bidón (Mix Estándar vs Mix Calor).
+ * - isHotWeather === false (<25°C & sudor normal): (bottleCapacityMl / 550) * 2.0g sales (~500mg Na+ / 550ml).
+ * - isHotWeather === true (≥25°C o tasa de sudoración alta): (bottleCapacityMl / 550) * 4.5g sales (~1125mg Na+ / 550ml).
+ */
+export function getElectrolyteRecommendation(
+  bottleCapacityMl: number,
+  isHotWeather: boolean
+): ElectrolyteRecommendation {
+  const ratio = bottleCapacityMl / 550;
+  if (isHotWeather) {
+    const saltGrams = Math.round(ratio * 4.5 * 10) / 10;
+    const sodiumMg = Math.round(saltGrams * 250);
+    return {
+      type: "calor",
+      label: "Mix Calor",
+      saltGrams,
+      sodiumMg,
+    };
+  }
+  const saltGrams = Math.round(ratio * 2.0 * 10) / 10;
+  const sodiumMg = Math.round(saltGrams * 250);
+  return {
+    type: "estandar",
+    label: "Mix Estándar",
+    saltGrams,
+    sodiumMg,
+  };
+}
+
 // Fallback cage count — matches `athlete_profiles.bottle_count`'s own
 // column default (a standard road bike carries 2 bottle cages).
 const DEFAULT_MAX_BOTTLES_ON_BIKE = 2;

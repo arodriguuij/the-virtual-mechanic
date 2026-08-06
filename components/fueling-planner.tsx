@@ -48,6 +48,7 @@ import {
   calculateHouseholdMeasures,
   estimateRideDurationHours,
   getBottlePlan,
+  getElectrolyteRecommendation,
   getPocketFoodTotalCarbsG,
   getProjectedSpeedKmh,
   getTableSaltGrams,
@@ -805,8 +806,19 @@ const ONE_CAGE_BOTTLE_CONFIG_OPTIONS: { value: BottleConfigOption; label: string
   { value: "one_mix", label: "Con Mix" },
 ];
 
-function getBottleConfigOptions(athleteBottleCount: number) {
-  return athleteBottleCount === 1 ? ONE_CAGE_BOTTLE_CONFIG_OPTIONS : TWO_CAGE_BOTTLE_CONFIG_OPTIONS;
+function getBottleConfigOptions(athleteBottleCount: number, isHotWeather: boolean = false) {
+  const mixLabel = isHotWeather ? "Mix Calor" : "Mix Estándar";
+  if (athleteBottleCount === 1) {
+    return [
+      { value: "water_only" as const, label: "Solo Agua" },
+      { value: "one_mix" as const, label: `Con ${mixLabel}` },
+    ];
+  }
+  return [
+    { value: "water_only" as const, label: "Solo Agua" },
+    { value: "one_mix" as const, label: `1 ${mixLabel}` },
+    { value: "both_mix" as const, label: `Ambos ${mixLabel}` },
+  ];
 }
 
 /** How many grams of the ride's carb target the selected bottle
@@ -2214,10 +2226,21 @@ export function FuelingPlanner({
   const evolytesGramsNeeded =
     sodiumDeficitMg > 0 ? (sodiumDeficitMg / EVOLYTES_SODIUM_MG_PER_G).toFixed(1) : "0.0";
 
-  // Which bottle-config buttons Card 04 actually renders — see
-  // `getBottleConfigOptions` above for why a 1-cage athlete never sees
-  // "Ambos Mix" at all.
-  const bottleConfigOptions = result ? getBottleConfigOptions(result.athleteBottleCount) : TWO_CAGE_BOTTLE_CONFIG_OPTIONS;
+  const isHotWeather = useMemo(() => {
+    if (!result) return false;
+    const weatherTemp = result.weather?.temperatureMaxC ?? result.weather?.temperatureC ?? 0;
+    return weatherTemp >= 25 || result.fluidLossMlPerHour >= 750 || result.sodiumMgPerHour >= 650;
+  }, [result]);
+
+  const bottleConfigOptions = useMemo(() => {
+    const athleteBottleCount = result?.athleteBottleCount ?? 2;
+    return getBottleConfigOptions(athleteBottleCount, isHotWeather);
+  }, [result, isHotWeather]);
+
+  const electrolyteRec = useMemo(() => {
+    const bottleSizeMl = displayBottlePlan?.bottleSizeMl ?? 550;
+    return getElectrolyteRecommendation(bottleSizeMl, isHotWeather);
+  }, [displayBottlePlan?.bottleSizeMl, isHotWeather]);
 
   // "Tip de Eficiencia: Mix vs. Solo Agua" — see the constants' own doc
   // comment above. `false` with no `result` (nothing to evaluate yet).
@@ -4499,9 +4522,15 @@ export function FuelingPlanner({
                               Fructosa: {displayBottlePlan!.fuelBottles.fructoseGPerBottle}g (~
                               {fuelBottleMeasures!.fructoseScoops} cazos)
                             </p>
-                            <p>
-                              Evolytes (electrolitos): {getEvolytesGramsForBottleSize(displayBottlePlan!.bottleSizeMl)}g
+                            <p className="font-mono text-neutral-800">
+                              <span className="font-semibold text-neutral-900">{electrolyteRec.label}:</span>{" "}
+                              {electrolyteRec.saltGrams}g de sales (~{electrolyteRec.sodiumMg} mg Na+)
                             </p>
+                            {isHotWeather && (
+                              <p className="text-[10px] font-mono text-amber-700">
+                                *Clima cálido (≥25°C) o sudoración alta: recomendación ajustada a {electrolyteRec.label}.
+                              </p>
+                            )}
                             <p className="text-[10px] text-zinc-500">
                               *Equivalencias: 1 cazo de carbos = 30 g | 1 g de Evolytes aporta ~
                               {EVOLYTES_SODIUM_MG_PER_G} mg Na+
