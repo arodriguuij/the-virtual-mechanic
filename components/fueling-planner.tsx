@@ -5,6 +5,7 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronDown,
+  ClipboardList,
   Droplet,
   Droplets,
   FlaskConical,
@@ -257,6 +258,39 @@ function areInputsEqual(a: CalculatedInputsSnapshot, b: CalculatedInputsSnapshot
     if (Math.abs(a.manualDistanceKm - b.manualDistanceKm) > 0.01) return false;
   }
   return true;
+}
+
+/** "Flujo Deliberado de Generación para Card 05" — a snapshot of exactly
+ * Card 04's own inventory controls (bottle role, pocket food, custom
+ * carbs, real branded products, the in-situ bottle-capacity override) —
+ * deliberately *not* `cafeteriaStopCount`/route/intensity/etc., since those
+ * are Paso 01/02-level concerns already tracked by `CalculatedInputsSnapshot`/
+ * `isInputsChanged` above. Taken the moment "Generar Manifiesto de Salida"
+ * is pressed, compared against the *current* live inventory on every
+ * render to decide whether Card 05's already-generated manifest is stale. */
+interface InventorySnapshot {
+  pocketFood: Partial<Record<PocketFoodItemType, number>>;
+  customCarbsG: number;
+  bottleConfig: BottleConfigOption;
+  commercialProducts: Record<string, number>;
+  bottleCapacityOverrideMl: number | null;
+}
+
+function isRecordEqual(a: Record<string, number | undefined>, b: Record<string, number | undefined>): boolean {
+  const aKeys = Object.keys(a).filter((k) => (a[k] ?? 0) !== 0);
+  const bKeys = Object.keys(b).filter((k) => (b[k] ?? 0) !== 0);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((k) => (a[k] ?? 0) === (b[k] ?? 0));
+}
+
+function isInventoryEqual(a: InventorySnapshot, b: InventorySnapshot): boolean {
+  return (
+    a.customCarbsG === b.customCarbsG &&
+    a.bottleConfig === b.bottleConfig &&
+    a.bottleCapacityOverrideMl === b.bottleCapacityOverrideMl &&
+    isRecordEqual(a.pocketFood, b.pocketFood) &&
+    isRecordEqual(a.commercialProducts, b.commercialProducts)
+  );
 }
 
 // "Tip de Eficiencia: Mix vs. Solo Agua" — a demanding ride (long or hot)
@@ -1839,6 +1873,21 @@ export function FuelingPlanner({
   const resultRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
+  // "Flujo Deliberado de Generación para Card 05" — `isManifestGenerated`
+  // gates Card 05's entire body behind an explicit "Generar Manifiesto de
+  // Salida" click (see the button at the foot of Card 04 and
+  // `handleGenerateManifest` below) rather than rendering live off every
+  // Card 04 inventory edit. `manifestSnapshot` is the inventory as it stood
+  // at that click — compared against the *current* live inventory on every
+  // render (`isPlanDirty` below) to decide whether the already-generated
+  // manifest needs a deliberate refresh. Both reset to their initial state
+  // whenever a brand-new calculation succeeds (see `handleCalculate`'s
+  // success branch) — a new `result` has no manifest generated against it
+  // yet, regardless of whether the previous one did.
+  const [isManifestGenerated, setIsManifestGenerated] = useState(false);
+  const [manifestSnapshot, setManifestSnapshot] = useState<InventorySnapshot | null>(null);
+  const card05Ref = useRef<HTMLDivElement>(null);
+
   // Bypasses `getStravaRoutes()`'s 24h cache (see `lib/dashboard-data.ts`) on
   // demand — an athlete who just starred a new route on Strava shouldn't
   // have to wait up to a day for it to show up here.
@@ -2347,6 +2396,39 @@ export function FuelingPlanner({
       ? getWaterPlanLine(fullRefillsNeeded, result.athleteBottleCount, displayBottlePlan.bottleSizeMl)
       : "";
 
+  // "Flujo Deliberado de Generación" — see `isManifestGenerated`'s own doc
+  // comment above. `isPlanDirty` folds in the *existing* `isInputsChanged`
+  // (a Paso 01/02 edit — route/intensity/duración/etc. — already
+  // invalidates everything downstream, manifest included) alongside this
+  // new, narrower inventory-only check (Card 04's bottle/pocket-food/
+  // commercial-product edits, which don't need a server round-trip to
+  // reflect but *do* need a deliberate "Actualizar Plan" before Card 05
+  // shows them).
+  const currentInventorySnapshot: InventorySnapshot = {
+    pocketFood,
+    customCarbsG,
+    bottleConfig,
+    commercialProducts,
+    bottleCapacityOverrideMl,
+  };
+  const isInventoryDirty = manifestSnapshot ? !isInventoryEqual(currentInventorySnapshot, manifestSnapshot) : false;
+  const isPlanDirty = isManifestGenerated && (Boolean(isInputsChanged) || isInventoryDirty);
+
+  // Snapshots the current inventory and reveals Card 05's real content —
+  // called both by Card 04's own "Generar Manifiesto de Salida" button (the
+  // first generation) and Card 05's own "Actualizar Plan con Nuevos Datos"
+  // veil button (every subsequent one) — same action either way, just a
+  // different trigger. The smooth-scroll only matters the first time in
+  // practice (subsequent clicks happen from inside Card 05 itself, already
+  // in view), but re-running it is harmless.
+  function handleGenerateManifest() {
+    setManifestSnapshot(currentInventorySnapshot);
+    setIsManifestGenerated(true);
+    requestAnimationFrame(() => {
+      card05Ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   // Card 05's "Cronograma Dinámico de Ingesta" — the server-computed solid/
   // gel/caffeine milestones (`result.timingTimeline.entries`, driven by
   // pocket food alone). Used to also merge in a synthetic entry per planned
@@ -2632,6 +2714,10 @@ export function FuelingPlanner({
       setBottleCapacityOverrideMl(null);
       setBottleCapacityEditorOpen(false);
       setShowBikeScoops(false);
+      // A brand-new `result` has no manifest generated against it yet —
+      // see `isManifestGenerated`'s own doc comment above.
+      setIsManifestGenerated(false);
+      setManifestSnapshot(null);
       try {
         localStorage.setItem(LAST_FUELING_STRATEGY_KEY, JSON.stringify(data));
       } catch {
@@ -4335,6 +4421,24 @@ export function FuelingPlanner({
                   </p>
                 )}
               </div>
+
+              {/* "Flujo Deliberado de Generación para Card 05" — Card 05
+                  (Manifiesto de Salida) no calcula ni muestra nada hasta que
+                  este botón se pulsa al menos una vez; ver
+                  `isManifestGenerated`/`handleGenerateManifest` arriba. */}
+              <button
+                type="button"
+                onClick={handleGenerateManifest}
+                disabled={Boolean(isInputsChanged)}
+                className={cn(
+                  "mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 py-4 font-mono text-xs font-bold tracking-wider text-white uppercase transition-colors hover:bg-neutral-800",
+                  isInputsChanged && "cursor-not-allowed opacity-60 hover:bg-neutral-900"
+                )}
+                title={isInputsChanged ? "Recalcula la estrategia primero (Paso 02)" : undefined}
+              >
+                <Zap className="size-3.5 shrink-0" />
+                <span>{isPlanDirty ? "Actualizar Manifiesto de Salida" : "Generar Manifiesto de Salida"}</span>
+              </button>
             </div>
 
             <CommercialProductsSheet
@@ -4374,7 +4478,10 @@ export function FuelingPlanner({
                 as before, just restyled onto the shared light palette. The
                 athlete screenshots this card if they want to save or share
                 it — no export button lives here. */}
-            <div className={cn(numberedCardClass, "flex flex-col gap-4", isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
+            <div
+              ref={card05Ref}
+              className={cn(numberedCardClass, "relative flex flex-col gap-4", isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}
+            >
               {isInputsChanged && activeLastCalculatedInputs && (
                 <div className="mb-3 flex w-fit items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[10px] text-amber-900 whitespace-nowrap">
                   <span className="size-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
@@ -4385,6 +4492,60 @@ export function FuelingPlanner({
                 05 · Manifiesto de salida
               </span>
 
+              {/* "Flujo Deliberado de Generación" — Card 05 no calcula/
+                  renderiza nada de lo que sigue hasta que el atleta pulsa
+                  "Generar Manifiesto de Salida" (pie de Card 04) al menos
+                  una vez para el `result` actual — antes de eso, un estado
+                  "pendiente" explícito reemplaza todo el cuerpo de la
+                  tarjeta. Una vez generado, si el inventario de Card 04
+                  (bidones/comida de bolsillo/productos comerciales) cambia
+                  desde entonces, un velo semi-transparente cubre el
+                  contenido (ya renderizado, no recalculado en directo) con
+                  un aviso explícito para forzar una actualización deliberada
+                  en vez de dejar que el contenido cambie de estado por su
+                  cuenta mientras el atleta sigue editando. */}
+              {!isManifestGenerated ? (
+                <div className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50/60 p-6 text-center">
+                  <ClipboardList className="mx-auto size-6 text-zinc-400" />
+                  <p className="mt-2 font-mono text-xs font-semibold text-zinc-600">
+                    Manifiesto pendiente de generación
+                  </p>
+                  <p className="mt-1 font-mono text-[11px] leading-snug text-zinc-500">
+                    Configura tus bidones y comida de bolsillo en el Paso 04 y pulsa{" "}
+                    <span className="font-semibold text-zinc-700">
+                      &ldquo;Generar Manifiesto de Salida&rdquo;
+                    </span>{" "}
+                    para ver tu ficha de ruta, altimetría táctica y equipamiento.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Scoped to `isInventoryDirty` specifically, not the
+                      broader `isPlanDirty` — a Paso 01/02 change
+                      (`isInputsChanged`) already has its own complete,
+                      independent treatment (the "Estrategia previa ·
+                      Recalcular" banner + grayscale above, and the main CTA
+                      re-enabling itself); this button re-snapshots the
+                      *current* `result` and can't do anything about that
+                      other case, so showing it there too would offer an
+                      action that doesn't actually fix the real problem. */}
+                  {isInventoryDirty && (
+                    <div className="flex flex-col items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-2 font-mono text-xs text-amber-900">
+                        <RefreshCw className="size-3.5 shrink-0" />
+                        <span>El inventario cambió desde que generaste este manifiesto.</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleGenerateManifest}
+                        className="flex shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 font-mono text-[11px] font-bold text-white uppercase tracking-wider transition-colors hover:bg-neutral-800"
+                      >
+                        <RefreshCw className="size-3 shrink-0" />
+                        Actualizar Plan con Nuevos Datos
+                      </button>
+                    </div>
+                  )}
+                  <div className={cn(isPlanDirty && "pointer-events-none opacity-40 blur-[1px] select-none")}>
               {!result.trainLow && (
                 <>
                   {/* Validador Hídrico: Recargas de agua necesarias vs Paradas seleccionadas */}
@@ -4795,6 +4956,9 @@ export function FuelingPlanner({
                   </p>
                 </div>
               </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
