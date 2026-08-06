@@ -1449,10 +1449,15 @@ function StintStrategyTimeline({
           <Droplets className="size-3.5 shrink-0 text-neutral-900" />
           <span>Rellenar bidones con agua + electrolitos</span>
         </div>
-        {remainingCarbsG > 0 && (
+        {remainingCarbsG > 0 ? (
           <div className="flex items-center gap-2 font-mono text-xs text-neutral-700">
             <ShoppingBag className="size-3.5 shrink-0 text-neutral-900" />
-            <span>Comprar refresco o bocadillo para reposición de HC</span>
+            <span>Comprar reposición de carbohidratos (~{remainingCarbsG}g HC)</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 font-mono text-xs font-semibold text-neutral-900">
+            <CheckCircle2 className="size-3.5 shrink-0 text-amber-500" />
+            <span>Solo rellenar bidones de agua (cobertura de carbohidratos completa desde casa)</span>
           </div>
         )}
       </div>
@@ -3851,46 +3856,21 @@ export function FuelingPlanner({
                   column of stats. */}
               <hr className="my-6 border-t border-zinc-200/80" />
 
-              {/* Dual Render UI según experienceMode */}
-              {experienceMode === "standard" ? (
-                <div className="mt-4 flex items-center justify-between rounded-md border border-neutral-200 bg-neutral-50 px-3.5 py-2.5 font-mono text-xs text-neutral-800">
-                  <div className="flex items-center gap-2">
-                    <span className="size-2 rounded-full bg-[#70685b]" />
-                    <span className="text-neutral-600">Reserva final estimada:</span>
-                  </div>
-                  <span className="font-mono text-xs font-bold text-neutral-900">
-                    Reserva final: {Math.max(15, Math.round(100 - (result.totalRideCarbsG / ((weightKg || 70) * 8)) * 100))}%
-                  </span>
-                </div>
-              ) : (
-                <div className="mt-4 flex flex-col gap-2 rounded-md border border-neutral-200 bg-neutral-50/80 p-3.5 font-mono text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-neutral-900">
-                      Curva de Depleción de Glucógeno (Simulación Logística t+25m)
-                    </span>
-                    <span className="text-[10px] text-neutral-500 font-mono">Modo Avanzado</span>
-                  </div>
-                  {/* Gráfica SVG de Depleción con zona de peligro <20% */}
-                  <div className="relative h-20 w-full overflow-hidden rounded border border-neutral-200 bg-white p-1">
-                    <div className="absolute bottom-0 left-0 right-0 flex h-[20%] items-center justify-end border-t border-dashed border-red-400/50 bg-red-500/10 pr-2">
-                      <span className="text-[9px] font-bold text-red-600">Zona de peligro (&lt;20%)</span>
-                    </div>
-                    <svg className="h-full w-full overflow-visible" viewBox="0 0 100 40" preserveAspectRatio="none">
-                      <path
-                        d={`M 0 5 Q 25 15, 50 ${20 + Math.min(15, result.totalRideCarbsG / 20)} Q 75 25, 100 ${Math.min(35, 10 + Math.max(0, remainingCarbsG / 5))}`}
-                        fill="none"
-                        stroke="#70685b"
-                        strokeWidth="2"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    </svg>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-neutral-500 font-mono">
-                    <span>Inicio: 100% Depósito</span>
-                    <span>Reserva final estimada: {Math.max(15, Math.round(100 - (result.totalRideCarbsG / ((weightKg || 70) * 8)) * 100))}%</span>
-                  </div>
-                </div>
-              )}
+              {/* Weather Impact Card */}
+              <div className="pt-2">
+                <WeatherImpactCard
+                  temperatureC={result.weather.temperatureC}
+                  temperatureMaxC={result.weather.temperatureMaxC}
+                  humidityPct={result.weather.humidityPct}
+                  windSpeedKmh={result.weather.windSpeedKmh}
+                  source={result.weather.source}
+                  multiPointSample={result.weather.multiPointSample}
+                  lapseRateAdjustmentC={result.weather.lapseRateAdjustmentC}
+                  altitude={result.weather.altitude}
+                  weatherPoints={result.weather.weatherPoints}
+                  elevationProfile={result.weather.elevationProfile}
+                />
+              </div>
 
               {/* "Adaptación Térmica Extrema" — cold below 8°C, heat above
                   32°C, both driven by the same final temperature
