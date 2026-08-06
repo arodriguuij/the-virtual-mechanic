@@ -234,17 +234,17 @@ interface CalculatedInputsSnapshot {
   gpxIdentifier: string;
   durationHours: number;
   intensity: IntensityLevel | "";
-  departureDayMode: DepartureDayMode;
+  departureDayMode: DepartureDayMode | null;
   departureCustomDate: string;
   departureHour: string;
   isTargetEvent: boolean;
   trainLowEffective: boolean;
-  cafeteriaStopCount: CafeteriaStopCount;
+  cafeteriaStopCount: CafeteriaStopCount | null;
   manualTerrain: ManualTerrain;
   manualCalcMode: ManualCalcMode;
   manualDistanceKm: number;
-  preRideGlycogenLoad?: PreRideGlycogenLoad;
-  lastMealTiming?: LastMealTiming;
+  preRideGlycogenLoad?: PreRideGlycogenLoad | null;
+  lastMealTiming?: LastMealTiming | null;
 }
 
 function areInputsEqual(a: CalculatedInputsSnapshot, b: CalculatedInputsSnapshot): boolean {
@@ -1175,14 +1175,22 @@ function todayIsoDate(): string {
  * request expects. Planning a ride weeks or months out (an event, a trip)
  * is exactly what "Elegir fecha" is for — unlike the two quick pills, it
  * isn't bounded to the next day. */
-function buildDepartureLocal(dayMode: DepartureDayMode, customDate: string, hour: string): string {
-  const date =
-    dayMode === "custom" && customDate ? new Date(`${customDate}T00:00:00`) : new Date();
-  if (dayMode === "tomorrow") date.setDate(date.getDate() + 1);
-  const [h, m] = hour.split(":").map(Number);
-  date.setHours(h, m, 0, 0);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+function buildDepartureLocal(dayMode: DepartureDayMode | null, customDate: string, hour: string): string {
+  if (!dayMode) return "";
+  let baseDate = new Date();
+  if (dayMode === "tomorrow") {
+    baseDate.setDate(baseDate.getDate() + 1);
+  } else if (dayMode === "custom" && customDate) {
+    const parsed = new Date(customDate);
+    if (!isNaN(parsed.getTime())) {
+      baseDate = parsed;
+    }
+  }
+  const year = baseDate.getFullYear();
+  const month = String(baseDate.getMonth() + 1).padStart(2, "0");
+  const day = String(baseDate.getDate()).padStart(2, "0");
+  const h = String(parseInt(hour, 10) || 8).padStart(2, "0");
+  return `${year}-${month}-${day}T${h}:00`;
 }
 
 function DeparturePicker({
@@ -1195,7 +1203,7 @@ function DeparturePicker({
   disabled = false,
   isModified = false,
 }: {
-  dayMode: DepartureDayMode;
+  dayMode: DepartureDayMode | null;
   onDayModeChange: (mode: DepartureDayMode) => void;
   customDate: string;
   onCustomDateChange: (date: string) => void;
@@ -1756,25 +1764,25 @@ export function FuelingPlanner({
   const result = activeModeGroup === "manual" ? manualResult : routeResult;
   const activeLastCalculatedInputs = activeModeGroup === "manual" ? manualLastCalculatedInputs : routeLastCalculatedInputs;
 
-  const [routeDepartureDayMode, setRouteDepartureDayMode] = useState<DepartureDayMode>("today");
+  const [routeDepartureDayMode, setRouteDepartureDayMode] = useState<DepartureDayMode | null>(null);
   const [routeDepartureCustomDate, setRouteDepartureCustomDate] = useState(todayIsoDate);
   const [routeDepartureHour, setRouteDepartureHour] = useState(getRoundedCurrentHour);
   const [routeIsTargetEvent, setRouteIsTargetEvent] = useState(false);
   const [routeTrainLow, setRouteTrainLow] = useState(false);
-  const [routeCafeteriaStopCount, setRouteCafeteriaStopCount] = useState<CafeteriaStopCount>(0);
+  const [routeCafeteriaStopCount, setRouteCafeteriaStopCount] = useState<CafeteriaStopCount | null>(null);
 
-  const [manualDepartureDayMode, setManualDepartureDayMode] = useState<DepartureDayMode>("today");
+  const [manualDepartureDayMode, setManualDepartureDayMode] = useState<DepartureDayMode | null>(null);
   const [manualDepartureCustomDate, setManualDepartureCustomDate] = useState(todayIsoDate);
   const [manualDepartureHour, setManualDepartureHour] = useState(getRoundedCurrentHour);
   const [manualIsTargetEvent, setManualIsTargetEvent] = useState(false);
   const [manualTrainLow, setManualTrainLow] = useState(false);
-  const [manualCafeteriaStopCount, setManualCafeteriaStopCount] = useState<CafeteriaStopCount>(0);
+  const [manualCafeteriaStopCount, setManualCafeteriaStopCount] = useState<CafeteriaStopCount | null>(null);
 
-  const [routePreRideGlycogenLoad, setRoutePreRideGlycogenLoad] = useState<PreRideGlycogenLoad>("normal");
-  const [routeLastMealTiming, setRouteLastMealTiming] = useState<LastMealTiming>("1_2h");
+  const [routePreRideGlycogenLoad, setRoutePreRideGlycogenLoad] = useState<PreRideGlycogenLoad | null>(null);
+  const [routeLastMealTiming, setRouteLastMealTiming] = useState<LastMealTiming | null>(null);
 
-  const [manualPreRideGlycogenLoad, setManualPreRideGlycogenLoad] = useState<PreRideGlycogenLoad>("normal");
-  const [manualLastMealTiming, setManualLastMealTiming] = useState<LastMealTiming>("1_2h");
+  const [manualPreRideGlycogenLoad, setManualPreRideGlycogenLoad] = useState<PreRideGlycogenLoad | null>(null);
+  const [manualLastMealTiming, setManualLastMealTiming] = useState<LastMealTiming | null>(null);
 
   const preRideGlycogenLoad = mode === "quick" ? manualPreRideGlycogenLoad : routePreRideGlycogenLoad;
   const setPreRideGlycogenLoad = mode === "quick" ? setManualPreRideGlycogenLoad : setRoutePreRideGlycogenLoad;
@@ -2683,14 +2691,7 @@ export function FuelingPlanner({
     return () => window.removeEventListener("offline", loadCachedStrategyIfOffline);
   }, [activeModeGroup]);
 
-  // A freshly calculated strategy renders below the fold on most phones —
-  // without this, "Calcular estrategia" appears to do nothing until the
-  // athlete notices they need to scroll down themselves.
-  useEffect(() => {
-    if (result) {
-      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [result]);
+
 
   const isInitialInputRender = useRef(true);
   useEffect(() => {
@@ -2746,18 +2747,7 @@ export function FuelingPlanner({
       // duration anywhere, and freely overridable afterward via Card 02's own
       // stop-count selector. Skipped if `ftp`/`weightKg` aren't real numbers
       // yet (shouldn't happen in practice — the mandatory-profile-completion
-      // guard already guarantees both by the time this planner is usable —
-      // but `estimateRideDurationHours` shouldn't be trusted with zeros).
-      if (ftp > 0 && weightKg > 0) {
-        const roughEstimateHours = estimateRideDurationHours({
-          distanceKm: parsed.distanceKm,
-          elevationGainM: parsed.elevationGainM,
-          ftp,
-          weightKg,
-          intensity: "endurance",
-        });
-        setCafeteriaStopCount(roughEstimateHours >= GPX_DEFAULT_STOP_THRESHOLD_HOURS ? 1 : 0);
-      }
+
     } catch {
       setParsedGpx(null);
       setGpxError("No se pudo leer el archivo — comprueba que sea un .gpx válido.");
@@ -2932,14 +2922,28 @@ export function FuelingPlanner({
     }
   }
 
+  // "Validación de Completitud (isStep2Complete)" — checks whether Card 02's
+  // required parameters have been explicitly selected by the athlete before
+  // allowing auto-calculation or rendering Card 03's calculated targets.
+  const missingStep2Fields = useMemo(() => {
+    const missing: string[] = [];
+    if (departureDayMode === null) missing.push("Fecha y hora de salida");
+    if (cafeteriaStopCount === null) missing.push("Paradas previstas");
+    if (experienceMode === "advanced") {
+      if (preRideGlycogenLoad === null) missing.push("Carga previa de glucógeno");
+      if (lastMealTiming === null) missing.push("Última ingesta pre-salida");
+    }
+    return missing;
+  }, [departureDayMode, cafeteriaStopCount, experienceMode, preRideGlycogenLoad, lastMealTiming]);
+
+  const isStep2Complete = missingStep2Fields.length === 0;
+
   // "Eliminación del Botón Intermedio y Auto-Cálculo Reactivo en Card 03" —
   // whether Paso 01/02 are complete enough to calculate against at all,
-  // mirroring `handleCalculate`'s own per-mode validation branches (route/
-  // gpx need a selected route/file *and* an intensity; quick mode needs
-  // `quickValid`) without actually setting the error/scroll state those
-  // branches trigger on a real submit — this is a silent readiness check,
-  // not a validation pass the athlete needs to be warned about.
-  const canAutoCalculate = isProfileComplete && (mode === "quick" ? quickValid : !routeModeIncomplete);
+  // mirroring `handleCalculate`'s own per-mode validation branches without
+  // setting error state. Requires both Step 1 and Step 2 to be complete.
+  const canAutoCalculate =
+    isProfileComplete && (mode === "quick" ? quickValid : !routeModeIncomplete) && isStep2Complete;
 
   // Drives Card 03/04/05 automatically the instant Paso 01/02 become valid,
   // and again every time any of them changes afterward — this is what
@@ -2990,13 +2994,17 @@ export function FuelingPlanner({
   const activeIntensityLabel =
     INTENSITY_SELECT_OPTIONS.find((opt) => opt.value === intensity)?.label ?? "Sin definir";
   const activeStopsLabel =
-    CAFETERIA_STOP_COUNT_OPTIONS.find((opt) => opt.value === cafeteriaStopCount)?.label ?? "Sin definir";
+    cafeteriaStopCount !== null
+      ? (CAFETERIA_STOP_COUNT_OPTIONS.find((opt) => opt.value === cafeteriaStopCount)?.label ?? "Sin definir")
+      : "Sin definir";
   const activeCarbPreloadLabel =
     preRideGlycogenLoad === "high"
       ? "Carga Alta"
       : preRideGlycogenLoad === "fasted"
         ? "Ayunas"
-        : "Normal (~70%)";
+        : preRideGlycogenLoad === "normal"
+          ? "Normal (~70%)"
+          : "Sin definir";
 
   // "Feedback Visual de Transición/Recálculo" — a brief amber flash on Card
   // 03's own g/h · ml/h · mg/h figures (see `recalculatedValueClass` at each
@@ -4093,13 +4101,15 @@ export function FuelingPlanner({
                       </button>
                     ))}
                   </div>
-                  <p className="mt-1 text-[10px] font-mono leading-snug text-neutral-400">
-                    {lastMealTiming === "less_than_30m"
-                      ? "Ingesta pre-salida reciente (<30m): la primera toma en ruta se traslada al minuto 45."
-                      : lastMealTiming === "more_than_3h"
-                        ? "Salida en ayunas/sin comer (>3h): la primera toma en ruta se adelanta al minuto 15."
-                        : "Ingesta normal (1-2h): la primera toma en ruta comenzará en el minuto 30."}
-                  </p>
+                  {lastMealTiming && (
+                    <p className="mt-1 text-[10px] font-mono leading-snug text-neutral-400">
+                      {lastMealTiming === "less_than_30m"
+                        ? "Ingesta pre-salida reciente (<30m): la primera toma en ruta se traslada al minuto 45."
+                        : lastMealTiming === "more_than_3h"
+                          ? "Salida en ayunas/sin comer (>3h): la primera toma en ruta se adelanta al minuto 15."
+                          : "Ingesta normal (1-2h): la primera toma en ruta comenzará en el minuto 30."}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -4147,9 +4157,25 @@ export function FuelingPlanner({
           )}
         </div>
 
-        {error && <p className="text-sm text-status-warning">{error}</p>}
+        {!isStep2Complete && isProfileComplete && (mode === "quick" ? quickValid : !routeModeIncomplete) && (
+          <div className="scroll-mt-20 border-t border-neutral-200 pt-4">
+            <div className={numberedCardClass}>
+              <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
+                03 · Metabolismo y objetivos calculados
+              </span>
+              <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-100/60 p-6 text-center">
+                <p className="mb-2 font-mono text-xs font-bold uppercase text-neutral-700">
+                  ⚠️ Configuración incompleta en Card 02
+                </p>
+                <p className="font-mono text-xs text-neutral-500">
+                  Selecciona: {missingStep2Fields.join(" · ")} para desbloquear los objetivos teóricos.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
-        {result && (
+        {isStep2Complete && result && (
           <div
             ref={resultRef}
             className="scroll-mt-20 border-t border-neutral-200 pt-4"
@@ -4935,14 +4961,14 @@ export function FuelingPlanner({
               {!result.trainLow && (
                 <>
                   {/* Validador Hídrico: Recargas de agua necesarias vs Paradas seleccionadas */}
-                  {fullRefillsNeeded > cafeteriaStopCount && (
+                  {fullRefillsNeeded > (cafeteriaStopCount ?? 0) && (
                     <div className="mb-4 rounded-r-md border-l-2 border-y border-r border-amber-600 border-amber-200/60 bg-[#fcf8f2] p-3 shadow-xs">
                       <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-amber-900">
                         <TriangleAlert className="size-3.5 shrink-0 text-amber-600" />
                         <span>Incompatibilidad Hídrica</span>
                       </div>
                       <p className="mt-1.5 font-mono text-xs leading-snug text-neutral-800">
-                        {cafeteriaStopCount === 0 ? (
+                        {(cafeteriaStopCount ?? 0) === 0 ? (
                           <>
                             Tu tasa de sudoración requiere <span className="font-semibold text-amber-950">{totalFluidMl} ml</span> de agua, pero solo dispones de <span className="font-semibold text-amber-950">{installedCapacityMl} ml</span> (2 bidones de 550ml). Al seleccionar 0 paradas entrarás en déficit hídrico severo. Se recomienda planificar al menos 1 parada técnica.
                           </>
@@ -4955,7 +4981,7 @@ export function FuelingPlanner({
                     </div>
                   )}
 
-                  {fullRefillsNeeded > 0 && cafeteriaStopCount >= fullRefillsNeeded && (
+                  {fullRefillsNeeded > 0 && (cafeteriaStopCount ?? 0) >= fullRefillsNeeded && (
                     <div className="mb-4 flex items-start justify-between space-y-1 rounded-md bg-neutral-900 p-3.5 text-white shadow-xs">
                       <div>
                         <div className="flex items-center gap-2 font-mono text-[10px] tracking-wider uppercase text-neutral-400">
@@ -4971,7 +4997,7 @@ export function FuelingPlanner({
                   )}
 
                   {/* Nutrición en ruta (Carbohidratos) */}
-                  {remainingCarbsG > 0 && cafeteriaStopCount > 0 && (
+                  {remainingCarbsG > 0 && (cafeteriaStopCount ?? 0) > 0 && (
                     <div className="mb-4 rounded-r-md border-l-2 border-neutral-900 bg-neutral-50/80 p-3 font-mono text-xs text-neutral-700">
                       <span className="font-bold uppercase tracking-wide text-neutral-900">Estrategia de Ruta:</span> Llevas{" "}
                       <strong className="text-neutral-900">{coveredCarbsG}g HC</strong> desde casa. Los{" "}
@@ -4979,7 +5005,7 @@ export function FuelingPlanner({
                     </div>
                   )}
 
-                  {remainingCarbsG > 0 && cafeteriaStopCount === 0 && (
+                  {remainingCarbsG > 0 && (cafeteriaStopCount ?? 0) === 0 && (
                     <div className="mb-4 rounded-r-md border-l-2 border-y border-r border-amber-600 border-amber-200/60 bg-[#fcf8f2] p-3 shadow-xs">
                       <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold tracking-wider text-amber-900 uppercase">
                         <TriangleAlert className="size-3.5 shrink-0 text-amber-600" />
@@ -5169,7 +5195,7 @@ export function FuelingPlanner({
 
                 {/* Stint Strategy Timeline */}
                 <StintStrategyTimeline
-                  cafeteriaStopCount={cafeteriaStopCount}
+                  cafeteriaStopCount={cafeteriaStopCount ?? 0}
                   durationHours={result.durationHours}
                   distanceKm={selectedRoute?.distanceKm ?? parsedGpx?.distanceKm ?? manualCalcResults?.distanceKm ?? null}
                   entries={mergedTimelineEntries}
