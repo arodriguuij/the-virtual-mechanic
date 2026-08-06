@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Download, Maximize2, RotateCcw, X, Utensils, Zap, Droplets, ShoppingBag } from "lucide-react";
-import { ElevationSparkline } from "@/components/elevation-sparkline";
+import { Download, Maximize2, X, Utensils, Zap, Droplets, ShoppingBag } from "lucide-react";
+
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 export type TacticalPoint = {
   key: string;
@@ -12,6 +13,8 @@ export type TacticalPoint = {
   type: "gel" | "solid" | "stop" | "water";
   title: string;
 };
+
+// ─── Preview Card (replaces the inline sparkline in Card 05) ─────────────────
 
 export function GpxAltimetryPreview({
   points,
@@ -26,26 +29,34 @@ export function GpxAltimetryPreview({
 
   if (!points || points.length < 2) return null;
 
+  const distKm = totalDistanceKm ?? 0;
+  const count = tacticalPoints.length;
+
   return (
     <>
-      <div className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-neutral-50/80 p-3.5 font-mono text-xs shadow-xs">
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-neutral-900">
-            Perfil Altimétrico Táctico
-          </span>
-          <button
-            type="button"
-            onClick={() => setIsOpen(true)}
-            className="flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-neutral-800 transition-colors hover:bg-neutral-100 cursor-pointer"
-          >
-            <Maximize2 className="size-3 text-neutral-600" />
-            <span> Expandir Altimetría </span>
-          </button>
+      {/* Dark action card — PNS style */}
+      <div className="mb-4 flex items-center justify-between gap-3 rounded-xl bg-neutral-900 p-4 text-white">
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-neutral-400">
+            Perfil Táctico de Ruta
+          </p>
+          <p className="mt-0.5 truncate font-mono text-sm font-bold text-amber-400">
+            {distKm > 0 ? `${distKm} km` : "Ruta GPX"}{" "}
+            {count > 0 && (
+              <span className="font-normal text-neutral-300">
+                · {count} toma{count !== 1 ? "s" : ""} programada{count !== 1 ? "s" : ""}
+              </span>
+            )}
+          </p>
         </div>
-
-        <div className="relative overflow-hidden rounded border border-neutral-200 bg-white p-2">
-          <ElevationSparkline points={points} heightPx={50} />
-        </div>
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 py-2 font-mono text-[11px] font-bold text-neutral-900 transition-colors hover:bg-neutral-100 cursor-pointer"
+        >
+          <Maximize2 className="size-3.5" />
+          Ver Altimetría
+        </button>
       </div>
 
       {isOpen && (
@@ -60,6 +71,8 @@ export function GpxAltimetryPreview({
   );
 }
 
+// ─── Full-screen Modal ────────────────────────────────────────────────────────
+
 export function GpxAltimetryModal({
   points,
   totalDistanceKm,
@@ -71,36 +84,20 @@ export function GpxAltimetryModal({
   tacticalPoints: TacticalPoint[];
   onClose: () => void;
 }) {
-  const svgRef = useRef<SVGSVGElement>(null);
   const [isExporting, setIsExporting] = useState(false);
-  // Detects portrait mode on small screens so we can show a rotate hint.
-  const [isPortrait, setIsPortrait] = useState(false);
+  // For CSS-based landscape rotation we just need the viewport dimensions,
+  // which we capture in a one-time ref — no state needed.
+  const containerRef = useRef<HTMLDivElement>(null);
 
+  // Prevent body scroll while modal is open.
   useEffect(() => {
-    const mq = window.matchMedia("(orientation: portrait) and (max-width: 768px)");
-    const update = (e: MediaQueryListEvent | MediaQueryList) => setIsPortrait(e.matches);
-    update(mq);
-    mq.addEventListener("change", update as (e: MediaQueryListEvent) => void);
-    // Attempt to lock orientation to landscape on supporting browsers
-    // (e.g. Chrome on Android). Fails silently if not supported or if
-    // the document isn't in fullscreen — no-op is the correct behaviour.
-    if (typeof screen !== "undefined" && screen.orientation && "lock" in screen.orientation) {
-      (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })
-        .lock?.("landscape")
-        .catch(() => {
-          // Not supported / not in fullscreen — ignore.
-        });
-    }
+    document.body.style.overflow = "hidden";
     return () => {
-      mq.removeEventListener("change", update as (e: MediaQueryListEvent) => void);
-      // Release orientation lock on close
-      if (typeof screen !== "undefined" && screen.orientation && "unlock" in screen.orientation) {
-        (screen.orientation as ScreenOrientation & { unlock?: () => void }).unlock?.();
-      }
+      document.body.style.overflow = "";
     };
   }, []);
 
-
+  // ── Chart maths ────────────────────────────────────────────────────────────
   const elevations = points.map((p) => p.elevationM);
   const minEle = Math.min(...elevations);
   const maxEle = Math.max(...elevations);
@@ -113,7 +110,6 @@ export function GpxAltimetryModal({
     Math.round(minEle + eleRange * 0.33),
     Math.round(minEle),
   ];
-
   const xTicks = [
     0,
     Math.round(distKm * 0.25),
@@ -122,87 +118,112 @@ export function GpxAltimetryModal({
     Math.round(distKm),
   ];
 
-  const toX = (fraction: number) => Math.max(0, Math.min(100, fraction * 100));
-  const toY = (elevationM: number) => 100 - ((elevationM - minEle) / eleRange) * 100;
+  /** Convert a 0–1 fraction to a 0–100 SVG-viewBox X coordinate. */
+  const toX = (f: number) => Math.max(0, Math.min(100, f * 100));
+  /** Convert elevation to a 0–100 SVG-viewBox Y coordinate (top = high). */
+  const toY = (e: number) => 100 - ((e - minEle) / eleRange) * 100;
 
   const linePath = points
     .map((p, i) => `${i === 0 ? "M" : "L"}${toX(p.distanceFraction).toFixed(2)},${toY(p.elevationM).toFixed(2)}`)
     .join(" ");
-
   const areaPath = `${linePath} L100,100 L0,100 Z`;
 
-  /** Renders the chart directly to a Canvas and triggers a PNG download.
-   *  No external deps — pure browser Canvas 2D API. */
+  // ── Stagger anti-collision ─────────────────────────────────────────────────
+  // Assign a vertical offset tier (0 or 1) to each marker so that points
+  // closer than MIN_GAP_FRACTION apart don't overlap.
+  const MIN_GAP_FRACTION = 4 / distKm; // 4 km expressed as a fraction
+  const staggeredPoints = tacticalPoints.map((pt, i) => {
+    const prev = tacticalPoints[i - 1];
+    const tier =
+      prev && Math.abs(pt.distanceFraction - prev.distanceFraction) < MIN_GAP_FRACTION ? 1 : 0;
+    return { ...pt, tier };
+  });
+
+  // ── Nearest elevation lookup ───────────────────────────────────────────────
+  function nearestElevation(fraction: number): number {
+    let best = points[0];
+    let bestDelta = Math.abs(points[0].distanceFraction - fraction);
+    for (const p of points) {
+      const d = Math.abs(p.distanceFraction - fraction);
+      if (d < bestDelta) {
+        bestDelta = d;
+        best = p;
+      }
+    }
+    return best.elevationM;
+  }
+
+  // ── Canvas PNG export ──────────────────────────────────────────────────────
   const handleExport = async () => {
     setIsExporting(true);
     try {
       const W = 1600;
       const H = 700;
-      const PAD_LEFT = 90;
-      const PAD_RIGHT = 50;
-      const PAD_TOP = 90;
-      const PAD_BOTTOM = 70;
-      const chartW = W - PAD_LEFT - PAD_RIGHT;
-      const chartH = H - PAD_TOP - PAD_BOTTOM;
+      const PAD_L = 90;
+      const PAD_R = 50;
+      const PAD_T = 90;
+      const PAD_B = 70;
+      const CW = W - PAD_L - PAD_R;
+      const CH = H - PAD_T - PAD_B;
 
       const canvas = document.createElement("canvas");
       canvas.width = W;
       canvas.height = H;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+      const ctx = canvas.getContext("2d")!;
 
       // Background
       ctx.fillStyle = "#fcfbf9";
       ctx.fillRect(0, 0, W, H);
 
-      // Title
+      // Title & subtitle
       ctx.fillStyle = "#121212";
       ctx.font = "bold 18px monospace";
       ctx.textAlign = "left";
-      ctx.fillText("RATIO · Perfil Altimétrico Táctico", PAD_LEFT, 38);
+      ctx.fillText("RATIO · Perfil Altimétrico Táctico", PAD_L, 38);
       ctx.fillStyle = "#6b6b6b";
       ctx.font = "13px monospace";
-      ctx.fillText(`${distKm} km  ·  ${Math.round(minEle)}m – ${Math.round(maxEle)}m`, PAD_LEFT, 60);
+      ctx.fillText(
+        `${distKm} km  ·  ${Math.round(minEle)}m – ${Math.round(maxEle)}m  ·  ${tacticalPoints.length} tomas`,
+        PAD_L,
+        60
+      );
 
-      // Y-axis grid lines and labels
-      ctx.lineWidth = 1;
+      // Y-axis grid + labels
       yTicks.forEach((y, idx) => {
-        const pct = idx / (yTicks.length - 1);
-        const yPx = PAD_TOP + pct * chartH;
+        const yPx = PAD_T + (idx / (yTicks.length - 1)) * CH;
         ctx.strokeStyle = "#e5e5e5";
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(PAD_LEFT, yPx);
-        ctx.lineTo(PAD_LEFT + chartW, yPx);
+        ctx.moveTo(PAD_L, yPx);
+        ctx.lineTo(PAD_L + CW, yPx);
         ctx.stroke();
         ctx.fillStyle = "#888";
         ctx.font = "11px monospace";
         ctx.textAlign = "right";
-        ctx.fillText(`${y}m`, PAD_LEFT - 8, yPx + 4);
+        ctx.fillText(`${y}m`, PAD_L - 8, yPx + 4);
       });
 
       // X-axis labels
-      ctx.textAlign = "center";
       xTicks.forEach((x, idx) => {
-        const pct = idx / (xTicks.length - 1);
-        const xPx = PAD_LEFT + pct * chartW;
+        const xPx = PAD_L + (idx / (xTicks.length - 1)) * CW;
         ctx.fillStyle = "#888";
         ctx.font = "11px monospace";
+        ctx.textAlign = "center";
         ctx.fillText(`Km ${x}`, xPx, H - 18);
       });
 
-      // Elevation area fill
+      // Elevation area
       ctx.beginPath();
       points.forEach((p, i) => {
-        const xPx = PAD_LEFT + (toX(p.distanceFraction) / 100) * chartW;
-        const yPx = PAD_TOP + (toY(p.elevationM) / 100) * chartH;
-        if (i === 0) ctx.moveTo(xPx, yPx);
-        else ctx.lineTo(xPx, yPx);
+        const xPx = PAD_L + (toX(p.distanceFraction) / 100) * CW;
+        const yPx = PAD_T + (toY(p.elevationM) / 100) * CH;
+        i === 0 ? ctx.moveTo(xPx, yPx) : ctx.lineTo(xPx, yPx);
       });
-      const lastP = points[points.length - 1];
-      ctx.lineTo(PAD_LEFT + (toX(lastP.distanceFraction) / 100) * chartW, PAD_TOP + chartH);
-      ctx.lineTo(PAD_LEFT, PAD_TOP + chartH);
+      const lp = points[points.length - 1];
+      ctx.lineTo(PAD_L + (toX(lp.distanceFraction) / 100) * CW, PAD_T + CH);
+      ctx.lineTo(PAD_L, PAD_T + CH);
       ctx.closePath();
-      const grad = ctx.createLinearGradient(0, PAD_TOP, 0, PAD_TOP + chartH);
+      const grad = ctx.createLinearGradient(0, PAD_T, 0, PAD_T + CH);
       grad.addColorStop(0, "rgba(112,104,91,0.25)");
       grad.addColorStop(1, "rgba(112,104,91,0.02)");
       ctx.fillStyle = grad;
@@ -214,47 +235,53 @@ export function GpxAltimetryModal({
       ctx.lineWidth = 2.5;
       ctx.lineJoin = "round";
       points.forEach((p, i) => {
-        const xPx = PAD_LEFT + (toX(p.distanceFraction) / 100) * chartW;
-        const yPx = PAD_TOP + (toY(p.elevationM) / 100) * chartH;
-        if (i === 0) ctx.moveTo(xPx, yPx);
-        else ctx.lineTo(xPx, yPx);
+        const xPx = PAD_L + (toX(p.distanceFraction) / 100) * CW;
+        const yPx = PAD_T + (toY(p.elevationM) / 100) * CH;
+        i === 0 ? ctx.moveTo(xPx, yPx) : ctx.lineTo(xPx, yPx);
       });
       ctx.stroke();
 
-      // Tactical point markers
-      for (const pt of tacticalPoints) {
-        const xPx = PAD_LEFT + pt.distanceFraction * chartW;
-        const matchingP = points.find((p) => Math.abs(p.distanceFraction - pt.distanceFraction) < 0.05);
-        const ptEle = matchingP ? matchingP.elevationM : minEle;
-        const yRaw = PAD_TOP + (toY(ptEle) / 100) * chartH;
-        const yBadge = Math.min(PAD_TOP + chartH - 32, Math.max(PAD_TOP + 16, yRaw - 28));
+      // Tactical markers with stagger
+      staggeredPoints.forEach((pt) => {
+        const xPx = PAD_L + pt.distanceFraction * CW;
+        const yRaw = PAD_T + (toY(nearestElevation(pt.distanceFraction)) / 100) * CH;
+        // Stagger: tier-1 markers float 40px higher
+        const yBadge = Math.min(
+          PAD_T + CH - 36,
+          Math.max(PAD_T + 14, yRaw - 30 - pt.tier * 42)
+        );
 
-        // Stem
+        // Dashed stem
         ctx.beginPath();
-        ctx.strokeStyle = "#121212";
+        ctx.setLineDash([3, 3]);
+        ctx.strokeStyle = "#a3a3a3";
         ctx.lineWidth = 1;
         ctx.moveTo(xPx, yBadge + 22);
         ctx.lineTo(xPx, yRaw);
         ctx.stroke();
+        ctx.setLineDash([]);
 
         // Badge
-        const label = pt.title.length > 24 ? pt.title.slice(0, 24) + "…" : pt.title;
+        const typePrefix = pt.type === "gel" ? "⚡" : pt.type === "solid" ? "🍌" : pt.type === "stop" ? "🛒" : "💧";
+        const label = `Km ${pt.km} · ${typePrefix} ${pt.title}`;
+        const truncated = label.length > 30 ? label.slice(0, 30) + "…" : label;
         ctx.font = "bold 10px monospace";
-        const textW = ctx.measureText(label).width + 24;
+        const tw = ctx.measureText(truncated).width + 20;
         ctx.fillStyle = "#121212";
         ctx.beginPath();
-        (ctx as CanvasRenderingContext2D).roundRect(xPx - textW / 2, yBadge, textW, 20, 4);
+        (ctx as CanvasRenderingContext2D & { roundRect: (x: number, y: number, w: number, h: number, r: number) => void })
+          .roundRect(xPx - tw / 2, yBadge, tw, 20, 4);
         ctx.fill();
         ctx.fillStyle = "#ffffff";
         ctx.textAlign = "center";
-        ctx.fillText(label, xPx, yBadge + 13);
-      }
+        ctx.fillText(truncated, xPx, yBadge + 13);
+      });
 
       // Watermark
       ctx.fillStyle = "#ccc";
       ctx.font = "11px monospace";
       ctx.textAlign = "right";
-      ctx.fillText("ratio.velo", W - PAD_RIGHT, H - 6);
+      ctx.fillText("ratio.velo", W - PAD_R, H - 6);
 
       canvas.toBlob((blob) => {
         if (!blob) return;
@@ -270,11 +297,44 @@ export function GpxAltimetryModal({
     }
   };
 
+  // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 sm:p-6 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="flex h-[92vh] w-full max-w-5xl flex-col rounded-xl bg-white shadow-2xl overflow-hidden font-mono border border-neutral-200">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 bg-neutral-50">
+    /*
+     * CSS-forced landscape on portrait mobile:
+     * On small screens in portrait orientation the entire dialog is rotated
+     * 90° via CSS so the user doesn't need to unlock their device rotation.
+     * On landscape or desktop the rotation is 0° (no-op).
+     */
+    <div
+      className="
+        fixed inset-0 z-50
+        flex items-center justify-center
+        bg-black/70 backdrop-blur-xs
+        animate-in fade-in duration-200
+        /* portrait-mobile: rotate the inner container 90deg */
+        [@media_(max-width:768px)_and_(orientation:portrait)]:p-0
+        p-2 sm:p-6
+      "
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={containerRef}
+        className="
+          flex flex-col rounded-xl bg-white shadow-2xl overflow-hidden font-mono border border-neutral-200
+          /* Normal (landscape / desktop): fills available space */
+          w-full max-w-5xl h-[92vh]
+          /* Portrait mobile: rotate 90deg and swap w/h so it fills the screen sideways */
+          [@media_(max-width:768px)_and_(orientation:portrait)]:rotate-90
+          [@media_(max-width:768px)_and_(orientation:portrait)]:w-[100vh]
+          [@media_(max-width:768px)_and_(orientation:portrait)]:h-[100vw]
+          [@media_(max-width:768px)_and_(orientation:portrait)]:max-w-none
+          [@media_(max-width:768px)_and_(orientation:portrait)]:rounded-none
+        "
+      >
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-neutral-200 px-4 py-3 bg-neutral-50">
           <div className="flex items-center gap-2">
             <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
             <span className="font-mono text-xs font-bold uppercase tracking-wider text-neutral-900">
@@ -290,53 +350,35 @@ export function GpxAltimetryModal({
           </button>
         </div>
 
-        {/* Portrait orientation hint — visible only on narrow screens */}
-        {isPortrait && (
-          <div className="flex items-center gap-2 border-b border-amber-200/60 bg-[#fcf8f2] px-4 py-2 font-mono text-[11px] text-amber-900">
-            <RotateCcw className="size-3.5 shrink-0 text-amber-600" />
-            Gira la pantalla para mejor visualización táctica
-          </div>
-        )}
-
-        {/* Modal Main Scrollable Chart Area */}
+        {/* Scrollable chart area */}
         <div className="flex-1 overflow-x-auto overflow-y-auto p-4 sm:p-6 bg-[#fcfbf9]">
           <div className="min-w-[750px] flex flex-col gap-4">
-            {/* Legend Header */}
-            <div className="flex items-center gap-4 text-[11px] text-neutral-600 border-b border-neutral-200 pb-2">
-              <span className="font-semibold text-neutral-900 uppercase">Leyenda Táctica:</span>
-              <span className="flex items-center gap-1">
-                <Zap className="size-3.5 text-amber-600" /> Pre-Puerto (Geles 10-15m)
-              </span>
-              <span className="flex items-center gap-1">
-                <Utensils className="size-3.5 text-neutral-700" /> Llano (Sólidos)
-              </span>
-              <span className="flex items-center gap-1">
-                <Droplets className="size-3.5 text-blue-600" /> Relleno Hídrico
-              </span>
+
+            {/* Legend */}
+            <div className="flex flex-wrap items-center gap-3 text-[11px] text-neutral-600 border-b border-neutral-200 pb-2">
+              <span className="font-semibold text-neutral-900 uppercase">Leyenda:</span>
+              <span className="flex items-center gap-1"><Zap className="size-3.5 text-amber-600" /> Pre-Puerto (Gel 10-15m)</span>
+              <span className="flex items-center gap-1"><Utensils className="size-3.5 text-neutral-700" /> Llano (Sólidos)</span>
+              <span className="flex items-center gap-1"><Droplets className="size-3.5 text-blue-600" /> Hídrico</span>
+              <span className="flex items-center gap-1"><ShoppingBag className="size-3.5 text-neutral-500" /> Parada</span>
             </div>
 
-            {/* Chart with Y and X Axis */}
+            {/* Chart: Y-axis + SVG canvas */}
             <div className="grid grid-cols-[60px_1fr] gap-2 items-stretch h-[380px] pt-4">
-              {/* Y Axis (Meters) */}
+              {/* Y Axis */}
               <div className="flex flex-col justify-between text-right text-[10px] font-bold text-neutral-500 pr-2 border-r border-neutral-300">
-                {yTicks.map((y, idx) => (
-                  <span key={idx}>{y}m</span>
-                ))}
+                {yTicks.map((y, i) => <span key={i}>{y}m</span>)}
               </div>
 
-              {/* Chart Canvas Area */}
+              {/* SVG canvas */}
               <div className="relative w-full h-full border-b border-neutral-300">
-                {/* Horizontal Grid lines */}
+                {/* Grid lines */}
                 <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20">
-                  <div className="border-b border-neutral-400 w-full" />
-                  <div className="border-b border-neutral-400 w-full" />
-                  <div className="border-b border-neutral-400 w-full" />
-                  <div className="border-b border-neutral-400 w-full" />
+                  {[0, 1, 2, 3].map((i) => <div key={i} className="border-b border-neutral-400 w-full" />)}
                 </div>
 
-                {/* SVG Profile */}
+                {/* Elevation SVG */}
                 <svg
-                  ref={svgRef}
                   viewBox="0 0 100 100"
                   preserveAspectRatio="none"
                   className="absolute inset-0 w-full h-full overflow-visible"
@@ -348,60 +390,71 @@ export function GpxAltimetryModal({
                     </linearGradient>
                   </defs>
                   <path d={areaPath} fill="url(#modal-elevation-fill)" stroke="none" />
-                  <path
-                    d={linePath}
-                    fill="none"
-                    stroke="#121212"
-                    strokeWidth={2}
-                    vectorEffect="non-scaling-stroke"
-                  />
+                  <path d={linePath} fill="none" stroke="#121212" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+
+                  {/* Dashed vertical stems (SVG layer, under badge overlay) */}
+                  {staggeredPoints.map((pt) => {
+                    const x = toX(pt.distanceFraction);
+                    const y = toY(nearestElevation(pt.distanceFraction));
+                    return (
+                      <line
+                        key={`stem-${pt.key}`}
+                        x1={x} y1={y}
+                        x2={x} y2={100}
+                        stroke="#a3a3a3"
+                        strokeWidth={0.4}
+                        strokeDasharray="1.5 1.5"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    );
+                  })}
                 </svg>
 
-                {/* Tactical Point Markers */}
-                {tacticalPoints.map((pt) => {
+                {/* Badge overlay (HTML, above SVG) */}
+                {staggeredPoints.map((pt) => {
                   const leftPct = pt.distanceFraction * 100;
-                  const matchingPt = points.find(
-                    (p) => Math.abs(p.distanceFraction - pt.distanceFraction) < 0.05
-                  );
-                  const ptEle = matchingPt ? matchingPt.elevationM : minEle;
-                  const topPct = toY(ptEle);
+                  const eleY = toY(nearestElevation(pt.distanceFraction));
+                  // Base top % follows the elevation curve; tier-1 floats higher
+                  const topPct = Math.min(72, Math.max(4, eleY - 2 - pt.tier * 18));
 
                   return (
                     <div
                       key={pt.key}
-                      style={{ left: `${leftPct}%`, top: `${Math.min(75, Math.max(10, topPct))}%` }}
+                      style={{ left: `${leftPct}%`, top: `${topPct}%` }}
                       className="absolute -translate-x-1/2 -translate-y-full flex flex-col items-center z-10"
                     >
-                      <div className="rounded-md border border-neutral-800 bg-neutral-900 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-md flex items-center gap-1 whitespace-nowrap">
-                        {pt.type === "gel" && <Zap className="size-2.5 text-amber-400" />}
-                        {pt.type === "solid" && <Utensils className="size-2.5 text-white" />}
-                        {pt.type === "stop" && <ShoppingBag className="size-2.5 text-amber-400" />}
-                        {pt.type === "water" && <Droplets className="size-2.5 text-blue-400" />}
-                        <span>{pt.title}</span>
+                      <div className="rounded-md border border-neutral-800 bg-neutral-900 px-1.5 py-[3px] text-[9px] font-bold text-white shadow-md flex items-center gap-1 whitespace-nowrap">
+                        {pt.type === "gel"   && <Zap         className="size-2.5 text-amber-400 shrink-0" />}
+                        {pt.type === "solid" && <Utensils    className="size-2.5 text-neutral-200 shrink-0" />}
+                        {pt.type === "stop"  && <ShoppingBag className="size-2.5 text-amber-400 shrink-0" />}
+                        {pt.type === "water" && <Droplets    className="size-2.5 text-blue-400 shrink-0" />}
+                        <span>Km {pt.km} · {pt.title}</span>
                       </div>
-                      <div className="w-0.5 h-3 bg-neutral-900" />
+                      {/* Stem connector dot */}
+                      <div className="w-px h-3 bg-neutral-600" />
+                      <div className="size-1 rounded-full bg-neutral-600" />
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            {/* X Axis (Km) */}
+            {/* X Axis */}
             <div className="grid grid-cols-[60px_1fr] gap-2">
               <div />
               <div className="flex justify-between text-[10px] font-bold text-neutral-500 pt-1">
-                {xTicks.map((x, idx) => (
-                  <span key={idx}>Km {x}</span>
-                ))}
+                {xTicks.map((x, i) => <span key={i}>Km {x}</span>)}
               </div>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="border-t border-neutral-200 px-4 py-3 bg-neutral-50 flex items-center justify-between text-xs text-neutral-600 font-mono">
-          <span>Toma pre-puerto (10-15m antes &gt;4%) · Sólidos en llanos · Bloqueo en bajadas (&lt;-3%)</span>
-          <div className="flex items-center gap-2">
+        <div className="shrink-0 border-t border-neutral-200 px-4 py-3 bg-neutral-50 flex items-center justify-between gap-2 text-xs text-neutral-600 font-mono">
+          <span className="hidden sm:block">
+            Pre-puerto (10-15m antes &gt;4%) · Sólidos en llanos · Bloqueo bajadas (&lt;-3%)
+          </span>
+          <div className="flex items-center gap-2 ml-auto">
             <button
               type="button"
               onClick={handleExport}

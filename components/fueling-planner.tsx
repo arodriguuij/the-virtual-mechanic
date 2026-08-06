@@ -4473,16 +4473,15 @@ export function FuelingPlanner({
                 </div>
               )}
 
-              {/* Vista Previa y Modal Expandible de Altimetría GPX */}
+              {/* Tarjeta de Acción Altimétrica — action card + modal */}
               {result.weather.elevationProfile && (
-                <div className="mb-4">
-                  <GpxAltimetryPreview
-                    points={result.weather.elevationProfile}
-                    totalDistanceKm={selectedRoute?.distanceKm ?? parsedGpx?.distanceKm ?? null}
-                    tacticalPoints={tacticalPoints}
-                  />
-                </div>
+                <GpxAltimetryPreview
+                  points={result.weather.elevationProfile}
+                  totalDistanceKm={selectedRoute?.distanceKm ?? parsedGpx?.distanceKm ?? null}
+                  tacticalPoints={tacticalPoints}
+                />
               )}
+
 
               {/* Cadencia de hidratación y Estrategia por Tramos (Stint Strategy) */}
               <div className="rounded-xl border border-zinc-200/70 border-l-4 border-l-[#70685b] bg-zinc-50 p-4">
