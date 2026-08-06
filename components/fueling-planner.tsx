@@ -34,6 +34,7 @@ import { parseGpxFile, type ParsedGpxRoute } from "@/lib/gpx-import";
 import { decodePolyline } from "@/lib/polyline";
 import { refreshStravaRoutes } from "@/lib/strava-actions";
 import { ElevationSparkline } from "@/components/elevation-sparkline";
+import { GpxAltimetryPreview } from "@/components/gpx-altimetry-modal";
 import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
 import { InfoTooltip } from "@/components/info-tooltip";
@@ -2361,6 +2362,19 @@ export function FuelingPlanner({
       .sort((a, b) => a.atMinutes - b.atMinutes);
   }, [result, experienceMode, lastMealTiming]);
 
+  const tacticalPoints = useMemo(() => {
+    if (!result || mergedTimelineEntries.length === 0) return [];
+    const totalMins = Math.max(1, result.durationHours * 60);
+    const dist = selectedRoute?.distanceKm ?? parsedGpx?.distanceKm ?? 100;
+    return mergedTimelineEntries.map((e) => ({
+      key: e.key,
+      distanceFraction: Math.min(1, Math.max(0, e.atMinutes / totalMins)),
+      km: e.atKm ?? Math.round((e.atMinutes / totalMins) * dist),
+      type: (e.icon === "gel" ? "gel" : e.icon === "solid" ? "solid" : "water") as "gel" | "solid" | "stop" | "water",
+      title: e.label,
+    }));
+  }, [result, mergedTimelineEntries, selectedRoute, parsedGpx]);
+
   // "Modo Cobertura Limitada" — if the athlete opens the app with no
   // connection at all (mid-climb, no signal), load the last strategy that
   // did calculate successfully rather than showing an empty planner.
@@ -4388,6 +4402,17 @@ export function FuelingPlanner({
                   Te faltan <strong className="text-neutral-900">{Math.round(sodiumDeficitMg)} mg Na+</strong> para cubrir tu ruta. Equivale a añadir{" "}
                   <strong className="text-neutral-900">{saltCapsulesNeeded} cápsula{saltCapsulesNeeded !== 1 ? "s" : ""} de sal</strong> en bolsillo o{" "}
                   <strong className="text-neutral-900">{evolytesGramsNeeded}g de Evolytes</strong> extra en recargas.
+                </div>
+              )}
+
+              {/* Vista Previa y Modal Expandible de Altimetría GPX */}
+              {result.weather.elevationProfile && (
+                <div className="mb-4">
+                  <GpxAltimetryPreview
+                    points={result.weather.elevationProfile}
+                    totalDistanceKm={selectedRoute?.distanceKm ?? parsedGpx?.distanceKm ?? null}
+                    tacticalPoints={tacticalPoints}
+                  />
                 </div>
               )}
 
