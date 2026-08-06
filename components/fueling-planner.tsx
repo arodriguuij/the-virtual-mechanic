@@ -1813,12 +1813,25 @@ export function FuelingPlanner({
   const [routeCommercialProducts, setRouteCommercialProducts] = useState<Record<string, number>>({});
   const [routeBottleConfig, setRouteBottleConfig] = useState<BottleConfigOption>(DEFAULT_BOTTLE_CONFIG);
   const [routeBottleCapacityOverrideMl, setRouteBottleCapacityOverrideMl] = useState<number | null>(null);
+  // "Personalización de Gramajes Finos (Modo Experto)" — an advanced
+  // athlete's own manual malto:fructosa override for the fuel-bottle recipe,
+  // same client-only/display-only convention as `bottleCapacityOverrideMl`
+  // right above (see `displayBottlePlan`'s own doc comment for how the two
+  // combine) — `null` means "use the server-computed split," same as ever.
+  const [routeMaltoFructoseOverrideG, setRouteMaltoFructoseOverrideG] = useState<{
+    maltodextrinG: number;
+    fructoseG: number;
+  } | null>(null);
 
   const [manualPocketFood, setManualPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
   const [manualCustomCarbsG, setManualCustomCarbsG] = useState(0);
   const [manualCommercialProducts, setManualCommercialProducts] = useState<Record<string, number>>({});
   const [manualBottleConfig, setManualBottleConfig] = useState<BottleConfigOption>(DEFAULT_BOTTLE_CONFIG);
   const [manualBottleCapacityOverrideMl, setManualBottleCapacityOverrideMl] = useState<number | null>(null);
+  const [manualMaltoFructoseOverrideG, setManualMaltoFructoseOverrideG] = useState<{
+    maltodextrinG: number;
+    fructoseG: number;
+  } | null>(null);
 
   const pocketFood = mode === "quick" ? manualPocketFood : routePocketFood;
   const setPocketFood: React.Dispatch<React.SetStateAction<Partial<Record<PocketFoodItemType, number>>>> = (action) => {
@@ -1865,9 +1878,22 @@ export function FuelingPlanner({
     }
   };
 
+  const maltoFructoseOverrideG =
+    mode === "quick" ? manualMaltoFructoseOverrideG : routeMaltoFructoseOverrideG;
+  const setMaltoFructoseOverrideG: React.Dispatch<
+    React.SetStateAction<{ maltodextrinG: number; fructoseG: number } | null>
+  > = (action) => {
+    if (mode === "quick") {
+      setManualMaltoFructoseOverrideG(action);
+    } else {
+      setRouteMaltoFructoseOverrideG(action);
+    }
+  };
+
   const [commercialProductsSheetOpen, setCommercialProductsSheetOpen] = useState(false);
   const fuelingMode: FuelingMode = "inventory";
   const [bottleCapacityEditorOpen, setBottleCapacityEditorOpen] = useState(false);
+  const [maltoFructoseEditorOpen, setMaltoFructoseEditorOpen] = useState(false);
   const [showBikeScoops, setShowBikeScoops] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2264,16 +2290,33 @@ export function FuelingPlanner({
   // round-trip — every display below reads this instead of
   // `result.bottlePlan` directly, so the override reaches the hero recipe,
   // the checklist, and the reload-strategy Ziploc bag dose all at once.
-  const displayBottlePlan = useMemo(
-    () =>
+  const displayBottlePlan = useMemo(() => {
+    const base =
       result && bottleCapacityOverrideMl && bottleCapacityOverrideMl !== result.bottlePlan.bottleSizeMl
         ? getBottlePlan(result.recipe, bottleCapacityOverrideMl, {
             coldWeatherReduction: result.thermalAdaptation.isExtremeCold,
             minWaterBottles: result.thermalAdaptation.isExtremeHeat ? 1 : 0,
           })
-        : (result?.bottlePlan ?? null),
-    [result, bottleCapacityOverrideMl]
-  );
+        : (result?.bottlePlan ?? null);
+    // "Personalización de Gramajes Finos (Modo Experto)" — layered on top of
+    // the bottle-size override above (both are purely client-side display
+    // overrides, never sent back to the server): an advanced athlete's own
+    // manual malto/fructosa split replaces the server-computed one, with
+    // `concentrationPct` re-derived from the new total so the hypertonic-
+    // solution warning banner (which reads this same field) stays accurate
+    // against whatever grams are actually shown.
+    if (!base || !maltoFructoseOverrideG) return base;
+    return {
+      ...base,
+      fuelBottles: {
+        ...base.fuelBottles,
+        maltodextrinGPerBottle: maltoFructoseOverrideG.maltodextrinG,
+        fructoseGPerBottle: maltoFructoseOverrideG.fructoseG,
+        concentrationPct:
+          ((maltoFructoseOverrideG.maltodextrinG + maltoFructoseOverrideG.fructoseG) / base.bottleSizeMl) * 100,
+      },
+    };
+  }, [result, bottleCapacityOverrideMl, maltoFructoseOverrideG]);
 
   // "Fix Matemático del Plan de Agua en Ruta" — this used to read
   // `result.reloadStrategy.waterRefillCount`/`waterRefillLiters`, both
@@ -2356,6 +2399,21 @@ export function FuelingPlanner({
   const selectedCommercialProducts = COMMERCIAL_PRODUCTS.filter(
     (product) => (commercialProducts[product.id] ?? 0) > 0
   );
+
+  // "Módulo de Distribución de Bolsillos en Card 05" (Modo Experto) — splits
+  // the athlete's own already-selected inventory into where it physically
+  // goes on the bike/jersey, rather than deriving anything new: gels/chews
+  // (fast absorption) go left, the catalog solids/bars/custom entry (bulky)
+  // go center, real branded bars fold in here too since they're just as
+  // bulky as a home-brand energy bar. Sodium reserve (right pocket) reuses
+  // the exact same `showSodiumSuggestion`/`saltCapsulesNeeded` figures the
+  // "Sugerencia de electrolitos" banner below already computes.
+  const pocketLogisticsFast = selectedCommercialProducts.filter(
+    (p) => p.category === "gel" || p.category === "chew"
+  );
+  const pocketLogisticsCatalogSolids = POCKET_FOOD_TYPES.filter((type) => (pocketFood[type] ?? 0) > 0);
+  const pocketLogisticsBars = selectedCommercialProducts.filter((p) => p.category === "bar");
+
   const bottlesAndPocketCoveredCarbsG =
     pocketFoodCarbsPreview + bottleCarbsContributionG + commercialCarbsG;
   // "Desvinculación de Paradas del Cálculo de Carbohidratos" — CASA
@@ -2852,6 +2910,8 @@ export function FuelingPlanner({
       setIsOfflineCache(false);
       setBottleCapacityOverrideMl(null);
       setBottleCapacityEditorOpen(false);
+      setMaltoFructoseOverrideG(null);
+      setMaltoFructoseEditorOpen(false);
       setShowBikeScoops(false);
       // A brand-new `result` has no manifest generated against it yet —
       // see `isManifestGenerated`'s own doc comment above.
@@ -4513,6 +4573,103 @@ export function FuelingPlanner({
                   ))}
                 </div>
               )}
+
+              {/* "Personalización de Gramajes Finos (Modo Experto)" — an
+                  advanced athlete can override the server-computed
+                  malto:fructosa split directly, same client-only/display-
+                  only convention as the bottle-capacity override right
+                  above (see `displayBottlePlan`'s own doc comment for how
+                  the two combine). Standard mode never sees this — a
+                  precise 1:0.8-style gram tweak is exactly the kind of
+                  tactical detail Paso 02's own Carga Previa module is
+                  already scoped to Modo Experto for. */}
+              {experienceMode === "advanced" && displayBottlePlan && (
+                <div className="mb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono text-[11px] text-zinc-500">
+                      Malto:{" "}
+                      <span className="font-semibold text-zinc-900">
+                        {displayBottlePlan.fuelBottles.maltodextrinGPerBottle}g
+                      </span>{" "}
+                      · Fructosa:{" "}
+                      <span className="font-semibold text-zinc-900">
+                        {displayBottlePlan.fuelBottles.fructoseGPerBottle}g
+                      </span>
+                      {maltoFructoseOverrideG && (
+                        <span className="ml-1.5 text-amber-600">(manual)</span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setMaltoFructoseEditorOpen((v) => !v)}
+                      className="flex cursor-pointer items-center gap-1 font-mono text-xs font-semibold text-[#70685b] transition-colors duration-150 hover:text-[#585248] hover:underline"
+                    >
+                      <Pencil className="size-3" />
+                      Ajuste fino
+                    </button>
+                  </div>
+                  {maltoFructoseEditorOpen && (
+                    <div className="mt-2 flex flex-wrap items-end gap-3 rounded-lg bg-zinc-50 p-3">
+                      <label className="flex flex-col gap-1">
+                        <span className="font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
+                          Maltodextrina (g)
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={
+                            maltoFructoseOverrideG?.maltodextrinG ??
+                            displayBottlePlan.fuelBottles.maltodextrinGPerBottle
+                          }
+                          onChange={(e) =>
+                            setMaltoFructoseOverrideG({
+                              maltodextrinG: Math.max(0, Number(e.target.value) || 0),
+                              fructoseG:
+                                maltoFructoseOverrideG?.fructoseG ??
+                                displayBottlePlan.fuelBottles.fructoseGPerBottle,
+                            })
+                          }
+                          className={cn(fieldClass, "w-24")}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
+                          Fructosa (g)
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={
+                            maltoFructoseOverrideG?.fructoseG ??
+                            displayBottlePlan.fuelBottles.fructoseGPerBottle
+                          }
+                          onChange={(e) =>
+                            setMaltoFructoseOverrideG({
+                              maltodextrinG:
+                                maltoFructoseOverrideG?.maltodextrinG ??
+                                displayBottlePlan.fuelBottles.maltodextrinGPerBottle,
+                              fructoseG: Math.max(0, Number(e.target.value) || 0),
+                            })
+                          }
+                          className={cn(fieldClass, "w-24")}
+                        />
+                      </label>
+                      {maltoFructoseOverrideG && (
+                        <button
+                          type="button"
+                          onClick={() => setMaltoFructoseOverrideG(null)}
+                          className="cursor-pointer font-mono text-xs font-semibold text-zinc-500 transition-colors duration-150 hover:text-zinc-900 hover:underline"
+                        >
+                          Restaurar automático
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Fixed row at every width — short Title Case labels ("Solo
                   Agua"/"1 Mix"/"Ambos Mix", or "Solo Agua"/"Con Mix" on a
                   1-cage bike) keep this legible even on a narrow phone, so
@@ -4860,6 +5017,124 @@ export function FuelingPlanner({
                   Te faltan <strong className="text-neutral-900">{Math.round(sodiumDeficitMg)} mg Na+</strong> para cubrir tu ruta. Equivale a añadir{" "}
                   <strong className="text-neutral-900">{saltCapsulesNeeded} cápsula{saltCapsulesNeeded !== 1 ? "s" : ""} de sal</strong> en bolsillo o{" "}
                   <strong className="text-neutral-900">{evolytesGramsNeeded}g de Evolytes</strong> extra en recargas.
+                </div>
+              )}
+
+              {/* "Módulo de Distribución de Bolsillos en Card 05" — Modo
+                  Experto only. A concrete "dónde va cada cosa" breakdown
+                  (bolsillo izquierdo/central/derecho + bidones), built
+                  entirely from data this card already has on hand — the
+                  athlete's own commercial-product/pocket-food selections,
+                  the sodium-deficit suggestion, and `bikeManifestItems` —
+                  rather than any new calculation. Standard mode skips this
+                  entirely, same "advanced-only tactical detail" convention
+                  Paso 02's own Carga Previa module already follows. */}
+              {experienceMode === "advanced" && (
+                <div className="mb-4 rounded-xl border border-zinc-200 bg-white p-4">
+                  <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
+                    Logística de Distribución en Ruta · Bolsillos del Maillot
+                  </span>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {/* Bolsillo Izquierdo — Rápidos */}
+                    <div className="rounded-lg bg-zinc-50 p-3">
+                      <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-wider text-zinc-500 uppercase">
+                        <Zap className="size-3.5 shrink-0 text-amber-600" />
+                        Izquierdo · Rápidos
+                      </span>
+                      {pocketLogisticsFast.length > 0 ? (
+                        <ul className="mt-1.5 flex flex-col gap-1 font-mono text-xs text-zinc-700">
+                          {pocketLogisticsFast.map((p) => (
+                            <li key={p.id} className="flex items-center justify-between gap-2">
+                              <span className="truncate">
+                                {p.brand} {p.name}
+                              </span>
+                              <span className="shrink-0 text-zinc-400">x{commercialProducts[p.id]}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-1.5 font-mono text-xs text-zinc-400">
+                          Sin geles/cafeína seleccionados en Card 04.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Bolsillo Central — Voluminosos */}
+                    <div className="rounded-lg bg-zinc-50 p-3">
+                      <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-wider text-zinc-500 uppercase">
+                        <Utensils className="size-3.5 shrink-0 text-zinc-600" />
+                        Central · Voluminosos
+                      </span>
+                      {pocketLogisticsCatalogSolids.length > 0 ||
+                      pocketLogisticsBars.length > 0 ||
+                      customCarbsG > 0 ? (
+                        <ul className="mt-1.5 flex flex-col gap-1 font-mono text-xs text-zinc-700">
+                          {pocketLogisticsCatalogSolids.map((type) => (
+                            <li key={type} className="flex items-center justify-between gap-2">
+                              <span className="truncate">{pocketFoodName(type)}</span>
+                              <span className="shrink-0 text-zinc-400">x{pocketFood[type]}</span>
+                            </li>
+                          ))}
+                          {pocketLogisticsBars.map((p) => (
+                            <li key={p.id} className="flex items-center justify-between gap-2">
+                              <span className="truncate">
+                                {p.brand} {p.name}
+                              </span>
+                              <span className="shrink-0 text-zinc-400">x{commercialProducts[p.id]}</span>
+                            </li>
+                          ))}
+                          {customCarbsG > 0 && (
+                            <li className="flex items-center justify-between gap-2">
+                              <span>Personalizado</span>
+                              <span className="shrink-0 text-zinc-400">{customCarbsG}g HC</span>
+                            </li>
+                          )}
+                        </ul>
+                      ) : (
+                        <p className="mt-1.5 font-mono text-xs text-zinc-400">
+                          Sin sólidos seleccionados en Card 04.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Bolsillo Derecho — Reserva / Sodio */}
+                    <div className="rounded-lg bg-zinc-50 p-3">
+                      <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-wider text-zinc-500 uppercase">
+                        <ShoppingBag className="size-3.5 shrink-0 text-zinc-600" />
+                        Derecho · Reserva / Sodio
+                      </span>
+                      <p className="mt-1.5 font-mono text-xs text-zinc-700">
+                        {showSodiumSuggestion
+                          ? `${saltCapsulesNeeded} cápsula${saltCapsulesNeeded !== 1 ? "s" : ""} de sal de reserva (≈${evolytesGramsNeeded}g Evolytes)`
+                          : "Sodio ya cubierto por bidones/bolsillos — sin sales de reserva necesarias."}
+                      </p>
+                      <p className="mt-1 font-mono text-[11px] text-zinc-400">
+                        Lleva 1 gel de repuesto + hueco para envoltorios usados.
+                      </p>
+                    </div>
+
+                    {/* Bidones */}
+                    <div className="rounded-lg bg-zinc-50 p-3">
+                      <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-wider text-zinc-500 uppercase">
+                        <Droplet className="size-3.5 shrink-0 text-[#70685b]" />
+                        Bidones
+                      </span>
+                      {bikeManifestItems.length > 0 ? (
+                        <ul className="mt-1.5 flex flex-col gap-1 font-mono text-xs text-zinc-700">
+                          {bikeManifestItems.map((item) => (
+                            <li key={item.key} className="flex items-center justify-between gap-2">
+                              <span className="truncate">
+                                {item.quantity}x {item.name}
+                              </span>
+                              <span className="shrink-0 text-zinc-400">{item.specs}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-1.5 font-mono text-xs text-zinc-400">Sin bidones asignados todavía.</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
