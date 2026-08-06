@@ -765,86 +765,36 @@ export function PhysiologicalProfileForm({
             Elige el nivel de complejidad de la interfaz. El modo Avanzado desbloquea controles de carga previa de glucógeno y timing de ingesta.
           </p>
           <input type="hidden" name="experience_mode" value={experienceMode} />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {/* Opción Estándar */}
-            <div
-              onClick={() => {
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <RadioCard
+              name="experience_mode_radio"
+              value="standard"
+              checked={experienceMode === "standard"}
+              onChange={() => {
                 setExperienceMode("standard");
                 if (typeof window !== "undefined") {
                   localStorage.setItem("ratio_experience_mode", "standard");
                 }
               }}
-              className={cn(
-                "p-3.5 rounded-md border text-left transition-all cursor-pointer select-none space-y-1",
-                experienceMode === "standard"
-                  ? "bg-[#6f6354] text-white border-[#6f6354]"
-                  : "bg-white text-neutral-900 border-neutral-200 hover:border-neutral-300"
-              )}
+              title="Estándar"
             >
-              <div className="flex items-center gap-2.5">
-                {/* Círculo Radio Copiado de Sección 02 */}
-                <span
-                  className={cn(
-                    "w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors",
-                    experienceMode === "standard" ? "border-white bg-transparent" : "border-neutral-300 bg-white"
-                  )}
-                >
-                  {experienceMode === "standard" && (
-                    <span className="w-2 h-2 rounded-full bg-white" />
-                  )}
-                </span>
-                <span className="font-semibold text-sm">Estándar</span>
-              </div>
+              Interfaz limpia con parámetros esenciales de nutrición e hidratación.
+            </RadioCard>
 
-              <p
-                className={cn(
-                  "text-xs font-mono leading-normal pl-6",
-                  experienceMode === "standard" ? "text-neutral-200" : "text-neutral-500"
-                )}
-              >
-                Interfaz limpia con parámetros esenciales de nutrición e hidratación.
-              </p>
-            </div>
-
-            {/* Opción Avanzado */}
-            <div
-              onClick={() => {
+            <RadioCard
+              name="experience_mode_radio"
+              value="advanced"
+              checked={experienceMode === "advanced"}
+              onChange={() => {
                 setExperienceMode("advanced");
                 if (typeof window !== "undefined") {
                   localStorage.setItem("ratio_experience_mode", "advanced");
                 }
               }}
-              className={cn(
-                "p-3.5 rounded-md border text-left transition-all cursor-pointer select-none space-y-1",
-                experienceMode === "advanced"
-                  ? "bg-[#6f6354] text-white border-[#6f6354]"
-                  : "bg-white text-neutral-900 border-neutral-200 hover:border-neutral-300"
-              )}
+              title="Avanzado"
             >
-              <div className="flex items-center gap-2.5">
-                {/* Círculo Radio Copiado de Sección 02 */}
-                <span
-                  className={cn(
-                    "w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors",
-                    experienceMode === "advanced" ? "border-white bg-transparent" : "border-neutral-300 bg-white"
-                  )}
-                >
-                  {experienceMode === "advanced" && (
-                    <span className="w-2 h-2 rounded-full bg-white" />
-                  )}
-                </span>
-                <span className="font-semibold text-sm">Avanzado</span>
-              </div>
-
-              <p
-                className={cn(
-                  "text-xs font-mono leading-normal pl-6",
-                  experienceMode === "advanced" ? "text-neutral-200" : "text-neutral-500"
-                )}
-              >
-                Desbloquea control de Carga Previa (glucógeno/timing) en el planificador.
-              </p>
-            </div>
+              Desbloquea control de Carga Previa (glucógeno/timing) en el planificador.
+            </RadioCard>
           </div>
         </CardContent>
       </Card>

@@ -85,7 +85,7 @@ export default function MetodologiaPage() {
       </p>
 
       <div className="flex flex-col gap-4">
-        <MethodologyCard number="01 ·" title="Modelo energético y consumo de glucógeno" defaultOpen>
+        <MethodologyCard number="01 ·" title="Modelo energético y dinámica de glucógeno" defaultOpen>
           <p>
             El coste metabólico de pedalear es directamente proporcional al trabajo mecánico
             realizado. Con una eficiencia de conversión (gross efficiency) del ciclista situada
@@ -98,10 +98,7 @@ export default function MetodologiaPage() {
             depende de la intensidad relativa (%FTP). A ritmos suaves, el organismo prioriza la
             oxidación de ácidos grasos; a medida que la intensidad sube hacia el umbral, la
             demanda de ATP se acelera más deprisa de lo que la vía oxidativa de grasas puede
-            responder, y la dependencia del glucógeno muscular y hepático crece de forma no
-            lineal — no gradual, sino en bandas que se disparan al cruzar ciertos umbrales de
-            intensidad, hasta un techo práctico de oxidación de carbohidratos que ronda los
-            90-100 g/h incluso en atletas de élite:
+            responder:
           </p>
           <EquationBlock>
             &lt;50% FTP → ~30 g/h · &lt;65% → ~45 g/h · &lt;80% → ~60 g/h
@@ -109,114 +106,106 @@ export default function MetodologiaPage() {
             &lt;95% → ~75 g/h · &lt;110% → ~90 g/h · ≥110% → ~100 g/h (techo de oxidación)
           </EquationBlock>
           <p>
+            <strong>Dinámica de glucógeno y retardo gástrico.</strong> La reserva de glucógeno no
+            varía de forma instantánea al ingerir un alimento: existe un retardo fisiológico por
+            vaciado gástrico y transporte intestinal donde el pico de absorción plasmática ocurre
+            aproximadamente a los <strong>25 minutos post-ingesta</strong>:
+          </p>
+          <EquationBlock>
+            Glucógeno(t) = Glucógeno_inicial − ∫ Gasto(t) dt + ∫ Absorción(t − 25 min) dt
+          </EquationBlock>
+          <p>
             <strong>Fenotipo metabólico (VLaMax).</strong> La tasa máxima de producción de
-            lactato (VLaMax) es un indicador del perfil glucolítico de un ciclista, y varía
-            genuinamente entre individuos entrenados de forma similar. Un perfil de VLaMax bajo
-            — el clásico &quot;fondista/diésel&quot; — quema proporcionalmente menos glucógeno a
-            ritmos suaves gracias a una mayor eficiencia en la oxidación de grasas; un VLaMax
-            alto — el perfil &quot;explosivo/esprinter&quot; — depende más del glucógeno incluso a
-            intensidades moderadas. Esta diferencia se diluye por encima de zona de tempo (~80%
-            FTP), donde prácticamente todos los fenotipos queman de forma predominantemente
-            glucolítica por igual:
+            lactato (VLaMax) modifica el gasto de glucógeno por debajo del 80% FTP:
           </p>
           <EquationBlock>
-            Ajuste por fenotipo: Diésel ×0.85 · Equilibrado ×1.00 · Explosivo ×1.15 (solo por
-            debajo del 80% FTP)
+            Ajuste por fenotipo: Diésel ×0.85 · Equilibrado ×1.00 · Explosivo ×1.15
           </EquationBlock>
           <Citation>
-            Cf. Jeukendrup &amp; Wallis (2005) sobre oxidación de sustrato durante el ejercicio;
-            Coyle et al. (1991) sobre depleción de glucógeno y rendimiento a distintas
-            intensidades.
+            Cf. Jeukendrup &amp; Wallis (2005) sobre oxidación de sustrato; Coyle et al. (1991)
+            sobre depleción de glucógeno y cinética de absorción gástrica.
           </Citation>
         </MethodologyCard>
 
-        <MethodologyCard number="02 ·" title="Capacidad digestiva y tolerancia intestinal">
+        <MethodologyCard number="02 ·" title="Capacidad digestiva: SGLT1 vs GLUT5 (Modo Estándar vs Avanzado)">
           <p>
-            El intestino no es un canal de absorción de capacidad ilimitada. Un único
-            transportador de glucosa en el epitelio intestinal (SGLT1) se satura en torno a los
-            60 g/h de una sola fuente de carbohidrato, por lo que superar esa cifra con
-            maltodextrina o glucosa sola simplemente no se absorbe — se queda en el tracto
-            digestivo, arrastra agua por ósmosis y causa el malestar gástrico clásico de las
-            salidas largas mal fuelizadas.
+            El epitelio intestinal cuenta con transportadores especializados con capacidad limitada:
           </p>
           <p>
-            La solución establecida en la literatura es combinar transportadores: la fructosa
-            se absorbe por una vía distinta (GLUT5), independiente de SGLT1, lo que permite
-            elevar la tasa total de absorción combinada muy por encima del límite de un solo
-            transportador — hasta 90-120 g/h en atletas con buena tolerancia entrenada. La
-            proporción óptima escala con la tasa de ingesta objetivo: por debajo de ~45 g/h, un
-            único transportador ya cubre la demanda y no hay beneficio en añadir fructosa; entre
-            45 y 75 g/h conviene empezar a reclutar GLUT5 con un ratio 2:1
-            (maltodextrina:fructosa); por encima de 75 g/h, donde SGLT1 va saturado, el ratio se
-            acerca al máximo de absorción dual documentado (~1.2:1, es decir, prácticamente a
-            partes iguales):
+            <strong>1. Modo Estándar (SGLT1 saturado a 60 g/h).</strong> Utiliza exclusivamente
+            el transportador acoplado a sodio SGLT1 (glucosa/maltodextrina). Superar los 60 g/h
+            sin fructosa provoca acumulación de solutos en la luz intestinal, tracción osmótica de
+            agua y malestar gástrico.
+          </p>
+          <p>
+            <strong>2. Modo Avanzado (Co-transporte SGLT1 + GLUT5 hasta 90-120 g/h).</strong>
+            Al reclutar la vía pasiva GLUT5 mediante fructosa en ratios duales (2:1 a 1:0.8 /
+            1.2:1), se evita la saturación de SGLT1 y se eleva el techo de absorción hasta 90-120
+            g/h en atletas con <em>Gut Training</em>.
           </p>
           <EquationBlock>
-            &lt;45 g/h → 100% maltodextrina/glucosa
+            Estándar (SGLT1 solo) → Máximo 60 g/h (100% maltodextrina/glucosa)
             <br />
-            45-75 g/h → ratio 2:1 maltodextrina:fructosa
-            <br />
-            &gt;75 g/h → ratio ~1.2:1 maltodextrina:fructosa (absorción dual máxima)
+            Avanzado (SGLT1 + GLUT5) → 90-120 g/h (ratio 2:1 a ~1.2:1 / 1:0.8)
           </EquationBlock>
-          <p>
-            <strong>Gut training.</strong> Igual que el sistema cardiovascular o el
-            musculoesquelético, el epitelio intestinal se adapta al estrés repetido: exponer el
-            tracto digestivo a dosis crecientes de carbohidrato en entrenamiento incrementa con
-            el tiempo tanto el vaciado gástrico como la capacidad de absorción real, permitiendo
-            a un atleta bien entrenado digestivamente tolerar tasas de ingesta que causarían
-            distrés severo en uno sin ese entrenamiento. Por eso una recomendación de
-            avituallamiento nunca debería superar el techo digestivo real de cada atleta, aunque
-            la intensidad de la salida pida más energía de la que su intestino puede procesar
-            ese día.
-          </p>
           <Citation>
-            Cf. Jeukendrup (2010) sobre oxidación de carbohidratos múltiples transportables;
-            Jentjens &amp; Jeukendrup (2005) sobre combinaciones glucosa:fructosa;
-            Cermak &amp; van Loon (2013) sobre el entrenamiento de tolerancia intestinal.
+            Cf. Jeukendrup (2010) sobre carbohidratos múltiples transportables; Jentjens &amp;
+            Jeukendrup (2005) sobre co-transporte glucosa:fructosa.
           </Citation>
         </MethodologyCard>
 
-        <MethodologyCard number="03 ·" title="Termorregulación e impacto climático">
+        <MethodologyCard number="03 ·" title="Termorregulación, electrolitos y frecuencia hídrica">
           <p>
-            La temperatura y la humedad ambiental modifican directamente la tasa de sudoración,
-            y por tanto la demanda de reposición hídrica. Por debajo de un umbral de confort
-            térmico (~18-25°C), el calor eleva la sudoración de forma gradual y aproximadamente
-            lineal; a partir de ahí, la demanda de refrigeración corporal deja de escalar
-            gradualmente — el cuerpo entra en un régimen de estrés térmico donde el mecanismo de
-            enfriamiento por evaporación se vuelve mucho más exigente, así que el salto en la
-            tasa de sudoración es más abrupto que una simple extrapolación de la pendiente
-            anterior. La humedad relativa, por su parte, siempre escala de forma suave, ya que
-            reduce la eficacia de la evaporación del sudor de forma continua:
+            El impacto térmico condiciona tanto el volumen hídrico como la concentración de sales:
+          </p>
+          <p>
+            <strong>1. Mix Estándar vs Mix Calor:</strong>
           </p>
           <EquationBlock>
-            Factor térmico = 1 + máx(0, T − 18°C) × 0.02 (hasta 25°C) · a partir de 25°C, salto
-            fijo ×1.2
+            Clima Templado (&lt;25°C): Mix Estándar → ~2.0g sales / 550ml (~500mg Na+)
             <br />
-            Factor de humedad = 1 + máx(0, HR% − 50) × 0.004
-            <br />
-            Tasa de sudoración (ml/h) = Tasa base individual × Factor térmico × Factor de
-            humedad
+            Clima Cálido (≥25°C o alta sudoración): Mix Calor → ~4.5g sales / 550ml (~1100mg Na+)
           </EquationBlock>
           <p>
-            <strong>Muestreo altimétrico.</strong> En una ruta de montaña, la temperatura en el
-            valle de salida puede diferir sustancialmente de la temperatura real en la cima de un
-            puerto. La atmósfera se enfría con la altitud según el gradiente térmico vertical
-            estándar — una aproximación ampliamente usada en meteorología y montañismo:
-          </p>
-          <EquationBlock>Gradiente térmico ≈ −6.5°C por cada 1000m de altitud ganada</EquationBlock>
-          <p>
-            Ignorar este gradiente y planificar solo con la temperatura de salida sobreestima
-            sistemáticamente la temperatura real en el punto más exigente de la ruta — y con
-            ella, la tasa de sudoración y la necesidad de sodio en el tramo donde el ciclista más
-            lo necesita.
+            <strong>2. Aceleración del trago hídrico.</strong> En condiciones de calor (≥25°C),
+            la frecuencia recomendada de trago se acelera hasta los <strong>12 minutos</strong> por
+            dosis para mantener un flujo hídrico continuo y evitar la deshidratación aguda sin
+            sobrecargar el estómago.
           </p>
           <Citation>
-            Cf. Sawka et al. (2007), ACSM Position Stand sobre ejercicio y reemplazo de líquidos
-            en el calor; gradiente térmico adiabático estándar (meteorología de montaña).
+            Cf. Sawka et al. (2007), ACSM Position Stand sobre reposición hídrica en calor; Baker
+            (2017) sobre variabilidad en sodio.
           </Citation>
         </MethodologyCard>
 
-        <MethodologyCard number="04 ·" title="Balance hídrico y reposición de sodio">
+        <MethodologyCard number="04 ·" title="Reglas tácticas en ruta y análisis GPX">
+          <p>
+            El planificador táctico aplica reglas de oportunidad metabólica según el trazado GPX:
+          </p>
+          <p>
+            <strong>1. Anticipación Pre-Puerto.</strong> Las tomas de carbohidratos de rápida
+            absorción se programan <strong>10 a 15 minutos antes</strong> del inicio de ascensos
+            significativos (&gt;4% de pendiente). Si la transición entre dos puertos consecutivos es
+            inferior a <strong>5 minutos</strong>, la toma se unifica previamente al primer puerto.
+          </p>
+          <p>
+            <strong>2. Bloqueo en Bajadas (Descensos &lt;-3%).</strong> Se inhibe la alerta de
+            ingesta de alimentos sólidos en tramos con pendientes descendentemente pronunciadas
+            (&lt;-3%) por motivos de seguridad técnica y por la reducción del riego sanguíneo
+            esplácnico durante maniobras de alta velocidad.
+          </p>
+          <EquationBlock>
+            Pre-Puerto (&gt;4%): Toma programada 10-15 min antes (Transición &lt;5 min → Unificada)
+            <br />
+            Descensos (&lt;-3%): Inserción de sólidos inhibida por seguridad y flujo vascular
+          </EquationBlock>
+          <Citation>
+            Cf. Pfeiffer et al. (2012) sobre nutrición en competición y factores de seguridad
+            táctica en ruta.
+          </Citation>
+        </MethodologyCard>
+
+        <MethodologyCard number="05 ·" title="Balance hídrico y reposición de sodio">
           <EquationBlock>
             Tasa de sudoración base (ml/h): Baja ~500 · Media ~750 · Alta ~1000
             <br />
@@ -247,7 +236,7 @@ export default function MetodologiaPage() {
           </Citation>
         </MethodologyCard>
 
-        <MethodologyCard number="05 ·" title="Formulación de mezcla casera e ingesta en ruta">
+        <MethodologyCard number="06 ·" title="Formulación de mezcla casera e ingesta en ruta">
           <p>
             Una bebida de bidón no puede concentrarse indefinidamente para ahorrar volumen: por
             encima de cierta concentración de carbohidrato, la solución se vuelve hipertónica
@@ -285,7 +274,7 @@ export default function MetodologiaPage() {
           </Citation>
         </MethodologyCard>
 
-        <MethodologyCard number="06 ·" title="Recuperación bifásica post-ruta">
+        <MethodologyCard number="07 ·" title="Recuperación bifásica post-ruta">
           <p>
             La resíntesis de glucógeno muscular no ocurre a un ritmo constante durante toda la
             ventana de recuperación. Los primeros 30-45 minutos tras el esfuerzo son una franja
