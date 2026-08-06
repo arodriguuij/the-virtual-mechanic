@@ -765,7 +765,7 @@ export function PhysiologicalProfileForm({
             Elige el nivel de complejidad de la interfaz. El modo Avanzado desbloquea controles de carga previa de glucógeno y timing de ingesta.
           </p>
           <input type="hidden" name="experience_mode" value={experienceMode} />
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
               type="button"
               onClick={() => {
@@ -775,17 +775,31 @@ export function PhysiologicalProfileForm({
                 }
               }}
               className={cn(
-                selectableProfileInputClass,
-                "flex flex-col items-start p-3.5 text-left transition-colors duration-150",
+                "p-4 rounded-md border text-left transition-all flex flex-col justify-between space-y-3 select-none cursor-pointer",
                 experienceMode === "standard"
-                  ? "border-[#70685b] bg-[#70685b]/5 ring-1 ring-[#70685b]"
-                  : "border-neutral-200 bg-white hover:border-neutral-300"
+                  ? "bg-[#6f6354] text-white border-[#6f6354]"
+                  : "bg-white text-neutral-900 border-neutral-200 hover:border-neutral-400"
               )}
             >
-              <span className="font-mono text-xs font-bold text-neutral-900">Estándar</span>
-              <span className="mt-1 font-mono text-[11px] leading-snug text-neutral-500">
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "w-4 h-4 rounded-full border flex items-center justify-center shrink-0",
+                    experienceMode === "standard" ? "border-white" : "border-neutral-400"
+                  )}
+                >
+                  {experienceMode === "standard" && <span className="w-2 h-2 rounded-full bg-white" />}
+                </span>
+                <span className="font-semibold text-sm font-mono">Estándar</span>
+              </div>
+              <p
+                className={cn(
+                  "text-xs font-mono leading-relaxed",
+                  experienceMode === "standard" ? "text-neutral-100" : "text-neutral-500"
+                )}
+              >
                 Interfaz limpia con parámetros esenciales de nutrición e hidratación.
-              </span>
+              </p>
             </button>
 
             <button
@@ -797,17 +811,31 @@ export function PhysiologicalProfileForm({
                 }
               }}
               className={cn(
-                selectableProfileInputClass,
-                "flex flex-col items-start p-3.5 text-left transition-colors duration-150",
+                "p-4 rounded-md border text-left transition-all flex flex-col justify-between space-y-3 select-none cursor-pointer",
                 experienceMode === "advanced"
-                  ? "border-[#70685b] bg-[#70685b]/5 ring-1 ring-[#70685b]"
-                  : "border-neutral-200 bg-white hover:border-neutral-300"
+                  ? "bg-[#6f6354] text-white border-[#6f6354]"
+                  : "bg-white text-neutral-900 border-neutral-200 hover:border-neutral-400"
               )}
             >
-              <span className="font-mono text-xs font-bold text-neutral-900">Avanzado</span>
-              <span className="mt-1 font-mono text-[11px] leading-snug text-neutral-500">
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "w-4 h-4 rounded-full border flex items-center justify-center shrink-0",
+                    experienceMode === "advanced" ? "border-white" : "border-neutral-400"
+                  )}
+                >
+                  {experienceMode === "advanced" && <span className="w-2 h-2 rounded-full bg-white" />}
+                </span>
+                <span className="font-semibold text-sm font-mono">Avanzado</span>
+              </div>
+              <p
+                className={cn(
+                  "text-xs font-mono leading-relaxed",
+                  experienceMode === "advanced" ? "text-neutral-100" : "text-neutral-500"
+                )}
+              >
                 Desbloquea control de Carga Previa (glucógeno/timing) en el planificador.
-              </span>
+              </p>
             </button>
           </div>
         </CardContent>

@@ -3659,28 +3659,32 @@ export function FuelingPlanner({
                 : undefined
             }
             className={cn(
-              "h-11 w-full text-sm transition-all duration-300",
-              isProfileComplete
-                ? cn(
-                    bronzeCtaButtonClass,
-                    isInputsChanged && activeLastCalculatedInputs && "ring-2 ring-[#70685b]/60 ring-offset-2 shadow-md animate-pulse"
-                  )
-                : "inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-neutral-200 px-4 font-mono text-xs font-semibold tracking-wider text-neutral-400 uppercase"
+              "flex w-full items-center justify-center gap-2.5 rounded-md px-4 py-3.5 font-mono text-xs uppercase tracking-wider transition-all shadow-sm",
+              isInputsChanged
+                ? "bg-neutral-900 text-white hover:bg-neutral-800 border border-neutral-900"
+                : "bg-neutral-900 text-white hover:bg-neutral-800",
+              (!isProfileComplete || (Boolean(activeLastCalculatedInputs) && !isInputsChanged) || loading) &&
+                "cursor-not-allowed opacity-60 hover:bg-neutral-900"
             )}
           >
             {isProfileComplete ? (
               <>
-                <Zap className="size-4 shrink-0" />
-                {loading
-                  ? "Calculando…"
-                  : hasCalculatedOnce
-                    ? "Re-calcular Estrategia Nutricional"
-                    : "Calcular Estrategia Nutricional"}
+                <Zap className={cn("size-3.5 shrink-0", isInputsChanged ? "text-amber-400 animate-pulse" : "text-white")} />
+                <span>
+                  {loading
+                    ? "Calculando…"
+                    : hasCalculatedOnce
+                      ? "Re-calcular Estrategia Nutricional"
+                      : "Calcular Estrategia Nutricional"}
+                </span>
+                {isInputsChanged && (
+                  <span className="ml-1 size-1.5 shrink-0 rounded-full bg-amber-400 animate-pulse" />
+                )}
               </>
             ) : (
               <>
-                <Lock className="size-4 shrink-0" />
-                Calcular estrategia (requiere perfil completo)
+                <Lock className="size-3.5 shrink-0 text-white" />
+                <span>Calcular estrategia (requiere perfil completo)</span>
               </>
             )}
           </button>
@@ -3719,16 +3723,9 @@ export function FuelingPlanner({
 
             <div className={cn(numberedCardClass, isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
               {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="mb-3 flex w-full sm:w-fit items-start sm:items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 font-mono text-[11px] leading-tight text-amber-900 shadow-xs">
-                  <span className="mt-0.5 sm:mt-0 size-2 shrink-0 rounded-full bg-amber-500 animate-pulse" />
-                  <span>
-                    <strong className="font-semibold text-amber-950">Estrategia previa — Pendiente de recalcular</strong>
-                    {changedFieldLabels.length > 0 && (
-                      <span className="block sm:inline sm:ml-1 text-amber-800/80">
-                        (Modificados: {changedFieldLabels.join(", ")})
-                      </span>
-                    )}
-                  </span>
+                <div className="mb-3 flex w-fit items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-1 font-mono text-[11px] text-amber-900">
+                  <span className="size-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
+                  <span>Estrategia previa — Pendiente de recalcular</span>
                 </div>
               )}
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
@@ -3915,16 +3912,9 @@ export function FuelingPlanner({
                 planned stop). */}
             <div className={cn(numberedCardClass, isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
               {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="mb-3 flex w-full sm:w-fit items-start sm:items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 font-mono text-[11px] leading-tight text-amber-900 shadow-xs">
-                  <span className="mt-0.5 sm:mt-0 size-2 shrink-0 rounded-full bg-amber-500 animate-pulse" />
-                  <span>
-                    <strong className="font-semibold text-amber-950">Estrategia previa — Pendiente de recalcular</strong>
-                    {changedFieldLabels.length > 0 && (
-                      <span className="block sm:inline sm:ml-1 text-amber-800/80">
-                        (Modificados: {changedFieldLabels.join(", ")})
-                      </span>
-                    )}
-                  </span>
+                <div className="mb-3 flex w-fit items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-1 font-mono text-[11px] text-amber-900">
+                  <span className="size-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
+                  <span>Estrategia previa — Pendiente de recalcular</span>
                 </div>
               )}
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
@@ -4245,16 +4235,9 @@ export function FuelingPlanner({
                 it — no export button lives here. */}
             <div className={cn(numberedCardClass, "flex flex-col gap-4", isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
               {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="mb-3 flex w-full sm:w-fit items-start sm:items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 font-mono text-[11px] leading-tight text-amber-900 shadow-xs">
-                  <span className="mt-0.5 sm:mt-0 size-2 shrink-0 rounded-full bg-amber-500 animate-pulse" />
-                  <span>
-                    <strong className="font-semibold text-amber-950">Estrategia previa — Pendiente de recalcular</strong>
-                    {changedFieldLabels.length > 0 && (
-                      <span className="block sm:inline sm:ml-1 text-amber-800/80">
-                        (Modificados: {changedFieldLabels.join(", ")})
-                      </span>
-                    )}
-                  </span>
+                <div className="mb-3 flex w-fit items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-1 font-mono text-[11px] text-amber-900">
+                  <span className="size-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
+                  <span>Estrategia previa — Pendiente de recalcular</span>
                 </div>
               )}
               <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
