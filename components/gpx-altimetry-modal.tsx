@@ -14,6 +14,70 @@ export type TacticalPoint = {
   title: string;
 };
 
+export type MergedTacticalPoint = {
+  key: string;
+  distanceFraction: number;
+  km: number;
+  hasGel: boolean;
+  hasSolid: boolean;
+  hasStop: boolean;
+  hasWater: boolean;
+  title: string;
+  tier: number;
+};
+
+function consolidateTacticalPoints(points: TacticalPoint[]): MergedTacticalPoint[] {
+  if (points.length === 0) return [];
+  const sorted = [...points].sort((a, b) => a.km - b.km);
+  const clusters: (MergedTacticalPoint & { items: TacticalPoint[] })[] = [];
+
+  for (const pt of sorted) {
+    const lastCluster = clusters[clusters.length - 1];
+    if (lastCluster && Math.abs(pt.km - lastCluster.km) <= 2) {
+      lastCluster.items.push(pt);
+      if (pt.type === "gel") lastCluster.hasGel = true;
+      if (pt.type === "solid") lastCluster.hasSolid = true;
+      if (pt.type === "stop") lastCluster.hasStop = true;
+      if (pt.type === "water") lastCluster.hasWater = true;
+
+      const parts: string[] = [];
+      if (lastCluster.hasGel) parts.push("Gel");
+      if (lastCluster.hasSolid) parts.push("Sólido");
+      if (lastCluster.hasStop) parts.push("Parada");
+      if (lastCluster.hasWater) parts.push("Agua");
+      lastCluster.title = parts.join(" + ");
+    } else {
+      clusters.push({
+        key: pt.key,
+        distanceFraction: pt.distanceFraction,
+        km: pt.km,
+        hasGel: pt.type === "gel",
+        hasSolid: pt.type === "solid",
+        hasStop: pt.type === "stop",
+        hasWater: pt.type === "water",
+        title: pt.title,
+        tier: 0,
+        items: [pt],
+      });
+    }
+  }
+
+  // ── Staggering vertical (3 levels: tier 0, 1, 2 for points < 6km apart) ──
+  for (let i = 0; i < clusters.length; i++) {
+    if (i > 0) {
+      const prev = clusters[i - 1];
+      const curr = clusters[i];
+      if (Math.abs(curr.km - prev.km) < 6) {
+        curr.tier = (prev.tier + 1) % 3;
+      } else {
+        curr.tier = 0;
+      }
+    }
+  }
+
+  return clusters;
+}
+
 // ─── Preview Card (replaces the inline sparkline in Card 05) ─────────────────
 
 export function GpxAltimetryPreview({
@@ -142,16 +206,7 @@ export function GpxAltimetryModal({
     .join(" ");
   const areaPath = `${linePath} L100,100 L0,100 Z`;
 
-  // ── Stagger anti-collision ─────────────────────────────────────────────────
-  // Assign a vertical offset tier (0 or 1) to each marker so that points
-  // closer than MIN_GAP_FRACTION apart don't overlap.
-  const MIN_GAP_FRACTION = 4 / distKm; // 4 km expressed as a fraction
-  const staggeredPoints = tacticalPoints.map((pt, i) => {
-    const prev = tacticalPoints[i - 1];
-    const tier =
-      prev && Math.abs(pt.distanceFraction - prev.distanceFraction) < MIN_GAP_FRACTION ? 1 : 0;
-    return { ...pt, tier };
-  });
+  const staggeredPoints = consolidateTacticalPoints(tacticalPoints);
 
   // ── Nearest elevation lookup ───────────────────────────────────────────────
   function nearestElevation(fraction: number): number {
@@ -197,7 +252,7 @@ export function GpxAltimetryModal({
       ctx.fillStyle = "#6b6b6b";
       ctx.font = "13px monospace";
       ctx.fillText(
-        `${distKm} km  ·  ${Math.round(minEle)}m – ${Math.round(maxEle)}m  ·  ${tacticalPoints.length} tomas${
+        `${distKm} km  ·  ${Math.round(minEle)}m – ${Math.round(maxEle)}m  ·  ${staggeredPoints.length} tomas${
           isEstimatedPreview ? " estimadas" : ""
         }`,
         PAD_L,
@@ -257,30 +312,33 @@ export function GpxAltimetryModal({
       });
       ctx.stroke();
 
-      // Tactical markers with stagger
+      // Tactical markers with 3-tier stagger & exact curve stem
       staggeredPoints.forEach((pt) => {
         const xPx = PAD_L + pt.distanceFraction * CW;
-        const yRaw = PAD_T + (toY(nearestElevation(pt.distanceFraction)) / 100) * CH;
-        // Stagger: tier-1 markers float 40px higher
+        const yProfilePx = PAD_T + (toY(nearestElevation(pt.distanceFraction)) / 100) * CH;
         const yBadge = Math.min(
           PAD_T + CH - 36,
-          Math.max(PAD_T + 14, yRaw - 30 - pt.tier * 42)
+          Math.max(PAD_T + 14, yProfilePx - 35 - pt.tier * 35)
         );
 
-        // Dashed stem
+        // Stem from badge bottom to exact profile curve surface
         ctx.beginPath();
         ctx.setLineDash([3, 3]);
         ctx.strokeStyle = "#a3a3a3";
         ctx.lineWidth = 1;
-        ctx.moveTo(xPx, yBadge + 22);
-        ctx.lineTo(xPx, yRaw);
+        ctx.moveTo(xPx, yBadge + 20);
+        ctx.lineTo(xPx, yProfilePx);
         ctx.stroke();
         ctx.setLineDash([]);
 
         // Badge
-        const typePrefix = pt.type === "gel" ? "⚡" : pt.type === "solid" ? "🍌" : pt.type === "stop" ? "🛒" : "💧";
+        let typePrefix = "";
+        if (pt.hasGel) typePrefix += "⚡";
+        if (pt.hasSolid) typePrefix += "🍌";
+        if (pt.hasStop) typePrefix += "🛒";
+        if (pt.hasWater) typePrefix += "💧";
         const label = `Km ${pt.km} · ${typePrefix} ${pt.title}`;
-        const truncated = label.length > 30 ? label.slice(0, 30) + "…" : label;
+        const truncated = label.length > 34 ? label.slice(0, 34) + "…" : label;
         ctx.font = "bold 10px monospace";
         const tw = ctx.measureText(truncated).width + 20;
         ctx.fillStyle = "#121212";
@@ -468,17 +526,18 @@ export function GpxAltimetryModal({
                   <path d={areaPath} fill="url(#modal-elevation-fill)" stroke="none" />
                   <path d={linePath} fill="none" stroke="#121212" strokeWidth={2} vectorEffect="non-scaling-stroke" />
 
-                  {/* Dashed vertical stems (SVG layer, under badge overlay) */}
+                  {/* Dashed vertical stems (SVG layer: anchored from badge topPct to profile curve y2) */}
                   {staggeredPoints.map((pt) => {
                     const x = toX(pt.distanceFraction);
-                    const y = toY(nearestElevation(pt.distanceFraction));
+                    const profileY = toY(nearestElevation(pt.distanceFraction));
+                    const topPct = Math.min(78, Math.max(4, profileY - 10 - pt.tier * 12));
                     return (
                       <line
                         key={`stem-${pt.key}`}
-                        x1={x} y1={y}
-                        x2={x} y2={100}
+                        x1={x} y1={topPct}
+                        x2={x} y2={profileY}
                         stroke="#a3a3a3"
-                        strokeWidth={0.4}
+                        strokeWidth={0.5}
                         strokeDasharray="1.5 1.5"
                         vectorEffect="non-scaling-stroke"
                       />
@@ -489,26 +548,22 @@ export function GpxAltimetryModal({
                 {/* Badge overlay (HTML, above SVG) */}
                 {staggeredPoints.map((pt) => {
                   const leftPct = pt.distanceFraction * 100;
-                  const eleY = toY(nearestElevation(pt.distanceFraction));
-                  // Base top % follows the elevation curve; tier-1 floats higher
-                  const topPct = Math.min(72, Math.max(4, eleY - 2 - pt.tier * 18));
+                  const profileY = toY(nearestElevation(pt.distanceFraction));
+                  const topPct = Math.min(78, Math.max(4, profileY - 10 - pt.tier * 12));
 
                   return (
                     <div
                       key={pt.key}
                       style={{ left: `${leftPct}%`, top: `${topPct}%` }}
-                      className="absolute -translate-x-1/2 -translate-y-full flex flex-col items-center z-10"
+                      className="absolute -translate-x-1/2 -translate-y-full flex flex-col items-center z-10 pointer-events-none"
                     >
                       <div className="rounded-md border border-neutral-800 bg-neutral-900 px-1.5 py-[3px] text-[9px] font-bold text-white shadow-md flex items-center gap-1 whitespace-nowrap">
-                        {pt.type === "gel"   && <Zap         className="size-2.5 text-amber-400 shrink-0" />}
-                        {pt.type === "solid" && <Utensils    className="size-2.5 text-neutral-200 shrink-0" />}
-                        {pt.type === "stop"  && <ShoppingBag className="size-2.5 text-amber-400 shrink-0" />}
-                        {pt.type === "water" && <Droplets    className="size-2.5 text-blue-400 shrink-0" />}
+                        {pt.hasGel   && <Zap         className="size-2.5 text-amber-400 shrink-0" />}
+                        {pt.hasSolid && <Utensils    className="size-2.5 text-neutral-200 shrink-0" />}
+                        {pt.hasStop  && <ShoppingBag className="size-2.5 text-amber-400 shrink-0" />}
+                        {pt.hasWater && <Droplets    className="size-2.5 text-blue-400 shrink-0" />}
                         <span>Km {pt.km} · {pt.title}</span>
                       </div>
-                      {/* Stem connector dot */}
-                      <div className="w-px h-3 bg-neutral-600" />
-                      <div className="size-1 rounded-full bg-neutral-600" />
                     </div>
                   );
                 })}

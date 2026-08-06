@@ -80,7 +80,7 @@ function CollapsedNavTooltip({ label, children }: { label: string; children: Rea
     <span className="group/navtip relative flex w-full items-center justify-center">
       {children}
       <span
-        className="pointer-events-none absolute left-full z-50 ml-2 rounded-md bg-zinc-900 px-2 py-1 font-mono text-[11px] whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/navtip:opacity-100 group-focus-within/navtip:opacity-100"
+        className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 z-[9999] rounded-md bg-neutral-900 px-2.5 py-1 font-mono text-[11px] whitespace-nowrap text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover/navtip:opacity-100 group-focus-within/navtip:opacity-100"
       >
         {label}
       </span>
@@ -89,21 +89,27 @@ function CollapsedNavTooltip({ label, children }: { label: string; children: Rea
 }
 
 /**
- * "Rediseño UX y Reposicionamiento del Botón de Colapso" — the collapse
- * toggle's own micro-tooltip, now that it sits in the header row rather than
- * relying on the native `title` attribute alone (dropped from the button
- * itself to avoid a native + custom tooltip stacking on top of each other).
- * Pops out *below* the button (`top-full`), unlike `CollapsedNavTooltip`
- * above (which pops to the *right*) — this button lives in the sidebar's own
- * top header row, so a right-hand tooltip would have nowhere to go; `right-0`
- * keeps it flush against the button's trailing edge instead of overflowing
- * past the sidebar's own right border.
+ * "Rediseño UX y Reposicionamiento del Botón de Colapso" — floating micro-tooltip
+ * positioned to the right when collapsed, or below when expanded.
  */
-function SidebarToggleTooltip({ label, children }: { label: string; children: ReactNode }) {
+function SidebarToggleTooltip({
+  label,
+  children,
+  isCollapsed = false,
+}: {
+  label: string;
+  children: ReactNode;
+  isCollapsed?: boolean;
+}) {
   return (
     <span className="group/toggletip relative inline-flex">
       {children}
-      <span className="pointer-events-none absolute top-full right-0 z-50 mt-2 rounded-md bg-zinc-900 px-2 py-1 font-mono text-[11px] whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/toggletip:opacity-100 group-focus-within/toggletip:opacity-100">
+      <span
+        className={cn(
+          "pointer-events-none absolute z-[9999] rounded-md bg-neutral-900 px-2.5 py-1 font-mono text-[11px] whitespace-nowrap text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover/toggletip:opacity-100 group-focus-within/toggletip:opacity-100",
+          isCollapsed ? "left-full top-1/2 -translate-y-1/2 ml-3" : "top-full right-0 mt-2"
+        )}
+      >
         {label}
       </span>
     </span>
@@ -133,21 +139,11 @@ function SidebarContent({
 
   return (
     <div className={cn("flex h-full flex-col px-6 py-8", isCollapsed && "lg:px-2")}>
-      {/* "Rediseño UX y Reposicionamiento del Botón de Colapso" — the logo
-          and the collapse/expand toggle now share one clean `h-14` header
-          bar instead of the toggle floating in its own full-width row below
-          the logo with no shared grid/alignment between the two (the
-          previous layout — a separate `lg:flex` row, `justify-end`/
-          `justify-center` — read as visually disconnected from the header
-          it sat directly under). The mobile "X" close button and the
-          desktop toggle button occupy the exact same trailing slot in this
-          one row — mutually exclusive per breakpoint (`lg:hidden` vs.
-          `hidden lg:flex`), so they coexist here without ever being visible
-          at the same time. */}
+      {/* Header bar: when `isCollapsed` is true, stack Isotype "R" and toggle button vertically */}
       <div
         className={cn(
-          "flex h-14 items-center justify-between border-b border-neutral-200/80",
-          isCollapsed && "lg:justify-center lg:gap-2"
+          "flex items-center justify-between border-b border-neutral-200/80 pb-3",
+          isCollapsed ? "lg:flex-col lg:items-center lg:gap-3 lg:py-3 lg:h-auto" : "h-14"
         )}
       >
         <Link
@@ -160,13 +156,10 @@ function SidebarContent({
           className="flex cursor-pointer items-center gap-2 text-xs font-bold tracking-wider whitespace-nowrap text-neutral-900 uppercase transition-opacity duration-150 hover:opacity-80 focus:outline-none"
         >
           <RatioLogo className="size-6 shrink-0 text-terracotta" />
-          {/* Collapsed desktop: isotipo "R" only, no wordmark — `lg:hidden`
-              only applies once `isCollapsed` is true, so mobile (which
-              never collapses) always keeps the full wordmark. */}
           <span className={cn(isCollapsed && "lg:hidden")}>RATIO</span>
         </Link>
 
-        {/* Mobile-only close — the drawer's own dismiss affordance. */}
+        {/* Mobile-only close */}
         <button
           type="button"
           onClick={onClose}
@@ -176,12 +169,11 @@ function SidebarContent({
           <X className="size-5" />
         </button>
 
-        {/* "Menú Lateral Colapsable Desktop" toggle — desktop/tablet only
-            (`hidden lg:flex`), now aligned in the same horizontal row as the
-            logo above rather than a separate row of its own. No native
-            `title` here — `SidebarToggleTooltip` below replaces it with a
-            proper floating micro-tooltip so the two don't stack. */}
-        <SidebarToggleTooltip label={`${isCollapsed ? "Expandir" : "Colapsar"} menú (⌘B)`}>
+        {/* Collapse toggle button */}
+        <SidebarToggleTooltip
+          label={`${isCollapsed ? "Expandir" : "Colapsar"} menú (⌘B)`}
+          isCollapsed={isCollapsed}
+        >
           <button
             type="button"
             onClick={onToggleCollapse}

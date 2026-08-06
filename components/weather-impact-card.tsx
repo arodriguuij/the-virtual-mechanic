@@ -613,16 +613,9 @@ export function WeatherImpactCard({
                 since desktop has the horizontal room to show both
                 side-by-side instead of the athlete scrolling past the chart
                 to reach the carousel below it. */}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-center">
-              {/* Perfil Altimétrico 2D — 100% transparent now, no tint/frame
-                  of its own: the SVG's own plotted line/axes already give it
-                  enough visual definition without a background box around
-                  it. The currently-focused carousel card's own node
-                  highlights live, synced off the same `activeScrollIndex`
-                  the carousel's `onScroll` handler already maintains.
-                  Clicking any node jumps the carousel straight to that
-                  card. */}
-              <div className="w-full bg-transparent py-2">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-stretch">
+              {/* Columna Izquierda (50% Ancho) — Perfil Altimétrico 2D */}
+              <div className="flex w-full h-full min-h-[180px] flex-1 flex-col justify-center items-center bg-neutral-50 rounded-xl p-4 border border-neutral-200/70">
                 <AltitudeProfileSvg
                   points={weatherPoints}
                   profile={elevationProfile}

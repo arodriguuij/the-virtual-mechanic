@@ -29,7 +29,7 @@ export function SidebarIdentityCard({ identity }: { identity: ViewerIdentity }) 
 
   if (isCollapsed) {
     return (
-      <div className="flex justify-center" title={identity.name}>
+      <div className="group/avatarTip relative flex justify-center">
         <div className="relative">
           <Avatar className="size-8">
             {identity.avatarUrl && <AvatarImage src={identity.avatarUrl} alt={identity.name} />}
@@ -42,6 +42,9 @@ export function SidebarIdentityCard({ identity }: { identity: ViewerIdentity }) 
             />
           )}
         </div>
+        <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 z-[9999] rounded-md bg-neutral-900 px-2.5 py-1 font-mono text-[11px] whitespace-nowrap text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover/avatarTip:opacity-100 group-focus-within/avatarTip:opacity-100">
+          {identity.name}
+        </span>
       </div>
     );
   }
