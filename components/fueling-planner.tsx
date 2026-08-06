@@ -18,6 +18,7 @@ import {
   ShoppingBag,
   Snowflake,
   Sun,
+  Target,
   TriangleAlert,
   Upload,
   Utensils,
@@ -129,6 +130,18 @@ function decimalHoursToParts(hours: number): { hours: string; minutes: string } 
     wholeMinutes = 0;
   }
   return { hours: String(wholeHours), minutes: String(wholeMinutes) };
+}
+
+/** `count` evenly-spaced fractions between `start` and `end` (inclusive) —
+ * used by `estimatedTacticalPoints` below to lay out theoretical gel/
+ * hydration preview markers across a ride with no real, confirmed schedule
+ * yet. A single point lands on the window's own midpoint rather than at
+ * `start` (matching the "never right at the very start" convention every
+ * other milestone-spreading helper in this app already follows). */
+function spreadFractions(count: number, start: number, end: number): number[] {
+  if (count <= 1) return [(start + end) / 2];
+  const step = (end - start) / (count - 1);
+  return Array.from({ length: count }, (_, i) => start + step * i);
 }
 
 // "Limpieza de Despensa Genérica" — the 4 generic gel dose tiers
@@ -321,6 +334,13 @@ const LAST_FUELING_STRATEGY_KEY = "last_fueling_strategy";
 // digit-by-digit or stepping through departure-hour options doesn't fire a
 // network call per keystroke.
 const AUTO_CALCULATE_DEBOUNCE_MS = 600;
+
+// "Asignación Dinámica de Paradas por Defecto (Según GPX)" — the duration
+// threshold above which a freshly-uploaded GPX defaults to "1 Parada"
+// instead of "Sin paradas" (see `handleGpxFile` below). A rough single
+// pit-stop is a reasonable assumption once a ride crosses this length;
+// below it, most riders comfortably carry everything from home.
+const GPX_DEFAULT_STOP_THRESHOLD_HOURS = 2.5;
 
 /** Plain, no-emoji name for the pocket-food matrix — `pocketFoodLabels` keeps
  * its friendly emoji-prefixed copy for the clipboard/GPX exports, this derives
@@ -1672,14 +1692,31 @@ export function FuelingPlanner({
     }
   };
 
-  // On mount: if the server-rendered prop is the "standard" fallback but the
-  // athlete actually saved "advanced" in localStorage on a prior visit, honour
-  // the local preference (prevents a flash of wrong mode before rehydration).
+  // "Hidratación Robusta de experienceMode" — on mount: if the server-
+  // rendered prop is the "standard" fallback (e.g. the Supabase profile read
+  // failed or the athlete's profile hadn't loaded yet server-side) but the
+  // athlete actually saved "advanced" in localStorage on a prior visit,
+  // honour the local preference instead (prevents Card 02's "Carga Previa &
+  // Timing de Ingesta" module from flickering away for an Advanced athlete
+  // just because this one request's fetch was unlucky). If there's *no*
+  // cached preference yet (a brand-new device, or the very first time this
+  // profile ever loaded successfully), cache whatever the server just
+  // resolved instead — otherwise a first successful "advanced" fetch would
+  // never get written to localStorage at all (nothing here ever calls the
+  // wrapped `setExperienceMode` above), leaving nothing real to fall back on
+  // the *next* time a fetch fails.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = localStorage.getItem("ratio_experience_mode") as ExperienceMode | null;
     if (stored === "standard" || stored === "advanced") {
       _setExperienceMode(stored);
+    } else {
+      try {
+        localStorage.setItem("ratio_experience_mode", initialExperienceMode);
+      } catch {
+        // Private browsing / quota exceeded — same graceful degradation as
+        // every other localStorage write in this app.
+      }
     }
     // Only runs once on mount — intentional empty deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2506,6 +2543,61 @@ export function FuelingPlanner({
     });
   }, [result, mergedTimelineEntries, selectedRoute, parsedGpx]);
 
+  // "Solución a Eventos Vacíos en Altimetría (0 Tomas)" — `tacticalPoints`
+  // above is `[]` whenever the timing timeline itself has nothing to show,
+  // which in practice means the athlete hasn't picked any pocket food yet in
+  // Card 04 (`mergedTimelineEntries` is built entirely from solid/gel/
+  // caffeine *selections* — see `generateTimingTimeline` in
+  // `lib/metabolic-engine.ts`) — a perfectly normal state right after Card
+  // 03's own auto-calculation lands, well before the athlete has touched
+  // Card 04 at all. Rather than leaving the altimetry modal/preview with
+  // nothing to draw, this derives a *theoretical* schedule directly from
+  // Card 03's own calculated targets (total carbs, hydration interval) —
+  // evenly-spaced gel and hydration reminders across the ride, never right
+  // at the start/finish (same convention `getPocketFoodMilestones` already
+  // follows for the real, confirmed schedule). Distinctly titled ("Toma
+  // estimada"/"Hidratación estimada", not a real pocket-food item name) so
+  // it never reads as a confirmed plan — matches this app's "never claim
+  // real/confirmed data when it's actually a fallback" convention (see the
+  // weather-source labeling docs, for one).
+  const estimatedTacticalPoints = useMemo(() => {
+    if (!result || tacticalPoints.length > 0) return [];
+    const dist = selectedRoute?.distanceKm ?? parsedGpx?.distanceKm ?? null;
+    if (!dist || dist <= 0) return [];
+
+    const gelCount = Math.max(
+      1,
+      Math.min(8, Math.round(result.totalRideCarbsG / POCKET_FOOD_CARBS_G.gel_standard))
+    );
+    const waterCount = Math.max(
+      1,
+      Math.min(10, Math.round((result.durationHours * 60) / result.timingTimeline.hydrationIntervalMinutes))
+    );
+
+    const gelFractions = spreadFractions(gelCount, 0.15, 0.9);
+    const waterFractions = spreadFractions(waterCount, 0.08, 0.95);
+
+    return [
+      ...gelFractions.map((f, i) => ({
+        key: `preview-gel-${i}`,
+        distanceFraction: f,
+        km: Math.round(f * dist),
+        type: "gel" as const,
+        title: "Toma estimada",
+      })),
+      ...waterFractions.map((f, i) => ({
+        key: `preview-water-${i}`,
+        distanceFraction: f,
+        km: Math.round(f * dist),
+        type: "water" as const,
+        title: "Hidratación estimada",
+      })),
+    ].sort((a, b) => a.distanceFraction - b.distanceFraction);
+  }, [result, tacticalPoints, selectedRoute, parsedGpx]);
+
+  const effectiveTacticalPoints = tacticalPoints.length > 0 ? tacticalPoints : estimatedTacticalPoints;
+  const isEstimatedTacticalPreview = tacticalPoints.length === 0 && estimatedTacticalPoints.length > 0;
+
   // "Modo Cobertura Limitada" — if the athlete opens the app with no
   // connection at all (mid-climb, no signal), load the last strategy that
   // did calculate successfully rather than showing an empty planner.
@@ -2587,6 +2679,27 @@ export function FuelingPlanner({
       setMode("gpx");
       setSelectedRouteId("");
       setGpxUploadOpen(false);
+
+      // "Asignación Dinámica de Paradas por Defecto (Según GPX)" — the
+      // athlete hasn't picked a real Intensidad Objetivo yet at upload time
+      // (`gpxDurationDefault` above deliberately stays blank until they do),
+      // so this is a one-off rough estimate assuming a generic Fondo/Z2 pace,
+      // used only to pick a sensible starting stop count — never shown as a
+      // duration anywhere, and freely overridable afterward via Card 02's own
+      // stop-count selector. Skipped if `ftp`/`weightKg` aren't real numbers
+      // yet (shouldn't happen in practice — the mandatory-profile-completion
+      // guard already guarantees both by the time this planner is usable —
+      // but `estimateRideDurationHours` shouldn't be trusted with zeros).
+      if (ftp > 0 && weightKg > 0) {
+        const roughEstimateHours = estimateRideDurationHours({
+          distanceKm: parsed.distanceKm,
+          elevationGainM: parsed.elevationGainM,
+          ftp,
+          weightKg,
+          intensity: "endurance",
+        });
+        setCafeteriaStopCount(roughEstimateHours >= GPX_DEFAULT_STOP_THRESHOLD_HOURS ? 1 : 0);
+      }
     } catch {
       setParsedGpx(null);
       setGpxError("No se pudo leer el archivo — comprueba que sea un .gpx válido.");
@@ -2807,6 +2920,47 @@ export function FuelingPlanner({
     // make this effect's own deps unstable without changing what it reacts to.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, canAutoCalculate, activeLastCalculatedInputs, isInputsChanged, currentInputs]);
+
+  // "UX de Asunciones Activas" — Card 03's own "PARÁMETROS APLICADOS" badge
+  // bar (see its render site below) reflects exactly which Paso 02 choice
+  // produced the numbers currently on screen, so the athlete never has to
+  // scroll back up to remember what they picked. Plain lookups against the
+  // same option lists Paso 02's own selectors already render from, so a
+  // label can never drift out of sync with what those buttons actually say.
+  const activeIntensityLabel =
+    INTENSITY_SELECT_OPTIONS.find((opt) => opt.value === intensity)?.label ?? "Sin definir";
+  const activeStopsLabel =
+    CAFETERIA_STOP_COUNT_OPTIONS.find((opt) => opt.value === cafeteriaStopCount)?.label ?? "Sin definir";
+  const activeCarbPreloadLabel =
+    preRideGlycogenLoad === "high"
+      ? "Carga Alta"
+      : preRideGlycogenLoad === "fasted"
+        ? "Ayunas"
+        : "Normal (~70%)";
+
+  // "Feedback Visual de Transición/Recálculo" — a brief amber flash on Card
+  // 03's own g/h · ml/h · mg/h figures (see `recalculatedValueClass` at each
+  // render site below) confirms a background recalculation genuinely landed
+  // new numbers, since there's no button click left to confirm it the old
+  // way (see "Eliminación del Botón Intermedio..." above). `isFirstResultRef`
+  // skips the very first time `result` ever appears — there's nothing to
+  // flash a *change* against yet at that point, only an initial calculation.
+  const [justRecalculated, setJustRecalculated] = useState(false);
+  const isFirstResultRef = useRef(true);
+  useEffect(() => {
+    if (!result) return;
+    if (isFirstResultRef.current) {
+      isFirstResultRef.current = false;
+      return;
+    }
+    setJustRecalculated(true);
+    const timer = setTimeout(() => setJustRecalculated(false), 900);
+    return () => clearTimeout(timer);
+  }, [result]);
+  const recalculatedValueClass = cn(
+    "transition-colors duration-300",
+    justRecalculated ? "text-amber-600" : "text-zinc-900"
+  );
 
   return (
     // No more shared root `<Card>` — "Estandarización de Tarjetas" moved
@@ -3952,6 +4106,30 @@ export function FuelingPlanner({
                 03 · Metabolismo y objetivos calculados
               </span>
 
+              {/* "UX de Asunciones Activas" — a compact "PARÁMETROS
+                  APLICADOS" bar reflecting exactly which Paso 02 choices
+                  produced the figures below, so the athlete doesn't have to
+                  scroll back up to remember what's currently selected. Plain
+                  lookups (`activeIntensityLabel`/`activeStopsLabel`/
+                  `activeCarbPreloadLabel` above) against the same option
+                  lists Paso 02's own selectors render from — this can never
+                  drift out of sync with what those buttons actually show. */}
+              <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-neutral-200/50 bg-neutral-100/70 p-2.5 font-mono text-[11px] text-neutral-600">
+                <span className="font-bold text-neutral-800">PARÁMETROS APLICADOS:</span>
+                <span className="flex items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-0.5">
+                  <Target className="size-3 shrink-0 text-neutral-500" />
+                  {activeIntensityLabel}
+                </span>
+                <span className="flex items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-0.5">
+                  <MapPin className="size-3 shrink-0 text-neutral-500" />
+                  {activeStopsLabel}
+                </span>
+                <span className="flex items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-0.5">
+                  <Zap className="size-3 shrink-0 text-neutral-500" />
+                  {activeCarbPreloadLabel}
+                </span>
+              </div>
+
               {/* Cuadrícula de objetivos por hora + total — 2x2 en móvil,
                   una sola fila de 4 columnas a partir de `lg:` ("Layout
                   Desktop Responsive para Card 03"), ya que en escritorio hay
@@ -3968,7 +4146,12 @@ export function FuelingPlanner({
                   (flat `#f0f0f0`, no border, a small `4px` radius) now
                   applies to all 4 tiles identically. Labels stay the plain
                   "Duración"/"Carbohidratos"/"Hidratación"/"Sodio" text and
-                  the big figure stays high-contrast `zinc-900`. */}
+                  the big figure stays high-contrast `zinc-900` at rest —
+                  Carbohidratos/Hidratación/Sodio (the g/h·ml/h·mg/h rate
+                  values, not Duración) additionally carry
+                  `recalculatedValueClass`, a brief `text-amber-600` flash
+                  confirming a background recalculation just landed a new
+                  figure ("Feedback Visual de Transición/Recálculo" above). */}
               <div className="grid grid-cols-2 gap-3 *:min-w-0 lg:grid-cols-4">
                 <div className="flex flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
                   <span className="font-mono text-[11px] text-zinc-500">Duración</span>
@@ -3982,7 +4165,7 @@ export function FuelingPlanner({
                     <span className="font-mono text-[11px] text-zinc-500">Carbohidratos</span>
                     <FuelingContextTooltips carbsGPerHour={result.carbsGPerHour} />
                   </span>
-                  <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
+                  <span className={cn("font-sans text-2xl font-bold tabular-nums", recalculatedValueClass)}>
                     {result.carbsGPerHour}
                     <span className="ml-1 text-xs font-normal text-zinc-500">g/h</span>
                   </span>
@@ -3993,7 +4176,7 @@ export function FuelingPlanner({
                 </div>
                 <div className="flex flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
                   <span className="font-mono text-[11px] text-zinc-500">Hidratación</span>
-                  <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
+                  <span className={cn("font-sans text-2xl font-bold tabular-nums", recalculatedValueClass)}>
                     {result.fluidLossMlPerHour}
                     <span className="ml-1 text-xs font-normal text-zinc-500">ml/h</span>
                   </span>
@@ -4004,7 +4187,7 @@ export function FuelingPlanner({
                 </div>
                 <div className="flex flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
                   <span className="font-mono text-[11px] text-zinc-500">Sodio (Na+)</span>
-                  <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
+                  <span className={cn("font-sans text-2xl font-bold tabular-nums", recalculatedValueClass)}>
                     {result.sodiumMgPerHour}
                     <span className="ml-1 text-xs font-normal text-zinc-500">mg/h</span>
                   </span>
@@ -4685,7 +4868,8 @@ export function FuelingPlanner({
                 <GpxAltimetryPreview
                   points={result.weather.elevationProfile}
                   totalDistanceKm={selectedRoute?.distanceKm ?? parsedGpx?.distanceKm ?? null}
-                  tacticalPoints={tacticalPoints}
+                  tacticalPoints={effectiveTacticalPoints}
+                  isEstimatedPreview={isEstimatedTacticalPreview}
                 />
               )}
 

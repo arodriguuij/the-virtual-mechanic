@@ -20,10 +20,19 @@ export function GpxAltimetryPreview({
   points,
   totalDistanceKm,
   tacticalPoints = [],
+  isEstimatedPreview = false,
 }: {
   points: { distanceFraction: number; elevationM: number }[] | null;
   totalDistanceKm: number | null;
   tacticalPoints?: TacticalPoint[];
+  /** "Solución a Eventos Vacíos en Altimetría" — `true` when `tacticalPoints`
+   * isn't a real, confirmed schedule (no pocket food selected in Card 04
+   * yet) but a theoretical preview derived from Card 03's own calculated
+   * targets instead (see `estimatedTacticalPoints` in `fueling-planner.tsx`).
+   * Changes the count label's wording only — never claim confirmed data
+   * when it's actually a fallback, matching this app's existing convention
+   * for the weather-source label and every other estimate elsewhere. */
+  isEstimatedPreview?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -44,7 +53,9 @@ export function GpxAltimetryPreview({
             {distKm > 0 ? `${distKm} km` : "Ruta GPX"}{" "}
             {count > 0 && (
               <span className="font-normal text-neutral-300">
-                · {count} toma{count !== 1 ? "s" : ""} programada{count !== 1 ? "s" : ""}
+                · {count} toma{count !== 1 ? "s" : ""}{" "}
+                {isEstimatedPreview ? "estimada" : "programada"}
+                {count !== 1 ? "s" : ""}
               </span>
             )}
           </p>
@@ -64,6 +75,7 @@ export function GpxAltimetryPreview({
           points={points}
           totalDistanceKm={totalDistanceKm}
           tacticalPoints={tacticalPoints}
+          isEstimatedPreview={isEstimatedPreview}
           onClose={() => setIsOpen(false)}
         />
       )}
@@ -77,11 +89,13 @@ export function GpxAltimetryModal({
   points,
   totalDistanceKm,
   tacticalPoints,
+  isEstimatedPreview = false,
   onClose,
 }: {
   points: { distanceFraction: number; elevationM: number }[];
   totalDistanceKm: number | null;
   tacticalPoints: TacticalPoint[];
+  isEstimatedPreview?: boolean;
   onClose: () => void;
 }) {
   const [isExporting, setIsExporting] = useState(false);
@@ -183,7 +197,9 @@ export function GpxAltimetryModal({
       ctx.fillStyle = "#6b6b6b";
       ctx.font = "13px monospace";
       ctx.fillText(
-        `${distKm} km  ·  ${Math.round(minEle)}m – ${Math.round(maxEle)}m  ·  ${tacticalPoints.length} tomas`,
+        `${distKm} km  ·  ${Math.round(minEle)}m – ${Math.round(maxEle)}m  ·  ${tacticalPoints.length} tomas${
+          isEstimatedPreview ? " estimadas" : ""
+        }`,
         PAD_L,
         60
       );
@@ -381,6 +397,14 @@ export function GpxAltimetryModal({
             <span className="font-mono text-xs font-bold uppercase tracking-wider text-neutral-900">
               Perfil Altimétrico Táctico & Mapeo de Nutrición
             </span>
+            {isEstimatedPreview && (
+              <span
+                title="Comida de bolsillo aún sin configurar (Card 04) — tomas calculadas a partir de tus objetivos de HC/hidratación."
+                className="rounded bg-amber-100 px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-wider text-amber-700 uppercase"
+              >
+                Estimado
+              </span>
+            )}
           </div>
           <button
             type="button"
