@@ -307,11 +307,10 @@ export function GpxAltimetryModal({
      */
     <div
       className="
-        fixed inset-0 z-50
+        fixed inset-0 z-99999
         flex items-center justify-center
-        bg-black/70 backdrop-blur-xs
+        bg-neutral-950/70 backdrop-blur-sm
         animate-in fade-in duration-200
-        /* portrait-mobile: rotate the inner container 90deg */
         [@media_(max-width:768px)_and_(orientation:portrait)]:p-0
         p-2 sm:p-6
       "
@@ -323,8 +322,18 @@ export function GpxAltimetryModal({
         ref={containerRef}
         className="
           flex flex-col rounded-xl bg-white shadow-2xl overflow-hidden font-mono border border-neutral-200
-          /* Normal (landscape / desktop): fills available space */
-          w-full max-w-5xl h-[92vh]
+          /* Normal (landscape / desktop): fills available space. Widened at
+             lg:/xl: (Ajuste de Layout Desktop para Modal de Altimetría) so
+             a wide monitor gets real extra horizontal resolution for the
+             km axis instead of the chart staying capped at a phone-sized
+             `max-w-5xl` on a panoramic screen. `h-[92vh]` (a definite,
+             fixed height, not a `max-h` cap) is deliberately kept as-is —
+             it's exactly what lets the chart area's own `flex-1` below
+             expand to fill whatever vertical room is actually left after
+             the header/legend/footer, instead of the modal auto-shrinking
+             to content height and leaving nothing for `flex-1` to grow
+             into. */
+          w-full max-w-5xl lg:max-w-6xl xl:max-w-7xl h-[92vh]
           /* Layout Fullscreen Completo para Modal Apaisado Rotado — portrait
              mobile takes the container fully out of the parent's flex flow
              (`fixed`) and centers/rotates it with one explicit `transform`
@@ -395,12 +404,19 @@ export function GpxAltimetryModal({
               <span className="flex items-center gap-1"><ShoppingBag className="size-3.5 text-neutral-500" /> Parada</span>
             </div>
 
-            {/* Chart: Y-axis + SVG canvas — `flex-1` on portrait mobile
-                (replacing the fixed `h-[380px]`) so the canvas expands to
-                fill whatever DOM-height the shrunk header above actually
-                leaves available, instead of a flat px value that may
-                under- or over-shoot that budget depending on the phone. */}
-            <div className="grid grid-cols-[60px_1fr] gap-2 items-stretch h-[380px] pt-4 [@media_(max-width:768px)_and_(orientation:portrait)]:h-auto [@media_(max-width:768px)_and_(orientation:portrait)]:flex-1">
+            {/* Chart: Y-axis + SVG canvas — `flex-1` at every breakpoint
+                (not just portrait mobile) so the canvas actually expands to
+                fill whatever vertical room the modal's own fixed `h-[92vh]`
+                leaves available, rather than sitting at a flat `h-[380px]`
+                that left a large empty band above the footer on a tall
+                desktop viewport ("Ajuste de Layout Desktop..."). `min-h-*`
+                is a floor, not a fixed size, so it still grows past 380px/
+                480px whenever more room is actually available; portrait
+                mobile cancels that floor (`min-h-0`) since its own real
+                DOM-height budget post-rotation (~300-330px, see the header/
+                footer micro-bar comments above) is smaller than either
+                floor and a fixed minimum there would force an overflow. */}
+            <div className="grid flex-1 grid-cols-[60px_1fr] gap-2 items-stretch min-h-95 pt-4 lg:min-h-120 [@media_(max-width:768px)_and_(orientation:portrait)]:min-h-0">
               {/* Y Axis */}
               <div className="flex flex-col justify-between text-right text-[10px] font-bold text-neutral-500 pr-2 border-r border-neutral-300">
                 {yTicks.map((y, i) => <span key={i}>{y}m</span>)}

@@ -7,16 +7,34 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   UserRound,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { RatioLogo } from "@/components/icons/RatioLogo";
 import { logout } from "@/lib/auth-actions";
 import { cn } from "@/lib/utils";
+
+// "Menú Lateral Colapsable Desktop" — `identitySlot` is built by the page (a
+// Server Component) and handed to `DashboardShell` as an already-constructed
+// `ReactNode`, so there's no ordinary prop path from this file's own
+// `isCollapsed` state into whatever client component lives inside that
+// subtree (`SidebarIdentityCard`, see `components/sidebar-identity-card.tsx`).
+// Context is the correct tool for that specific gap — React resolves it by
+// the element's position in the rendered tree, not by which module created
+// it, so wrapping `identitySlot` in this Provider (see `SidebarContent`
+// below) still reaches a consumer inside it. Every other collapsed/expanded
+// difference in this file (the logo, the nav items) is handled with a plain
+// prop instead, since it never needs to cross that same Server/Client
+// boundary.
+export const SidebarCollapseContext = createContext(false);
+
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "ratio_sidebar_collapsed";
 
 // Estadísticas/Historial are mid-rebuild and permanently disabled in the nav
 // for now — the routes/pages themselves are untouched, only their sidebar
@@ -48,6 +66,28 @@ function scrollToTopIfHome(e: React.MouseEvent<HTMLAnchorElement>, pathname: str
   }
 }
 
+/**
+ * A collapsed nav icon's own hover/focus tooltip — reuses this app's
+ * established dark-panel tooltip language (`bg-zinc-900`/`text-white`, see
+ * "Unificación Global de Iconos de Tooltip" for `InfoTooltip`'s own version
+ * of this same pure-CSS `group-hover`/`group-focus-within` technique; no
+ * Radix/shadcn `Tooltip` primitive exists in `components/ui` to reuse
+ * instead). Pops out to the right of the icon (`left-full`), since the
+ * sidebar itself sits flush against the left edge of the screen.
+ */
+function CollapsedNavTooltip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <span className="group/navtip relative flex w-full items-center justify-center">
+      {children}
+      <span
+        className="pointer-events-none absolute left-full z-50 ml-2 rounded-md bg-zinc-900 px-2 py-1 font-mono text-[11px] whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/navtip:opacity-100 group-focus-within/navtip:opacity-100"
+      >
+        {label}
+      </span>
+    </span>
+  );
+}
+
 function SidebarContent({
   onNavigate,
   onClose,
@@ -55,6 +95,8 @@ function SidebarContent({
   isLoggingOut,
   onLogoutStart,
   isProfileComplete,
+  isCollapsed,
+  onToggleCollapse,
 }: {
   onNavigate?: () => void;
   onClose?: () => void;
@@ -62,12 +104,19 @@ function SidebarContent({
   isLoggingOut: boolean;
   onLogoutStart: () => void;
   isProfileComplete: boolean;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
 }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-full flex-col px-6 py-8">
-      <div className="mb-6 flex w-full items-center justify-between border-b border-neutral-200/80 pb-4">
+    <div className={cn("flex h-full flex-col px-6 py-8", isCollapsed && "lg:px-2")}>
+      <div
+        className={cn(
+          "mb-6 flex w-full items-center border-b border-neutral-200/80 pb-4",
+          isCollapsed ? "lg:justify-center" : "justify-between"
+        )}
+      >
         <Link
           href="/"
           onClick={(e) => {
@@ -78,17 +127,41 @@ function SidebarContent({
           className="flex cursor-pointer items-center gap-2 text-xs font-bold tracking-wider whitespace-nowrap text-neutral-900 uppercase transition-opacity duration-150 hover:opacity-80 focus:outline-none"
         >
           <RatioLogo className="size-6 shrink-0 text-terracotta" />
-          RATIO
+          {/* Collapsed desktop: isotipo "R" only, no wordmark — `lg:hidden`
+              only applies once `isCollapsed` is true, so mobile (which
+              never collapses) always keeps the full wordmark. */}
+          <span className={cn(isCollapsed && "lg:hidden")}>RATIO</span>
         </Link>
         <button
           type="button"
           onClick={onClose}
           aria-label="Cerrar menú"
-          className="cursor-pointer rounded-sm p-2 text-neutral-400 transition-all duration-150 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none lg:hidden"
+          className={cn(
+            "cursor-pointer rounded-sm p-2 text-neutral-400 transition-all duration-150 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none lg:hidden",
+            isCollapsed && "hidden"
+          )}
         >
           <X className="size-5" />
         </button>
       </div>
+
+      {/* "Menú Lateral Colapsable Desktop" toggle — desktop/tablet only
+          (`lg:flex`, hidden on the mobile drawer, which already has its own
+          "X" close affordance above and a hamburger to reopen it). Sits in
+          its own row rather than replacing the mobile close button's slot,
+          since the two need to coexist independently per breakpoint. */}
+      <button
+        type="button"
+        onClick={onToggleCollapse}
+        aria-label={isCollapsed ? "Expandir menú" : "Colapsar menú"}
+        title={isCollapsed ? "Expandir menú" : "Colapsar menú"}
+        className={cn(
+          "mb-4 hidden w-full cursor-pointer items-center rounded-sm p-2 text-neutral-400 transition-all duration-150 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none lg:flex",
+          isCollapsed ? "justify-center" : "justify-end"
+        )}
+      >
+        {isCollapsed ? <PanelLeftOpen className="size-4.5" /> : <PanelLeftClose className="size-4.5" />}
+      </button>
 
       <nav className="flex flex-1 flex-col gap-0.5">
         {NAV_ITEMS.map((item) => {
@@ -105,16 +178,21 @@ function SidebarContent({
           const locked = item.permanentlyDisabled || lockedByIncompleteProfile;
 
           if (locked) {
-            return (
+            const lockedContent = (
               <div
                 key={item.href}
                 aria-disabled="true"
                 title={
-                  item.permanentlyDisabled
-                    ? "Sección en desarrollo — Próximamente"
-                    : "Completa tu perfil fisiológico para desbloquear esta sección"
+                  isCollapsed
+                    ? item.label
+                    : item.permanentlyDisabled
+                      ? "Sección en desarrollo — Próximamente"
+                      : "Completa tu perfil fisiológico para desbloquear esta sección"
                 }
-                className="flex cursor-not-allowed items-center gap-3 rounded-sm px-3 py-2.5 font-mono text-xs font-medium tracking-wider text-neutral-600 uppercase opacity-50 select-none"
+                className={cn(
+                  "flex cursor-not-allowed items-center gap-3 rounded-sm px-3 py-2.5 font-mono text-xs font-medium tracking-wider text-neutral-600 uppercase opacity-50 select-none",
+                  isCollapsed && "lg:justify-center lg:px-0"
+                )}
               >
                 {/* Every entry renders its own icon now, locked or not — the
                     wrapping div's own `opacity-50` already dims the icon
@@ -126,38 +204,61 @@ function SidebarContent({
                     once both render through this exact same `<item.icon>`
                     unconditionally, so that inconsistency can't recur. */}
                 <item.icon className="size-4 shrink-0" strokeWidth={1.5} />
-                {item.label}
+                <span className={cn(isCollapsed && "lg:hidden")}>{item.label}</span>
                 {item.permanentlyDisabled && (
-                  <span className="ml-auto shrink-0 rounded bg-neutral-200/60 px-1.5 py-0.5 font-mono text-[9px] tracking-wider whitespace-nowrap text-neutral-500 uppercase">
+                  <span
+                    className={cn(
+                      "ml-auto shrink-0 rounded bg-neutral-200/60 px-1.5 py-0.5 font-mono text-[9px] tracking-wider whitespace-nowrap text-neutral-500 uppercase",
+                      isCollapsed && "lg:hidden"
+                    )}
+                  >
                     Próx.
                   </span>
                 )}
               </div>
             );
+            return isCollapsed ? (
+              <CollapsedNavTooltip key={item.href} label={item.label}>
+                {lockedContent}
+              </CollapsedNavTooltip>
+            ) : (
+              lockedContent
+            );
           }
 
           const active = pathname === item.href;
-          return (
+          const navLink = (
             <Link
               key={item.href}
               href={item.href}
               onClick={onNavigate}
+              title={isCollapsed ? item.label : undefined}
               className={cn(
                 "flex cursor-pointer items-center gap-3 rounded-sm px-3 py-2.5 font-mono text-xs tracking-wider uppercase transition-colors duration-150",
+                isCollapsed && "lg:justify-center lg:px-0",
                 active
                   ? "bg-surface font-semibold text-terracotta"
                   : "font-medium text-neutral-600 hover:bg-neutral-100/60 hover:text-neutral-900"
               )}
             >
               <item.icon className="size-4" strokeWidth={1.5} />
-              {item.label}
+              <span className={cn(isCollapsed && "lg:hidden")}>{item.label}</span>
             </Link>
+          );
+          return isCollapsed ? (
+            <CollapsedNavTooltip key={item.href} label={item.label}>
+              {navLink}
+            </CollapsedNavTooltip>
+          ) : (
+            navLink
           );
         })}
       </nav>
 
       <div className="mt-4 flex w-full flex-col border-t border-neutral-200/80 pt-4">
-        {identitySlot}
+        <SidebarCollapseContext.Provider value={isCollapsed}>
+          {identitySlot}
+        </SidebarCollapseContext.Provider>
 
         <div className="mt-4 border-t border-neutral-200/80 pt-3">
           {/* `onSubmit` fires synchronously the instant the button is
@@ -183,8 +284,10 @@ function SidebarContent({
             <button
               type="submit"
               disabled={isLoggingOut}
+              title={isCollapsed ? "Cerrar sesión" : undefined}
               className={cn(
                 "flex w-full items-center gap-3 rounded-sm px-3 py-2.5 font-mono text-xs uppercase tracking-wider transition-colors duration-150",
+                isCollapsed && "lg:justify-center lg:px-0",
                 isLoggingOut
                   ? "cursor-wait text-neutral-500 opacity-70"
                   : "cursor-pointer text-neutral-500 hover:bg-terracotta/10 hover:text-neutral-900"
@@ -198,13 +301,20 @@ function SidebarContent({
               ) : (
                 <LogOut className="size-4 shrink-0 text-current" strokeWidth={1.5} />
               )}
-              {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
+              <span className={cn(isCollapsed && "lg:hidden")}>
+                {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
+              </span>
             </button>
           </form>
         </div>
       </div>
 
-      <div className="mt-4 pt-3 text-center font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
+      <div
+        className={cn(
+          "mt-4 pt-3 text-center font-mono text-[10px] tracking-widest text-neutral-400 uppercase",
+          isCollapsed && "lg:hidden"
+        )}
+      >
         RATIO v1.0 · Nutrición de precisión
       </div>
     </div>
@@ -224,6 +334,39 @@ export function DashboardShell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const logoutFallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // "Menú Lateral Colapsable Desktop" — starts expanded (matching the
+  // server-rendered markup, so there's no hydration mismatch) and is
+  // corrected from `localStorage` right after mount if the athlete had it
+  // collapsed on a previous visit — same "render the safe default first,
+  // then reconcile from `localStorage` in an effect" convention this app's
+  // `experienceMode` restoration already uses (`components/fueling-planner.tsx`)
+  // for the identical class of problem (a client-only preference that can't
+  // be known during the server render).
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true") {
+      setIsCollapsed(true);
+    }
+    // Only runs once on mount — intentional empty deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+  }, []);
+
+  function toggleSidebarCollapsed() {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(next));
+      } catch {
+        // Private browsing / quota exceeded — the preference just won't
+        // persist across a reload, same graceful-degradation convention as
+        // every other localStorage write in this app.
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     return () => {
@@ -273,10 +416,15 @@ export function DashboardShell({
           also the permanent left sidebar there, so every mobile-only class
           above has an `lg:` override putting it back on the left, borderless
           side flipped to `border-r`, and always visible regardless of
-          `mobileOpen`. */}
+          `mobileOpen`. `lg:w-64`/`lg:w-16` + `transition-all` (widened from
+          `transition-transform` alone) is "Menú Lateral Colapsable Desktop" —
+          collapsing only ever changes the desktop/tablet width, since the
+          mobile drawer's own `w-[85vw] max-w-[320px]` never participates in
+          `isCollapsed` at all. */}
       <aside
         className={cn(
-          "fixed inset-y-0 right-0 z-10000 w-[85vw] max-w-[320px] border-l border-neutral-200 bg-background transition-transform lg:right-auto lg:left-0 lg:w-64 lg:translate-x-0 lg:border-l-0 lg:border-r",
+          "fixed inset-y-0 right-0 z-10000 w-[85vw] max-w-[320px] border-l border-neutral-200 bg-background transition-all duration-300 ease-in-out lg:right-auto lg:left-0 lg:translate-x-0 lg:border-l-0 lg:border-r",
+          isCollapsed ? "lg:w-16" : "lg:w-64",
           mobileOpen ? "translate-x-0" : "translate-x-full"
         )}
       >
@@ -287,10 +435,23 @@ export function DashboardShell({
           isLoggingOut={isLoggingOut}
           onLogoutStart={handleLogoutStart}
           isProfileComplete={isProfileComplete}
+          isCollapsed={isCollapsed}
+          onToggleCollapse={toggleSidebarCollapsed}
         />
       </aside>
 
-      <div className="flex flex-1 flex-col lg:pl-64">
+      {/* Content column's own left clearance shrinks in lockstep with the
+          collapsed sidebar (criterion 2: "el área de contenido principal...
+          se expande automáticamente ocupando el espacio liberado") — same
+          `transition-all duration-300 ease-in-out` timing as the `<aside>`
+          itself so both animate together, not one snapping ahead of the
+          other. */}
+      <div
+        className={cn(
+          "flex flex-1 flex-col transition-all duration-300 ease-in-out",
+          isCollapsed ? "lg:pl-16" : "lg:pl-64"
+        )}
+      >
         {/* "Fix Definitivo de Header Fijo" — `sticky` was silently defeated
             by `<body>`'s own `overflow-x-hidden` (`app/layout.tsx`): setting
             `overflow-x` to anything but `visible` while `overflow-y` stays

@@ -1,40 +1,18 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SyncForm } from "@/components/sync-button";
+import { SidebarIdentityCard } from "@/components/sidebar-identity-card";
 import { getViewerIdentity } from "@/lib/dashboard-data";
 
 /** Sidebar identity card, streamed in separately (see `ViewerIdentitySkeleton`
  * below) since it's the one part of the sidebar that needs a Strava round-
- * trip — everything else in `DashboardShell` renders instantly. The
- * "Sincronizar" action (`SyncForm`, `components/sync-button.tsx`) moved here
- * from the Dashboard header — it's a routine, secondary utility action, so
- * it reads better sitting quietly next to "Conectado con Strava" than
- * competing for space next to the greeting. Only rendered when actually
- * connected — an athlete who somehow isn't (unreachable in practice, since
- * Strava OAuth is this app's only login mechanism) has nothing to sync. */
+ * trip — everything else in `DashboardShell` renders instantly. The actual
+ * presentation (full detail vs. the collapsed-sidebar avatar-only view) lives
+ * in `SidebarIdentityCard` (`components/sidebar-identity-card.tsx`, a "use
+ * client" component reading `isCollapsed` off `SidebarCollapseContext`) —
+ * this stays a plain async Server Component whose only job is the real
+ * Strava-backed data fetch. */
 export async function ViewerIdentity() {
   const identity = await getViewerIdentity();
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-3">
-        <Avatar>
-          {identity.avatarUrl && <AvatarImage src={identity.avatarUrl} alt={identity.name} />}
-          <AvatarFallback>{identity.initials}</AvatarFallback>
-        </Avatar>
-        <div className="flex flex-col overflow-hidden">
-          <span className="truncate text-sm font-medium text-neutral-900">{identity.name}</span>
-          <span className="flex items-center truncate text-[10px] tracking-widest text-neutral-500 uppercase">
-            {identity.isStravaConnected && (
-              <span className="mr-1.5 inline-block size-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
-            )}
-            {identity.subtitle}
-          </span>
-        </div>
-      </div>
-      {identity.isStravaConnected && <SyncForm />}
-    </div>
-  );
+  return <SidebarIdentityCard identity={identity} />;
 }
 
 export function ViewerIdentitySkeleton() {
