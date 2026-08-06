@@ -3864,11 +3864,58 @@ export function FuelingPlanner({
                 </div>
               </div>
 
-              {/* Línea separadora — a clean divider between the 4-metric
-                  grid above and the Impacto Térmico section below, so the
-                  two read as distinct blocks rather than one continuous
-                  column of stats. */}
+              {/* Línea separadora */}
               <hr className="my-6 border-t border-zinc-200/80" />
+
+              {/* Caso Límite: Ruta Corta (<60 min) */}
+              {result.durationHours < 1 && !result.trainLow && (
+                <div className="mb-4 rounded-r-md border-l-2 border-neutral-900 bg-neutral-50/80 p-3.5 font-mono text-xs">
+                  <div className="mb-1 flex items-center gap-1.5 font-bold uppercase tracking-wide text-neutral-900">
+                    <Zap className="size-3.5 text-neutral-900" />
+                    Ruta Corta (&lt;60 min): Estrategia Pre-Ruta
+                  </div>
+                  <p className="font-mono text-xs leading-snug text-neutral-700">
+                    A esta duración, la ingesta en ruta no aporta beneficio metabólico significativo.
+                    Focaliza la nutrición en la <strong className="text-neutral-900">Carga Previa</strong> (1-4h antes) y considera{" "}
+                    <strong className="text-neutral-900">enjuague bucal de carbohidratos</strong> (Carb Rinsing) en esfuerzos de alta intensidad para activación del SNC sin carga digestiva.
+                  </p>
+                </div>
+              )}
+
+              {/* Caso Límite: Estrés Térmico Extremo (≥28°C) */}
+              {result.weather.temperatureC >= 28 && !result.trainLow && (
+                <div className="mb-4 rounded-r-md border-l-2 border-amber-600 border-y border-r border-amber-200/60 bg-[#fcf8f2] p-3.5 font-mono text-xs">
+                  <div className="mb-1 flex items-center gap-1.5 font-bold uppercase tracking-wide text-amber-900">
+                    <TriangleAlert className="size-3.5 text-amber-600" />
+                    Estrés Térmico Extremo ({Math.round(result.weather.temperatureC)}°C)
+                  </div>
+                  <p className="font-mono text-xs leading-snug text-neutral-800">
+                    Con temperaturas ≥28°C, prioriza la prescripción en formato{" "}
+                    <strong className="text-amber-950">100% líquido/isotónico</strong> para evitar distensión gástrica por desviación del flujo sanguíneo.
+                    Activado patrón <strong className="text-amber-950">Mix Calor</strong> (~4.5g sales / 1.100mg Na+ por bidón de 550ml) y cadencia de trago acelerada a cada{" "}
+                    <strong className="text-amber-950">12 min</strong>.
+                  </p>
+                </div>
+              )}
+
+              {/* Nota Avanzada: Ratio Fructosa:Glucosa (solo Modo Avanzado con >75g/h) */}
+              {experienceMode === "advanced" && result.carbsGPerHour > 75 && (
+                <div className="mb-4 rounded-md border border-neutral-200 bg-neutral-50/80 p-3.5 font-mono text-xs">
+                  <div className="mb-1 flex items-center gap-1.5 font-bold uppercase tracking-wide text-neutral-900">
+                    <FlaskConical className="size-3.5 text-neutral-900" />
+                    Control de Transportadores (SGLT1 + GLUT5)
+                  </div>
+                  <p className="font-mono text-xs leading-snug text-neutral-700">
+                    Tasa &gt;75g/h: se aplica ratio{" "}
+                    <strong className="text-neutral-900">1:0.8 maltodextrina:fructosa</strong> para activar SGLT1 y GLUT5 simultáneamente.
+                    {result.carbsGPerHour > 90 && (
+                      <span className="block mt-1 text-[10px] text-neutral-500">
+                        ⚡ A {result.carbsGPerHour}g/h (modo avanzado activo), verifica que tu protocolo de Gut Training soporte esta tasa sin distensón gastrointestinal.
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
 
               {/* Weather Impact Card */}
               <div className="pt-2">
@@ -4707,6 +4754,27 @@ export function FuelingPlanner({
                   </p>
                 </div>
               )}
+
+              {/* Ventana Anabólica Post-Ruta */}
+              <div className="rounded-xl border border-[#70685b]/25 bg-[#70685b]/05 p-3.5">
+                <div className="flex items-center gap-1.5 font-mono text-xs font-bold tracking-widest text-[#70685b] uppercase">
+                  <Zap className="size-3.5 shrink-0" />
+                  Ventana Anabólica Post-Esfuerzo (primeros 30 min)
+                </div>
+                <div className="mt-1.5 flex flex-col gap-1 font-mono text-[11px] leading-tight text-zinc-700">
+                  <p>
+                    • <strong className="text-zinc-900">{Math.round(1.2 * (weightKg || 70))}g HC</strong>{" "}
+                    (1.2 g/kg) inmediatamente tras la llegada para resintetizar glucógeno muscular.
+                  </p>
+                  <p>
+                    • <strong className="text-zinc-900">{Math.round(0.3 * (weightKg || 70))}g Proteína</strong>{" "}
+                    (0.3 g/kg) — inicia el proceso de reparación muscular y estimula la MPS.
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-zinc-400">
+                    Ejemplo: {Math.round(1.2 * (weightKg || 70))}g HC ~ {Math.round((1.2 * (weightKg || 70)) / 17)} plátanos o {Math.round((1.2 * (weightKg || 70)) / 40)} barritas energéticas + batido de proteínas.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}
