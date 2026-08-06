@@ -1715,13 +1715,66 @@ export function FuelingPlanner({
   const trainLowIncompatible =
     isTargetEvent || (intensity !== "" && intensity !== "recovery" && intensity !== "endurance");
   const trainLowEffective = trainLow && !trainLowIncompatible;
-  const [pocketFood, setPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
-  const [customCarbsG, setCustomCarbsG] = useState(0);
-  const [commercialProducts, setCommercialProducts] = useState<Record<string, number>>({});
+  // "Aislamiento Total de Estado de Logística (Paso 04)" (Strava/GPX vs Entreno Manual)
+  const [routePocketFood, setRoutePocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
+  const [routeCustomCarbsG, setRouteCustomCarbsG] = useState(0);
+  const [routeCommercialProducts, setRouteCommercialProducts] = useState<Record<string, number>>({});
+  const [routeBottleConfig, setRouteBottleConfig] = useState<BottleConfigOption>(DEFAULT_BOTTLE_CONFIG);
+  const [routeBottleCapacityOverrideMl, setRouteBottleCapacityOverrideMl] = useState<number | null>(null);
+
+  const [manualPocketFood, setManualPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
+  const [manualCustomCarbsG, setManualCustomCarbsG] = useState(0);
+  const [manualCommercialProducts, setManualCommercialProducts] = useState<Record<string, number>>({});
+  const [manualBottleConfig, setManualBottleConfig] = useState<BottleConfigOption>(DEFAULT_BOTTLE_CONFIG);
+  const [manualBottleCapacityOverrideMl, setManualBottleCapacityOverrideMl] = useState<number | null>(null);
+
+  const pocketFood = mode === "quick" ? manualPocketFood : routePocketFood;
+  const setPocketFood: React.Dispatch<React.SetStateAction<Partial<Record<PocketFoodItemType, number>>>> = (action) => {
+    if (mode === "quick") {
+      setManualPocketFood(action);
+    } else {
+      setRoutePocketFood(action);
+    }
+  };
+
+  const customCarbsG = mode === "quick" ? manualCustomCarbsG : routeCustomCarbsG;
+  const setCustomCarbsG: React.Dispatch<React.SetStateAction<number>> = (action) => {
+    if (mode === "quick") {
+      setManualCustomCarbsG(action);
+    } else {
+      setRouteCustomCarbsG(action);
+    }
+  };
+
+  const commercialProducts = mode === "quick" ? manualCommercialProducts : routeCommercialProducts;
+  const setCommercialProducts: React.Dispatch<React.SetStateAction<Record<string, number>>> = (action) => {
+    if (mode === "quick") {
+      setManualCommercialProducts(action);
+    } else {
+      setRouteCommercialProducts(action);
+    }
+  };
+
+  const bottleConfig = mode === "quick" ? manualBottleConfig : routeBottleConfig;
+  const setBottleConfig: React.Dispatch<React.SetStateAction<BottleConfigOption>> = (action) => {
+    if (mode === "quick") {
+      setManualBottleConfig(action);
+    } else {
+      setRouteBottleConfig(action);
+    }
+  };
+
+  const bottleCapacityOverrideMl = mode === "quick" ? manualBottleCapacityOverrideMl : routeBottleCapacityOverrideMl;
+  const setBottleCapacityOverrideMl: React.Dispatch<React.SetStateAction<number | null>> = (action) => {
+    if (mode === "quick") {
+      setManualBottleCapacityOverrideMl(action);
+    } else {
+      setRouteBottleCapacityOverrideMl(action);
+    }
+  };
+
   const [commercialProductsSheetOpen, setCommercialProductsSheetOpen] = useState(false);
   const fuelingMode: FuelingMode = "inventory";
-  const [bottleConfig, setBottleConfig] = useState<BottleConfigOption>(DEFAULT_BOTTLE_CONFIG);
-  const [bottleCapacityOverrideMl, setBottleCapacityOverrideMl] = useState<number | null>(null);
   const [bottleCapacityEditorOpen, setBottleCapacityEditorOpen] = useState(false);
   const [showBikeScoops, setShowBikeScoops] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -3723,9 +3776,9 @@ export function FuelingPlanner({
 
             <div className={cn(numberedCardClass, isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
               {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="mb-3 flex w-fit items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-1 font-mono text-[11px] text-amber-900">
+                <div className="mb-3 flex w-fit items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[10px] text-amber-900 whitespace-nowrap">
                   <span className="size-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
-                  <span>Estrategia previa — Pendiente de recalcular</span>
+                  <span>Estrategia previa · Recalcular para actualizar</span>
                 </div>
               )}
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
@@ -3912,9 +3965,9 @@ export function FuelingPlanner({
                 planned stop). */}
             <div className={cn(numberedCardClass, isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
               {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="mb-3 flex w-fit items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-1 font-mono text-[11px] text-amber-900">
+                <div className="mb-3 flex w-fit items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[10px] text-amber-900 whitespace-nowrap">
                   <span className="size-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
-                  <span>Estrategia previa — Pendiente de recalcular</span>
+                  <span>Estrategia previa · Recalcular para actualizar</span>
                 </div>
               )}
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
@@ -4235,46 +4288,28 @@ export function FuelingPlanner({
                 it — no export button lives here. */}
             <div className={cn(numberedCardClass, "flex flex-col gap-4", isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
               {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="mb-3 flex w-fit items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-1 font-mono text-[11px] text-amber-900">
+                <div className="mb-3 flex w-fit items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[10px] text-amber-900 whitespace-nowrap">
                   <span className="size-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
-                  <span>Estrategia previa — Pendiente de recalcular</span>
+                  <span>Estrategia previa · Recalcular para actualizar</span>
                 </div>
               )}
               <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 05 · Manifiesto de salida
               </span>
 
-              {/* "Integración en el Manifiesto de Salida" — RESTANTE RUTA
-                  (Card 04's own sticky bar) is never treated as a bare
-                  error here; it's reconciled against whether the athlete
-                  has actually planned a road-side stop (Card 02's "Paradas
-                  en ruta") *and* whether the installed bottle capacity
-                  itself falls short of the ride's real fluid demand
-                  (`needsWaterRefill`) — same "home load + road plan = full
-                  coverage" framing the sticky bar's own explanatory line
-                  already sets up, now covering both carbs and fluids
-                  rather than carbs alone. 3 mutually exclusive states,
-                  purely reactive to `remainingCarbsG`/`cafeteriaStopCount`/
-                  `needsWaterRefill` — closing either gap (more pocket
-                  food, a bigger bottle role, activating a stop, or sizing
-                  up bottle capacity on Perfil) instantly moves this from
-                  one state to the next, no recalculation needed.
-                  Suppressed entirely under Train Low — a remaining gap
-                  there is the whole point of the session, not something
-                  to reconcile or celebrate. */}
               {!result.trainLow && (
                 <>
                   {/* Validador Hídrico: Recargas de agua necesarias vs Paradas seleccionadas */}
                   {fullRefillsNeeded > cafeteriaStopCount && (
-                    <div className="mb-4 space-y-1.5 rounded-r-md border-l-2 border-y border-r border-amber-600 border-amber-200/60 bg-[#fcf8f2] p-3.5 shadow-xs">
-                      <div className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-wider text-amber-900">
+                    <div className="mb-4 rounded-r-md border-l-2 border-y border-r border-amber-600 border-amber-200/60 bg-[#fcf8f2] p-3 shadow-xs">
+                      <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-amber-900">
                         <TriangleAlert className="size-3.5 shrink-0 text-amber-600" />
                         <span>Incompatibilidad Hídrica</span>
                       </div>
-                      <p className="font-mono text-xs leading-relaxed text-neutral-800">
+                      <p className="mt-1.5 font-mono text-xs leading-snug text-neutral-800">
                         {cafeteriaStopCount === 0 ? (
                           <>
-                            Tu tasa de sudoración requiere <span className="font-semibold text-amber-950">{totalFluidMl} ml</span> de agua, pero solo dispones de <span className="font-semibold text-amber-950">{installedCapacityMl} ml</span> (2 bidones de 550ml). Al seleccionar 0 paradas entrarás en déficit hídrico severo. Se recomienda planificar al menos 1 parada técnica en fuente o cafetería.
+                            Tu tasa de sudoración requiere <span className="font-semibold text-amber-950">{totalFluidMl} ml</span> de agua, pero solo dispones de <span className="font-semibold text-amber-950">{installedCapacityMl} ml</span> (2 bidones de 550ml). Al seleccionar 0 paradas entrarás en déficit hídrico severo. Se recomienda planificar al menos 1 parada técnica.
                           </>
                         ) : (
                           <>
@@ -4286,15 +4321,17 @@ export function FuelingPlanner({
                   )}
 
                   {fullRefillsNeeded > 0 && cafeteriaStopCount >= fullRefillsNeeded && (
-                    <div className="mb-4 space-y-1.5 rounded-r-md border-l-2 border-y border-r border-emerald-600 border-emerald-200/60 bg-[#f6fbf8] p-3.5 shadow-xs">
-                      <div className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-wider text-emerald-900">
-                        <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" />
-                        <span>Plan Hídrico Validado</span>
+                    <div className="mb-4 flex items-start justify-between space-y-1 rounded-md bg-neutral-900 p-3.5 text-white shadow-xs">
+                      <div>
+                        <div className="flex items-center gap-2 font-mono text-[10px] tracking-wider uppercase text-neutral-400">
+                          <CheckCircle2 className="size-3.5 shrink-0 text-amber-400" />
+                          <span>Plan Hídrico Validado</span>
+                        </div>
+                        <p className="mt-1 font-mono text-xs leading-snug text-neutral-200">
+                          Tus <strong className="font-semibold text-white">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""}</strong> cubren las{" "}
+                          <strong className="font-semibold text-white">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""}</strong> requerida{fullRefillsNeeded !== 1 ? "s" : ""}.
+                        </p>
                       </div>
-                      <p className="font-mono text-xs leading-relaxed text-neutral-800">
-                        Tus <span className="font-semibold text-emerald-950">{cafeteriaStopCount} parada{cafeteriaStopCount !== 1 ? "s" : ""}</span> cubren las{" "}
-                        <span className="font-semibold text-emerald-950">{fullRefillsNeeded} recarga{fullRefillsNeeded !== 1 ? "s" : ""}</span> requerida{fullRefillsNeeded !== 1 ? "s" : ""}.
-                      </p>
                     </div>
                   )}
 
@@ -4308,26 +4345,28 @@ export function FuelingPlanner({
                   )}
 
                   {remainingCarbsG > 0 && cafeteriaStopCount === 0 && (
-                    <div className="mb-4 space-y-1.5 rounded-r-md border-l-2 border-y border-r border-amber-600 border-amber-200/60 bg-[#fcf8f2] p-3.5 shadow-xs">
-                      <div className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-wider text-amber-900">
+                    <div className="mb-4 rounded-r-md border-l-2 border-y border-r border-amber-600 border-amber-200/60 bg-[#fcf8f2] p-3 shadow-xs">
+                      <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold tracking-wider text-amber-900 uppercase">
                         <TriangleAlert className="size-3.5 shrink-0 text-amber-600" />
                         <span>Déficit de Nutrición</span>
                       </div>
-                      <p className="font-mono text-xs leading-relaxed text-neutral-800">
+                      <p className="mt-1.5 font-mono text-xs leading-snug text-neutral-800">
                         Faltan <strong className="font-semibold text-amber-950">{remainingCarbsG}g HC</strong> para cubrir el gasto glucogénico ({result.totalRideCarbsG}g HC). Selecciona más comida de bolsillo o añade paradas en ruta.
                       </p>
                     </div>
                   )}
 
                   {remainingCarbsG === 0 && fullRefillsNeeded === 0 && (
-                    <div className="mb-4 space-y-1.5 rounded-r-md border-l-2 border-y border-r border-emerald-600 border-emerald-200/60 bg-[#f6fbf8] p-3.5 shadow-xs">
-                      <div className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-wider text-emerald-900">
-                        <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" />
-                        <span>Cobertura Completa</span>
+                    <div className="mb-4 flex items-start justify-between space-y-1 rounded-md bg-neutral-900 p-3.5 text-white shadow-xs">
+                      <div>
+                        <div className="flex items-center gap-2 font-mono text-[10px] tracking-wider uppercase text-neutral-400">
+                          <CheckCircle2 className="size-3.5 shrink-0 text-amber-400" />
+                          <span>Cobertura Completa</span>
+                        </div>
+                        <p className="mt-1 font-mono text-xs leading-snug text-neutral-200">
+                          Tu carga inicial de casa cubre el 100% del objetivo glucogénico de la salida.
+                        </p>
                       </div>
-                      <p className="font-mono text-xs leading-relaxed text-neutral-800">
-                        Tu carga inicial de casa cubre el 100% del objetivo glucogénico de la salida.
-                      </p>
                     </div>
                   )}
                 </>
