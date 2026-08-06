@@ -1621,18 +1621,30 @@ export function FuelingPlanner({
   experienceMode?: ExperienceMode;
   isProfileComplete: boolean;
 }) {
-  const [experienceMode, setExperienceMode] = useState<ExperienceMode>(initialExperienceMode);
+  const [experienceMode, _setExperienceMode] = useState<ExperienceMode>(initialExperienceMode);
 
-  useEffect(() => {
+  /** Persists `experienceMode` to localStorage so that a page reload keeps
+   *  the selection intact without requiring another DB round-trip. */
+  const setExperienceMode = (mode: ExperienceMode) => {
+    _setExperienceMode(mode);
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("ratio_experience_mode") as ExperienceMode | null;
-      if (stored === "standard" || stored === "advanced") {
-        setExperienceMode(stored);
-      } else if (initialExperienceMode) {
-        setExperienceMode(initialExperienceMode);
-      }
+      localStorage.setItem("ratio_experience_mode", mode);
     }
-  }, [initialExperienceMode]);
+  };
+
+  // On mount: if the server-rendered prop is the "standard" fallback but the
+  // athlete actually saved "advanced" in localStorage on a prior visit, honour
+  // the local preference (prevents a flash of wrong mode before rehydration).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("ratio_experience_mode") as ExperienceMode | null;
+    if (stored === "standard" || stored === "advanced") {
+      _setExperienceMode(stored);
+    }
+    // Only runs once on mount — intentional empty deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const [mode, setMode] = useState<"route" | "quick" | "gpx">(routes.length > 0 ? "route" : "quick");
   const [selectedRouteId, setSelectedRouteId] = useState("");
@@ -2366,13 +2378,22 @@ export function FuelingPlanner({
     if (!result || mergedTimelineEntries.length === 0) return [];
     const totalMins = Math.max(1, result.durationHours * 60);
     const dist = selectedRoute?.distanceKm ?? parsedGpx?.distanceKm ?? 100;
-    return mergedTimelineEntries.map((e) => ({
-      key: e.key,
-      distanceFraction: Math.min(1, Math.max(0, e.atMinutes / totalMins)),
-      km: e.atKm ?? Math.round((e.atMinutes / totalMins) * dist),
-      type: (e.icon === "gel" ? "gel" : e.icon === "solid" ? "solid" : "water") as "gel" | "solid" | "stop" | "water",
-      title: e.label,
-    }));
+    return mergedTimelineEntries.map((e) => {
+      // Use km-based distance fraction when available (matches GPX elevation
+      // profile's own distanceFraction coordinate space). Fall back to time
+      // fraction only when atKm is null (manual mode with no distance data).
+      const distFraction =
+        e.atKm != null && dist > 0
+          ? Math.min(1, Math.max(0, e.atKm / dist))
+          : Math.min(1, Math.max(0, e.atMinutes / totalMins));
+      return {
+        key: e.key,
+        distanceFraction: distFraction,
+        km: e.atKm ?? Math.round(distFraction * dist),
+        type: (e.icon === "gel" ? "gel" : e.icon === "solid" ? "solid" : "water") as "gel" | "solid" | "stop" | "water",
+        title: e.label,
+      };
+    });
   }, [result, mergedTimelineEntries, selectedRoute, parsedGpx]);
 
   // "Modo Cobertura Limitada" — if the athlete opens the app with no

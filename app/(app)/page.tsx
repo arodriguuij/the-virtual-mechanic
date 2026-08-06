@@ -79,10 +79,12 @@ async function FuelingPlannerSection() {
       routes={routes}
       ftp={athleteProfile?.ftp ?? 0}
       weightKg={athleteProfile?.weight_kg ?? 0}
+      experienceMode={athleteProfile?.experience_mode ?? "standard"}
       isProfileComplete
     />
   );
 }
+
 
 // Generic loading placeholder for `PostRideAnalysisSection` below — an icon+
 // title row, then two content bars of different widths, reusing this app's

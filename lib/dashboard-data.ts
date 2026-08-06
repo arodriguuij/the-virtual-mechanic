@@ -100,7 +100,7 @@ export const getAthleteProfile = cache(async (): Promise<AthleteProfile | null> 
   const { data, error } = await supabase
     .from("athlete_profiles")
     .select(
-      "id, ftp, weight_kg, sweat_rate, gut_training_level, athlete_type, bottle_count, bottle_capacity_ml, is_salty_sweater"
+      "id, ftp, weight_kg, sweat_rate, gut_training_level, athlete_type, bottle_count, bottle_capacity_ml, is_salty_sweater, experience_mode"
     )
     .eq("id", userId)
     .maybeSingle();

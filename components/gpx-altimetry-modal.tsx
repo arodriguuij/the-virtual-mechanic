@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Download, Maximize2, X, Utensils, Zap, Droplets, ShoppingBag } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Download, Maximize2, RotateCcw, X, Utensils, Zap, Droplets, ShoppingBag } from "lucide-react";
 import { ElevationSparkline } from "@/components/elevation-sparkline";
 
 export type TacticalPoint = {
@@ -73,6 +73,33 @@ export function GpxAltimetryModal({
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  // Detects portrait mode on small screens so we can show a rotate hint.
+  const [isPortrait, setIsPortrait] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(orientation: portrait) and (max-width: 768px)");
+    const update = (e: MediaQueryListEvent | MediaQueryList) => setIsPortrait(e.matches);
+    update(mq);
+    mq.addEventListener("change", update as (e: MediaQueryListEvent) => void);
+    // Attempt to lock orientation to landscape on supporting browsers
+    // (e.g. Chrome on Android). Fails silently if not supported or if
+    // the document isn't in fullscreen — no-op is the correct behaviour.
+    if (typeof screen !== "undefined" && screen.orientation && "lock" in screen.orientation) {
+      (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })
+        .lock?.("landscape")
+        .catch(() => {
+          // Not supported / not in fullscreen — ignore.
+        });
+    }
+    return () => {
+      mq.removeEventListener("change", update as (e: MediaQueryListEvent) => void);
+      // Release orientation lock on close
+      if (typeof screen !== "undefined" && screen.orientation && "unlock" in screen.orientation) {
+        (screen.orientation as ScreenOrientation & { unlock?: () => void }).unlock?.();
+      }
+    };
+  }, []);
+
 
   const elevations = points.map((p) => p.elevationM);
   const minEle = Math.min(...elevations);
@@ -262,6 +289,14 @@ export function GpxAltimetryModal({
             <X className="size-4" />
           </button>
         </div>
+
+        {/* Portrait orientation hint — visible only on narrow screens */}
+        {isPortrait && (
+          <div className="flex items-center gap-2 border-b border-amber-200/60 bg-[#fcf8f2] px-4 py-2 font-mono text-[11px] text-amber-900">
+            <RotateCcw className="size-3.5 shrink-0 text-amber-600" />
+            Gira la pantalla para mejor visualización táctica
+          </div>
+        )}
 
         {/* Modal Main Scrollable Chart Area */}
         <div className="flex-1 overflow-x-auto overflow-y-auto p-4 sm:p-6 bg-[#fcfbf9]">
