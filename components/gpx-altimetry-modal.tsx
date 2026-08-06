@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Maximize2, X, Utensils, Zap, Droplets, ShoppingBag } from "lucide-react";
+import { useRef, useState } from "react";
+import { Download, Maximize2, X, Utensils, Zap, Droplets, ShoppingBag } from "lucide-react";
 import { ElevationSparkline } from "@/components/elevation-sparkline";
 
 export type TacticalPoint = {
@@ -71,13 +71,15 @@ export function GpxAltimetryModal({
   tacticalPoints: TacticalPoint[];
   onClose: () => void;
 }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
   const elevations = points.map((p) => p.elevationM);
   const minEle = Math.min(...elevations);
   const maxEle = Math.max(...elevations);
   const eleRange = maxEle - minEle || 1;
   const distKm = totalDistanceKm || 100;
 
-  // Y-axis ticks (4 graduations)
   const yTicks = [
     Math.round(maxEle),
     Math.round(minEle + eleRange * 0.66),
@@ -85,7 +87,6 @@ export function GpxAltimetryModal({
     Math.round(minEle),
   ];
 
-  // X-axis ticks (5 graduations)
   const xTicks = [
     0,
     Math.round(distKm * 0.25),
@@ -102,6 +103,145 @@ export function GpxAltimetryModal({
     .join(" ");
 
   const areaPath = `${linePath} L100,100 L0,100 Z`;
+
+  /** Renders the chart directly to a Canvas and triggers a PNG download.
+   *  No external deps — pure browser Canvas 2D API. */
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const W = 1600;
+      const H = 700;
+      const PAD_LEFT = 90;
+      const PAD_RIGHT = 50;
+      const PAD_TOP = 90;
+      const PAD_BOTTOM = 70;
+      const chartW = W - PAD_LEFT - PAD_RIGHT;
+      const chartH = H - PAD_TOP - PAD_BOTTOM;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      // Background
+      ctx.fillStyle = "#fcfbf9";
+      ctx.fillRect(0, 0, W, H);
+
+      // Title
+      ctx.fillStyle = "#121212";
+      ctx.font = "bold 18px monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("RATIO · Perfil Altimétrico Táctico", PAD_LEFT, 38);
+      ctx.fillStyle = "#6b6b6b";
+      ctx.font = "13px monospace";
+      ctx.fillText(`${distKm} km  ·  ${Math.round(minEle)}m – ${Math.round(maxEle)}m`, PAD_LEFT, 60);
+
+      // Y-axis grid lines and labels
+      ctx.lineWidth = 1;
+      yTicks.forEach((y, idx) => {
+        const pct = idx / (yTicks.length - 1);
+        const yPx = PAD_TOP + pct * chartH;
+        ctx.strokeStyle = "#e5e5e5";
+        ctx.beginPath();
+        ctx.moveTo(PAD_LEFT, yPx);
+        ctx.lineTo(PAD_LEFT + chartW, yPx);
+        ctx.stroke();
+        ctx.fillStyle = "#888";
+        ctx.font = "11px monospace";
+        ctx.textAlign = "right";
+        ctx.fillText(`${y}m`, PAD_LEFT - 8, yPx + 4);
+      });
+
+      // X-axis labels
+      ctx.textAlign = "center";
+      xTicks.forEach((x, idx) => {
+        const pct = idx / (xTicks.length - 1);
+        const xPx = PAD_LEFT + pct * chartW;
+        ctx.fillStyle = "#888";
+        ctx.font = "11px monospace";
+        ctx.fillText(`Km ${x}`, xPx, H - 18);
+      });
+
+      // Elevation area fill
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        const xPx = PAD_LEFT + (toX(p.distanceFraction) / 100) * chartW;
+        const yPx = PAD_TOP + (toY(p.elevationM) / 100) * chartH;
+        if (i === 0) ctx.moveTo(xPx, yPx);
+        else ctx.lineTo(xPx, yPx);
+      });
+      const lastP = points[points.length - 1];
+      ctx.lineTo(PAD_LEFT + (toX(lastP.distanceFraction) / 100) * chartW, PAD_TOP + chartH);
+      ctx.lineTo(PAD_LEFT, PAD_TOP + chartH);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, PAD_TOP, 0, PAD_TOP + chartH);
+      grad.addColorStop(0, "rgba(112,104,91,0.25)");
+      grad.addColorStop(1, "rgba(112,104,91,0.02)");
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Elevation line
+      ctx.beginPath();
+      ctx.strokeStyle = "#121212";
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = "round";
+      points.forEach((p, i) => {
+        const xPx = PAD_LEFT + (toX(p.distanceFraction) / 100) * chartW;
+        const yPx = PAD_TOP + (toY(p.elevationM) / 100) * chartH;
+        if (i === 0) ctx.moveTo(xPx, yPx);
+        else ctx.lineTo(xPx, yPx);
+      });
+      ctx.stroke();
+
+      // Tactical point markers
+      for (const pt of tacticalPoints) {
+        const xPx = PAD_LEFT + pt.distanceFraction * chartW;
+        const matchingP = points.find((p) => Math.abs(p.distanceFraction - pt.distanceFraction) < 0.05);
+        const ptEle = matchingP ? matchingP.elevationM : minEle;
+        const yRaw = PAD_TOP + (toY(ptEle) / 100) * chartH;
+        const yBadge = Math.min(PAD_TOP + chartH - 32, Math.max(PAD_TOP + 16, yRaw - 28));
+
+        // Stem
+        ctx.beginPath();
+        ctx.strokeStyle = "#121212";
+        ctx.lineWidth = 1;
+        ctx.moveTo(xPx, yBadge + 22);
+        ctx.lineTo(xPx, yRaw);
+        ctx.stroke();
+
+        // Badge
+        const label = pt.title.length > 24 ? pt.title.slice(0, 24) + "…" : pt.title;
+        ctx.font = "bold 10px monospace";
+        const textW = ctx.measureText(label).width + 24;
+        ctx.fillStyle = "#121212";
+        ctx.beginPath();
+        (ctx as CanvasRenderingContext2D).roundRect(xPx - textW / 2, yBadge, textW, 20, 4);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.textAlign = "center";
+        ctx.fillText(label, xPx, yBadge + 13);
+      }
+
+      // Watermark
+      ctx.fillStyle = "#ccc";
+      ctx.font = "11px monospace";
+      ctx.textAlign = "right";
+      ctx.fillText("ratio.velo", W - PAD_RIGHT, H - 6);
+
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "ficha-tactica-ratio.png";
+        a.click();
+        URL.revokeObjectURL(url);
+      }, "image/png");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 sm:p-6 backdrop-blur-xs animate-in fade-in duration-200">
@@ -161,6 +301,7 @@ export function GpxAltimetryModal({
 
                 {/* SVG Profile */}
                 <svg
+                  ref={svgRef}
                   viewBox="0 0 100 100"
                   preserveAspectRatio="none"
                   className="absolute inset-0 w-full h-full overflow-visible"
@@ -225,13 +366,24 @@ export function GpxAltimetryModal({
         {/* Footer */}
         <div className="border-t border-neutral-200 px-4 py-3 bg-neutral-50 flex items-center justify-between text-xs text-neutral-600 font-mono">
           <span>Toma pre-puerto (10-15m antes &gt;4%) · Sólidos en llanos · Bloqueo en bajadas (&lt;-3%)</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800 cursor-pointer"
-          >
-            Cerrar
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            >
+              <Download className="size-3.5" />
+              {isExporting ? "Generando…" : "Descargar Ficha Táctica"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800 cursor-pointer"
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       </div>
     </div>
