@@ -88,6 +88,28 @@ function CollapsedNavTooltip({ label, children }: { label: string; children: Rea
   );
 }
 
+/**
+ * "Rediseño UX y Reposicionamiento del Botón de Colapso" — the collapse
+ * toggle's own micro-tooltip, now that it sits in the header row rather than
+ * relying on the native `title` attribute alone (dropped from the button
+ * itself to avoid a native + custom tooltip stacking on top of each other).
+ * Pops out *below* the button (`top-full`), unlike `CollapsedNavTooltip`
+ * above (which pops to the *right*) — this button lives in the sidebar's own
+ * top header row, so a right-hand tooltip would have nowhere to go; `right-0`
+ * keeps it flush against the button's trailing edge instead of overflowing
+ * past the sidebar's own right border.
+ */
+function SidebarToggleTooltip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <span className="group/toggletip relative inline-flex">
+      {children}
+      <span className="pointer-events-none absolute top-full right-0 z-50 mt-2 rounded-md bg-zinc-900 px-2 py-1 font-mono text-[11px] whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/toggletip:opacity-100 group-focus-within/toggletip:opacity-100">
+        {label}
+      </span>
+    </span>
+  );
+}
+
 function SidebarContent({
   onNavigate,
   onClose,
@@ -111,10 +133,21 @@ function SidebarContent({
 
   return (
     <div className={cn("flex h-full flex-col px-6 py-8", isCollapsed && "lg:px-2")}>
+      {/* "Rediseño UX y Reposicionamiento del Botón de Colapso" — the logo
+          and the collapse/expand toggle now share one clean `h-14` header
+          bar instead of the toggle floating in its own full-width row below
+          the logo with no shared grid/alignment between the two (the
+          previous layout — a separate `lg:flex` row, `justify-end`/
+          `justify-center` — read as visually disconnected from the header
+          it sat directly under). The mobile "X" close button and the
+          desktop toggle button occupy the exact same trailing slot in this
+          one row — mutually exclusive per breakpoint (`lg:hidden` vs.
+          `hidden lg:flex`), so they coexist here without ever being visible
+          at the same time. */}
       <div
         className={cn(
-          "mb-6 flex w-full items-center border-b border-neutral-200/80 pb-4",
-          isCollapsed ? "lg:justify-center" : "justify-between"
+          "flex h-14 items-center justify-between border-b border-neutral-200/80",
+          isCollapsed && "lg:justify-center lg:gap-2"
         )}
       >
         <Link
@@ -132,38 +165,35 @@ function SidebarContent({
               never collapses) always keeps the full wordmark. */}
           <span className={cn(isCollapsed && "lg:hidden")}>RATIO</span>
         </Link>
+
+        {/* Mobile-only close — the drawer's own dismiss affordance. */}
         <button
           type="button"
           onClick={onClose}
           aria-label="Cerrar menú"
-          className={cn(
-            "cursor-pointer rounded-sm p-2 text-neutral-400 transition-all duration-150 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none lg:hidden",
-            isCollapsed && "hidden"
-          )}
+          className="cursor-pointer rounded-sm p-1.5 text-neutral-400 transition-all duration-150 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none lg:hidden"
         >
           <X className="size-5" />
         </button>
+
+        {/* "Menú Lateral Colapsable Desktop" toggle — desktop/tablet only
+            (`hidden lg:flex`), now aligned in the same horizontal row as the
+            logo above rather than a separate row of its own. No native
+            `title` here — `SidebarToggleTooltip` below replaces it with a
+            proper floating micro-tooltip so the two don't stack. */}
+        <SidebarToggleTooltip label={`${isCollapsed ? "Expandir" : "Colapsar"} menú (⌘B)`}>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label={isCollapsed ? "Expandir menú" : "Colapsar menú"}
+            className="hidden cursor-pointer items-center justify-center rounded-lg p-1.5 text-neutral-400 transition-all duration-150 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none lg:flex"
+          >
+            {isCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+          </button>
+        </SidebarToggleTooltip>
       </div>
 
-      {/* "Menú Lateral Colapsable Desktop" toggle — desktop/tablet only
-          (`lg:flex`, hidden on the mobile drawer, which already has its own
-          "X" close affordance above and a hamburger to reopen it). Sits in
-          its own row rather than replacing the mobile close button's slot,
-          since the two need to coexist independently per breakpoint. */}
-      <button
-        type="button"
-        onClick={onToggleCollapse}
-        aria-label={isCollapsed ? "Expandir menú" : "Colapsar menú"}
-        title={isCollapsed ? "Expandir menú" : "Colapsar menú"}
-        className={cn(
-          "mb-4 hidden w-full cursor-pointer items-center rounded-sm p-2 text-neutral-400 transition-all duration-150 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none lg:flex",
-          isCollapsed ? "justify-center" : "justify-end"
-        )}
-      >
-        {isCollapsed ? <PanelLeftOpen className="size-4.5" /> : <PanelLeftClose className="size-4.5" />}
-      </button>
-
-      <nav className="flex flex-1 flex-col gap-0.5">
+      <nav className="mt-6 flex flex-1 flex-col gap-0.5">
         {NAV_ITEMS.map((item) => {
           // Two independent reasons an entry can be locked: permanently (an
           // in-development section) or conditionally (every route but
@@ -367,6 +397,24 @@ export function DashboardShell({
       return next;
     });
   }
+
+  // The header toggle's own tooltip advertises "(⌘B)" — this is what backs
+  // that up with real behavior, so the hint is never just decorative copy.
+  // `toggleSidebarCollapsed` only ever uses the functional `setState` form
+  // above (never closes over a per-render value that could go stale), so
+  // capturing it once on mount is safe — no dependency omission risk despite
+  // the empty deps array below.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleSidebarCollapsed();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     return () => {
