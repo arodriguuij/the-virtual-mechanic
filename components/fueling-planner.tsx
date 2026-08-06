@@ -11,7 +11,6 @@ import {
   FlaskConical,
   Gauge,
   Lightbulb,
-  Lock,
   MapPin,
   Moon,
   Pencil,
@@ -315,6 +314,13 @@ const MAX_CUSTOM_CARBS_G = 500;
 // successfully calculated strategy, so the athlete still has *something*
 // actionable instead of a blank/broken screen with no signal.
 const LAST_FUELING_STRATEGY_KEY = "last_fueling_strategy";
+
+// "Eliminación del Botón Intermedio y Auto-Cálculo Reactivo" — how long
+// Card 03's auto-calculation waits after the *last* Paso 01/02 edit before
+// actually firing the `/api/fueling/plan` request, so typing a duration
+// digit-by-digit or stepping through departure-hour options doesn't fire a
+// network call per keystroke.
+const AUTO_CALCULATE_DEBOUNCE_MS = 600;
 
 /** Plain, no-emoji name for the pocket-food matrix — `pocketFoodLabels` keeps
  * its friendly emoji-prefixed copy for the clipboard/GPX exports, this derives
@@ -1704,16 +1710,13 @@ export function FuelingPlanner({
   const [manualDurationOverride, setManualDurationOverride] = useState<{ hours: string; minutes: string } | null>(null);
 
   const [routeResult, setRouteResult] = useState<PlanResult | null>(null);
-  const [routeHasCalculatedOnce, setRouteHasCalculatedOnce] = useState(false);
   const [routeLastCalculatedInputs, setRouteLastCalculatedInputs] = useState<CalculatedInputsSnapshot | null>(null);
 
   const [manualResult, setManualResult] = useState<PlanResult | null>(null);
-  const [manualHasCalculatedOnce, setManualHasCalculatedOnce] = useState(false);
   const [manualLastCalculatedInputs, setManualLastCalculatedInputs] = useState<CalculatedInputsSnapshot | null>(null);
 
   const activeModeGroup = mode === "quick" ? "manual" : "route";
   const result = activeModeGroup === "manual" ? manualResult : routeResult;
-  const hasCalculatedOnce = activeModeGroup === "manual" ? manualHasCalculatedOnce : routeHasCalculatedOnce;
   const activeLastCalculatedInputs = activeModeGroup === "manual" ? manualLastCalculatedInputs : routeLastCalculatedInputs;
 
   const [routeDepartureDayMode, setRouteDepartureDayMode] = useState<DepartureDayMode>("today");
@@ -2418,13 +2421,17 @@ export function FuelingPlanner({
       : "";
 
   // "Flujo Deliberado de Generación" — see `isManifestGenerated`'s own doc
-  // comment above. `isPlanDirty` folds in the *existing* `isInputsChanged`
-  // (a Paso 01/02 edit — route/intensity/duración/etc. — already
-  // invalidates everything downstream, manifest included) alongside this
-  // new, narrower inventory-only check (Card 04's bottle/pocket-food/
-  // commercial-product edits, which don't need a server round-trip to
-  // reflect but *do* need a deliberate "Actualizar Plan" before Card 05
-  // shows them).
+  // comment above. `isPlanDirty` folds in `isInputsChanged` (a Paso 01/02
+  // edit — route/intensity/duración/etc.) alongside this narrower
+  // inventory-only check (Card 04's bottle/pocket-food/commercial-product
+  // edits, which don't need a server round-trip to reflect but *do* need a
+  // deliberate re-generation before Card 05 stops flagging them as stale).
+  // Since Card 03 now recalculates automatically (see `canAutoCalculate`'s
+  // debounced effect near `handleCalculate`), the `isInputsChanged` half of
+  // this is only ever transient — it self-resolves the moment the
+  // background recalculation lands, with no click required; only the
+  // inventory-dirty half genuinely waits on the athlete pressing Card 04's
+  // "Generar/Actualizar Manifiesto de Salida" button.
   const currentInventorySnapshot: InventorySnapshot = {
     pocketFood,
     customCarbsG,
@@ -2448,24 +2455,6 @@ export function FuelingPlanner({
     requestAnimationFrame(() => {
       card05Ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-  }
-
-  // Unified "Recalcular Manifiesto" action behind Card 05's single
-  // consolidated dirty banner (`isPlanDirty` — see its own doc comment
-  // above) — this replaces what used to be two independent treatments (a
-  // Paso 01/02 edit vs. a Card 04 inventory edit) with one button that
-  // resolves whichever actually caused the staleness. A Paso 01/02 change
-  // means the *server-computed* `result` itself is stale, so it needs a
-  // real recalculation first; a pure inventory change doesn't (the recipe
-  // math already reflects it live), so `handleGenerateManifest` alone —
-  // re-snapshotting the inventory and re-arming `isManifestGenerated` — is
-  // enough for that case.
-  async function handleRecalculateManifest() {
-    if (isInputsChanged) {
-      const success = await handleCalculate();
-      if (!success) return;
-    }
-    handleGenerateManifest();
   }
 
   // Card 05's "Cronograma Dinámico de Ingesta" — the server-computed solid/
@@ -2529,10 +2518,8 @@ export function FuelingPlanner({
         const parsed = JSON.parse(cached);
         if (activeModeGroup === "manual") {
           setManualResult(parsed);
-          setManualHasCalculatedOnce(true);
         } else {
           setRouteResult(parsed);
-          setRouteHasCalculatedOnce(true);
         }
         setIsOfflineCache(true);
       } catch {
@@ -2606,10 +2593,8 @@ export function FuelingPlanner({
     }
   }
 
-  // Returns whether the calculation actually succeeded — the unified Card
-  // 05 "Recalcular Manifiesto" handler (see `handleRecalculateManifest`
-  // below) needs to know this so it only re-arms `isManifestGenerated`
-  // once a fresh `result` genuinely exists, not on a validation/API failure.
+  // Returns whether the calculation actually succeeded — a real network/
+  // validation failure vs. a fresh `result` landing.
   async function handleCalculate(): Promise<boolean> {
     if (mode === "route") {
       if (!selectedRoute) {
@@ -2745,11 +2730,9 @@ export function FuelingPlanner({
       const snapshot: CalculatedInputsSnapshot = { ...currentInputs };
       if (activeModeGroup === "manual") {
         setManualResult(data);
-        setManualHasCalculatedOnce(true);
         setManualLastCalculatedInputs(snapshot);
       } else {
         setRouteResult(data);
-        setRouteHasCalculatedOnce(true);
         setRouteLastCalculatedInputs(snapshot);
       }
 
@@ -2775,6 +2758,55 @@ export function FuelingPlanner({
       setLoading(false);
     }
   }
+
+  // "Eliminación del Botón Intermedio y Auto-Cálculo Reactivo en Card 03" —
+  // whether Paso 01/02 are complete enough to calculate against at all,
+  // mirroring `handleCalculate`'s own per-mode validation branches (route/
+  // gpx need a selected route/file *and* an intensity; quick mode needs
+  // `quickValid`) without actually setting the error/scroll state those
+  // branches trigger on a real submit — this is a silent readiness check,
+  // not a validation pass the athlete needs to be warned about.
+  const canAutoCalculate = isProfileComplete && (mode === "quick" ? quickValid : !routeModeIncomplete);
+
+  // Drives Card 03/04/05 automatically the instant Paso 01/02 become valid,
+  // and again every time any of them changes afterward — this is what
+  // replaced the old "Calcular/Re-calcular Estrategia Nutricional" button
+  // that used to sit between Paso 02 and Card 03. Debounced
+  // (`AUTO_CALCULATE_DEBOUNCE_MS`) so typing a duration digit-by-digit or
+  // stepping through the departure-hour `<select>` doesn't fire a network
+  // request per keystroke. `autoCalcAttemptedInputsRef` remembers the exact
+  // input snapshot the *last* auto-attempt ran against (success or
+  // failure) — without it, a failed request (e.g. genuinely offline) would
+  // otherwise retry itself every `AUTO_CALCULATE_DEBOUNCE_MS` forever
+  // against the same unchanged inputs; tracking "already attempted this
+  // exact snapshot" means a failure only ever retries once a real edit
+  // produces a snapshot that hasn't been tried yet. Skipped outright while
+  // offline — a fetch that can't succeed shouldn't spend an attempt (and
+  // show an error) instead of just leaving whatever "Modo Cobertura
+  // Limitada" already loaded on screen (see that effect above).
+  const autoCalcAttemptedInputsRef = useRef<CalculatedInputsSnapshot | null>(null);
+  useEffect(() => {
+    if (loading || !canAutoCalculate) return;
+    if (activeLastCalculatedInputs && !isInputsChanged) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    if (
+      autoCalcAttemptedInputsRef.current &&
+      areInputsEqual(currentInputs, autoCalcAttemptedInputsRef.current)
+    ) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      autoCalcAttemptedInputsRef.current = currentInputs;
+      handleCalculate();
+    }, AUTO_CALCULATE_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+    // `handleCalculate` is intentionally omitted — it's recreated every
+    // render but closes over the same state this effect already tracks via
+    // `currentInputs`/`canAutoCalculate`/etc., so adding it here would just
+    // make this effect's own deps unstable without changing what it reacts to.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, canAutoCalculate, activeLastCalculatedInputs, isInputsChanged, currentInputs]);
 
   return (
     // No more shared root `<Card>` — "Estandarización de Tarjetas" moved
@@ -3868,62 +3900,37 @@ export function FuelingPlanner({
             being asked to plan how to cover them, rather than configuring
             a food strategy against a target they haven't seen yet. */}
 
-        <div className="mb-5 flex flex-col gap-3 sm:mb-6">
-          <button
-            type="button"
-            onClick={handleCalculate}
-            disabled={
-              loading ||
-              !isProfileComplete ||
-              (Boolean(activeLastCalculatedInputs) && !isInputsChanged)
-            }
-            title={
-              isProfileComplete && routeModeIncomplete
-                ? "Selecciona una ruta e intensidad para calcular"
-                : undefined
-            }
-            className={cn(
-              "flex w-full items-center justify-center gap-2.5 rounded-md px-4 py-3.5 font-mono text-xs uppercase tracking-wider transition-all shadow-sm",
-              isInputsChanged
-                ? "bg-neutral-900 text-white hover:bg-neutral-800 border border-neutral-900"
-                : "bg-neutral-900 text-white hover:bg-neutral-800",
-              (!isProfileComplete || (Boolean(activeLastCalculatedInputs) && !isInputsChanged) || loading) &&
-                "cursor-not-allowed opacity-60 hover:bg-neutral-900"
-            )}
-          >
-            {isProfileComplete ? (
-              <>
-                <Zap className={cn("size-3.5 shrink-0", isInputsChanged ? "text-amber-400 animate-pulse" : "text-white")} />
-                <span>
-                  {loading
-                    ? "Calculando…"
-                    : hasCalculatedOnce
-                      ? "Re-calcular Estrategia Nutricional"
-                      : "Calcular Estrategia Nutricional"}
-                </span>
-                {isInputsChanged && (
-                  <span className="ml-1 size-1.5 shrink-0 rounded-full bg-amber-400 animate-pulse" />
-                )}
-              </>
-            ) : (
-              <>
-                <Lock className="size-3.5 shrink-0 text-white" />
-                <span>Calcular estrategia (requiere perfil completo)</span>
-              </>
-            )}
-          </button>
+        {/* "Eliminación del Botón Intermedio y Auto-Cálculo Reactivo" — no
+            manual "Calcular/Re-calcular Estrategia Nutricional" button here
+            anymore. `canAutoCalculate`'s own debounced effect (see above,
+            right after `handleCalculate`'s definition) now drives Card 03
+            automatically the instant Paso 01/02 are complete, and again on
+            every subsequent edit — the only remaining action button in the
+            whole planner lives at the foot of Card 04 ("Generar Manifiesto
+            de Salida"). What's left here is purely passive: a profile-
+            completion gate, guidance for whichever field is still missing,
+            and a quiet "Calculando…" indicator while the debounced request
+            is in flight — never a click target. */}
+        <div className="mb-5 flex flex-col gap-2 sm:mb-6">
+          {!isProfileComplete && <ProfileRequiredBanner />}
           {isProfileComplete && mode === "quick" && !quickValid && (
             <p className="text-[11px] text-neutral-500">
-              Introduce una duración válida y selecciona una intensidad objetivo para poder
-              calcular.
+              Introduce una duración válida y selecciona una intensidad objetivo — la
+              estrategia se calculará automáticamente.
             </p>
           )}
           {isProfileComplete && routeModeIncomplete && (
             <p className="text-[11px] text-neutral-500">
-              Selecciona una ruta e intensidad objetivo para poder calcular.
+              Selecciona una ruta e intensidad objetivo — la estrategia se calculará
+              automáticamente.
             </p>
           )}
-          {!isProfileComplete && <ProfileRequiredBanner />}
+          {isProfileComplete && loading && (
+            <p className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-500">
+              <RefreshCw className="size-3 shrink-0 animate-spin" />
+              Calculando estrategia nutricional…
+            </p>
+          )}
         </div>
 
         {error && <p className="text-sm text-status-warning">{error}</p>}
@@ -4456,16 +4463,32 @@ export function FuelingPlanner({
               {/* "Flujo Deliberado de Generación para Card 05" — Card 05
                   (Manifiesto de Salida) no calcula ni muestra nada hasta que
                   este botón se pulsa al menos una vez; ver
-                  `isManifestGenerated`/`handleGenerateManifest` arriba. */}
+                  `isManifestGenerated`/`handleGenerateManifest` arriba. This
+                  is the ONE action button in the whole planner ("Un Solo
+                  Botón de Acción en Toda la App") — Card 03's own metrics
+                  keep themselves current automatically (see
+                  `canAutoCalculate`'s debounced effect near
+                  `handleCalculate`), so the only thing left disabling this
+                  button is that same background recalculation briefly being
+                  in flight (`loading`) or having just landed against a newer
+                  edit than what's on screen (`isInputsChanged`) — both
+                  resolve on their own within `AUTO_CALCULATE_DEBOUNCE_MS`,
+                  with no click required. */}
               <button
                 type="button"
                 onClick={handleGenerateManifest}
-                disabled={Boolean(isInputsChanged)}
+                disabled={loading || Boolean(isInputsChanged)}
                 className={cn(
                   "mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 py-4 font-mono text-xs font-bold tracking-wider text-white uppercase transition-colors hover:bg-neutral-800",
-                  isInputsChanged && "cursor-not-allowed opacity-60 hover:bg-neutral-900"
+                  (loading || isInputsChanged) && "cursor-not-allowed opacity-60 hover:bg-neutral-900"
                 )}
-                title={isInputsChanged ? "Recalcula la estrategia primero (Paso 02)" : undefined}
+                title={
+                  loading
+                    ? "Calculando estrategia…"
+                    : isInputsChanged
+                      ? "Actualizando estrategia con tus últimos cambios…"
+                      : undefined
+                }
               >
                 <Zap className="size-3.5 shrink-0" />
                 <span>{isPlanDirty ? "Actualizar Manifiesto de Salida" : "Generar Manifiesto de Salida"}</span>
@@ -4513,27 +4536,22 @@ export function FuelingPlanner({
               {/* Consolidated dirty banner — the ONLY staleness indicator
                   in the whole planner (Cards 01-04 never show one, see
                   `isInputsChanged`'s call sites elsewhere in this file).
-                  `isPlanDirty` already covers both causes a manifest can go
-                  stale for: a Paso 01/02 edit (`isInputsChanged`, which also
-                  requires a fresh server recalculation) or a Card 04
-                  inventory edit (`isInventoryDirty`, snapshot-only) —
-                  `handleRecalculateManifest` resolves whichever one it is. */}
+                  Purely informational now, no button of its own — "Un Solo
+                  Botón de Acción en Toda la App" means the single action
+                  button lives at the foot of Card 04 above (label already
+                  switches to "Actualizar Manifiesto de Salida" while this is
+                  showing), not a second one duplicated in here. A Paso 01/02
+                  edit (`isInputsChanged`) resolves this banner on its own the
+                  moment Card 03's background recalculation lands — a Card 04
+                  inventory edit (`isInventoryDirty`) genuinely waits on that
+                  one button being pressed again. */}
               {isPlanDirty && (
-                <div className="mb-4 flex flex-col items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
                   <span className="flex items-center gap-1.5 font-mono text-xs text-amber-900">
                     <span className="size-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
-                    Has modificado datos en la configuración · Recalcula para actualizar la
-                    altimetría
+                    Has modificado datos en la configuración — pulsa &ldquo;Actualizar
+                    Manifiesto de Salida&rdquo; (Card 04) para reflejarlos aquí.
                   </span>
-                  <button
-                    type="button"
-                    onClick={handleRecalculateManifest}
-                    disabled={loading}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 font-mono text-xs font-bold text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <RefreshCw className={cn("size-3.5 shrink-0", loading && "animate-spin")} />
-                    {loading ? "Recalculando…" : "Recalcular Manifiesto"}
-                  </button>
                 </div>
               )}
               <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
