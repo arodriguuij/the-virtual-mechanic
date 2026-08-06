@@ -325,16 +325,48 @@ export function GpxAltimetryModal({
           flex flex-col rounded-xl bg-white shadow-2xl overflow-hidden font-mono border border-neutral-200
           /* Normal (landscape / desktop): fills available space */
           w-full max-w-5xl h-[92vh]
-          /* Portrait mobile: rotate 90deg and swap w/h so it fills the screen sideways */
-          [@media_(max-width:768px)_and_(orientation:portrait)]:rotate-90
-          [@media_(max-width:768px)_and_(orientation:portrait)]:w-[100vh]
-          [@media_(max-width:768px)_and_(orientation:portrait)]:h-[100vw]
+          /* Layout Fullscreen Completo para Modal Apaisado Rotado — portrait
+             mobile takes the container fully out of the parent's flex flow
+             (`fixed`) and centers/rotates it with one explicit `transform`
+             instead of relying on the flex parent's own centering plus a bare
+             `rotate-90` utility: the previous version sized the box at
+             `w-[100vh] h-[100vw]` (viewport units, which on mobile Safari/
+             Chrome can exceed the *actually visible* viewport before the
+             browser chrome collapses) while still being flex-centered as a
+             normal child, which is what left visible gaps around the
+             rotated box rather than it genuinely filling the screen.
+             `100dvh`/`100dvw` (dynamic viewport units) track the real
+             visible viewport instead, and `fixed` + `top-1/2 left-1/2` +
+             one combined `translate(-50%,-50%) rotate(90deg)` transform
+             centers and rotates the box in a single, unambiguous step,
+             independent of the parent's own flex layout. */
+          [@media_(max-width:768px)_and_(orientation:portrait)]:fixed
+          [@media_(max-width:768px)_and_(orientation:portrait)]:top-1/2
+          [@media_(max-width:768px)_and_(orientation:portrait)]:left-1/2
+          [@media_(max-width:768px)_and_(orientation:portrait)]:m-0
+          [@media_(max-width:768px)_and_(orientation:portrait)]:w-dvh
+          [@media_(max-width:768px)_and_(orientation:portrait)]:h-dvw
           [@media_(max-width:768px)_and_(orientation:portrait)]:max-w-none
+          [@media_(max-width:768px)_and_(orientation:portrait)]:max-h-none
           [@media_(max-width:768px)_and_(orientation:portrait)]:rounded-none
+          [@media_(max-width:768px)_and_(orientation:portrait)]:border-0
+          [@media_(max-width:768px)_and_(orientation:portrait)]:z-99999
+          [@media_(max-width:768px)_and_(orientation:portrait)]:transform-[translate(-50%,-50%)_rotate(90deg)]
         "
       >
-        {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-neutral-200 px-4 py-3 bg-neutral-50">
+        {/* Header — a "micro-barra" on portrait mobile: after rotation this
+            app's own DOM-height budget for the whole box is only `100dvw`
+            (the phone's physical width, ~360-430px), the scarce dimension
+            the chart's own Y-axis has to share with this bar — shrinking it
+            to a minimal height leaves the chart the most room possible. */}
+        <div
+          className="
+            flex shrink-0 items-center justify-between border-b border-neutral-200 px-4 py-3 bg-neutral-50
+            [@media_(max-width:768px)_and_(orientation:portrait)]:h-9
+            [@media_(max-width:768px)_and_(orientation:portrait)]:px-2
+            [@media_(max-width:768px)_and_(orientation:portrait)]:py-1
+          "
+        >
           <div className="flex items-center gap-2">
             <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
             <span className="font-mono text-xs font-bold uppercase tracking-wider text-neutral-900">
@@ -351,8 +383,8 @@ export function GpxAltimetryModal({
         </div>
 
         {/* Scrollable chart area */}
-        <div className="flex-1 overflow-x-auto overflow-y-auto p-4 sm:p-6 bg-[#fcfbf9]">
-          <div className="min-w-[750px] flex flex-col gap-4">
+        <div className="flex-1 overflow-x-auto overflow-y-auto p-4 sm:p-6 bg-[#fcfbf9] [@media_(max-width:768px)_and_(orientation:portrait)]:p-2">
+          <div className="min-w-[750px] flex h-full flex-col gap-4 [@media_(max-width:768px)_and_(orientation:portrait)]:min-w-0 [@media_(max-width:768px)_and_(orientation:portrait)]:w-full">
 
             {/* Legend */}
             <div className="flex flex-wrap items-center gap-3 text-[11px] text-neutral-600 border-b border-neutral-200 pb-2">
@@ -363,8 +395,12 @@ export function GpxAltimetryModal({
               <span className="flex items-center gap-1"><ShoppingBag className="size-3.5 text-neutral-500" /> Parada</span>
             </div>
 
-            {/* Chart: Y-axis + SVG canvas */}
-            <div className="grid grid-cols-[60px_1fr] gap-2 items-stretch h-[380px] pt-4">
+            {/* Chart: Y-axis + SVG canvas — `flex-1` on portrait mobile
+                (replacing the fixed `h-[380px]`) so the canvas expands to
+                fill whatever DOM-height the shrunk header above actually
+                leaves available, instead of a flat px value that may
+                under- or over-shoot that budget depending on the phone. */}
+            <div className="grid grid-cols-[60px_1fr] gap-2 items-stretch h-[380px] pt-4 [@media_(max-width:768px)_and_(orientation:portrait)]:h-auto [@media_(max-width:768px)_and_(orientation:portrait)]:flex-1">
               {/* Y Axis */}
               <div className="flex flex-col justify-between text-right text-[10px] font-bold text-neutral-500 pr-2 border-r border-neutral-300">
                 {yTicks.map((y, i) => <span key={i}>{y}m</span>)}
@@ -449,8 +485,17 @@ export function GpxAltimetryModal({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="shrink-0 border-t border-neutral-200 px-4 py-3 bg-neutral-50 flex items-center justify-between gap-2 text-xs text-neutral-600 font-mono">
+        {/* Footer — also compacted on portrait mobile (same micro-bar
+            reasoning as the header above) so the export/close actions stay
+            reachable without eating into the chart's own scarce DOM-height
+            budget. */}
+        <div
+          className="
+            shrink-0 border-t border-neutral-200 px-4 py-3 bg-neutral-50 flex items-center justify-between gap-2 text-xs text-neutral-600 font-mono
+            [@media_(max-width:768px)_and_(orientation:portrait)]:px-2
+            [@media_(max-width:768px)_and_(orientation:portrait)]:py-1
+          "
+        >
           <span className="hidden sm:block">
             Pre-puerto (10-15m antes &gt;4%) · Sólidos en llanos · Bloqueo bajadas (&lt;-3%)
           </span>
@@ -459,15 +504,17 @@ export function GpxAltimetryModal({
               type="button"
               onClick={handleExport}
               disabled={isExporting}
-              className="flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              className="flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors [@media_(max-width:768px)_and_(orientation:portrait)]:px-2 [@media_(max-width:768px)_and_(orientation:portrait)]:py-1"
             >
               <Download className="size-3.5" />
-              {isExporting ? "Generando…" : "Descargar Ficha Táctica"}
+              <span className="[@media_(max-width:768px)_and_(orientation:portrait)]:hidden">
+                {isExporting ? "Generando…" : "Descargar Ficha Táctica"}
+              </span>
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800 cursor-pointer"
+              className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800 cursor-pointer [@media_(max-width:768px)_and_(orientation:portrait)]:px-2 [@media_(max-width:768px)_and_(orientation:portrait)]:py-1"
             >
               Cerrar
             </button>

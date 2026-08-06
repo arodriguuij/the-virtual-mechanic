@@ -1884,8 +1884,29 @@ export function FuelingPlanner({
   // whenever a brand-new calculation succeeds (see `handleCalculate`'s
   // success branch) — a new `result` has no manifest generated against it
   // yet, regardless of whether the previous one did.
-  const [isManifestGenerated, setIsManifestGenerated] = useState(false);
-  const [manifestSnapshot, setManifestSnapshot] = useState<InventorySnapshot | null>(null);
+  //
+  // Split into `route*`/`manual*` pairs — same "Aislamiento Total de Estado"
+  // convention every other Card 03/04 field already follows (`pocketFood`,
+  // `bottleConfig`, etc.) and the same `activeModeGroup` grouping `result`
+  // itself already uses — so switching Strava/GPX ↔ Manual can never leak
+  // one mode's "ya generado"/stale-inventory state onto the other mode's
+  // own (possibly already-calculated) `result`.
+  const [routeIsManifestGenerated, setRouteIsManifestGenerated] = useState(false);
+  const [routeManifestSnapshot, setRouteManifestSnapshot] = useState<InventorySnapshot | null>(null);
+  const [manualIsManifestGenerated, setManualIsManifestGenerated] = useState(false);
+  const [manualManifestSnapshot, setManualManifestSnapshot] = useState<InventorySnapshot | null>(null);
+  const isManifestGenerated =
+    activeModeGroup === "manual" ? manualIsManifestGenerated : routeIsManifestGenerated;
+  const setIsManifestGenerated = (value: boolean) => {
+    if (activeModeGroup === "manual") setManualIsManifestGenerated(value);
+    else setRouteIsManifestGenerated(value);
+  };
+  const manifestSnapshot =
+    activeModeGroup === "manual" ? manualManifestSnapshot : routeManifestSnapshot;
+  const setManifestSnapshot = (value: InventorySnapshot | null) => {
+    if (activeModeGroup === "manual") setManualManifestSnapshot(value);
+    else setRouteManifestSnapshot(value);
+  };
   const card05Ref = useRef<HTMLDivElement>(null);
 
   // Bypasses `getStravaRoutes()`'s 24h cache (see `lib/dashboard-data.ts`) on
@@ -2429,6 +2450,24 @@ export function FuelingPlanner({
     });
   }
 
+  // Unified "Recalcular Manifiesto" action behind Card 05's single
+  // consolidated dirty banner (`isPlanDirty` — see its own doc comment
+  // above) — this replaces what used to be two independent treatments (a
+  // Paso 01/02 edit vs. a Card 04 inventory edit) with one button that
+  // resolves whichever actually caused the staleness. A Paso 01/02 change
+  // means the *server-computed* `result` itself is stale, so it needs a
+  // real recalculation first; a pure inventory change doesn't (the recipe
+  // math already reflects it live), so `handleGenerateManifest` alone —
+  // re-snapshotting the inventory and re-arming `isManifestGenerated` — is
+  // enough for that case.
+  async function handleRecalculateManifest() {
+    if (isInputsChanged) {
+      const success = await handleCalculate();
+      if (!success) return;
+    }
+    handleGenerateManifest();
+  }
+
   // Card 05's "Cronograma Dinámico de Ingesta" — the server-computed solid/
   // gel/caffeine milestones (`result.timingTimeline.entries`, driven by
   // pocket food alone). Used to also merge in a synthetic entry per planned
@@ -2567,31 +2606,35 @@ export function FuelingPlanner({
     }
   }
 
-  async function handleCalculate() {
+  // Returns whether the calculation actually succeeded — the unified Card
+  // 05 "Recalcular Manifiesto" handler (see `handleRecalculateManifest`
+  // below) needs to know this so it only re-arms `isManifestGenerated`
+  // once a fresh `result` genuinely exists, not on a validation/API failure.
+  async function handleCalculate(): Promise<boolean> {
     if (mode === "route") {
       if (!selectedRoute) {
         setRouteError(true);
         scrollToFieldError("route");
-        return;
+        return false;
       }
       setRouteError(false);
       if (!intensity) {
         setIntensityError(true);
         scrollToFieldError("intensity");
-        return;
+        return false;
       }
       setIntensityError(false);
     } else if (mode === "gpx") {
       if (!parsedGpx) {
         setRouteError(true);
         scrollToFieldError("gpx-dropzone");
-        return;
+        return false;
       }
       setRouteError(false);
       if (!intensity) {
         setIntensityError(true);
         scrollToFieldError("intensity-gpx");
-        return;
+        return false;
       }
       setIntensityError(false);
     } else if (mode === "quick") {
@@ -2600,13 +2643,13 @@ export function FuelingPlanner({
         const targetId = manualCalcMode === "time" ? "duration-hours" : "distance-km";
         scrollToFieldError(targetId);
         requestAnimationFrame(() => document.getElementById(targetId)?.focus());
-        return;
+        return false;
       }
       setRouteError(false);
       if (!intensity) {
         setIntensityError(true);
         scrollToFieldError("intensity-quick");
-        return;
+        return false;
       }
       setIntensityError(false);
     }
@@ -2696,7 +2739,7 @@ export function FuelingPlanner({
         } else {
           setRouteResult(null);
         }
-        return;
+        return false;
       }
 
       const snapshot: CalculatedInputsSnapshot = { ...currentInputs };
@@ -2724,8 +2767,10 @@ export function FuelingPlanner({
         // Private browsing / quota exceeded — the offline fallback simply
         // won't have anything to load next time, not worth failing over.
       }
+      return true;
     } catch {
       setError("No se pudo calcular la estrategia de fueling.");
+      return false;
     } finally {
       setLoading(false);
     }
@@ -3886,12 +3931,7 @@ export function FuelingPlanner({
         {result && (
           <div
             ref={resultRef}
-            className={cn(
-              "scroll-mt-20 border-t border-neutral-200 pt-4 transition-all duration-300",
-              isInputsChanged && activeLastCalculatedInputs
-                ? "opacity-75 grayscale-[20%]"
-                : "opacity-100"
-            )}
+            className="scroll-mt-20 border-t border-neutral-200 pt-4"
           >
             {isOfflineCache && (
               <div className="mb-4 flex items-center gap-1.5 border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-700">
@@ -3900,13 +3940,7 @@ export function FuelingPlanner({
               </div>
             )}
 
-            <div className={cn(numberedCardClass, isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
-              {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="mb-3 flex w-fit items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[10px] text-amber-900 whitespace-nowrap">
-                  <span className="size-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
-                  <span>Estrategia previa · Recalcular para actualizar</span>
-                </div>
-              )}
+            <div className={numberedCardClass}>
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 03 · Metabolismo y objetivos calculados
               </span>
@@ -4137,13 +4171,7 @@ export function FuelingPlanner({
                 interactive simulator, nothing else (Card 05 is where the
                 remainder — RESTANTE RUTA — gets reconciled against a
                 planned stop). */}
-            <div className={cn(numberedCardClass, isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}>
-              {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="mb-3 flex w-fit items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[10px] text-amber-900 whitespace-nowrap">
-                  <span className="size-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
-                  <span>Estrategia previa · Recalcular para actualizar</span>
-                </div>
-              )}
+            <div className={numberedCardClass}>
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 04 · Logística de salida (Carga desde casa)
               </span>
@@ -4478,14 +4506,31 @@ export function FuelingPlanner({
                 as before, just restyled onto the shared light palette. The
                 athlete screenshots this card if they want to save or share
                 it — no export button lives here. */}
-            <div
-              ref={card05Ref}
-              className={cn(numberedCardClass, "relative flex flex-col gap-4", isInputsChanged && activeLastCalculatedInputs && "opacity-75 grayscale-[20%] transition-all duration-300")}
-            >
-              {isInputsChanged && activeLastCalculatedInputs && (
-                <div className="mb-3 flex w-fit items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[10px] text-amber-900 whitespace-nowrap">
-                  <span className="size-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
-                  <span>Estrategia previa · Recalcular para actualizar</span>
+            <div ref={card05Ref} className={cn(numberedCardClass, "relative flex flex-col gap-4")}>
+              {/* Consolidated dirty banner — the ONLY staleness indicator
+                  in the whole planner (Cards 01-04 never show one, see
+                  `isInputsChanged`'s call sites elsewhere in this file).
+                  `isPlanDirty` already covers both causes a manifest can go
+                  stale for: a Paso 01/02 edit (`isInputsChanged`, which also
+                  requires a fresh server recalculation) or a Card 04
+                  inventory edit (`isInventoryDirty`, snapshot-only) —
+                  `handleRecalculateManifest` resolves whichever one it is. */}
+              {isPlanDirty && (
+                <div className="mb-4 flex flex-col items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="flex items-center gap-1.5 font-mono text-xs text-amber-900">
+                    <span className="size-1.5 shrink-0 rounded-full bg-amber-500 animate-pulse" />
+                    Has modificado datos en la configuración · Recalcula para actualizar la
+                    altimetría
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRecalculateManifest}
+                    disabled={loading}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 font-mono text-xs font-bold text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <RefreshCw className={cn("size-3.5 shrink-0", loading && "animate-spin")} />
+                    {loading ? "Recalculando…" : "Recalcular Manifiesto"}
+                  </button>
                 </div>
               )}
               <span className="font-mono text-xs font-semibold tracking-wider text-zinc-500">
@@ -4520,31 +4565,11 @@ export function FuelingPlanner({
                 </div>
               ) : (
                 <>
-                  {/* Scoped to `isInventoryDirty` specifically, not the
-                      broader `isPlanDirty` — a Paso 01/02 change
-                      (`isInputsChanged`) already has its own complete,
-                      independent treatment (the "Estrategia previa ·
-                      Recalcular" banner + grayscale above, and the main CTA
-                      re-enabling itself); this button re-snapshots the
-                      *current* `result` and can't do anything about that
-                      other case, so showing it there too would offer an
-                      action that doesn't actually fix the real problem. */}
-                  {isInventoryDirty && (
-                    <div className="flex flex-col items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex items-center gap-2 font-mono text-xs text-amber-900">
-                        <RefreshCw className="size-3.5 shrink-0" />
-                        <span>El inventario cambió desde que generaste este manifiesto.</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleGenerateManifest}
-                        className="flex shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 font-mono text-[11px] font-bold text-white uppercase tracking-wider transition-colors hover:bg-neutral-800"
-                      >
-                        <RefreshCw className="size-3 shrink-0" />
-                        Actualizar Plan con Nuevos Datos
-                      </button>
-                    </div>
-                  )}
+                  {/* The dirty-state banner (above, keyed off `isPlanDirty`)
+                      is the one place this staleness is surfaced now — this
+                      inner veil just dims the already-rendered content
+                      underneath it so stale numbers don't read as current
+                      while that banner is up. */}
                   <div className={cn(isPlanDirty && "pointer-events-none opacity-40 blur-[1px] select-none")}>
               {!result.trainLow && (
                 <>
