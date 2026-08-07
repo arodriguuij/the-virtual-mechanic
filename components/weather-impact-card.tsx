@@ -615,16 +615,16 @@ export function WeatherImpactCard({
                 to reach the carousel below it. */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-stretch">
               {/* Columna Izquierda (50% Ancho) — Perfil Altimétrico 2D.
-                  "Simplificación del Gráfico Térmico en Móvil" — the framed
-                  `bg-neutral-50`/`border`/`p-4` card only applies from `lg:`
-                  up now; on mobile the mini thermal-profile chart sits
-                  directly on Card 03's own white background with no nested
-                  frame/margin of its own, matching this same section's own
-                  "Aplanamiento de UI (eliminación de Card Inception)" pass
-                  above — that removed the *outer* wrapper around this whole
-                  module; this removes the one remaining nested box, on
-                  mobile specifically, that survived it. */}
-              <div className="flex w-full h-full min-h-[180px] flex-1 flex-col justify-center items-center bg-transparent p-0 lg:bg-neutral-50 lg:rounded-xl lg:p-4 lg:border lg:border-neutral-200/70">
+                  "Limpieza de Contenedor y Expansión Full-Bleed" — the
+                  framed `bg-neutral-50`/`border`/`p-4`/`rounded-xl` card is
+                  gone at every breakpoint now, not just on mobile (see
+                  "Simplificación del Gráfico Térmico en Móvil" above for
+                  that earlier, mobile-only half of this same removal). The
+                  chart sits directly on Card 03's own white background on
+                  both mobile and desktop, stretching to fill the full 50%
+                  grid column instead of being compressed into a padded box
+                  in the middle of it. */}
+              <div className="flex w-full h-full min-h-[180px] flex-1 flex-col items-center justify-center bg-transparent p-0">
                 <AltitudeProfileSvg
                   points={weatherPoints}
                   profile={elevationProfile}

@@ -14,6 +14,7 @@ import {
   Moon,
   Pencil,
   RefreshCw,
+  Search,
   ShoppingBag,
   Snowflake,
   Sun,
@@ -68,6 +69,17 @@ import {
 } from "@/lib/metabolic-engine";
 import type { StravaRoute } from "@/lib/strava-routes";
 import { COMMERCIAL_PRODUCTS } from "@/lib/constants/nutrition-brands";
+
+// "Productos Directos con Incrementador" — the two real catalog SKUs shown
+// with their own stepper by default on Card 04, before the athlete ever
+// opens the brand sheet: Maurten's own Gel 100 and 226ERS's Race Day Bar
+// (this catalog's real "barrita energética" entry — see
+// `lib/constants/nutrition-brands.ts` for its actual 25g HC figure; never a
+// fabricated round number). Both real ids, verified against the catalog.
+const DEFAULT_COMMERCIAL_PRODUCT_IDS = ["maurten-gel-100", "226ers-race-day-bar"];
+const DEFAULT_COMMERCIAL_PRODUCTS = COMMERCIAL_PRODUCTS.filter((product) =>
+  DEFAULT_COMMERCIAL_PRODUCT_IDS.includes(product.id)
+);
 import {
   CommercialProductsSheet,
   CommercialProductStepperRow,
@@ -403,6 +415,19 @@ const segmentedButtonClass =
 // centered exactly as before (there's no slack for `text-center` to act on
 // once the label is genuinely truncated).
 const segmentedButtonLabelClass = "block w-full truncate";
+// "Estandarización de Botones de Opción" — Card 02's own three option-button
+// groups (Paradas previstas, Nivel de carga previa, Última ingesta
+// pre-salida) get one deliberately different, more neutral/technical
+// treatment than the rest of the app's `#70685b` bronze-accented selectors —
+// a flat near-black `neutral-800` fill for the active state instead, plus
+// `font-mono text-xs` forced at every breakpoint (not `segmentedButtonClass`'s
+// own `sm:text-sm` step-up). Scoped to Card 02 only, not a shared-token
+// change — every other selector in the app keeps its existing bronze accent.
+const card02OptionButtonBaseClass =
+  "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center rounded-sm px-1 text-center font-mono text-xs transition-all sm:px-3";
+const card02OptionButtonActiveClass = "border border-neutral-800 bg-neutral-800 font-bold text-white shadow-sm";
+const card02OptionButtonInactiveClass =
+  "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50";
 // "Jerarquía de Color: Selectores vs. Acción Principal" — every selector/
 // toggle (Card 01's mode toggle, Card 02's date/paradas pills, Card 04's
 // bottle selectors) shares one Taupe/Bronce Apagado (`#70685b`, hover
@@ -2061,7 +2086,6 @@ export function FuelingPlanner({
   ]);
 
   const quickDurationHours = manualCalcResults.durationHours;
-  const quickValid = quickDurationHours > 0 && manualIntensity !== "";
 
   // "Algoritmo Físico Dinámico" — blank (`{ hours: "", minutes: "" }`) until
   // an intensity zone is actually chosen; once it is, `estimateRideDurationHours()`
@@ -2274,12 +2298,6 @@ export function FuelingPlanner({
     if (changedFields.isTargetEvent) labels.push("Ruta Objetivo");
     return labels;
   }, [changedFields]);
-  // Drives the CTA's gating/helper-text/tooltip for the two route-based
-  // modes — a route (or GPX) alone isn't enough to calculate against
-  // without an intensity too, and vice versa.
-  const routeModeIncomplete =
-    (mode === "route" && (!selectedRoute || !intensity)) ||
-    (mode === "gpx" && (!parsedGpx || !intensity));
 
   // Sub-bloque A's own ride-*total* fluid/sodium figures — the API only
   // ever returns per-hour rates (`fluidLossMlPerHour`/`sodiumMgPerHour`),
@@ -2405,6 +2423,20 @@ export function FuelingPlanner({
   const selectedCommercialProducts = COMMERCIAL_PRODUCTS.filter(
     (product) => (commercialProducts[product.id] ?? 0) > 0
   );
+
+  // "Productos Directos con Incrementador" — Card 04 always shows these two
+  // frequent, real catalog items (Maurten Gel 100, 226ERS Race Day Bar) with
+  // their own `[ - ] 0 [ + ]` stepper right away, rather than making the
+  // athlete open the full brand sheet just to log the gel/barrita they carry
+  // on nearly every ride. Any *other* product picked from the sheet still
+  // appears alongside them (`selectedCommercialProducts`, filtered so a
+  // default never renders twice if the athlete also "selects" it there).
+  const commercialProductRows = [
+    ...DEFAULT_COMMERCIAL_PRODUCTS,
+    ...selectedCommercialProducts.filter(
+      (product) => !DEFAULT_COMMERCIAL_PRODUCT_IDS.includes(product.id)
+    ),
+  ];
 
   // "Módulo de Distribución de Bolsillos en Card 05" (Modo Experto) — splits
   // the athlete's own already-selected inventory into where it physically
@@ -2920,11 +2952,25 @@ export function FuelingPlanner({
     }
   }
 
-  // "Validación de Completitud (isStep2Complete)" — checks whether Card 02's
-  // required parameters have been explicitly selected by the athlete before
-  // allowing auto-calculation or rendering Card 03's calculated targets.
-  const missingStep2Fields = useMemo(() => {
+  // "Card 03 como Única Fuente de Verdad de Estado Incompleto" — one unified
+  // list of every parameter still missing across Paso 01 (route/GPX/duración,
+  // whichever `mode` is active) and Paso 02 (Intensidad, Paradas, and — only
+  // in Modo Avanzado, per "Blindaje de Lógica" — Carga previa/Última
+  // ingesta), replacing the old split between a route/quick-mode check here
+  // and a separate `missingStep2Fields` further down. Card 03 (see its own
+  // render below) is now the *only* place this list is ever shown — no more
+  // "Selecciona una ruta..."/"Introduce una duración..." text floating
+  // loose under Card 02.
+  const missingFields = useMemo(() => {
     const missing: string[] = [];
+    if (mode === "route") {
+      if (!selectedRoute) missing.push("Ruta");
+    } else if (mode === "gpx") {
+      if (!parsedGpx) missing.push("Archivo GPX");
+    } else if (quickDurationHours <= 0) {
+      missing.push("Duración estimada");
+    }
+    if (!intensity) missing.push("Intensidad objetivo");
     if (departureDayMode === null) missing.push("Fecha y hora de salida");
     if (cafeteriaStopCount === null) missing.push("Paradas previstas");
     if (experienceMode === "advanced") {
@@ -2932,16 +2978,28 @@ export function FuelingPlanner({
       if (lastMealTiming === null) missing.push("Última ingesta pre-salida");
     }
     return missing;
-  }, [departureDayMode, cafeteriaStopCount, experienceMode, preRideGlycogenLoad, lastMealTiming]);
+  }, [
+    mode,
+    selectedRoute,
+    parsedGpx,
+    quickDurationHours,
+    intensity,
+    departureDayMode,
+    cafeteriaStopCount,
+    experienceMode,
+    preRideGlycogenLoad,
+    lastMealTiming,
+  ]);
 
-  const isStep2Complete = missingStep2Fields.length === 0;
+  const isStep2Complete = missingFields.length === 0;
 
   // "Eliminación del Botón Intermedio y Auto-Cálculo Reactivo en Card 03" —
   // whether Paso 01/02 are complete enough to calculate against at all,
   // mirroring `handleCalculate`'s own per-mode validation branches without
-  // setting error state. Requires both Step 1 and Step 2 to be complete.
-  const canAutoCalculate =
-    isProfileComplete && (mode === "quick" ? quickValid : !routeModeIncomplete) && isStep2Complete;
+  // setting error state. `missingFields` already folds in every one of
+  // those per-mode checks, so this simplifies to the profile gate plus one
+  // completeness flag.
+  const canAutoCalculate = isProfileComplete && isStep2Complete;
 
   // Drives Card 03/04/05 automatically the instant Paso 01/02 become valid,
   // and again every time any of them changes afterward — this is what
@@ -3656,6 +3714,15 @@ export function FuelingPlanner({
             02 · Condiciones de la salida
           </span>
 
+          {/* Subsección 1 · Parámetros de la salida — Intensidad, Fecha/
+              hora, Tiempo estimado, Paradas previstas y ambos checkboxes
+              viven aquí sin ningún divisor horizontal interno; la única
+              línea de separación de esta card cae justo después del último
+              checkbox, marcando el paso a la Subsección 2. */}
+          <span className="mb-3 block font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
+            Parámetros de la salida
+          </span>
+
           {mode === "route" && (
             <div className={cn("mt-2 grid grid-cols-1 gap-3", selectedRoute && "sm:grid-cols-3")}>
               <IntensityObjectiveSelect
@@ -3912,10 +3979,10 @@ export function FuelingPlanner({
                   disabled={loading}
                   onClick={() => setCafeteriaStopCount(opt.value)}
                   className={cn(
-                    segmentedButtonClass,
+                    card02OptionButtonBaseClass,
                     cafeteriaStopCount === opt.value
-                      ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
-                      : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+                      ? card02OptionButtonActiveClass
+                      : card02OptionButtonInactiveClass,
                     loading && "cursor-not-allowed opacity-60"
                   )}
                 >
@@ -3925,89 +3992,100 @@ export function FuelingPlanner({
             </div>
           </div>
 
-          <div className="mt-3 border-t border-zinc-100 pt-3">
-            <label
-              className={cn(
-                "flex items-center gap-2 font-mono text-xs",
-                loading ? "cursor-not-allowed text-zinc-400" : "cursor-pointer text-zinc-600"
-              )}
-            >
-              <input
-                type="checkbox"
-                checked={isTargetEvent}
-                disabled={loading}
-                onChange={(e) => setIsTargetEvent(e.target.checked)}
-                className="size-3.5 cursor-pointer accent-neutral-900 disabled:cursor-not-allowed"
-              />
-              <span className="font-semibold text-[#70685b]">
-                Ruta objetivo / Competición
-              </span>
-              {changedFields.isTargetEvent && (
-                <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
-                  <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  Modificado
+          {/* "Homogeneización Estricta de Checkboxes" — un único
+              contenedor `flex flex-col gap-2` (sin `border-t` entre ellos,
+              ni entre este bloque y "Paradas previstas" justo encima —
+              Subsección 1 no lleva divisores internos), y ambas etiquetas
+              comparten exactamente la misma clase de texto
+              (`font-mono text-xs text-neutral-700 font-normal leading-tight`)
+              en vez de cada una con su propio peso/tono. El `<label>`
+              exterior solo controla el cursor, no el color del texto. */}
+          <div className="mt-4 flex flex-col gap-2">
+            <div>
+              <label
+                className={cn("flex items-center gap-2", loading ? "cursor-not-allowed" : "cursor-pointer")}
+              >
+                <input
+                  type="checkbox"
+                  checked={isTargetEvent}
+                  disabled={loading}
+                  onChange={(e) => setIsTargetEvent(e.target.checked)}
+                  className="size-3.5 cursor-pointer accent-neutral-900 disabled:cursor-not-allowed"
+                />
+                <span className="font-mono text-xs leading-tight font-normal text-neutral-700">
+                  Ruta objetivo / Competición
                 </span>
-              )}
-            </label>
-            {isTargetEvent && (
-              <p className="mt-1.5 text-[11px] text-neutral-500">
-                Ajusta la pauta al máximo límite de absorción intestinal (hasta 120g/h) y
-                aplica un ratio Fructosa:Maltodextrina de 1:0.8 optimizado para alta
-                intensidad.
-              </p>
-            )}
-          </div>
-
-          <div className="mt-3 border-t border-zinc-100 pt-3">
-            <label
-              className={cn(
-                "flex items-center gap-2 font-mono text-xs",
-                trainLowIncompatible || loading
-                  ? "cursor-not-allowed text-zinc-400"
-                  : "cursor-pointer text-zinc-600"
-              )}
-            >
-              <input
-                type="checkbox"
-                checked={trainLowEffective}
-                disabled={trainLowIncompatible || loading}
-                onChange={(e) => setTrainLow(e.target.checked)}
-                className="size-3.5 cursor-pointer accent-neutral-900 disabled:cursor-not-allowed"
-              />
-              <span className="font-semibold text-zinc-800">
-                Modo Eficiencia Metabólica (Train Low / Ayunas)
-              </span>
-              {changedFields.trainLow && (
-                <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
-                  <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  Modificado
-                </span>
-              )}
-            </label>
-            {trainLowIncompatible ? (
-              <p className="mt-1.5 text-[11px] text-neutral-400">
-                El modo en ayunas (Train Low) solo es compatible con intensidades aeróbicas
-                suaves (Z1-Z2). En alta intensidad o competición, los carbohidratos son
-                indispensables para proteger tu masa muscular y rendimiento.
-              </p>
-            ) : (
-              trainLowEffective && (
+                {changedFields.isTargetEvent && (
+                  <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+                    <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Modificado
+                  </span>
+                )}
+              </label>
+              {isTargetEvent && (
                 <p className="mt-1.5 text-[11px] text-neutral-500">
-                  Fija el objetivo de carbohidratos en 0-25g/h (solo electrolitos) para
-                  estimular la oxidación de grasas — hidratación y sodio no se ven afectados.
+                  Ajusta la pauta al máximo límite de absorción intestinal (hasta 120g/h) y
+                  aplica un ratio Fructosa:Maltodextrina de 1:0.8 optimizado para alta
+                  intensidad.
                 </p>
-              )
-            )}
+              )}
+            </div>
+
+            <div>
+              <label
+                className={cn(
+                  "flex items-center gap-2",
+                  trainLowIncompatible || loading ? "cursor-not-allowed" : "cursor-pointer"
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={trainLowEffective}
+                  disabled={trainLowIncompatible || loading}
+                  onChange={(e) => setTrainLow(e.target.checked)}
+                  className="size-3.5 cursor-pointer accent-neutral-900 disabled:cursor-not-allowed"
+                />
+                <span className="font-mono text-xs leading-tight font-normal text-neutral-700">
+                  Modo Eficiencia Metabólica (Train Low / Ayunas)
+                </span>
+                {changedFields.trainLow && (
+                  <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-600">
+                    <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Modificado
+                  </span>
+                )}
+              </label>
+              {trainLowIncompatible ? (
+                <p className="mt-1.5 text-[11px] text-neutral-400">
+                  El modo en ayunas (Train Low) solo es compatible con intensidades aeróbicas
+                  suaves (Z1-Z2). En alta intensidad o competición, los carbohidratos son
+                  indispensables para proteger tu masa muscular y rendimiento.
+                </p>
+              ) : (
+                trainLowEffective && (
+                  <p className="mt-1.5 text-[11px] text-neutral-500">
+                    Fija el objetivo de carbohidratos en 0-25g/h (solo electrolitos) para
+                    estimular la oxidación de grasas — hidratación y sodio no se ven afectados.
+                  </p>
+                )
+              )}
+            </div>
           </div>
 
-          {/* Modo Avanzado: Carga Previa & Timing de Ingesta */}
+          {/* Divisor Horizontal de Bloque — la única línea de separación de
+              esta card, marcando el paso de Subsección 1 (Parámetros de la
+              salida) a Subsección 2 (Estrategia pre-salida). Solo se
+              renderiza cuando la Subsección 2 realmente tiene contenido
+              (Modo Avanzado) — sin ella no habría nada debajo del divisor. */}
           {experienceMode === "advanced" && (
-            <div className="mt-3 border-t border-zinc-100 pt-3">
-              <span className="mb-2.5 block font-mono text-xs font-semibold uppercase tracking-wider text-neutral-800">
-                Carga Previa & Timing de Ingesta
-              </span>
+            <>
+              <hr className="my-6 border-t border-neutral-200/80" />
+              <div>
+                <span className="mb-3 block font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
+                  Estrategia pre-salida
+                </span>
 
-              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3">
                 {/* Nivel de Carga de Glucógeno */}
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between">
@@ -4031,10 +4109,10 @@ export function FuelingPlanner({
                         disabled={loading}
                         onClick={() => setPreRideGlycogenLoad(opt.value as PreRideGlycogenLoad)}
                         className={cn(
-                          segmentedButtonClass,
+                          card02OptionButtonBaseClass,
                           preRideGlycogenLoad === opt.value
-                            ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
-                            : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+                            ? card02OptionButtonActiveClass
+                            : card02OptionButtonInactiveClass,
                           loading && "cursor-not-allowed opacity-60"
                         )}
                       >
@@ -4067,10 +4145,10 @@ export function FuelingPlanner({
                         disabled={loading}
                         onClick={() => setLastMealTiming(opt.value as LastMealTiming)}
                         className={cn(
-                          segmentedButtonClass,
+                          card02OptionButtonBaseClass,
                           lastMealTiming === opt.value
-                            ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
-                            : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+                            ? card02OptionButtonActiveClass
+                            : card02OptionButtonInactiveClass,
                           loading && "cursor-not-allowed opacity-60"
                         )}
                       >
@@ -4089,7 +4167,8 @@ export function FuelingPlanner({
                   )}
                 </div>
               </div>
-            </div>
+              </div>
+            </>
           )}
         </div>
 
@@ -4101,62 +4180,39 @@ export function FuelingPlanner({
             being asked to plan how to cover them, rather than configuring
             a food strategy against a target they haven't seen yet. */}
 
-        {/* "Eliminación del Botón Intermedio y Auto-Cálculo Reactivo" — no
-            manual "Calcular/Re-calcular Estrategia Nutricional" button here
-            anymore. `canAutoCalculate`'s own debounced effect (see above,
-            right after `handleCalculate`'s definition) now drives Card 03
-            automatically the instant Paso 01/02 are complete, and again on
-            every subsequent edit — the only remaining action button in the
-            whole planner lives at the foot of Card 04 ("Generar Manifiesto
-            de Salida"). What's left here is purely passive: a profile-
-            completion gate, guidance for whichever field is still missing,
-            and a quiet "Calculando…" indicator while the debounced request
-            is in flight — never a click target. */}
-        <div className="mb-5 flex flex-col gap-2 sm:mb-6">
-          {!isProfileComplete && <ProfileRequiredBanner />}
-          {isProfileComplete && mode === "quick" && !quickValid && (
-            <p className="text-[11px] text-neutral-500">
-              Introduce una duración válida y selecciona una intensidad objetivo — la
-              estrategia se calculará automáticamente.
-            </p>
-          )}
-          {isProfileComplete && routeModeIncomplete && (
-            <p className="text-[11px] text-neutral-500">
-              Selecciona una ruta e intensidad objetivo — la estrategia se calculará
-              automáticamente.
-            </p>
-          )}
-          {isProfileComplete && loading && (
-            <p className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-500">
-              <RefreshCw className="size-3 shrink-0 animate-spin" />
-              Calculando estrategia nutricional…
-            </p>
-          )}
-        </div>
-
-        {!isStep2Complete && isProfileComplete && (mode === "quick" ? quickValid : !routeModeIncomplete) && (
-          <div className="scroll-mt-20 border-t border-neutral-200 pt-4">
-            <div className={numberedCardClass}>
-              <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
-                03 · Metabolismo y objetivos calculados
-              </span>
-              <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-100/60 p-6 text-center">
-                <p className="mb-2 font-mono text-xs font-bold uppercase text-neutral-700">
-                  ⚠️ Configuración incompleta en Card 02
-                </p>
-                <p className="font-mono text-xs text-neutral-500">
-                  Selecciona: {missingStep2Fields.join(" · ")} para desbloquear los objetivos teóricos.
-                </p>
-              </div>
-            </div>
+        {!isProfileComplete && (
+          <div className="mb-5 sm:mb-6">
+            <ProfileRequiredBanner />
           </div>
         )}
 
-        {isStep2Complete && result && (
-          <div
-            ref={resultRef}
-            className="scroll-mt-20 border-t border-neutral-200 pt-4"
-          >
+        {/* "Eliminación del Botón Intermedio y Auto-Cálculo Reactivo" — no
+            manual "Calcular/Re-calcular Estrategia Nutricional" button
+            anymore. `canAutoCalculate`'s own debounced effect (see above,
+            right after `handleCalculate`'s definition) drives Card 03
+            automatically the instant Paso 01/02 are complete, and again on
+            every subsequent edit — the only remaining action button in the
+            whole planner lives at the foot of Card 04 ("Generar Manifiesto
+            de Salida").
+
+            "Card 03 como Única Fuente de Verdad de Estado Incompleto" — Card
+            03 is now always present the instant a profile exists (no more
+            separate "Selecciona una ruta..."/"Introduce una duración..."
+            text floating loose under Card 02, and no more `border-t`
+            divider between Card 02 and Card 03 — see "Limpieza de
+            Interfaz"). It branches on exactly one of three states:
+            `missingFields.length > 0` (something in Paso 01/02 is still
+            unset — the unified banner names every one of them),
+            `isStep2Complete && !result` (everything's set but the debounced
+            auto-calculate request hasn't landed yet — "⚡ Sincronizando
+            Objetivos Metabólicos y Clima…" plus a skeleton shaped like the
+            real 4-tile metric grid), or `result` (the real calculated
+            targets). Card 04/05 and the commercial-products sheet stay
+            gated on `result` alone, further below — there's nothing to
+            configure a bottle/pocket-food loadout against before a target
+            exists. */}
+        {isProfileComplete && (
+          <div ref={resultRef} className="scroll-mt-20">
             {isOfflineCache && (
               <div className="mb-4 flex items-center gap-1.5 border border-neutral-300 bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-700">
                 <Zap className="size-3.5 shrink-0" />
@@ -4168,6 +4224,47 @@ export function FuelingPlanner({
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 03 · Metabolismo y objetivos calculados
               </span>
+
+              {missingFields.length > 0 && (
+                <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-100/60 p-6 text-center">
+                  <p className="mb-2 font-mono text-xs font-bold uppercase text-neutral-700">
+                    ⚠️ Configuración Petición de Datos
+                  </p>
+                  <p className="font-mono text-xs text-neutral-600">
+                    Completa los campos pendientes: {missingFields.join(" · ")} para calcular
+                    los objetivos fisiológicos.
+                  </p>
+                </div>
+              )}
+
+              {isStep2Complete && !result && !error && (
+                <>
+                  <p className="mb-3 flex items-center gap-1.5 font-mono text-xs text-zinc-500">
+                    <RefreshCw className="size-3 shrink-0 animate-spin" />
+                    Sincronizando Objetivos Metabólicos y Clima…
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 *:min-w-0 lg:grid-cols-4">
+                    {["Duración", "Carbohidratos", "Hidratación", "Sodio (Na+)"].map((label) => (
+                      <div
+                        key={label}
+                        className="flex h-[92px] animate-pulse flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none"
+                      >
+                        <span className="font-mono text-[11px] text-zinc-400">{label}</span>
+                        <span className="h-6 w-16 rounded bg-zinc-300/70" />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {isStep2Complete && !result && error && (
+                <div className="rounded-xl border border-dashed border-red-300 bg-red-50/60 p-6 text-center">
+                  <p className="mb-2 font-mono text-xs font-bold uppercase text-red-700">
+                    ⚠️ Error de cálculo
+                  </p>
+                  <p className="font-mono text-xs text-red-600">{error}</p>
+                </div>
+              )}
 
               {/* Cuadrícula de objetivos por hora + total — 2x2 en móvil,
                   una sola fila de 4 columnas a partir de `lg:` ("Layout
@@ -4191,6 +4288,8 @@ export function FuelingPlanner({
                   `recalculatedValueClass`, a brief `text-amber-600` flash
                   confirming a background recalculation just landed a new
                   figure ("Feedback Visual de Transición/Recálculo" above). */}
+              {isStep2Complete && result && (
+                <>
               <div className="grid grid-cols-2 gap-3 *:min-w-0 lg:grid-cols-4">
                 <div className="flex flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
                   <span className="font-mono text-[11px] text-zinc-500">Duración</span>
@@ -4385,8 +4484,12 @@ export function FuelingPlanner({
                   </a>
                 </div>
               )}
+                </>
+              )}
             </div>
 
+            {result && (
+              <>
             {/* 🎴 Tarjeta 2 · 04 · Logística de salida (Carga desde casa) —
                 "Refactor de Card 04 y 05" reframes this card conceptually:
                 it's no longer a generic "simulator," it's specifically
@@ -4735,45 +4838,42 @@ export function FuelingPlanner({
                 </div>
               </div>
 
-              {/* "Selector de Marcas vía Bottom Sheet" — real branded
-                  products (Maurten, 226ERS, SiS, Santa Madre, Neversecond,
-                  Precision Fuel), each with a real sodium figure the
-                  generic pocket-food catalog above never carried (see
-                  `lib/constants/nutrition-brands.ts`). The old always-
-                  expanded, brand-grouped 12-row list collapsed Card 04
-                  vertically on a narrow phone — the full catalog now lives
-                  behind `CommercialProductsSheet`, a bottom-sheet modal;
-                  Card 04 itself only ever renders the athlete's own
-                  already-selected rows (`selectedCommercialProducts`) plus
-                  a small trigger link. Every selection still feeds both
-                  the CUBIERTO/RESTANTE pill above (`commercialCarbsG`) and
-                  Card 05's sodium balance check (`commercialSodiumMg`,
-                  combined with the bottle's own sodium into
-                  `totalSodiumCoveredMg`), live, whether it was just added
-                  from the sheet or is being adjusted right here. */}
+              {/* "Productos Directos con Incrementador" — Maurten Gel 100 y
+                  226ERS Race Day Bar (`DEFAULT_COMMERCIAL_PRODUCTS`) se
+                  muestran siempre con su propio stepper, sin esperar a que
+                  el atleta abra el catálogo completo — son los dos productos
+                  que más rutas llevan encima. Cualquier otro producto real
+                  (Maurten, 226ERS, SiS, Santa Madre, Neversecond, Precision
+                  Fuel — ver `lib/constants/nutrition-brands.ts`) elegido
+                  desde `CommercialProductsSheet` (el bottom-sheet con el
+                  catálogo completo, filtrado por marca) se añade debajo de
+                  los dos por defecto (`commercialProductRows`). Toda
+                  selección alimenta en directo tanto el CUBIERTO/RESTANTE de
+                  arriba (`commercialCarbsG`) como el balance de sodio de la
+                  Card 05 (`commercialSodiumMg`), venga del stepper directo o
+                  del catálogo. */}
               <div className="mt-8">
                 <span className={formFieldLabelClass}>Productos de nutrición</span>
-                {selectedCommercialProducts.length > 0 && (
-                  <div className="mt-2 flex flex-col">
-                    {selectedCommercialProducts.map((product) => (
-                      <CommercialProductStepperRow
-                        key={product.id}
-                        product={product}
-                        qty={commercialProducts[product.id] ?? 0}
-                        onChange={(qty) => setCommercialProductQty(product.id, qty)}
-                      />
-                    ))}
-                  </div>
-                )}
+                <div className="mt-2 flex flex-col">
+                  {commercialProductRows.map((product) => (
+                    <CommercialProductStepperRow
+                      key={product.id}
+                      product={product}
+                      qty={commercialProducts[product.id] ?? 0}
+                      onChange={(qty) => setCommercialProductQty(product.id, qty)}
+                    />
+                  ))}
+                </div>
                 <button
                   type="button"
                   onClick={() => setCommercialProductsSheetOpen(true)}
-                  className="block cursor-pointer py-2 font-mono text-xs text-[#70685b] hover:underline"
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-neutral-300 px-4 py-2.5 font-mono text-xs font-bold text-neutral-700 transition-all hover:border-neutral-900 hover:bg-neutral-50"
                 >
-                  + Añadir producto de nutrición
+                  <Search className="size-3.5 shrink-0" />
+                  <span>Buscar en Catálogo de Marcas (Maurten, 226ERS, SiS...)</span>
                 </button>
                 {commercialCarbsG > 0 && (
-                  <p className="font-mono text-[11px] text-zinc-500">
+                  <p className="mt-2 font-mono text-[11px] text-zinc-500">
                     {commercialCarbsG}g HC · {commercialSodiumMg}mg Na+ desde marcas reales
                   </p>
                 )}
@@ -5444,6 +5544,8 @@ export function FuelingPlanner({
                 </>
               )}
             </div>
+              </>
+            )}
           </div>
         )}
     </div>
