@@ -11,14 +11,12 @@ import {
   FlaskConical,
   Gauge,
   Lightbulb,
-  MapPin,
   Moon,
   Pencil,
   RefreshCw,
   ShoppingBag,
   Snowflake,
   Sun,
-  Target,
   TriangleAlert,
   Upload,
   Utensils,
@@ -2985,27 +2983,6 @@ export function FuelingPlanner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, canAutoCalculate, activeLastCalculatedInputs, isInputsChanged, currentInputs]);
 
-  // "UX de Asunciones Activas" — Card 03's own "PARÁMETROS APLICADOS" badge
-  // bar (see its render site below) reflects exactly which Paso 02 choice
-  // produced the numbers currently on screen, so the athlete never has to
-  // scroll back up to remember what they picked. Plain lookups against the
-  // same option lists Paso 02's own selectors already render from, so a
-  // label can never drift out of sync with what those buttons actually say.
-  const activeIntensityLabel =
-    INTENSITY_SELECT_OPTIONS.find((opt) => opt.value === intensity)?.label ?? "Sin definir";
-  const activeStopsLabel =
-    cafeteriaStopCount !== null
-      ? (CAFETERIA_STOP_COUNT_OPTIONS.find((opt) => opt.value === cafeteriaStopCount)?.label ?? "Sin definir")
-      : "Sin definir";
-  const activeCarbPreloadLabel =
-    preRideGlycogenLoad === "high"
-      ? "Carga Alta"
-      : preRideGlycogenLoad === "fasted"
-        ? "Ayunas"
-        : preRideGlycogenLoad === "normal"
-          ? "Normal (~70%)"
-          : "Sin definir";
-
   // "Feedback Visual de Transición/Recálculo" — a brief amber flash on Card
   // 03's own g/h · ml/h · mg/h figures (see `recalculatedValueClass` at each
   // render site below) confirms a background recalculation genuinely landed
@@ -4191,30 +4168,6 @@ export function FuelingPlanner({
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 03 · Metabolismo y objetivos calculados
               </span>
-
-              {/* "UX de Asunciones Activas" — a compact "PARÁMETROS
-                  APLICADOS" bar reflecting exactly which Paso 02 choices
-                  produced the figures below, so the athlete doesn't have to
-                  scroll back up to remember what's currently selected. Plain
-                  lookups (`activeIntensityLabel`/`activeStopsLabel`/
-                  `activeCarbPreloadLabel` above) against the same option
-                  lists Paso 02's own selectors render from — this can never
-                  drift out of sync with what those buttons actually show. */}
-              <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-neutral-200/50 bg-neutral-100/70 p-2.5 font-mono text-[11px] text-neutral-600">
-                <span className="font-bold text-neutral-800">PARÁMETROS APLICADOS:</span>
-                <span className="flex items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-0.5">
-                  <Target className="size-3 shrink-0 text-neutral-500" />
-                  {activeIntensityLabel}
-                </span>
-                <span className="flex items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-0.5">
-                  <MapPin className="size-3 shrink-0 text-neutral-500" />
-                  {activeStopsLabel}
-                </span>
-                <span className="flex items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-0.5">
-                  <Zap className="size-3 shrink-0 text-neutral-500" />
-                  {activeCarbPreloadLabel}
-                </span>
-              </div>
 
               {/* Cuadrícula de objetivos por hora + total — 2x2 en móvil,
                   una sola fila de 4 columnas a partir de `lg:` ("Layout

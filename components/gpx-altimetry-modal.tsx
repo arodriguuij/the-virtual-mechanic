@@ -201,6 +201,36 @@ export function GpxAltimetryModal({
   /** Convert elevation to a 0–100 SVG-viewBox Y coordinate (top = high). */
   const toY = (e: number) => 100 - ((e - minEle) / eleRange) * 100;
 
+  // "Control de Overflow en SVG de Altimetría" — the badge/stem `topPct`
+  // clamp's lower bound, shared by both the SVG stem line and the HTML
+  // badge overlay below so the two can never disagree about where "the top"
+  // is. `topPct` doubles as a real CSS `%` of the chart's own rendered
+  // height (not just an SVG viewBox unit — see the badge overlay's
+  // `style={{ top: ... }}`), so a literal pixel margin (the brief's own
+  // "24px from the top") translates to a percentage against the chart's
+  // *shortest* realistic height — the `min-h-95` (380px) mobile floor this
+  // grid is never allowed to shrink below (see that class further down) —
+  // rather than a fixed height this component doesn't actually have.
+  // `24 / 380 ≈ 6.3%`; rounded up to 8% for real margin, not a bare
+  // minimum, so a badge's own `-translate-y-full` lift never pushes its top
+  // edge above the chart container's own top edge (which is what was
+  // actually cutting text off — the chart sits well below the legend/header
+  // already, so the two were never at risk of colliding).
+  const MIN_BADGE_TOP_PCT = 8;
+  // A badge near km 0 or the finish is horizontally centered on its own
+  // anchor point (`-translate-x-1/2`), so its box extends roughly half its
+  // own width past that point in both directions — right at the container's
+  // left/right edge, that overflow is real and (now that "Eliminación
+  // Absoluta de Scroll" replaced the scrollable area with `overflow-hidden`
+  // below) silently clipped rather than scrollable-into-view. Clamping the
+  // *badge's* left position (not the SVG stem's own `x`, which stays at the
+  // true km so the line still points at the right spot) keeps every label
+  // fully on screen — verified live against a genuinely wide label
+  // ("Km 57 · Hidratación estimada") that used to overflow the container by
+  // ~37px at a 700px viewport.
+  const MIN_BADGE_LEFT_PCT = 12;
+  const MAX_BADGE_LEFT_PCT = 88;
+
   const linePath = points
     .map((p, i) => `${i === 0 ? "M" : "L"}${toX(p.distanceFraction).toFixed(2)},${toY(p.elevationM).toFixed(2)}`)
     .join(" ");
@@ -474,8 +504,20 @@ export function GpxAltimetryModal({
         </div>
 
         {/* Scrollable chart area */}
-        <div className="flex-1 overflow-x-auto overflow-y-auto p-4 sm:p-6 bg-[#fcfbf9] [@media_(max-width:768px)_and_(orientation:portrait)]:p-2">
-          <div className="min-w-[750px] flex h-full flex-col gap-4 [@media_(max-width:768px)_and_(orientation:portrait)]:min-w-0 [@media_(max-width:768px)_and_(orientation:portrait)]:w-full">
+        {/* "Eliminación Absoluta de Scroll" — this used to force
+            `overflow-x-auto`/`overflow-y-auto` plus a `min-w-[750px]` inner
+            wrapper (only cancelled for the portrait-rotated-mobile media
+            query below), so any *landscape* viewport narrower than 750px —
+            a real, common case, not just a phone rotated for this one
+            screen — silently scrolled instead of fitting. The chart itself
+            already scales fluidly to any container width via the SVG's own
+            `viewBox="0 0 100 100"` + `preserveAspectRatio="none"` + `w-full
+            h-full`, so the fixed min-width was never actually load-bearing
+            for legibility — dropping it lets the whole chart genuinely fit
+            any viewport, and `overflow-hidden` makes that the enforced
+            contract rather than a scrollbar silently covering for it. */}
+        <div className="flex-1 overflow-hidden p-4 sm:p-6 bg-[#fcfbf9] [@media_(max-width:768px)_and_(orientation:portrait)]:p-2">
+          <div className="w-full flex h-full flex-col gap-4">
 
             {/* Legend */}
             <div className="flex flex-wrap items-center gap-3 text-[11px] text-neutral-600 border-b border-neutral-200 pb-2">
@@ -530,7 +572,7 @@ export function GpxAltimetryModal({
                   {staggeredPoints.map((pt) => {
                     const x = toX(pt.distanceFraction);
                     const profileY = toY(nearestElevation(pt.distanceFraction));
-                    const topPct = Math.min(78, Math.max(4, profileY - 10 - pt.tier * 12));
+                    const topPct = Math.min(78, Math.max(MIN_BADGE_TOP_PCT, profileY - 10 - pt.tier * 12));
                     return (
                       <line
                         key={`stem-${pt.key}`}
@@ -547,9 +589,12 @@ export function GpxAltimetryModal({
 
                 {/* Badge overlay (HTML, above SVG) */}
                 {staggeredPoints.map((pt) => {
-                  const leftPct = pt.distanceFraction * 100;
+                  const leftPct = Math.min(
+                    MAX_BADGE_LEFT_PCT,
+                    Math.max(MIN_BADGE_LEFT_PCT, pt.distanceFraction * 100)
+                  );
                   const profileY = toY(nearestElevation(pt.distanceFraction));
-                  const topPct = Math.min(78, Math.max(4, profileY - 10 - pt.tier * 12));
+                  const topPct = Math.min(78, Math.max(MIN_BADGE_TOP_PCT, profileY - 10 - pt.tier * 12));
 
                   return (
                     <div

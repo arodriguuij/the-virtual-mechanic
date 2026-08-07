@@ -614,8 +614,17 @@ export function WeatherImpactCard({
                 side-by-side instead of the athlete scrolling past the chart
                 to reach the carousel below it. */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-stretch">
-              {/* Columna Izquierda (50% Ancho) — Perfil Altimétrico 2D */}
-              <div className="flex w-full h-full min-h-[180px] flex-1 flex-col justify-center items-center bg-neutral-50 rounded-xl p-4 border border-neutral-200/70">
+              {/* Columna Izquierda (50% Ancho) — Perfil Altimétrico 2D.
+                  "Simplificación del Gráfico Térmico en Móvil" — the framed
+                  `bg-neutral-50`/`border`/`p-4` card only applies from `lg:`
+                  up now; on mobile the mini thermal-profile chart sits
+                  directly on Card 03's own white background with no nested
+                  frame/margin of its own, matching this same section's own
+                  "Aplanamiento de UI (eliminación de Card Inception)" pass
+                  above — that removed the *outer* wrapper around this whole
+                  module; this removes the one remaining nested box, on
+                  mobile specifically, that survived it. */}
+              <div className="flex w-full h-full min-h-[180px] flex-1 flex-col justify-center items-center bg-transparent p-0 lg:bg-neutral-50 lg:rounded-xl lg:p-4 lg:border lg:border-neutral-200/70">
                 <AltitudeProfileSvg
                   points={weatherPoints}
                   profile={elevationProfile}
