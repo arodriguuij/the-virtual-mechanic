@@ -237,7 +237,12 @@ function AltitudeProfileSvg({
   }));
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="h-14 w-full" role="img" aria-label="Perfil altimétrico de la ruta">
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="h-auto w-full"
+      role="img"
+      aria-label="Perfil altimétrico de la ruta"
+    >
       {areaPath && <path d={areaPath} fill={BRONZE} fillOpacity={0.08} stroke="none" />}
       <path d={linePath} fill="none" stroke={BRONZE} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" opacity={0.55} />
       {markerCoords.map((c, i) => (
@@ -623,8 +628,15 @@ export function WeatherImpactCard({
                   chart sits directly on Card 03's own white background on
                   both mobile and desktop, stretching to fill the full 50%
                   grid column instead of being compressed into a padded box
-                  in the middle of it. */}
-              <div className="flex w-full h-full min-h-[180px] flex-1 flex-col items-center justify-center bg-transparent p-0">
+                  in the middle of it.
+                  "Eliminación de `min-height` en Móvil" — `min-h-[180px]`
+                  is now `lg:`-only: on mobile there's no forced vertical
+                  space, so the curve renders at its own compact, natural
+                  height (see `AltitudeProfileSvg`'s own `h-auto` below)
+                  instead of floating inside a tall, mostly-empty box. At
+                  `lg:` the min-height still applies, keeping the chart
+                  roughly aligned with the carousel column beside it. */}
+              <div className="flex w-full h-full lg:min-h-[180px] flex-1 flex-col items-center justify-center bg-transparent p-0">
                 <AltitudeProfileSvg
                   points={weatherPoints}
                   profile={elevationProfile}
