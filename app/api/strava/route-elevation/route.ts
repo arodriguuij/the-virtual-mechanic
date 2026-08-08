@@ -4,18 +4,22 @@ import { getAuthenticatedSupabaseClient } from "@/lib/supabase-server";
 import { getValidStravaAccessToken } from "@/lib/strava-session";
 import { fetchRouteElevationExtremes } from "@/lib/strava-routes";
 
-// "Mini-Gráfico de Altimetría Universal" — a GPX upload already has its own
-// per-point elevation locally, so `ElevationSparkline` can render for it in
-// Step 01 with zero extra network cost (see that component's own doc
-// comment). A saved Strava route has no equivalent client-side data — its
-// full altitude stream is normally only fetched once, server-side, when
-// the athlete actually clicks "Calcular estrategia" (`fetchRouteElevationExtremes`,
-// deliberately never eager, to avoid passive Strava traffic on every route
-// in the list). This endpoint is the one deliberate exception: fetched
-// exactly once per *explicit* route selection (not per route in the list,
-// not on every render) so the same sparkline can render immediately in
-// Step 01 for a selected Strava route too, matching GPX mode. Requires
-// only a valid session (not the athlete's own profile data), same as
+// "Mini-Gráfico de Altimetría Universal" — originally built to feed a Card
+// 01 elevation sparkline (since removed, see "Remoción de Gráfica de
+// Altimetría Redundante en Step 01" in `components/fueling-planner.tsx" —
+// that sparkline caused a real layout shift once its data arrived a beat
+// after the map itself). The endpoint stayed: a GPX upload already has its
+// own per-point elevation locally, but a saved Strava route has no
+// equivalent client-side data — its full altitude stream is normally only
+// fetched once, server-side, when the athlete actually clicks "Calcular
+// estrategia" (`fetchRouteElevationExtremes`, deliberately never eager, to
+// avoid passive Strava traffic on every route in the list). This endpoint
+// is the one deliberate exception: fetched exactly once per *explicit*
+// route selection (not per route in the list, not on every render) so
+// `mapClimbsCount` (`components/fueling-planner.tsx`) can compute "N
+// puertos" for the map's own floating data capsule immediately for a
+// selected Strava route too, matching GPX mode. Requires only a valid
+// session (not the athlete's own profile data), same as
 // `POST /api/fueling/gpx`.
 export async function GET(request: NextRequest) {
   const supabase = await getAuthenticatedSupabaseClient();

@@ -147,12 +147,22 @@ export function RouteMapPreview({
   points,
   distanceKm,
   elevationGainM,
+  climbsCount = null,
   className,
   emptyMessage = "Selecciona una ruta para comenzar",
 }: {
   points: [number, number][] | null;
   distanceKm: number | null;
   elevationGainM: number | null;
+  /** "Remoción de Gráfica de Altimetría Redundante en Step 01" — once the
+   * Card 01 sparkline was removed, "N puertos" (or "Ruta llana") moved into
+   * this capsule instead of losing that at-a-glance figure entirely.
+   * `null` (the default) keeps the original compact, left-aligned
+   * distance/D+-only badge — e.g. Post-Ride Analysis's own call site, which
+   * has no client-side pass-detection of its own and was never asked to
+   * grow one. Passing a real number (even `0`, a flat route) switches to
+   * the full-width two-sided capsule instead. */
+  climbsCount?: number | null;
   /** Overrides the default `mt-3 h-48 w-full` sizing — merged via `cn()`
    * (Tailwind-merge-aware), so a caller embedding this in its own grid cell
    * (e.g. Post-Ride Analysis's 2-column telemetry layout) can drop the
@@ -268,11 +278,19 @@ export function RouteMapPreview({
         <FitBoundsToRoute points={points} />
         <MapZoomControls points={points} />
       </MapContainer>
-      {badgeParts.length > 0 && (
-        <div className="absolute bottom-3 left-3 z-1000 rounded-lg bg-white/80 px-3 py-1.5 font-mono text-xs text-zinc-900 shadow-sm backdrop-blur-md">
-          {badgeParts.join(" · ")}
-        </div>
-      )}
+      {badgeParts.length > 0 &&
+        (climbsCount != null ? (
+          <div className="absolute right-3 bottom-3 left-3 z-1000 flex items-center justify-between rounded-lg bg-white/80 px-3 py-1.5 font-mono text-xs shadow-sm backdrop-blur-md">
+            <span className="font-bold text-zinc-900">{badgeParts.join(" · ")}</span>
+            <span className="text-[11px] font-normal text-zinc-500">
+              {climbsCount > 0 ? `${climbsCount} puerto${climbsCount === 1 ? "" : "s"}` : "Ruta llana"}
+            </span>
+          </div>
+        ) : (
+          <div className="absolute bottom-3 left-3 z-1000 rounded-lg bg-white/80 px-3 py-1.5 font-mono text-xs text-zinc-900 shadow-sm backdrop-blur-md">
+            {badgeParts.join(" · ")}
+          </div>
+        ))}
     </div>
   );
 }

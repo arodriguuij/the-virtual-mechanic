@@ -33,7 +33,6 @@ import { stripEmoji } from "@/lib/gpx-export";
 import { parseGpxFile, type ParsedGpxRoute } from "@/lib/gpx-import";
 import { decodePolyline } from "@/lib/polyline";
 import { refreshStravaRoutes } from "@/lib/strava-actions";
-import { ElevationSparkline } from "@/components/elevation-sparkline";
 import { GpxAltimetryPreview, type TacticalPoint } from "@/components/gpx-altimetry-modal";
 import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
@@ -47,6 +46,7 @@ import {
 } from "@/lib/ui-classes";
 import {
   calculateHouseholdMeasures,
+  detectMountainPasses,
   estimateRideDurationHours,
   getBottlePlan,
   getElectrolyteRecommendation,
@@ -2208,19 +2208,22 @@ export function FuelingPlanner({
   );
   // "Mini-Gráfico de Altimetría Universal" — a selected Strava route has no
   // per-point elevation available client-side the way a parsed GPX file
-  // does (see `ElevationSparkline`'s own doc comment), so this fetches it
-  // on demand, exactly once per *explicit* route selection (never eagerly
-  // for every route in the list), via `GET /api/strava/route-elevation` —
-  // a deliberate, scoped exception to this app's usual "never call Strava
-  // streams before the athlete actually calculates" rule, made specifically
-  // so Step 01's sparkline can render for a Strava route the same way it
-  // already does for GPX mode. The fetched profile is tagged with the
-  // `routeId` it belongs to, so switching routes hides the stale sparkline
-  // immediately (the tag no longer matches `selectedRouteId`) purely by
-  // re-deriving `stravaElevationPoints` below — no synchronous "reset to
-  // null" setState call at the top of the effect, which is what React's
-  // own lint rule flags as an unnecessary render-triggering pattern; every
-  // `setState` here only ever happens inside a genuinely async callback.
+  // does, so this fetches it on demand, exactly once per *explicit* route
+  // selection (never eagerly for every route in the list), via
+  // `GET /api/strava/route-elevation` — a deliberate, scoped exception to
+  // this app's usual "never call Strava streams before the athlete
+  // actually calculates" rule. Originally fed a Card 01 sparkline (removed,
+  // see "Remoción de Gráfica de Altimetría Redundante en Step 01" below);
+  // now feeds `mapClimbsCount`'s `detectMountainPasses()` call instead, so
+  // the map's own floating capsule can show "N puertos" for a Strava route
+  // the same way it already does for GPX mode. The fetched profile is
+  // tagged with the `routeId` it belongs to, so switching routes drops the
+  // stale figure immediately (the tag no longer matches `selectedRouteId`)
+  // purely by re-deriving `stravaElevationPoints` below — no synchronous
+  // "reset to null" setState call at the top of the effect, which is what
+  // React's own lint rule flags as an unnecessary render-triggering
+  // pattern; every `setState` here only ever happens inside a genuinely
+  // async callback.
   const [stravaElevationProfile, setStravaElevationProfile] = useState<{
     routeId: string;
     profile: { distanceFraction: number; elevationM: number }[];
@@ -2244,6 +2247,18 @@ export function FuelingPlanner({
     mode === "route" && stravaElevationProfile?.routeId === selectedRouteId
       ? stravaElevationProfile.profile
       : null;
+  // "Remoción de Gráfica de Altimetría Redundante en Step 01" — the Card 01
+  // sparkline this used to feed is gone (see below), but "N puertos" is
+  // still a genuinely useful at-a-glance figure, so it moved into the map's
+  // own floating data capsule instead. `detectMountainPasses` is the same
+  // pure, no-I/O heuristic `lib/metabolic-engine.ts`'s server-side timing
+  // engine already uses — safe to reuse client-side here, same convention
+  // as every other pure function in that file.
+  const mapClimbsCount = useMemo(() => {
+    const profile = mode === "gpx" ? (parsedGpx?.elevationProfile ?? null) : stravaElevationPoints;
+    if (!profile || profile.length < 3) return null;
+    return detectMountainPasses(profile).length;
+  }, [mode, parsedGpx, stravaElevationPoints]);
   // "Algoritmo Físico Dinámico" — blank until an intensity zone is chosen
   // (no generic distance/average-speed guess shown in the meantime), then
   // `estimateRideDurationHours()` combines the athlete's real FTP/peso with
@@ -3789,11 +3804,25 @@ export function FuelingPlanner({
             )}
           </div>
 
+          {/* "Remoción de Gráfica de Altimetría Redundante en Step 01" — the
+              sparkline that used to render directly below the map (its own
+              conditional block, gated on the elevation profile arriving
+              asynchronously) caused a real layout shift every time a route/
+              GPX was picked or swapped: the map itself renders instantly,
+              then the sparkline pops in a beat later once its own data
+              resolves, pushing everything below it down the page. The full
+              altimetric profile is still generated in full further down —
+              see "Tarjeta de Acción Altimétrica" (`GpxAltimetryPreview`) —
+              where it's paired with real nutrition markers; Card 01 now
+              shows only the map plus its own floating data capsule (see
+              `RouteMapPreview`'s `climbsCount` prop below), never a second,
+              redundant chart of its own. */}
           {mode === "route" && routes.length > 0 && (
             <RouteMapPreview
               points={selectedRoutePoints}
               distanceKm={selectedRoute?.distanceKm ?? null}
               elevationGainM={selectedRoute?.elevationGainM ?? null}
+              climbsCount={mapClimbsCount}
               className="mt-0"
             />
           )}
@@ -3802,27 +3831,9 @@ export function FuelingPlanner({
               points={parsedGpx?.points ?? null}
               distanceKm={parsedGpx?.distanceKm ?? null}
               elevationGainM={parsedGpx?.elevationGainM ?? null}
+              climbsCount={mapClimbsCount}
               className="mt-0"
             />
-          )}
-          {/* "Perfil Altimétrico (Sparkline SVG)" — a GPX file already has
-              its own elevation profile locally, so this renders the instant
-              a file's parsed, zero extra cost. A selected Strava route
-              instead reads from `stravaElevationPoints` (derived from the
-              on-selection fetch above) — `null` while that request is in
-              flight, before any route is picked, or right after switching
-              to a different route (the fetched profile's own tagged
-              `routeId` no longer matches), so the sparkline simply doesn't
-              render yet rather than showing a stale/wrong shape. */}
-          {mode === "gpx" && parsedGpx && parsedGpx.elevationProfile.length >= 2 && (
-            <div className="border-t border-zinc-100 bg-white px-4 pt-2 pb-1">
-              <ElevationSparkline points={parsedGpx.elevationProfile} />
-            </div>
-          )}
-          {mode === "route" && stravaElevationPoints && stravaElevationPoints.length >= 2 && (
-            <div className="border-t border-zinc-100 bg-white px-4 pt-2 pb-1">
-              <ElevationSparkline points={stravaElevationPoints} />
-            </div>
           )}
         </div>
 

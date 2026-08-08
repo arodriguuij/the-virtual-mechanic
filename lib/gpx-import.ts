@@ -62,11 +62,14 @@ export type ParsedGpxRoute = {
    * every point in hand locally, no polyline decoding needed the way a
    * Strava route's `summaryPolyline` requires. */
   points: [number, number][];
-  /** Every usable `{distanceFraction, elevationM}` point along the track,
-   * for `ElevationSparkline` — the exact same array `detectMountainPasses`
-   * above already builds internally, just also returned here so the caller
-   * doesn't need a second pass over `points` to reconstruct it. `[]` under
-   * the same "no usable elevation data" condition as `mountainPasses`. */
+  /** Every usable `{distanceFraction, elevationM}` point along the track —
+   * feeds `GpxAltimetryPreview`'s full tactical chart and, client-side,
+   * `components/fueling-planner.tsx`'s own `detectMountainPasses()` call
+   * (Card 01's "N puertos" map-badge figure) — the exact same array
+   * `detectMountainPasses` above already builds internally, just also
+   * returned here so the caller doesn't need a second pass over `points`
+   * to reconstruct it. `[]` under the same "no usable elevation data"
+   * condition as `mountainPasses`. */
   elevationProfile: { distanceFraction: number; elevationM: number }[];
   /** "Regla de Oro: Sin Inferencia de Nombres" — real, explicit `<wpt>`
    * waypoints from the GPX file itself (rider- or route-author-placed),
