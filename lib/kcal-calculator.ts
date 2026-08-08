@@ -79,12 +79,20 @@ const ZONE_BASE_WKG: Record<IntensityZone, number> = {
  * out-and-back), así que el D+ real es un proxy razonable de cuánto
  * descenso técnico/rápido tiene la ruta — tiempo que el ciclista pasa
  * mayormente dejando rodar la bici, no pedaleando a la potencia objetivo
- * de su zona. */
-const DESCENT_HOURS_PER_1000M_GAIN = 0.25;
+ * de su zona. "Ajuste del Factor de Descenso" subió este valor de 0.25h
+ * (15 min) a 0.45h (~27 min) por cada 1000m D+ — el primer valor
+ * subestimaba cuánto tiempo real pasa un ciclista bajando un puerto de
+ * montaña, dejando el gasto calórico total todavía por encima de la
+ * ventana objetivo de referencia (~2500-2600 kcal para el caso de prueba
+ * de este archivo). */
+const DESCENT_HOURS_PER_1000M_GAIN = 0.45;
 /** Tope máximo de la ruta que puede considerarse "en descenso" — evita que
  * un desnivel extremo sobre una ruta corta le reste más tiempo activo del
- * que tiene sentido físico. */
-const MAX_DESCENT_TIME_FRACTION = 0.4;
+ * que tiene sentido físico. Subido de 0.4 a 0.45 en el mismo ajuste que
+ * `DESCENT_HOURS_PER_1000M_GAIN`, para que el propio tope no recorte el
+ * nuevo coeficiente en una ruta muy montañosa antes de que pueda surtir
+ * efecto. */
+const MAX_DESCENT_TIME_FRACTION = 0.45;
 /** Mínimo de horas "pedaleando activamente" (subida/llano a la potencia
  * objetivo) que se le reconoce a cualquier ruta, por muy montañosa que
  * sea — nunca cero, ya que ninguna ruta real es 100% descenso. */
