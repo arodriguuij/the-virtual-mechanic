@@ -192,7 +192,7 @@ export function CommercialProductsSheet({
                 className={cn(
                   "shrink-0 cursor-pointer rounded-full border px-3 py-1 font-mono text-[11px] font-semibold whitespace-nowrap transition-colors",
                   activeBrand === brand
-                    ? "border-transparent bg-[#70685b] text-white"
+                    ? "border-[#5a5245] bg-[#5a5245] text-white font-bold shadow-sm hover:bg-[#4d463b]"
                     : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                 )}
               >

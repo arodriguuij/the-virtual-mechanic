@@ -417,15 +417,16 @@ const segmentedButtonClass =
 const segmentedButtonLabelClass = "block w-full truncate";
 // "Estandarización de Botones de Opción" — Card 02's own three option-button
 // groups (Paradas previstas, Nivel de carga previa, Última ingesta
-// pre-salida) get one deliberately different, more neutral/technical
-// treatment than the rest of the app's `#70685b` bronze-accented selectors —
-// a flat near-black `neutral-800` fill for the active state instead, plus
-// `font-mono text-xs` forced at every breakpoint (not `segmentedButtonClass`'s
-// own `sm:text-sm` step-up). Scoped to Card 02 only, not a shared-token
-// change — every other selector in the app keeps its existing bronze accent.
+// pre-salida) keep their own `font-mono text-xs` treatment forced at every
+// breakpoint (not `segmentedButtonClass`'s own `sm:text-sm` step-up), but
+// "Unificación Global de Color de Selección" reverses the neutral-800
+// active fill this group briefly carried — the active state is back to the
+// app's one official bronze token, `#5a5245`, same as every other
+// selector/toggle in the app.
 const card02OptionButtonBaseClass =
   "flex h-9 w-full min-w-0 cursor-pointer items-center justify-center rounded-sm px-1 text-center font-mono text-xs transition-all sm:px-3";
-const card02OptionButtonActiveClass = "border border-neutral-800 bg-neutral-800 font-bold text-white shadow-sm";
+const card02OptionButtonActiveClass =
+  "border-[#5a5245] bg-[#5a5245] text-white font-bold shadow-sm hover:bg-[#4d463b]";
 const card02OptionButtonInactiveClass =
   "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50";
 // "Jerarquía de Color: Selectores vs. Acción Principal" — every selector/
@@ -872,36 +873,34 @@ function MetricAccentLine() {
 type BottleConfigOption = "water_only" | "one_mix" | "both_mix";
 const DEFAULT_BOTTLE_CONFIG: BottleConfigOption = "water_only";
 
-// Title Case, short — fits a fixed row even on a narrow phone (unlike the
-// earlier, longer "1 Agua + 1 Mix"/"Ambos con Mix" labels). Two variants,
-// picked at render time off the athlete's real `athlete_profiles.bottle_count`
-// (`getBottleConfigOptions` below) — "Ambos Mix" is physically impossible on
+// Title Case, short — fits a fixed row even on a narrow phone. Two
+// variants, picked at render time off the athlete's real
+// `athlete_profiles.bottle_count` — "Ambos Mix" is physically impossible on
 // a 1-cage bike, so it's dropped entirely rather than shown disabled, and
 // the remaining mix option is relabeled "Con Mix" once it's the only one
 // left (a lone "1 Mix" reads oddly without a second option to contrast it
 // against).
-const TWO_CAGE_BOTTLE_CONFIG_OPTIONS: { value: BottleConfigOption; label: string }[] = [
-  { value: "water_only", label: "Solo Agua" },
-  { value: "one_mix", label: "1 Mix" },
-  { value: "both_mix", label: "Ambos Mix" },
-];
-const ONE_CAGE_BOTTLE_CONFIG_OPTIONS: { value: BottleConfigOption; label: string }[] = [
-  { value: "water_only", label: "Solo Agua" },
-  { value: "one_mix", label: "Con Mix" },
-];
-
-function getBottleConfigOptions(athleteBottleCount: number, isHotWeather: boolean = false) {
-  const mixLabel = isHotWeather ? "Mix Calor" : "Mix Estándar";
+// "Textos Compactos en Botones de Bidones" — this used to append a dynamic
+// `isHotWeather`-driven suffix ("1 Mix Calor"/"Ambos Mix Calor" vs. "...Mix
+// Estándar"), which pushed "Ambos Mix Calor" (16 characters) past what a
+// narrow phone's 3-column row could fit without truncating. The hot-weather
+// context still exists — it's what `showWaterOnlyMixTip`'s own advisory
+// banner below already explains in full sentences — so dropping it from the
+// button label itself loses no real information, just the one string that
+// was breaking layout. `isHotWeather` itself stays a live variable
+// elsewhere (`getElectrolyteRecommendation`), only this function stopped
+// reading it.
+function getBottleConfigOptions(athleteBottleCount: number) {
   if (athleteBottleCount === 1) {
     return [
       { value: "water_only" as const, label: "Solo Agua" },
-      { value: "one_mix" as const, label: `Con ${mixLabel}` },
+      { value: "one_mix" as const, label: "Con Mix" },
     ];
   }
   return [
     { value: "water_only" as const, label: "Solo Agua" },
-    { value: "one_mix" as const, label: `1 ${mixLabel}` },
-    { value: "both_mix" as const, label: `Ambos ${mixLabel}` },
+    { value: "one_mix" as const, label: "1 Mix" },
+    { value: "both_mix" as const, label: "Ambos Mix" },
   ];
 }
 
@@ -1256,7 +1255,7 @@ function DeparturePicker({
             className={cn(
               segmentedButtonClass,
               dayMode === opt.value
-                ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                ? "bg-[#5a5245] text-white border-[#5a5245] font-bold shadow-sm hover:bg-[#4d463b]"
                 : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
               disabled && "cursor-not-allowed opacity-60"
             )}
@@ -1852,6 +1851,7 @@ export function FuelingPlanner({
   const [routeMaltoFructoseOverrideG, setRouteMaltoFructoseOverrideG] = useState<{
     maltodextrinG: number;
     fructoseG: number;
+    sodiumMg: number;
   } | null>(null);
 
   const [manualPocketFood, setManualPocketFood] = useState<Partial<Record<PocketFoodItemType, number>>>({});
@@ -1862,6 +1862,7 @@ export function FuelingPlanner({
   const [manualMaltoFructoseOverrideG, setManualMaltoFructoseOverrideG] = useState<{
     maltodextrinG: number;
     fructoseG: number;
+    sodiumMg: number;
   } | null>(null);
 
   const pocketFood = mode === "quick" ? manualPocketFood : routePocketFood;
@@ -1912,7 +1913,7 @@ export function FuelingPlanner({
   const maltoFructoseOverrideG =
     mode === "quick" ? manualMaltoFructoseOverrideG : routeMaltoFructoseOverrideG;
   const setMaltoFructoseOverrideG: React.Dispatch<
-    React.SetStateAction<{ maltodextrinG: number; fructoseG: number } | null>
+    React.SetStateAction<{ maltodextrinG: number; fructoseG: number; sodiumMg: number } | null>
   > = (action) => {
     if (mode === "quick") {
       setManualMaltoFructoseOverrideG(action);
@@ -2325,10 +2326,14 @@ export function FuelingPlanner({
     // "Personalización de Gramajes Finos (Modo Experto)" — layered on top of
     // the bottle-size override above (both are purely client-side display
     // overrides, never sent back to the server): an advanced athlete's own
-    // manual malto/fructosa split replaces the server-computed one, with
-    // `concentrationPct` re-derived from the new total so the hypertonic-
-    // solution warning banner (which reads this same field) stays accurate
-    // against whatever grams are actually shown.
+    // manual malto/fructosa/sodio split replaces the server-computed one,
+    // with `concentrationPct` re-derived from the new carb total so the
+    // hypertonic-solution warning banner (which reads this same field)
+    // stays accurate against whatever grams are actually shown. The sodium
+    // override flows through the exact same `fuelBottles.sodiumMgPerBottle`
+    // field `getBottleSodiumContributionMg` already reads off
+    // `displayBottlePlan` for Card 04/05's own sodium balance — no separate
+    // wiring needed, editing it here is what "syncs" the two.
     if (!base || !maltoFructoseOverrideG) return base;
     return {
       ...base,
@@ -2336,6 +2341,7 @@ export function FuelingPlanner({
         ...base.fuelBottles,
         maltodextrinGPerBottle: maltoFructoseOverrideG.maltodextrinG,
         fructoseGPerBottle: maltoFructoseOverrideG.fructoseG,
+        sodiumMgPerBottle: maltoFructoseOverrideG.sodiumMg,
         concentrationPct:
           ((maltoFructoseOverrideG.maltodextrinG + maltoFructoseOverrideG.fructoseG) / base.bottleSizeMl) * 100,
       },
@@ -2511,8 +2517,8 @@ export function FuelingPlanner({
 
   const bottleConfigOptions = useMemo(() => {
     const athleteBottleCount = result?.athleteBottleCount ?? 2;
-    return getBottleConfigOptions(athleteBottleCount, isHotWeather);
-  }, [result, isHotWeather]);
+    return getBottleConfigOptions(athleteBottleCount);
+  }, [result]);
 
   const electrolyteRec = useMemo(() => {
     const bottleSizeMl = displayBottlePlan?.bottleSizeMl ?? 550;
@@ -3119,7 +3125,7 @@ export function FuelingPlanner({
                 className={cn(
                   segmentedButtonClass,
                   mode === "route" || mode === "gpx"
-                    ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                    ? "bg-[#5a5245] text-white border-[#5a5245] font-bold shadow-sm hover:bg-[#4d463b]"
                     : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
                   loading && "cursor-not-allowed opacity-60"
                 )}
@@ -3133,7 +3139,7 @@ export function FuelingPlanner({
                 className={cn(
                   segmentedButtonClass,
                   mode === "quick"
-                    ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                    ? "bg-[#5a5245] text-white border-[#5a5245] font-bold shadow-sm hover:bg-[#4d463b]"
                     : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
                   loading && "cursor-not-allowed opacity-60"
                 )}
@@ -3370,7 +3376,7 @@ export function FuelingPlanner({
                             segmentedButtonClass,
                             "flex flex-col items-center justify-center py-2 px-1 text-center transition-all duration-200",
                             isSelected
-                              ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                              ? "bg-[#5a5245] text-white border-[#5a5245] font-bold shadow-sm hover:bg-[#4d463b]"
                               : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
                             loading && "cursor-not-allowed opacity-60"
                           )}
@@ -3421,7 +3427,7 @@ export function FuelingPlanner({
                         className={cn(
                           segmentedButtonClass,
                           manualCalcMode === "time"
-                            ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                            ? "bg-[#5a5245] text-white border-[#5a5245] font-bold shadow-sm hover:bg-[#4d463b]"
                             : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
                           loading && "cursor-not-allowed opacity-60"
                         )}
@@ -3435,7 +3441,7 @@ export function FuelingPlanner({
                         className={cn(
                           segmentedButtonClass,
                           manualCalcMode === "distance"
-                            ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                            ? "bg-[#5a5245] text-white border-[#5a5245] font-bold shadow-sm hover:bg-[#4d463b]"
                             : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
                           loading && "cursor-not-allowed opacity-60"
                         )}
@@ -4671,7 +4677,7 @@ export function FuelingPlanner({
                       className={cn(
                         "rounded-sm border px-2.5 py-1 font-mono text-[11px] font-semibold shadow-none transition-colors duration-150",
                         displayBottlePlan?.bottleSizeMl === ml
-                          ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                          ? "bg-[#5a5245] text-white border-[#5a5245] font-bold shadow-sm hover:bg-[#4d463b]"
                           : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                       )}
                     >
@@ -4701,6 +4707,10 @@ export function FuelingPlanner({
                       · Fructosa:{" "}
                       <span className="font-semibold text-zinc-900">
                         {displayBottlePlan.fuelBottles.fructoseGPerBottle}g
+                      </span>{" "}
+                      · Na+:{" "}
+                      <span className="font-semibold text-zinc-900">
+                        {displayBottlePlan.fuelBottles.sodiumMgPerBottle}mg
                       </span>
                       {maltoFructoseOverrideG && (
                         <span className="ml-1.5 text-amber-600">(manual)</span>
@@ -4715,59 +4725,103 @@ export function FuelingPlanner({
                       Ajuste fino
                     </button>
                   </div>
+                  {/* "Ajuste Fino: Incorporación de Electrolitos/Sodio" — a
+                      3er campo (mg Na+ por bidón) joins Maltodextrina/
+                      Fructosa in the same grid, `grid-cols-3` at every
+                      breakpoint since all 3 are compact numeric fields that
+                      fit a narrow phone row just as well as two did. Editing
+                      it flows straight into `displayBottlePlan.fuelBottles.
+                      sodiumMgPerBottle` (see that memo's own doc comment),
+                      the exact field `getBottleSodiumContributionMg` already
+                      reads for Card 04/05's sodium balance — no separate
+                      sync code needed, this *is* the sync. */}
                   {maltoFructoseEditorOpen && (
-                    <div className="mt-2 flex flex-wrap items-end gap-3 rounded-lg bg-zinc-50 p-3">
-                      <label className="flex flex-col gap-1">
-                        <span className="font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
-                          Maltodextrina (g)
-                        </span>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          value={
-                            maltoFructoseOverrideG?.maltodextrinG ??
-                            displayBottlePlan.fuelBottles.maltodextrinGPerBottle
-                          }
-                          onChange={(e) =>
-                            setMaltoFructoseOverrideG({
-                              maltodextrinG: Math.max(0, Number(e.target.value) || 0),
-                              fructoseG:
-                                maltoFructoseOverrideG?.fructoseG ??
-                                displayBottlePlan.fuelBottles.fructoseGPerBottle,
-                            })
-                          }
-                          className={cn(fieldClass, "w-24")}
-                        />
-                      </label>
-                      <label className="flex flex-col gap-1">
-                        <span className="font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
-                          Fructosa (g)
-                        </span>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          value={
-                            maltoFructoseOverrideG?.fructoseG ??
-                            displayBottlePlan.fuelBottles.fructoseGPerBottle
-                          }
-                          onChange={(e) =>
-                            setMaltoFructoseOverrideG({
-                              maltodextrinG:
-                                maltoFructoseOverrideG?.maltodextrinG ??
-                                displayBottlePlan.fuelBottles.maltodextrinGPerBottle,
-                              fructoseG: Math.max(0, Number(e.target.value) || 0),
-                            })
-                          }
-                          className={cn(fieldClass, "w-24")}
-                        />
-                      </label>
+                    <div className="mt-2 rounded-lg bg-zinc-50 p-3">
+                      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                        <label className="flex flex-col gap-1">
+                          <span className="font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
+                            Maltodextrina (g)
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={
+                              maltoFructoseOverrideG?.maltodextrinG ??
+                              displayBottlePlan.fuelBottles.maltodextrinGPerBottle
+                            }
+                            onChange={(e) =>
+                              setMaltoFructoseOverrideG({
+                                maltodextrinG: Math.max(0, Number(e.target.value) || 0),
+                                fructoseG:
+                                  maltoFructoseOverrideG?.fructoseG ??
+                                  displayBottlePlan.fuelBottles.fructoseGPerBottle,
+                                sodiumMg:
+                                  maltoFructoseOverrideG?.sodiumMg ??
+                                  displayBottlePlan.fuelBottles.sodiumMgPerBottle,
+                              })
+                            }
+                            className={cn(fieldClass, "w-full")}
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <span className="font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
+                            Fructosa (g)
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={
+                              maltoFructoseOverrideG?.fructoseG ??
+                              displayBottlePlan.fuelBottles.fructoseGPerBottle
+                            }
+                            onChange={(e) =>
+                              setMaltoFructoseOverrideG({
+                                maltodextrinG:
+                                  maltoFructoseOverrideG?.maltodextrinG ??
+                                  displayBottlePlan.fuelBottles.maltodextrinGPerBottle,
+                                fructoseG: Math.max(0, Number(e.target.value) || 0),
+                                sodiumMg:
+                                  maltoFructoseOverrideG?.sodiumMg ??
+                                  displayBottlePlan.fuelBottles.sodiumMgPerBottle,
+                              })
+                            }
+                            className={cn(fieldClass, "w-full")}
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <span className="font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
+                            Electrolitos (mg Na+)
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={10}
+                            value={
+                              maltoFructoseOverrideG?.sodiumMg ??
+                              displayBottlePlan.fuelBottles.sodiumMgPerBottle
+                            }
+                            onChange={(e) =>
+                              setMaltoFructoseOverrideG({
+                                maltodextrinG:
+                                  maltoFructoseOverrideG?.maltodextrinG ??
+                                  displayBottlePlan.fuelBottles.maltodextrinGPerBottle,
+                                fructoseG:
+                                  maltoFructoseOverrideG?.fructoseG ??
+                                  displayBottlePlan.fuelBottles.fructoseGPerBottle,
+                                sodiumMg: Math.max(0, Number(e.target.value) || 0),
+                              })
+                            }
+                            className={cn(fieldClass, "w-full")}
+                          />
+                        </label>
+                      </div>
                       {maltoFructoseOverrideG && (
                         <button
                           type="button"
                           onClick={() => setMaltoFructoseOverrideG(null)}
-                          className="cursor-pointer font-mono text-xs font-semibold text-zinc-500 transition-colors duration-150 hover:text-zinc-900 hover:underline"
+                          className="mt-2 cursor-pointer font-mono text-xs font-semibold text-zinc-500 transition-colors duration-150 hover:text-zinc-900 hover:underline"
                         >
                           Restaurar automático
                         </button>
@@ -4794,8 +4848,16 @@ export function FuelingPlanner({
                     onClick={() => setBottleConfig(opt.value)}
                     className={cn(
                       segmentedButtonClass,
+                      // "Textos Compactos en Botones de Bidones" — a
+                      // tighter horizontal padding + smaller font on mobile
+                      // than `segmentedButtonClass`'s own default (`px-1
+                      // text-xs`, already the tightest in the file) so
+                      // "Ambos Mix" reliably fits one line on a narrow
+                      // phone without ellipsis; `sm:px-3 sm:text-sm` from
+                      // the base class still wins at `sm:` and up.
+                      "px-2 text-[11px]",
                       bottleConfig === opt.value
-                        ? "border-transparent bg-[#70685b] text-white hover:bg-[#60594e]"
+                        ? "bg-[#5a5245] text-white border-[#5a5245] font-bold shadow-sm hover:bg-[#4d463b]"
                         : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
                     )}
                   >
