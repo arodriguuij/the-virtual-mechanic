@@ -2993,6 +2993,31 @@ export function FuelingPlanner({
 
   const isStep2Complete = missingFields.length === 0;
 
+  // "Scroll Suave Automático a Card 03" — the instant the athlete completes
+  // the last still-missing field (a genuine `false → true` transition of
+  // `isStep2Complete`, not just "is complete on every render," which would
+  // otherwise re-fire the scroll on every unrelated re-render while already
+  // complete), nudge the viewport down to Card 03 so the newly-unlocked
+  // targets are immediately visible without a manual scroll. `prevIsStep2CompleteRef`
+  // is a plain ref rather than state specifically so tracking it never
+  // itself triggers a re-render. The 150ms delay gives Card 03's own
+  // conditional content (the "Configuración Petición de Datos" banner
+  // unmounting, the real card content mounting) one paint to settle before
+  // `scrollIntoView` measures its position — starting the animation against
+  // a still-collapsing layout would land short of the real target.
+  const card03Ref = useRef<HTMLDivElement>(null);
+  const prevIsStep2CompleteRef = useRef(isStep2Complete);
+  useEffect(() => {
+    if (isStep2Complete && !prevIsStep2CompleteRef.current) {
+      const timer = setTimeout(() => {
+        card03Ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 150);
+      prevIsStep2CompleteRef.current = isStep2Complete;
+      return () => clearTimeout(timer);
+    }
+    prevIsStep2CompleteRef.current = isStep2Complete;
+  }, [isStep2Complete]);
+
   // "Eliminación del Botón Intermedio y Auto-Cálculo Reactivo en Card 03" —
   // whether Paso 01/02 are complete enough to calculate against at all,
   // mirroring `handleCalculate`'s own per-mode validation branches without
@@ -4220,7 +4245,7 @@ export function FuelingPlanner({
               </div>
             )}
 
-            <div className={numberedCardClass}>
+            <div ref={card03Ref} className={cn(numberedCardClass, "scroll-mt-6")}>
               <span className="mb-3 block font-mono text-xs font-semibold tracking-wider text-zinc-500">
                 03 · Metabolismo y objetivos calculados
               </span>

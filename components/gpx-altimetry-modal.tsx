@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Download, Maximize2, X, Utensils, Zap, Droplets, ShoppingBag } from "lucide-react";
+import { Download, Maximize2, X, ShoppingBag } from "lucide-react";
+
+import { GelIcon, MixSachetIcon, SolidFoodIcon, WaterIcon } from "@/components/ui/fueling-icons";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -10,7 +12,7 @@ export type TacticalPoint = {
   distanceFraction: number; // 0 to 1
   km: number;
   elevationM?: number;
-  type: "gel" | "solid" | "stop" | "water";
+  type: "gel" | "mix" | "solid" | "stop" | "water";
   title: string;
 };
 
@@ -19,6 +21,7 @@ export type MergedTacticalPoint = {
   distanceFraction: number;
   km: number;
   hasGel: boolean;
+  hasMix: boolean;
   hasSolid: boolean;
   hasStop: boolean;
   hasWater: boolean;
@@ -36,12 +39,14 @@ function consolidateTacticalPoints(points: TacticalPoint[]): MergedTacticalPoint
     if (lastCluster && Math.abs(pt.km - lastCluster.km) <= 2) {
       lastCluster.items.push(pt);
       if (pt.type === "gel") lastCluster.hasGel = true;
+      if (pt.type === "mix") lastCluster.hasMix = true;
       if (pt.type === "solid") lastCluster.hasSolid = true;
       if (pt.type === "stop") lastCluster.hasStop = true;
       if (pt.type === "water") lastCluster.hasWater = true;
 
       const parts: string[] = [];
       if (lastCluster.hasGel) parts.push("Gel");
+      if (lastCluster.hasMix) parts.push("Mix");
       if (lastCluster.hasSolid) parts.push("Sólido");
       if (lastCluster.hasStop) parts.push("Parada");
       if (lastCluster.hasWater) parts.push("Agua");
@@ -52,6 +57,7 @@ function consolidateTacticalPoints(points: TacticalPoint[]): MergedTacticalPoint
         distanceFraction: pt.distanceFraction,
         km: pt.km,
         hasGel: pt.type === "gel",
+        hasMix: pt.type === "mix",
         hasSolid: pt.type === "solid",
         hasStop: pt.type === "stop",
         hasWater: pt.type === "water",
@@ -519,12 +525,21 @@ export function GpxAltimetryModal({
         <div className="flex-1 overflow-hidden p-4 sm:p-6 bg-[#fcfbf9] [@media_(max-width:768px)_and_(orientation:portrait)]:p-2">
           <div className="w-full flex h-full flex-col gap-4">
 
-            {/* Legend */}
+            {/* Legend — "Simplificación UX masiva" / "Integración de Iconos
+                Custom" / "Reemplazo de Icono de Comida Sólida": the 4 real
+                product silhouettes (`components/ui/fueling-icons.tsx`)
+                replace lucide's generic Zap/Utensils/Droplets glyphs, each
+                paired with the same emoji+label pattern the app's own
+                pocket-food catalog already uses elsewhere. "Parada" keeps
+                `ShoppingBag` — it's a logistics stop, not a nutrition
+                product, so it was never in scope for the custom-icon
+                replacement. */}
             <div className="flex flex-wrap items-center gap-3 text-[11px] text-neutral-600 border-b border-neutral-200 pb-2">
               <span className="font-semibold text-neutral-900 uppercase">Leyenda:</span>
-              <span className="flex items-center gap-1"><Zap className="size-3.5 text-amber-600" /> Pre-Puerto (Gel 10-15m)</span>
-              <span className="flex items-center gap-1"><Utensils className="size-3.5 text-neutral-700" /> Llano (Sólidos)</span>
-              <span className="flex items-center gap-1"><Droplets className="size-3.5 text-blue-600" /> Hídrico</span>
+              <span className="flex items-center gap-1"><GelIcon className="size-3.5 text-amber-500" /> ⚡ Gel</span>
+              <span className="flex items-center gap-1"><MixSachetIcon className="size-3.5 text-sky-500" /> 🧪 Mix Bidón</span>
+              <span className="flex items-center gap-1"><SolidFoodIcon className="size-3.5 text-neutral-600" /> 🍌 Sólido / Real Food</span>
+              <span className="flex items-center gap-1"><WaterIcon className="size-3.5 text-blue-400" /> 💧 Hídrico</span>
               <span className="flex items-center gap-1"><ShoppingBag className="size-3.5 text-neutral-500" /> Parada</span>
             </div>
 
@@ -587,7 +602,18 @@ export function GpxAltimetryModal({
                   })}
                 </svg>
 
-                {/* Badge overlay (HTML, above SVG) */}
+                {/* "Simplificación UX masiva de Altimetría Táctica" — the
+                    old text-bubble badge (`Km X · Gel + Sólido`, one
+                    horizontal pill per cluster) is gone entirely, replaced
+                    by a compact vertical stack: the km label first, then
+                    each applicable product's real silhouette stacked
+                    directly beneath it, one per row, no descriptive text at
+                    all beyond the km number itself — a Mallorca 312-style
+                    "read the icons, not a sentence" tactical marker.
+                    Positioning (`leftPct`/`topPct`, the same
+                    `MIN_BADGE_TOP_PCT`/`MIN`/`MAX_BADGE_LEFT_PCT` overflow
+                    clamps, and the SVG stem above) is unchanged — only what
+                    renders *inside* the marker changed. */}
                 {staggeredPoints.map((pt) => {
                   const leftPct = Math.min(
                     MAX_BADGE_LEFT_PCT,
@@ -600,14 +626,17 @@ export function GpxAltimetryModal({
                     <div
                       key={pt.key}
                       style={{ left: `${leftPct}%`, top: `${topPct}%` }}
-                      className="absolute -translate-x-1/2 -translate-y-full flex flex-col items-center z-10 pointer-events-none"
+                      className="absolute -translate-x-1/2 -translate-y-full z-10 flex flex-col items-center gap-0.5 pointer-events-none"
                     >
-                      <div className="rounded-md border border-neutral-800 bg-neutral-900 px-1.5 py-[3px] text-[9px] font-bold text-white shadow-md flex items-center gap-1 whitespace-nowrap">
-                        {pt.hasGel   && <Zap         className="size-2.5 text-amber-400 shrink-0" />}
-                        {pt.hasSolid && <Utensils    className="size-2.5 text-neutral-200 shrink-0" />}
-                        {pt.hasStop  && <ShoppingBag className="size-2.5 text-amber-400 shrink-0" />}
-                        {pt.hasWater && <Droplets    className="size-2.5 text-blue-400 shrink-0" />}
-                        <span>Km {pt.km} · {pt.title}</span>
+                      <span className="rounded bg-neutral-900 px-1 py-px font-mono text-[10px] font-bold text-white shadow-md whitespace-nowrap">
+                        Km {pt.km}
+                      </span>
+                      <div className="flex flex-col items-center gap-0.5 rounded-md border border-neutral-200 bg-white p-1 shadow-md">
+                        {pt.hasGel && <GelIcon className="size-3.5 shrink-0 text-amber-500" />}
+                        {pt.hasMix && <MixSachetIcon className="size-3.5 shrink-0 text-sky-500" />}
+                        {pt.hasSolid && <SolidFoodIcon className="size-3.5 shrink-0 text-neutral-600" />}
+                        {pt.hasWater && <WaterIcon className="size-3.5 shrink-0 text-blue-400" />}
+                        {pt.hasStop && <ShoppingBag className="size-3.5 shrink-0 text-neutral-500" />}
                       </div>
                     </div>
                   );
