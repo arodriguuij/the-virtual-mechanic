@@ -21,6 +21,7 @@ import {
   TriangleAlert,
   Upload,
   Utensils,
+  X,
   Zap,
 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -4896,17 +4897,24 @@ export function FuelingPlanner({
               )}
               {displayBottlePlan && isEditingBottle && (
                 <div className="mt-1.5 mb-2 space-y-4 rounded-xl border border-neutral-200/80 bg-neutral-50 p-4">
-                  {/* Header del panel */}
-                  <div className="flex items-center justify-between border-b border-neutral-200/60 pb-2">
-                    <span className="font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
-                      Configuración de bidones y mezcla
-                    </span>
+                  {/* "Limpieza de Cabecera, Botón de Cierre por Icono" — the
+                      "CONFIGURACIÓN DE BIDONES Y MEZCLA" title was pure
+                      redundancy (the collapsed summary row right above this
+                      panel, and Card 04's own "Configuración de líquidos
+                      (bidones)" subsection label above that, already say
+                      what this is), and "Guardar / Cerrar" as text competed
+                      with every other bronze text-link in the panel below
+                      it. A single, minimal icon-only close button —
+                      dismissing this panel doesn't "save" anything distinct
+                      from the live client-only state it already is. */}
+                  <div className="-mt-1 -mr-1 flex justify-end">
                     <button
                       type="button"
                       onClick={() => setIsEditingBottle(false)}
-                      className="cursor-pointer font-mono text-xs font-bold text-[#5a5245] transition-colors duration-150 hover:underline"
+                      aria-label="Cerrar edición de bidón"
+                      className="cursor-pointer rounded-lg p-1 text-neutral-400 transition-colors duration-150 hover:bg-neutral-200/50 hover:text-neutral-800"
                     >
-                      Guardar / Cerrar
+                      <X className="size-4" />
                     </button>
                   </div>
 
@@ -5085,28 +5093,30 @@ export function FuelingPlanner({
                       ))}
                     </div>
                   </div>
-
-                  {/* "Tip de Eficiencia: Mix vs. Solo Agua" — purely
-                      advisory, never changes the actual recipe/bottle-plan
-                      math. Disappears the instant the athlete picks "1
-                      Mix"/"Ambos Mix" — it's a suggestion for the current
-                      selection, not a persistent warning. Now lives inside
-                      the same edit panel as the button that would actually
-                      resolve it, rather than floating below the (now-gone)
-                      always-visible button row. */}
-                  {showWaterOnlyMixTip && (
-                    <AlertBanner
-                      tone="warning"
-                      icon="💡"
-                      label="Tip de Eficiencia"
-                      className="bg-amber-100/60 p-2 text-[10px] leading-tight"
-                    >
-                      En rutas de alta exigencia o calor, cambiar{" "}
-                      <span className="underline decoration-amber-400">1 o ambos bidones</span> a Mix libera
-                      espacio en tus bolsillos y acelera la hidratación.
-                    </AlertBanner>
-                  )}
                 </div>
+              )}
+
+              {/* "Extracción de Tip en Step 4" — purely advisory, never
+                  changes the actual recipe/bottle-plan math. Disappears the
+                  instant the athlete picks "1 Mix"/"Ambos Mix" — it's a
+                  suggestion for the current selection, not a persistent
+                  warning. Deliberately outside both the collapsed summary
+                  row and the edit panel (`isEditingBottle` either way) —
+                  it's about the current `bottleConfig` selection, which is
+                  visible/readable in Estado A too, so the athlete shouldn't
+                  have to open the edit panel just to see why they're being
+                  advised to switch. */}
+              {showWaterOnlyMixTip && (
+                <AlertBanner
+                  tone="warning"
+                  icon="💡"
+                  label="Tip de Eficiencia"
+                  className="mt-3 bg-amber-50/80 p-2 text-[10px] leading-tight"
+                >
+                  En rutas de alta exigencia o calor, cambiar{" "}
+                  <span className="underline decoration-amber-400">1 o ambos bidones</span> a Mix libera
+                  espacio en tus bolsillos y acelera la hidratación.
+                </AlertBanner>
               )}
 
               <hr className="border-t border-zinc-200/70 my-6" />
