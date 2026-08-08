@@ -5059,39 +5059,48 @@ export function FuelingPlanner({
                       )}
                     </div>
                   )}
+                </div>
+              )}
 
-                  {/* Bloque 3: Uso de mezcla en bidones — short Title Case
-                      labels ("Solo Agua"/"1 Mix"/"Ambos Mix", or "Solo
-                      Agua"/"Con Mix" on a 1-cage bike) keep this legible
-                      even on a narrow phone. `athleteBottleCount === 1`
-                      (the athlete's real `athlete_profiles.bottle_count`)
-                      drops "Ambos Mix" entirely rather than showing it
-                      disabled — a second mix bottle simply doesn't fit on a
-                      1-cage bike — so the grid itself goes from 3 to 2
-                      columns to match. */}
-                  <div className="space-y-1.5 border-t border-neutral-200/60 pt-2">
-                    <span className="block font-mono text-[10px] text-neutral-500 uppercase">
-                      Uso de mezcla en bidones
-                    </span>
-                    <div className={cn("grid gap-2", bottleConfigOptions.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
-                      {bottleConfigOptions.map((opt) => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => setBottleConfig(opt.value)}
-                          className={cn(
-                            "rounded-lg py-2 font-mono text-xs transition-all",
-                            bottleConfig === opt.value
-                              ? "bg-[#5a5245] text-white font-bold shadow-sm"
-                              : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100"
-                          )}
-                        >
-                          <span className={segmentedButtonLabelClass}>
-                            {optionButtonLabel(opt.label, bottleConfig === opt.value)}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
+              {/* "Selector Directo de Mix" — Solo Agua/1 Mix/Ambos Mix used
+                  to live inside the collapsible edit panel (Bloque 3),
+                  meaning the one control an athlete adjusts on nearly every
+                  ride was hidden behind "Editar bidón." Pulled back out as
+                  its own always-visible block, sitting right below whichever
+                  of the summary row / edit panel is currently rendered —
+                  the panel itself is now scoped to just capacity + gram
+                  fine-tuning, the two things that genuinely only need
+                  occasional adjustment. Short Title Case labels ("Solo
+                  Agua"/"1 Mix"/"Ambos Mix", or "Solo Agua"/"Con Mix" on a
+                  1-cage bike) keep this legible even on a narrow phone.
+                  `athleteBottleCount === 1` (the athlete's real
+                  `athlete_profiles.bottle_count`) drops "Ambos Mix"
+                  entirely rather than showing it disabled — a second mix
+                  bottle simply doesn't fit on a 1-cage bike — so the grid
+                  itself goes from 3 to 2 columns to match. */}
+              {displayBottlePlan && (
+                <div className="mt-3 space-y-1.5">
+                  <span className="block font-mono text-[10px] text-neutral-500 uppercase">
+                    Uso de mezcla en bidones
+                  </span>
+                  <div className={cn("grid gap-2", bottleConfigOptions.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
+                    {bottleConfigOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setBottleConfig(opt.value)}
+                        className={cn(
+                          "rounded-lg py-2 font-mono text-xs transition-all",
+                          bottleConfig === opt.value
+                            ? "bg-[#5a5245] text-white font-bold shadow-sm"
+                            : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100"
+                        )}
+                      >
+                        <span className={segmentedButtonLabelClass}>
+                          {optionButtonLabel(opt.label, bottleConfig === opt.value)}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
