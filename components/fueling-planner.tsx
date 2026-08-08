@@ -34,6 +34,7 @@ import { parseGpxFile, type ParsedGpxRoute } from "@/lib/gpx-import";
 import { decodePolyline } from "@/lib/polyline";
 import { refreshStravaRoutes } from "@/lib/strava-actions";
 import { GpxAltimetryPreview, type TacticalPoint } from "@/components/gpx-altimetry-modal";
+import { calculateRideEnergyExpenditure, type IntensityZone } from "@/lib/kcal-calculator";
 import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
 import { InfoTooltip } from "@/components/info-tooltip";
@@ -470,6 +471,33 @@ const routeModeOptionInactiveClass = "text-neutral-600 hover:bg-neutral-200/50 h
 // shared token reused by many other field labels across this file) —
 // scoped locally rather than touching that shared class.
 const card04SubsectionLabelClass = "text-[10px] font-mono text-neutral-400 uppercase tracking-widest";
+
+// "Gasto Calórico y Eliminación de Divisor en Modo Manual" — `lib/kcal-
+// calculator.ts`'s `calculateRideEnergyExpenditure` only models 4 coarse
+// zones (Z1-Z4), while this app's own `IntensityLevel` (`lib/metabolic-
+// engine.ts`) has grown to 6 (recovery/endurance/tempo/threshold/vo2max/
+// competition, see "Prompt de Unificación..." for the most recent addition)
+// — this maps the finer real scale down onto the calculator's coarser one,
+// folding the three hardest zones (threshold/vo2max/competition) into Z4
+// since none of them meaningfully change the calculator's own W/kg-based
+// Method B estimate at that intensity. `""` (no zone picked yet) defaults
+// to Z2, matching `ZONE_FTP_MULTIPLIERS`' own internal `?? .Z2` fallback.
+function intensityLevelToZone(level: IntensityLevel | ""): IntensityZone {
+  switch (level) {
+    case "recovery":
+      return "Z1";
+    case "endurance":
+      return "Z2";
+    case "tempo":
+      return "Z3";
+    case "threshold":
+    case "vo2max":
+    case "competition":
+      return "Z4";
+    default:
+      return "Z2";
+  }
+}
 // "Estandarización de Botones de Opción" — Card 02's own three option-button
 // groups (Paradas previstas, Nivel de carga previa, Última ingesta
 // pre-salida) keep their own `font-mono text-xs` treatment forced at every
@@ -2003,8 +2031,13 @@ export function FuelingPlanner({
 
   const [commercialProductsSheetOpen, setCommercialProductsSheetOpen] = useState(false);
   const fuelingMode: FuelingMode = "inventory";
-  const [bottleCapacityEditorOpen, setBottleCapacityEditorOpen] = useState(false);
-  const [maltoFructoseEditorOpen, setMaltoFructoseEditorOpen] = useState(false);
+  // "Unificación de Acción 'Editar bidón'" — the two independent toggles
+  // this used to be (`bottleCapacityEditorOpen` for the ml quick-picker,
+  // `maltoFructoseEditorOpen` for the Modo Experto malto/fructosa/sodio
+  // grid) collapsed into one, so a single "Editar bidón" button opens both
+  // panels together instead of two separately-labeled links each covering
+  // half the bottle's own configuration.
+  const [isEditingBottle, setIsEditingBottle] = useState(false);
   const [showBikeScoops, setShowBikeScoops] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2401,6 +2434,38 @@ export function FuelingPlanner({
   // need one too.
   const totalFluidMl = result ? Math.round(result.fluidLossMlPerHour * result.durationHours) : 0;
   const totalSodiumMg = result ? Math.round(result.sodiumMgPerHour * result.durationHours) : 0;
+
+  // "Gasto Calórico y Eliminación de Divisor en Modo Manual" — replaces
+  // Card 03's old first tile (Duración, already shown as "Xh Ym (estimado)"
+  // right below the departure picker in Card 02, so it was genuinely
+  // redundant here). Pure client-side estimate, no server round-trip —
+  // `weightKg`/`ftp` are this component's own props (guaranteed real by the
+  // time it renders, per the mandatory-profile-completion navigation
+  // guard), `result.durationHours` is the same real duration every other
+  // Card 03 tile already reads. `distanceKm`/`elevationGainMeters` default
+  // to 0 in Entreno Manual (no route at all) — `calculateRideEnergyExpenditure`
+  // already treats that as "skip the gradient correction," not an error.
+  const calculatedKcal = useMemo(() => {
+    if (!result) return null;
+    // `selectedRoute`/`parsedGpx` aren't cleared on a mode switch (only the
+    // per-mode fields "Aislamiento Total de Estado de Logística" actually
+    // isolates are), so reading them unconditionally here would silently
+    // keep applying a stale route's gradient correction even after
+    // switching to Entreno Manual, which has no route/distance/elevation of
+    // its own at all. Gated by `mode` explicitly instead, same pattern
+    // `mapClimbsCount` above already uses for the same underlying problem.
+    const distanceKm = mode === "quick" ? 0 : (selectedRoute?.distanceKm ?? parsedGpx?.distanceKm ?? 0);
+    const elevationGainMeters =
+      mode === "quick" ? 0 : (selectedRoute?.elevationGainM ?? parsedGpx?.elevationGainM ?? 0);
+    return calculateRideEnergyExpenditure({
+      weightKg,
+      ftpWatts: ftp,
+      intensityZone: intensityLevelToZone(intensity),
+      durationHours: result.durationHours,
+      elevationGainMeters,
+      distanceKm,
+    });
+  }, [result, weightKg, ftp, intensity, mode, selectedRoute, parsedGpx]);
 
   // "Micro-Edición In-Situ de Capacidad de Bidón" — whenever the athlete
   // overrides the bottle size for this one preview, `getBottlePlan` (the
@@ -3066,9 +3131,8 @@ export function FuelingPlanner({
 
       setIsOfflineCache(false);
       setBottleCapacityOverrideMl(null);
-      setBottleCapacityEditorOpen(false);
+      setIsEditingBottle(false);
       setMaltoFructoseOverrideG(null);
-      setMaltoFructoseEditorOpen(false);
       setShowBikeScoops(false);
       // A brand-new `result` has no manifest generated against it yet —
       // see `isManifestGenerated`'s own doc comment above.
@@ -4453,9 +4517,13 @@ export function FuelingPlanner({
                 <>
               <div className="grid grid-cols-2 gap-3 *:min-w-0 lg:grid-cols-4">
                 <div className="flex flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none">
-                  <span className="font-mono text-[11px] text-zinc-500">Duración</span>
+                  <span className="font-mono text-[11px] text-zinc-500">Gasto Calórico</span>
                   <span className="font-sans text-2xl font-bold text-zinc-900 tabular-nums">
-                    {formatHoursMinutes(result.durationHours)}
+                    {calculatedKcal?.totalKcal ?? 0}
+                    <span className="ml-1 text-xs font-normal text-zinc-500">kcal</span>
+                  </span>
+                  <span className="font-mono text-[11px] text-zinc-500">
+                    Tasa: {calculatedKcal?.hourlyKcal ?? 0} kcal/h
                   </span>
                   <MetricAccentLine />
                 </div>
@@ -4497,8 +4565,14 @@ export function FuelingPlanner({
                 </div>
               </div>
 
-              {/* Línea separadora */}
-              <hr className="my-6 border-t border-zinc-200/80" />
+              {/* Línea separadora — oculta en Entreno Manual: sin ese modo
+                  el bloque de Impacto Térmico no se muestra (ver
+                  "Ocultación Condicional de Impacto Térmico en Modo
+                  Manual"), así que un divisor fijo aquí dejaba la tarjeta
+                  cortada por una línea inferior sin nada relevante que
+                  separar debajo en el caso más común (una ruta corta sin
+                  avisos). */}
+              {mode !== "quick" && <hr className="my-6 border-t border-zinc-200/80" />}
 
               {/* Caso Límite: Ruta Corta (<60 min) */}
               {result.durationHours < 1 && !result.trainLow && (
@@ -4780,18 +4854,18 @@ export function FuelingPlanner({
               <hr className="border-t border-zinc-200/70 my-6" />
 
               <span className={card04SubsectionLabelClass}>Configuración de líquidos (bidones)</span>
-              {/* "Consolidación de Información de Bidones" — capacity and
-                  (in Modo Experto) the per-bottle malto/fructosa/sodio split
-                  used to sit on two separate labeled rows; now one clean
-                  status line, both edit actions ("Cambiar"/"Ajuste fino")
-                  trailing it — "Rediseño UX, Simplificación y Compactación
-                  de la Card 04". Display-only preview of a different bottle
-                  size than the athlete's saved profile, re-scaling the
+              {/* "Unificación de Acción 'Editar bidón'" — capacity and (in
+                  Modo Experto) the per-bottle malto/fructosa/sodio split
+                  used to sit on one status line with two separate edit
+                  links ("Cambiar"/"Ajuste fino"); now one status line, one
+                  "Editar bidón" action opening both panels below it
+                  together. Display-only preview of a different bottle size
+                  than the athlete's saved profile, re-scaling the
                   per-bottle grams (and the reload-strategy Ziploc bag dose)
                   everywhere below with zero server round-trip (see
                   `displayBottlePlan`). */}
               {displayBottlePlan && (
-                <div className="mt-1.5 mb-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[11px] text-zinc-500">
+                <div className="mt-1.5 mb-2 flex flex-wrap items-center justify-between gap-x-1.5 gap-y-1 font-mono text-[11px] text-zinc-500">
                   <span>
                     Bidón: <span className="font-semibold text-zinc-900">{displayBottlePlan.bottleSizeMl}ml</span>
                     {experienceMode === "advanced" && (
@@ -4806,34 +4880,21 @@ export function FuelingPlanner({
                   </span>
                   <button
                     type="button"
-                    onClick={() => setBottleCapacityEditorOpen((v) => !v)}
-                    className="flex cursor-pointer items-center gap-1 font-mono text-xs font-semibold text-[#70685b] transition-colors duration-150 hover:text-[#585248] hover:underline"
+                    onClick={() => setIsEditingBottle((v) => !v)}
+                    className="flex cursor-pointer items-center gap-1 font-mono text-xs font-bold text-[#5a5245] underline transition-colors duration-150 hover:text-neutral-900"
                   >
                     <Pencil className="size-3" />
-                    Cambiar
+                    Editar bidón
                   </button>
-                  {experienceMode === "advanced" && (
-                    <button
-                      type="button"
-                      onClick={() => setMaltoFructoseEditorOpen((v) => !v)}
-                      className="flex cursor-pointer items-center gap-1 font-mono text-xs font-semibold text-[#70685b] transition-colors duration-150 hover:text-[#585248] hover:underline"
-                    >
-                      <Pencil className="size-3" />
-                      Ajuste fino
-                    </button>
-                  )}
                 </div>
               )}
-              {bottleCapacityEditorOpen && (
+              {isEditingBottle && (
                 <div className="mb-3 flex flex-wrap gap-1.5">
                   {BOTTLE_CAPACITY_QUICK_OPTIONS.map((ml) => (
                     <button
                       key={ml}
                       type="button"
-                      onClick={() => {
-                        setBottleCapacityOverrideMl(ml);
-                        setBottleCapacityEditorOpen(false);
-                      }}
+                      onClick={() => setBottleCapacityOverrideMl(ml)}
                       className={cn(
                         "rounded-sm border px-2.5 py-1 font-mono text-[11px] font-semibold shadow-none transition-colors duration-150",
                         displayBottlePlan?.bottleSizeMl === ml
@@ -4855,10 +4916,10 @@ export function FuelingPlanner({
                   the two combine). Standard mode never sees this — a
                   precise 1:0.8-style gram tweak is exactly the kind of
                   tactical detail Paso 02's own Carga Previa module is
-                  already scoped to Modo Experto for. The "Ajuste fino"
-                  toggle button now lives in the consolidated bidón status
-                  line above ("Consolidación de Información de Bidones") —
-                  this block is just the editor itself now. A 3er campo (mg
+                  already scoped to Modo Experto for. Opens together with
+                  the capacity quick-picker above under the one shared
+                  "Editar bidón" toggle (`isEditingBottle`) now — see
+                  "Unificación de Acción 'Editar bidón'". A 3er campo (mg
                   Na+ por bidón) joins Maltodextrina/Fructosa in the same
                   grid, `grid-cols-3` at every breakpoint since all 3 are
                   compact numeric fields that fit a narrow phone row just as
@@ -4868,11 +4929,24 @@ export function FuelingPlanner({
                   `getBottleSodiumContributionMg` already reads for Card
                   04/05's sodium balance — no separate sync code needed,
                   this *is* the sync. */}
-              {experienceMode === "advanced" && maltoFructoseEditorOpen && displayBottlePlan && (
+              {experienceMode === "advanced" && isEditingBottle && displayBottlePlan && (
                     <div className="mb-3 rounded-lg bg-zinc-50 p-3">
-                      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                      {/* "Corrección de Alineación del Grid (3 Columnas)" —
+                          only the Electrolitos column carries a helper line
+                          below its input (the Evolytes-gram equivalence);
+                          `items-start` (rather than the grid default,
+                          `stretch`) keeps every column's own height purely a
+                          function of its own content instead of all 3
+                          stretching to match the tallest, so the label/input
+                          pair lines up at the exact same y-position in all 3
+                          columns regardless of which one has extra text
+                          hanging below it. Each label also gets a fixed `h-4`
+                          so a future longer label can't reintroduce the same
+                          misalignment by wrapping onto 2 lines in one column
+                          only. */}
+                      <div className="grid grid-cols-3 items-start gap-2 sm:gap-3">
                         <label className="flex flex-col gap-1">
-                          <span className="font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
+                          <span className="h-4 font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
                             Maltodextrina (g)
                           </span>
                           <input
@@ -4898,7 +4972,7 @@ export function FuelingPlanner({
                           />
                         </label>
                         <label className="flex flex-col gap-1">
-                          <span className="font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
+                          <span className="h-4 font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
                             Fructosa (g)
                           </span>
                           <input
@@ -4924,7 +4998,7 @@ export function FuelingPlanner({
                           />
                         </label>
                         <label className="flex flex-col gap-1">
-                          <span className="font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
+                          <span className="h-4 font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
                             Electrolitos (mg Na+)
                           </span>
                           <input
@@ -4945,16 +5019,22 @@ export function FuelingPlanner({
                             }
                             className={cn(fieldClass, "w-full")}
                           />
-                          {/* "Helper de Conversión de Sodio a Gramos de Sal
-                              Físicos" — the mg Na+ figure above is a pure
-                              metabolic target with nothing to weigh it
-                              against on a kitchen scale; reuses the same
-                              `getTableSaltGrams()` (~39.3% NaCl-by-weight
-                              conversion) every other sodium→salt readout in
-                              this file already relies on, rather than a
-                              second, slightly-different formula. */}
+                          {/* "Equivalencia en Gramos de Evolytes" — the mg
+                              Na+ figure above is a pure metabolic target
+                              with nothing to weigh it against on a kitchen
+                              scale; converts via the same official
+                              `EVOLYTES_SODIUM_MG_PER_G` (280mg Na+/g) ratio
+                              every other Evolytes-gram readout in this file
+                              already uses (the DIY-recipe reload-strategy
+                              suggestion, the deficit-to-capsules banner) —
+                              not the sal/NaCl conversion `getTableSaltGrams`
+                              provides elsewhere, which is a different real
+                              product with its own real ratio; showing two
+                              different "grams of Evolytes" figures for the
+                              same mg Na+ input would be a real
+                              inconsistency, not just a wording change. */}
                           <span className="mt-0.5 font-mono text-[10px] text-zinc-400">
-                            ≈ {getTableSaltGrams(editorSodiumMg).toFixed(1)}g de sal (NaCl)
+                            ≈ {(editorSodiumMg / EVOLYTES_SODIUM_MG_PER_G).toFixed(1)}g de Evolytes
                           </span>
                         </label>
                       </div>
