@@ -98,7 +98,7 @@ function sanitizeMountainPasses(input: unknown): MountainPass[] {
   if (!Array.isArray(input)) return [];
   return input
     .filter(
-      (p): p is { distanceFraction: number; elevationM: number; gainM?: number } =>
+      (p): p is { distanceFraction: number; elevationM: number; gainM?: number; baseDistanceFraction?: number } =>
         p &&
         typeof p === "object" &&
         typeof p.distanceFraction === "number" &&
@@ -108,6 +108,15 @@ function sanitizeMountainPasses(input: unknown): MountainPass[] {
       distanceFraction: Math.max(0, Math.min(1, p.distanceFraction)),
       elevationM: p.elevationM,
       gainM: typeof p.gainM === "number" ? p.gainM : 0,
+      // A GPX upload's own `detectMountainPasses()` call (`lib/gpx-import.ts`)
+      // always includes this now, but an older cached client bundle could
+      // still send a pass without it — fall back to the peak's own fraction
+      // (a "0 minutes before the base" placement) rather than crashing on a
+      // missing field.
+      baseDistanceFraction:
+        typeof p.baseDistanceFraction === "number"
+          ? Math.max(0, Math.min(1, p.baseDistanceFraction))
+          : Math.max(0, Math.min(1, p.distanceFraction)),
     }));
 }
 
@@ -766,6 +775,11 @@ export async function POST(request: NextRequest) {
     peakFraction: peakFractionForTimeline,
     bottleCapacityMl: athleteProfile.bottle_capacity_ml,
     mountainPasses,
+    // "Reglas Tácticas de Terreno" — the same full elevation profile used
+    // for the weather sample / mountain-pass detection above, now also
+    // driving gradient-aware solid/gel/descent placement inside the
+    // timeline itself.
+    elevationProfile: elevationProfile.length > 0 ? elevationProfile : null,
   });
   // "Sensibilidad a Cafeína e Horario Nocturno" — an arrival at/after 18:30
   // local drops every caffeine milestone the timeline above just scheduled,

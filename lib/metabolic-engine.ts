@@ -872,6 +872,13 @@ export type MountainPass = {
   elevationM: number;
   /** Cumulative climb (m) from the preceding valley/base to this summit. */
   gainM: number;
+  /** Where the climb itself actually starts (the valley/base point's own
+   * `distanceFraction`) — distinct from `distanceFraction` above, which is
+   * the *summit*. `generateTimingTimeline`'s "Pre-Puerto" gel placement
+   * times its dose against this point (10-15 min *before the base*, not
+   * before the peak), matching how a rider actually fuels — ahead of the
+   * effort starting, not ahead of finishing it. */
+  baseDistanceFraction: number;
 };
 
 /**
@@ -891,6 +898,7 @@ export function detectMountainPasses(
   const passes: MountainPass[] = [];
 
   let baseElevation = profile[0].elevationM;
+  let baseIndex = 0;
   let peakElevation = profile[0].elevationM;
   let peakIndex = 0;
 
@@ -907,14 +915,17 @@ export function detectMountainPasses(
           distanceFraction: profile[peakIndex].distanceFraction,
           elevationM: Math.round(peakElevation),
           gainM: Math.round(peakElevation - baseElevation),
+          baseDistanceFraction: profile[baseIndex].distanceFraction,
         });
       }
       // Start tracking the next climb from this newly-confirmed descent.
       baseElevation = elevationM;
+      baseIndex = i;
       peakElevation = elevationM;
       peakIndex = i;
     } else if (elevationM < baseElevation) {
       baseElevation = elevationM;
+      baseIndex = i;
     }
   }
 
@@ -934,20 +945,120 @@ export type TimingTimeline = {
   entries: TimingTimelineEntry[];
 };
 
+// "Reglas Tácticas de Terreno" — real per-segment gradient, computed from
+// the same elevation profile `detectMountainPasses` already reads, so
+// solid food never gets scheduled on a climb and *no* intake (solid, gel,
+// or caffeine) ever lands mid-descent. Heuristic, same convention as the
+// rest of this file: two consecutive profile points and a straight-line
+// gradient between them, not a true slope-smoothed analysis.
+type GradientSegment = { startFraction: number; endFraction: number; gradientPct: number };
+
+// "Sólidos... pendiente < 3%" — the ceiling below which a segment counts as
+// flat enough for solid food.
+const FLAT_GRADIENT_MAX_PCT = 3;
+// "Bloqueo bajadas (<-3%)" — the floor below which a segment counts as a
+// genuine descent, blocking *any* intake type.
+const DESCENT_GRADIENT_MAX_PCT = -3;
+// "Geles Tácticos... 10-15 minutos antes de la base del puerto."
+const PRE_CLIMB_LEAD_MIN_MINUTES = 10;
+const PRE_CLIMB_LEAD_MAX_MINUTES = 15;
+
+function computeGradientSegments(
+  profile: { distanceFraction: number; elevationM: number }[] | null,
+  distanceKm: number | null
+): GradientSegment[] {
+  if (!profile || profile.length < 2 || !distanceKm || distanceKm <= 0) return [];
+  const segments: GradientSegment[] = [];
+  for (let i = 0; i < profile.length - 1; i++) {
+    const a = profile[i];
+    const b = profile[i + 1];
+    const segmentDistanceM = (b.distanceFraction - a.distanceFraction) * distanceKm * 1000;
+    if (segmentDistanceM <= 0) continue;
+    segments.push({
+      startFraction: a.distanceFraction,
+      endFraction: b.distanceFraction,
+      gradientPct: ((b.elevationM - a.elevationM) / segmentDistanceM) * 100,
+    });
+  }
+  return segments;
+}
+
+function segmentAt(segments: GradientSegment[], fraction: number): GradientSegment | null {
+  for (const seg of segments) {
+    if (fraction >= seg.startFraction && fraction <= seg.endFraction) return seg;
+  }
+  return segments.length > 0 ? segments[segments.length - 1] : null;
+}
+
+function isDescentSegment(seg: GradientSegment | null): boolean {
+  return seg != null && seg.gradientPct <= DESCENT_GRADIENT_MAX_PCT;
+}
+
+function isFlatSegment(seg: GradientSegment | null): boolean {
+  return seg == null || (seg.gradientPct > DESCENT_GRADIENT_MAX_PCT && seg.gradientPct < FLAT_GRADIENT_MAX_PCT);
+}
+
+/** "Bloqueo Total en Bajada" — nudges a fraction that lands mid-descent
+ * forward to that segment's own end (safer to eat once the road flattens
+ * back out than mid-descent). Applied to *every* timing entry regardless of
+ * type via `makeTimingEntry` below — a no-op whenever there's no elevation
+ * profile to check against, or the fraction isn't on a descent already. */
+function avoidDescent(fraction: number, segments: GradientSegment[]): number {
+  if (segments.length === 0) return fraction;
+  let current = segmentAt(segments, fraction);
+  let adjusted = fraction;
+  let guard = 0;
+  while (isDescentSegment(current) && guard < segments.length) {
+    adjusted = current!.endFraction;
+    current = segmentAt(segments, adjusted);
+    guard++;
+  }
+  return Math.min(1, adjusted);
+}
+
+/** "Sólidos Exclusivamente en Llano" — snaps a proposed fraction to the
+ * nearest flat segment (gradient strictly between the descent and climb
+ * thresholds) anywhere on the route, since the rule is an absolute
+ * prohibition ("Prohibido colocar sólidos en ascensiones..."), not a soft
+ * preference for staying close to the original early-ride target. Falls
+ * back to the original, unadjusted fraction only if the route genuinely has
+ * no flat segment at all (e.g. a route that's a constant climb) — better to
+ * still schedule the intake somewhere than silently drop it. */
+function nearestFlatFraction(fraction: number, segments: GradientSegment[]): number {
+  if (segments.length === 0) return fraction;
+  if (isFlatSegment(segmentAt(segments, fraction))) return fraction;
+
+  let best: GradientSegment | null = null;
+  let bestDistance = Infinity;
+  for (const seg of segments) {
+    if (!isFlatSegment(seg)) continue;
+    const mid = (seg.startFraction + seg.endFraction) / 2;
+    const distance = Math.abs(mid - fraction);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = seg;
+    }
+  }
+  if (!best) return fraction;
+  return Math.max(0, Math.min(1, (best.startFraction + best.endFraction) / 2));
+}
+
 function makeTimingEntry(
   type: TimingTimelineEntry["type"],
   label: string,
   fraction: number,
   durationHours: number,
-  distanceKm: number | null
+  distanceKm: number | null,
+  gradientSegments: GradientSegment[] = []
 ): TimingTimelineEntry {
   const clamped = Math.max(0, Math.min(1, fraction));
+  const safeFraction = avoidDescent(clamped, gradientSegments);
   return {
     type,
     label,
-    atFractionOfRide: Math.round(clamped * 100) / 100,
-    atMinutes: Math.round(clamped * durationHours * 60),
-    atKm: distanceKm != null ? Math.round(distanceKm * clamped * 10) / 10 : null,
+    atFractionOfRide: Math.round(safeFraction * 100) / 100,
+    atMinutes: Math.round(safeFraction * durationHours * 60),
+    atKm: distanceKm != null ? Math.round(distanceKm * safeFraction * 10) / 10 : null,
   };
 }
 
@@ -973,6 +1084,7 @@ export function generateTimingTimeline({
   peakFraction = null,
   bottleCapacityMl = DEFAULT_HYDRATION_BOTTLE_ML,
   mountainPasses = null,
+  elevationProfile = null,
 }: {
   selection: PocketFoodSelection;
   durationHours: number;
@@ -987,9 +1099,19 @@ export function generateTimingTimeline({
    * detected (`detectMountainPasses`) and the ride is long enough
    * (`MULTI_PASS_CAFFEINE_MIN_DURATION_HOURS`), caffeine is fractioned into
    * two ~100mg doses (before the first pass, before the final pass) instead
-   * of the usual single late-ride dose. */
+   * of the usual single late-ride dose. Also what "Geles Tácticos" below
+   * times its own Pre-Puerto placement against (`baseDistanceFraction`),
+   * once at least one pass exists. */
   mountainPasses?: MountainPass[] | null;
+  /** "Reglas Tácticas de Terreno" — the same real elevation profile
+   * `detectMountainPasses` reads, used here to build per-segment gradients
+   * (`computeGradientSegments`) so solid food only ever lands on a flat
+   * stretch and no intake type lands mid-descent. `null` (quick-calculator
+   * mode, no route geometry at all) degrades gracefully to the old
+   * duration-fraction-only placement. */
+  elevationProfile?: { distanceFraction: number; elevationM: number }[] | null;
 }): TimingTimeline {
+  const gradientSegments = computeGradientSegments(elevationProfile, distanceKm);
   const { customCarbsG, includeCaffeine, ...items } = selection;
   const solidTypes = new Set<PocketFoodItemType>([
     "soda",
@@ -1016,15 +1138,39 @@ export function generateTimingTimeline({
 
   const entries: TimingTimelineEntry[] = [];
 
+  // "Sólidos Exclusivamente en Llano" — the old early-ride target fraction
+  // is now just a *starting guess*; `nearestFlatFraction` is what actually
+  // decides where it lands, snapping it off any climb/steep-descent segment
+  // onto the closest real flat stretch.
   solidLabels.forEach((label, i) => {
-    const fraction = (SOLID_FOOD_MAX_FRACTION * (i + 1)) / (solidLabels.length + 1);
-    entries.push(makeTimingEntry("solid", label, fraction, durationHours, distanceKm));
+    const targetFraction = (SOLID_FOOD_MAX_FRACTION * (i + 1)) / (solidLabels.length + 1);
+    const flatFraction = nearestFlatFraction(targetFraction, gradientSegments);
+    entries.push(makeTimingEntry("solid", label, flatFraction, durationHours, distanceKm, gradientSegments));
   });
 
-  gelLabels.forEach((label, i) => {
-    const fraction = 0.5 + (0.45 * (i + 1)) / (gelLabels.length + 1);
-    entries.push(makeTimingEntry("gel", label, fraction, durationHours, distanceKm));
-  });
+  // "Geles Tácticos... Pre-Puerto" — once at least one real climb is
+  // detected, gels are timed 10-15 minutes before each pass's own base
+  // (not its summit), cycling through the detected passes if there are more
+  // gels than climbs and alternating the 10/15-minute lead on repeat visits
+  // to the same pass so two gels timed against one climb don't collapse
+  // onto the exact same minute. No detected climb (a flat route, or
+  // Entreno Manual with no route geometry at all) falls back to the
+  // original 50-95%-of-ride spread.
+  if (mountainPasses && mountainPasses.length > 0) {
+    gelLabels.forEach((label, i) => {
+      const pass = mountainPasses[i % mountainPasses.length];
+      const usesMaxLead = Math.floor(i / mountainPasses.length) % 2 === 1;
+      const leadMinutes = usesMaxLead ? PRE_CLIMB_LEAD_MAX_MINUTES : PRE_CLIMB_LEAD_MIN_MINUTES;
+      const leadFraction = durationHours > 0 ? leadMinutes / 60 / durationHours : 0;
+      const fraction = Math.max(0, pass.baseDistanceFraction - leadFraction);
+      entries.push(makeTimingEntry("gel", label, fraction, durationHours, distanceKm, gradientSegments));
+    });
+  } else {
+    gelLabels.forEach((label, i) => {
+      const fraction = 0.5 + (0.45 * (i + 1)) / (gelLabels.length + 1);
+      entries.push(makeTimingEntry("gel", label, fraction, durationHours, distanceKm, gradientSegments));
+    });
+  }
 
   // Caffeine is never scheduled on its own — it's a modifier on whatever
   // gel/food the athlete actually ticked "Incluye cafeína" for (see
@@ -1050,7 +1196,8 @@ export function generateTimingTimeline({
           "Cafeína (~100mg) — antes del Puerto 1",
           Math.max(0.05, firstPass.distanceFraction - leadFraction),
           durationHours,
-          distanceKm
+          distanceKm,
+          gradientSegments
         )
       );
       entries.push(
@@ -1059,7 +1206,8 @@ export function generateTimingTimeline({
           "Cafeína (~100mg) — antes del puerto final",
           Math.max(CAFFEINE_WINDOW_START_FRACTION, lastPass.distanceFraction - leadFraction),
           durationHours,
-          distanceKm
+          distanceKm,
+          gradientSegments
         )
       );
     } else {
@@ -1074,7 +1222,14 @@ export function generateTimingTimeline({
         ? Math.max(CAFFEINE_WINDOW_START_FRACTION, peakFraction - leadFraction)
         : Math.max(CAFFEINE_WINDOW_START_FRACTION, 1 - leadFraction);
       entries.push(
-        makeTimingEntry("caffeine", "Toma de cafeína (~100-200mg)", fraction, durationHours, distanceKm)
+        makeTimingEntry(
+          "caffeine",
+          "Toma de cafeína (~100-200mg)",
+          fraction,
+          durationHours,
+          distanceKm,
+          gradientSegments
+        )
       );
     }
   }

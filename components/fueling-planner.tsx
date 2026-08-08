@@ -34,7 +34,7 @@ import { parseGpxFile, type ParsedGpxRoute } from "@/lib/gpx-import";
 import { decodePolyline } from "@/lib/polyline";
 import { refreshStravaRoutes } from "@/lib/strava-actions";
 import { ElevationSparkline } from "@/components/elevation-sparkline";
-import { GpxAltimetryPreview } from "@/components/gpx-altimetry-modal";
+import { GpxAltimetryPreview, type TacticalPoint } from "@/components/gpx-altimetry-modal";
 import { WeatherImpactCard } from "@/components/weather-impact-card";
 import { FuelingContextTooltips } from "@/components/fueling-context-tooltip";
 import { InfoTooltip } from "@/components/info-tooltip";
@@ -152,6 +152,39 @@ function spreadFractions(count: number, start: number, end: number): number[] {
   if (count <= 1) return [(start + end) / 2];
   const step = (end - start) / (count - 1);
   return Array.from({ length: count }, (_, i) => start + step * i);
+}
+
+/** "Renderizado Obligatorio de Paradas/Avituallamiento" — snaps a computed
+ * "you'll run dry here" fraction onto the nearest real valley or summit in
+ * the route's own elevation profile, since that's realistically where a
+ * fountain/gasolinera/bar stop actually exists — not a mid-slope point with
+ * nothing around it. A local extremum is any point whose elevation is a
+ * local min or max against its immediate neighbors; this deliberately
+ * doesn't attempt to detect real urban areas (no data source for that on
+ * the client), so it only ever snaps to a genuine valley or peak, never a
+ * fabricated "zona urbana." Falls back to the unadjusted fraction if the
+ * profile is too short to have any real extrema. */
+function nearestValleyOrPeakFraction(
+  targetFraction: number,
+  profile: { distanceFraction: number; elevationM: number }[] | null
+): number {
+  if (!profile || profile.length < 3) return targetFraction;
+  let best = targetFraction;
+  let bestDistance = Infinity;
+  for (let i = 1; i < profile.length - 1; i++) {
+    const prevEl = profile[i - 1].elevationM;
+    const currEl = profile[i].elevationM;
+    const nextEl = profile[i + 1].elevationM;
+    const isValley = currEl <= prevEl && currEl <= nextEl;
+    const isPeak = currEl >= prevEl && currEl >= nextEl;
+    if (!isValley && !isPeak) continue;
+    const distance = Math.abs(profile[i].distanceFraction - targetFraction);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = profile[i].distanceFraction;
+    }
+  }
+  return best;
 }
 
 // "Limpieza de Despensa Genérica" — the 4 generic gel dose tiers
@@ -428,7 +461,30 @@ const card02OptionButtonBaseClass =
 const card02OptionButtonActiveClass =
   "border-[#5a5245] bg-[#5a5245] text-white font-bold shadow-sm hover:bg-[#4d463b]";
 const card02OptionButtonInactiveClass =
-  "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50";
+  "border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 hover:border-neutral-300";
+/** "Contraste Inequívoco en Botones de Opción" — a clean `✓ ` prefix on the
+ * active option's own label is the only extra ink this pass allows itself;
+ * no separate badge, no border-color-alone distinction. Every Card 02
+ * option-button group (Paradas previstas, Hoy/Mañana/Elegir fecha, Nivel de
+ * carga previa, Última ingesta pre-salida) renders its label through this
+ * so the checkmark can never drift out of sync between groups. */
+function optionButtonLabel(label: string, isActive: boolean): string {
+  return isActive ? `✓ ${label}` : label;
+}
+/** "Dropdowns y Selects Discretos" — the Ruta/Intensidad selects (the two
+ * genuinely optional-until-chosen `<select>`s in Card 01/02) get a
+ * value-aware treatment layered on top of the shared `selectableFieldClass`
+ * token via `cn()` — a muted, italic placeholder state before anything's
+ * picked, a crisper filled state once a real value lands. Scoped to these
+ * two call sites only, not a change to `selectableFieldClass` itself, which
+ * every other `<select>` in the app (the Physiological Profile form, the
+ * departure-hour picker that's never genuinely "empty") still uses
+ * unstyled-by-value. */
+function emptyAwareSelectClass(isEmpty: boolean): string {
+  return isEmpty
+    ? "border-neutral-200 bg-neutral-50/80 font-mono text-xs text-neutral-400 italic"
+    : "border-neutral-400 bg-white font-mono text-xs font-medium text-neutral-900";
+}
 // "Jerarquía de Color: Selectores vs. Acción Principal" — every selector/
 // toggle (Card 01's mode toggle, Card 02's date/paradas pills, Card 04's
 // bottle selectors) shares one Taupe/Bronce Apagado (`#70685b`, hover
@@ -603,6 +659,7 @@ function IntensityObjectiveSelect({
           disabled={disabled}
           className={cn(
             selectableInputClass,
+            emptyAwareSelectClass(value === ""),
             error && "border-2 border-amber-400 bg-amber-50/20",
             disabled && "cursor-not-allowed opacity-60"
           )}
@@ -1253,14 +1310,14 @@ function DeparturePicker({
             disabled={disabled}
             onClick={() => onDayModeChange(opt.value)}
             className={cn(
-              segmentedButtonClass,
-              dayMode === opt.value
-                ? "bg-[#5a5245] text-white border-[#5a5245] font-bold shadow-sm hover:bg-[#4d463b]"
-                : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
+              card02OptionButtonBaseClass,
+              dayMode === opt.value ? card02OptionButtonActiveClass : card02OptionButtonInactiveClass,
               disabled && "cursor-not-allowed opacity-60"
             )}
           >
-            <span className={segmentedButtonLabelClass}>{opt.label}</span>
+            <span className={segmentedButtonLabelClass}>
+              {optionButtonLabel(opt.label, dayMode === opt.value)}
+            </span>
           </button>
         ))}
       </div>
@@ -2697,7 +2754,37 @@ export function FuelingPlanner({
     ].sort((a, b) => a.distanceFraction - b.distanceFraction);
   }, [result, tacticalPoints, selectedRoute, parsedGpx]);
 
-  const effectiveTacticalPoints = tacticalPoints.length > 0 ? tacticalPoints : estimatedTacticalPoints;
+  // "Renderizado Obligatorio de Paradas/Avituallamiento" — once the athlete
+  // has actually planned a stop (`cafeteriaStopCount > 0`) *and* their
+  // carried bottles genuinely can't cover the ride (`needsWaterRefill`,
+  // already computed above from the same real `installedCapacityMl`/
+  // `totalFluidMl` figures the "Estrategia de Recarga" warning banner in
+  // Card 05 already reads), the point where cumulative fluid loss first
+  // exceeds what's loaded from home is a real, calculable "you'll run dry
+  // here" moment — worth its own marker on the chart, not just prose
+  // elsewhere on the page. Snapped onto the nearest real valley/summit via
+  // `nearestValleyOrPeakFraction` rather than left at the raw mid-slope
+  // fraction, since that's where a rider could realistically expect a
+  // fountain/bar/gasolinera to exist.
+  const mandatoryStopPoint = useMemo((): TacticalPoint | null => {
+    if (!result || !cafeteriaStopCount || !needsWaterRefill || totalFluidMl <= 0) return null;
+    const dist = selectedRoute?.distanceKm ?? parsedGpx?.distanceKm ?? null;
+    if (!dist || dist <= 0) return null;
+    const rawFraction = Math.min(1, installedCapacityMl / totalFluidMl);
+    const snappedFraction = nearestValleyOrPeakFraction(rawFraction, result.weather.elevationProfile ?? null);
+    return {
+      key: "mandatory-stop",
+      distanceFraction: snappedFraction,
+      km: Math.round(snappedFraction * dist),
+      type: "stop",
+      title: "Parada Sugerida / Recarga",
+    };
+  }, [result, cafeteriaStopCount, needsWaterRefill, totalFluidMl, installedCapacityMl, selectedRoute, parsedGpx]);
+
+  const baseTacticalPoints = tacticalPoints.length > 0 ? tacticalPoints : estimatedTacticalPoints;
+  const effectiveTacticalPoints = mandatoryStopPoint
+    ? [...baseTacticalPoints, mandatoryStopPoint]
+    : baseTacticalPoints;
   const isEstimatedTacticalPreview = tacticalPoints.length === 0 && estimatedTacticalPoints.length > 0;
 
   // "Modo Cobertura Limitada" — if the athlete opens the app with no
@@ -3204,6 +3291,7 @@ export function FuelingPlanner({
                             id="route"
                             className={cn(
                               selectableFieldClass,
+                              emptyAwareSelectClass(selectedRouteId === ""),
                               (refreshingRoutes || loading) && "text-zinc-400",
                               routeError && "border-2 border-amber-400 bg-amber-50/20"
                             )}
@@ -4017,7 +4105,9 @@ export function FuelingPlanner({
                     loading && "cursor-not-allowed opacity-60"
                   )}
                 >
-                  <span className={segmentedButtonLabelClass}>{opt.label}</span>
+                  <span className={segmentedButtonLabelClass}>
+                    {optionButtonLabel(opt.label, cafeteriaStopCount === opt.value)}
+                  </span>
                 </button>
               ))}
             </div>
@@ -4147,7 +4237,9 @@ export function FuelingPlanner({
                           loading && "cursor-not-allowed opacity-60"
                         )}
                       >
-                        <span className={segmentedButtonLabelClass}>{opt.label}</span>
+                        <span className={segmentedButtonLabelClass}>
+                          {optionButtonLabel(opt.label, preRideGlycogenLoad === opt.value)}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -4183,7 +4275,9 @@ export function FuelingPlanner({
                           loading && "cursor-not-allowed opacity-60"
                         )}
                       >
-                        <span className={segmentedButtonLabelClass}>{opt.label}</span>
+                        <span className={segmentedButtonLabelClass}>
+                          {optionButtonLabel(opt.label, lastMealTiming === opt.value)}
+                        </span>
                       </button>
                     ))}
                   </div>

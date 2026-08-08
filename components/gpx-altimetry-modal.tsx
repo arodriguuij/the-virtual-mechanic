@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Download, Maximize2, X, ShoppingBag } from "lucide-react";
+import { Download, Flag, Maximize2, X } from "lucide-react";
 
 import { GelIcon, MixSachetIcon, SolidFoodIcon, WaterIcon } from "@/components/ui/fueling-icons";
 
@@ -371,7 +371,7 @@ export function GpxAltimetryModal({
         let typePrefix = "";
         if (pt.hasGel) typePrefix += "⚡";
         if (pt.hasSolid) typePrefix += "🍌";
-        if (pt.hasStop) typePrefix += "🛒";
+        if (pt.hasStop) typePrefix += "🏁";
         if (pt.hasWater) typePrefix += "💧";
         const label = `Km ${pt.km} · ${typePrefix} ${pt.title}`;
         const truncated = label.length > 34 ? label.slice(0, 34) + "…" : label;
@@ -525,22 +525,25 @@ export function GpxAltimetryModal({
         <div className="flex-1 overflow-hidden p-4 sm:p-6 bg-[#fcfbf9] [@media_(max-width:768px)_and_(orientation:portrait)]:p-2">
           <div className="w-full flex h-full flex-col gap-4">
 
-            {/* Legend — "Simplificación UX masiva" / "Integración de Iconos
-                Custom" / "Reemplazo de Icono de Comida Sólida": the 4 real
-                product silhouettes (`components/ui/fueling-icons.tsx`)
-                replace lucide's generic Zap/Utensils/Droplets glyphs, each
-                paired with the same emoji+label pattern the app's own
-                pocket-food catalog already uses elsewhere. "Parada" keeps
-                `ShoppingBag` — it's a logistics stop, not a nutrition
-                product, so it was never in scope for the custom-icon
-                replacement. */}
+            {/* Legend — "Unificación de Leyenda (Fix Iconos Duplicados)":
+                each entry used to pair a real SVG silhouette
+                (`components/ui/fueling-icons.tsx`) with a redundant emoji
+                character right next to it — genuinely two icons per
+                category, not one. Exactly one icon per entry now, no emoji
+                at all, matching this app's established no-emoji-in-UI-
+                chrome convention (emoji stays reserved for underlying data
+                labels/exports, e.g. `pocketFoodLabels`). "Parada" moves off
+                `ShoppingBag` onto `Flag` — the same silhouette "Parada
+                Sugerida / Recarga" now draws on the chart itself (see the
+                stop-pin logic below), so the legend entry and the marker it
+                describes finally use one consistent glyph. */}
             <div className="flex flex-wrap items-center gap-3 text-[11px] text-neutral-600 border-b border-neutral-200 pb-2">
               <span className="font-semibold text-neutral-900 uppercase">Leyenda:</span>
-              <span className="flex items-center gap-1"><GelIcon className="size-3.5 text-amber-500" /> ⚡ Gel</span>
-              <span className="flex items-center gap-1"><MixSachetIcon className="size-3.5 text-sky-500" /> 🧪 Mix Bidón</span>
-              <span className="flex items-center gap-1"><SolidFoodIcon className="size-3.5 text-neutral-600" /> 🍌 Sólido / Real Food</span>
-              <span className="flex items-center gap-1"><WaterIcon className="size-3.5 text-blue-400" /> 💧 Hídrico</span>
-              <span className="flex items-center gap-1"><ShoppingBag className="size-3.5 text-neutral-500" /> Parada</span>
+              <span className="flex items-center gap-1"><GelIcon className="size-3.5 text-amber-500" /> Gel</span>
+              <span className="flex items-center gap-1"><MixSachetIcon className="size-3.5 text-sky-500" /> Mix Bidón</span>
+              <span className="flex items-center gap-1"><SolidFoodIcon className="size-3.5 text-neutral-600" /> Sólido</span>
+              <span className="flex items-center gap-1"><WaterIcon className="size-3.5 text-blue-400" /> Hídrico</span>
+              <span className="flex items-center gap-1"><Flag className="size-3.5 text-rose-600" /> Parada</span>
             </div>
 
             {/* Chart: Y-axis + SVG canvas — `flex-1` at every breakpoint
@@ -636,7 +639,7 @@ export function GpxAltimetryModal({
                         {pt.hasMix && <MixSachetIcon className="size-3.5 shrink-0 text-sky-500" />}
                         {pt.hasSolid && <SolidFoodIcon className="size-3.5 shrink-0 text-neutral-600" />}
                         {pt.hasWater && <WaterIcon className="size-3.5 shrink-0 text-blue-400" />}
-                        {pt.hasStop && <ShoppingBag className="size-3.5 shrink-0 text-neutral-500" />}
+                        {pt.hasStop && <Flag className="size-3.5 shrink-0 text-rose-600" />}
                       </div>
                     </div>
                   );
