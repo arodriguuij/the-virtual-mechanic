@@ -448,6 +448,28 @@ const segmentedButtonClass =
 // centered exactly as before (there's no slack for `text-center` to act on
 // once the label is genuinely truncated).
 const segmentedButtonLabelClass = "block w-full truncate";
+// "Rediseño de Jerarquía Visual para Origen de Ruta" — Card 01's Strava/GPX
+// vs. Entreno Manual toggle is a superior-level mode switch (it decides which
+// whole sub-form renders below it), not a same-tier option sitting next to
+// Card 02's own segmented buttons (Salida's Hoy/Mañana/Elegir fecha,
+// Estrategia nutricional's Óptimo/Mi Inventario/Híbrido) — reusing
+// `segmentedButtonClass`'s own bordered-rectangle look made it collide
+// visually with those secondary selectors. A Pill Switcher Track (a grouped
+// neutral rail with an inner solid-fill active pill) reads as its own
+// distinct control instead, so it deliberately does not reuse
+// `segmentedButtonClass` above.
+const routeModeTrackClass = "flex items-center gap-1 rounded-xl border border-neutral-200/60 bg-neutral-100/90 p-1";
+const routeModeOptionClass =
+  "flex flex-1 min-w-0 cursor-pointer items-center justify-center rounded-lg px-3 py-2 text-center font-mono text-xs font-medium transition-all";
+const routeModeOptionActiveClass = "bg-[#5a5245] text-white font-bold shadow-sm";
+const routeModeOptionInactiveClass = "text-neutral-600 hover:bg-neutral-200/50 hover:text-neutral-900";
+// "Rediseño UX, Simplificación y Compactación de la Card 04" — the two
+// subsection micro-labels inside Card 04 ("Configuración de líquidos
+// (bidones)"/"Configuración de sólidos (bolsillo)") use a smaller, more
+// technical treatment than `formFieldLabelClass` (`lib/ui-classes.ts`, a
+// shared token reused by many other field labels across this file) —
+// scoped locally rather than touching that shared class.
+const card04SubsectionLabelClass = "text-[10px] font-mono text-neutral-400 uppercase tracking-widest";
 // "Estandarización de Botones de Opción" — Card 02's own three option-button
 // groups (Paradas previstas, Nivel de carga previa, Última ingesta
 // pre-salida) keep their own `font-mono text-xs` treatment forced at every
@@ -2405,6 +2427,13 @@ export function FuelingPlanner({
     };
   }, [result, bottleCapacityOverrideMl, maltoFructoseOverrideG]);
 
+  // The sodium figure currently shown/edited in the "Ajuste fino" electrolyte
+  // field — the override if the athlete has typed one, else whatever
+  // `displayBottlePlan` already computed. Shared by both the input's own
+  // `value` and its "≈ Xg de sal (NaCl)" helper text below it, so the two
+  // can never show a mismatched figure.
+  const editorSodiumMg = maltoFructoseOverrideG?.sodiumMg ?? (displayBottlePlan?.fuelBottles.sodiumMgPerBottle ?? 0);
+
   // "Fix Matemático del Plan de Agua en Ruta" — this used to read
   // `result.reloadStrategy.waterRefillCount`/`waterRefillLiters`, both
   // frozen at whatever bottle size the *server* used for the last
@@ -3204,17 +3233,15 @@ export function FuelingPlanner({
               01 · Selección y origen de ruta
             </span>
 
-            <div className="mt-2 grid grid-cols-2 gap-2 *:min-w-0">
+            <div className={cn("mt-2", routeModeTrackClass, loading && "opacity-60")}>
               <button
                 type="button"
                 disabled={loading}
                 onClick={() => setMode(parsedGpx ? "gpx" : "route")}
                 className={cn(
-                  segmentedButtonClass,
-                  mode === "route" || mode === "gpx"
-                    ? "bg-[#5a5245] text-white border-[#5a5245] font-bold shadow-sm hover:bg-[#4d463b]"
-                    : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
-                  loading && "cursor-not-allowed opacity-60"
+                  routeModeOptionClass,
+                  mode === "route" || mode === "gpx" ? routeModeOptionActiveClass : routeModeOptionInactiveClass,
+                  loading && "cursor-not-allowed"
                 )}
               >
                 <span className={segmentedButtonLabelClass}>Strava / GPX</span>
@@ -3224,11 +3251,9 @@ export function FuelingPlanner({
                 disabled={loading}
                 onClick={() => setMode("quick")}
                 className={cn(
-                  segmentedButtonClass,
-                  mode === "quick"
-                    ? "bg-[#5a5245] text-white border-[#5a5245] font-bold shadow-sm hover:bg-[#4d463b]"
-                    : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400",
-                  loading && "cursor-not-allowed opacity-60"
+                  routeModeOptionClass,
+                  mode === "quick" ? routeModeOptionActiveClass : routeModeOptionInactiveClass,
+                  loading && "cursor-not-allowed"
                 )}
               >
                 <span className={segmentedButtonLabelClass}>Entreno Manual</span>
@@ -4514,21 +4539,34 @@ export function FuelingPlanner({
                 </div>
               )}
 
-              {/* Weather Impact Card */}
-              <div className="pt-2">
-                <WeatherImpactCard
-                  temperatureC={result.weather.temperatureC}
-                  temperatureMaxC={result.weather.temperatureMaxC}
-                  humidityPct={result.weather.humidityPct}
-                  windSpeedKmh={result.weather.windSpeedKmh}
-                  source={result.weather.source}
-                  multiPointSample={result.weather.multiPointSample}
-                  lapseRateAdjustmentC={result.weather.lapseRateAdjustmentC}
-                  altitude={result.weather.altitude}
-                  weatherPoints={result.weather.weatherPoints}
-                  elevationProfile={result.weather.elevationProfile}
-                />
-              </div>
+              {/* Weather Impact Card — "Ocultación Condicional de Impacto
+                  Térmico en Modo Manual": Entreno Manual has no real route
+                  coordinates to sample, so `result.weather` is always the
+                  fixed 22°C/55%/0km/h planning default (see `POST
+                  /api/fueling/plan`'s quick-mode branch) rather than a real
+                  Open-Meteo reading — showing it as if it were live forecast
+                  data would be misleading. `mode !== "quick"` is equivalent
+                  to (and simpler than) checking for a loaded route/GPX
+                  directly: this block only ever renders once `result`
+                  exists, and a successful calculation in "route"/"gpx" mode
+                  necessarily means a real route with real coordinates was
+                  used. */}
+              {mode !== "quick" && (
+                <div className="pt-2">
+                  <WeatherImpactCard
+                    temperatureC={result.weather.temperatureC}
+                    temperatureMaxC={result.weather.temperatureMaxC}
+                    humidityPct={result.weather.humidityPct}
+                    windSpeedKmh={result.weather.windSpeedKmh}
+                    source={result.weather.source}
+                    multiPointSample={result.weather.multiPointSample}
+                    lapseRateAdjustmentC={result.weather.lapseRateAdjustmentC}
+                    altitude={result.weather.altitude}
+                    weatherPoints={result.weather.weatherPoints}
+                    elevationProfile={result.weather.elevationProfile}
+                  />
+                </div>
+              )}
 
               {/* "Adaptación Térmica Extrema" — cold below 8°C, heat above
                   32°C, both driven by the same final temperature
@@ -4660,8 +4698,7 @@ export function FuelingPlanner({
                   vertical space above the sticky strip for whatever the
                   athlete is actually configuring. */}
               <p className="mb-3 font-mono text-[10px] leading-snug text-zinc-400 sm:text-[11px]">
-                Configura lo que llevarás físicamente en la bici. El restante lo cubrirás
-                con tus paradas en ruta o avituallamientos.
+                Carga inicial en bicicleta. El resto se completará en tus paradas en ruta.
               </p>
 
               {/* Tira Resumen Sticky — "Anclaje Sticky por Contenedor
@@ -4731,33 +4768,51 @@ export function FuelingPlanner({
 
               <hr className="border-t border-zinc-200/70 my-6" />
 
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <span className={formFieldLabelClass}>Configuración de bidones</span>
-                {/* "Micro-Edición In-Situ de Capacidad de Bidón" — a
-                    display-only preview of a different bottle size than the
-                    athlete's saved profile, re-scaling the per-bottle grams
-                    (and the reload-strategy Ziploc bag dose, see "Reload
-                    strategy" in the recipe engine) everywhere below with
-                    zero server round-trip (see `displayBottlePlan`). */}
-                {displayBottlePlan && (
-                  <div className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-500">
-                    <span>
-                      Capacidad de bidón:{" "}
-                      <span className="font-semibold text-zinc-900">
-                        {displayBottlePlan.bottleSizeMl}ml
-                      </span>
-                    </span>
+              <span className={card04SubsectionLabelClass}>Configuración de líquidos (bidones)</span>
+              {/* "Consolidación de Información de Bidones" — capacity and
+                  (in Modo Experto) the per-bottle malto/fructosa/sodio split
+                  used to sit on two separate labeled rows; now one clean
+                  status line, both edit actions ("Cambiar"/"Ajuste fino")
+                  trailing it — "Rediseño UX, Simplificación y Compactación
+                  de la Card 04". Display-only preview of a different bottle
+                  size than the athlete's saved profile, re-scaling the
+                  per-bottle grams (and the reload-strategy Ziploc bag dose)
+                  everywhere below with zero server round-trip (see
+                  `displayBottlePlan`). */}
+              {displayBottlePlan && (
+                <div className="mt-1.5 mb-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[11px] text-zinc-500">
+                  <span>
+                    Bidón: <span className="font-semibold text-zinc-900">{displayBottlePlan.bottleSizeMl}ml</span>
+                    {experienceMode === "advanced" && (
+                      <>
+                        {" "}
+                        ({displayBottlePlan.fuelBottles.maltodextrinGPerBottle}g Malto ·{" "}
+                        {displayBottlePlan.fuelBottles.fructoseGPerBottle}g Fructosa ·{" "}
+                        {displayBottlePlan.fuelBottles.sodiumMgPerBottle}mg Na+)
+                        {maltoFructoseOverrideG && <span className="ml-1 text-amber-600">(manual)</span>}
+                      </>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setBottleCapacityEditorOpen((v) => !v)}
+                    className="flex cursor-pointer items-center gap-1 font-mono text-xs font-semibold text-[#70685b] transition-colors duration-150 hover:text-[#585248] hover:underline"
+                  >
+                    <Pencil className="size-3" />
+                    Cambiar
+                  </button>
+                  {experienceMode === "advanced" && (
                     <button
                       type="button"
-                      onClick={() => setBottleCapacityEditorOpen((v) => !v)}
+                      onClick={() => setMaltoFructoseEditorOpen((v) => !v)}
                       className="flex cursor-pointer items-center gap-1 font-mono text-xs font-semibold text-[#70685b] transition-colors duration-150 hover:text-[#585248] hover:underline"
                     >
                       <Pencil className="size-3" />
-                      Cambiar
+                      Ajuste fino
                     </button>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
               {bottleCapacityEditorOpen && (
                 <div className="mb-3 flex flex-wrap gap-1.5">
                   {BOTTLE_CAPACITY_QUICK_OPTIONS.map((ml) => (
@@ -4789,48 +4844,21 @@ export function FuelingPlanner({
                   the two combine). Standard mode never sees this — a
                   precise 1:0.8-style gram tweak is exactly the kind of
                   tactical detail Paso 02's own Carga Previa module is
-                  already scoped to Modo Experto for. */}
-              {experienceMode === "advanced" && displayBottlePlan && (
-                <div className="mb-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-mono text-[11px] text-zinc-500">
-                      Malto:{" "}
-                      <span className="font-semibold text-zinc-900">
-                        {displayBottlePlan.fuelBottles.maltodextrinGPerBottle}g
-                      </span>{" "}
-                      · Fructosa:{" "}
-                      <span className="font-semibold text-zinc-900">
-                        {displayBottlePlan.fuelBottles.fructoseGPerBottle}g
-                      </span>{" "}
-                      · Na+:{" "}
-                      <span className="font-semibold text-zinc-900">
-                        {displayBottlePlan.fuelBottles.sodiumMgPerBottle}mg
-                      </span>
-                      {maltoFructoseOverrideG && (
-                        <span className="ml-1.5 text-amber-600">(manual)</span>
-                      )}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setMaltoFructoseEditorOpen((v) => !v)}
-                      className="flex cursor-pointer items-center gap-1 font-mono text-xs font-semibold text-[#70685b] transition-colors duration-150 hover:text-[#585248] hover:underline"
-                    >
-                      <Pencil className="size-3" />
-                      Ajuste fino
-                    </button>
-                  </div>
-                  {/* "Ajuste Fino: Incorporación de Electrolitos/Sodio" — a
-                      3er campo (mg Na+ por bidón) joins Maltodextrina/
-                      Fructosa in the same grid, `grid-cols-3` at every
-                      breakpoint since all 3 are compact numeric fields that
-                      fit a narrow phone row just as well as two did. Editing
-                      it flows straight into `displayBottlePlan.fuelBottles.
-                      sodiumMgPerBottle` (see that memo's own doc comment),
-                      the exact field `getBottleSodiumContributionMg` already
-                      reads for Card 04/05's sodium balance — no separate
-                      sync code needed, this *is* the sync. */}
-                  {maltoFructoseEditorOpen && (
-                    <div className="mt-2 rounded-lg bg-zinc-50 p-3">
+                  already scoped to Modo Experto for. The "Ajuste fino"
+                  toggle button now lives in the consolidated bidón status
+                  line above ("Consolidación de Información de Bidones") —
+                  this block is just the editor itself now. A 3er campo (mg
+                  Na+ por bidón) joins Maltodextrina/Fructosa in the same
+                  grid, `grid-cols-3` at every breakpoint since all 3 are
+                  compact numeric fields that fit a narrow phone row just as
+                  well as two did. Editing it flows straight into
+                  `displayBottlePlan.fuelBottles.sodiumMgPerBottle` (see that
+                  memo's own doc comment), the exact field
+                  `getBottleSodiumContributionMg` already reads for Card
+                  04/05's sodium balance — no separate sync code needed,
+                  this *is* the sync. */}
+              {experienceMode === "advanced" && maltoFructoseEditorOpen && displayBottlePlan && (
+                    <div className="mb-3 rounded-lg bg-zinc-50 p-3">
                       <div className="grid grid-cols-3 gap-2 sm:gap-3">
                         <label className="flex flex-col gap-1">
                           <span className="font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
@@ -4892,10 +4920,7 @@ export function FuelingPlanner({
                             type="number"
                             min={0}
                             step={10}
-                            value={
-                              maltoFructoseOverrideG?.sodiumMg ??
-                              displayBottlePlan.fuelBottles.sodiumMgPerBottle
-                            }
+                            value={editorSodiumMg}
                             onChange={(e) =>
                               setMaltoFructoseOverrideG({
                                 maltodextrinG:
@@ -4909,6 +4934,17 @@ export function FuelingPlanner({
                             }
                             className={cn(fieldClass, "w-full")}
                           />
+                          {/* "Helper de Conversión de Sodio a Gramos de Sal
+                              Físicos" — the mg Na+ figure above is a pure
+                              metabolic target with nothing to weigh it
+                              against on a kitchen scale; reuses the same
+                              `getTableSaltGrams()` (~39.3% NaCl-by-weight
+                              conversion) every other sodium→salt readout in
+                              this file already relies on, rather than a
+                              second, slightly-different formula. */}
+                          <span className="mt-0.5 font-mono text-[10px] text-zinc-400">
+                            ≈ {getTableSaltGrams(editorSodiumMg).toFixed(1)}g de sal (NaCl)
+                          </span>
                         </label>
                       </div>
                       {maltoFructoseOverrideG && (
@@ -4921,8 +4957,6 @@ export function FuelingPlanner({
                         </button>
                       )}
                     </div>
-                  )}
-                </div>
               )}
 
               {/* Fixed row at every width — short Title Case labels ("Solo
@@ -4968,9 +5002,19 @@ export function FuelingPlanner({
                   warning. Renders through the shared `AlertBanner` — the
                   same 2-column component every "aviso" in Card 05 below
                   uses too, so every alert box in this results flow reads as
-                  one consistent language. */}
+                  one consistent language — but with a dramatically tighter
+                  `className` override here specifically (`p-2`/`text-[10px]`
+                  vs. the base component's own `p-3`/`text-xs`, via `cn()`'s
+                  tailwind-merge "later utility wins") per "Estandarización
+                  de Tips Ultra-Compactos": this one tip shouldn't cost more
+                  vertical space than a single line of text. */}
               {showWaterOnlyMixTip && (
-                <AlertBanner tone="warning" icon="💡" label="Tip de Eficiencia" className="mt-2.5">
+                <AlertBanner
+                  tone="warning"
+                  icon="💡"
+                  label="Tip de Eficiencia"
+                  className="mt-2.5 bg-amber-50/60 p-2 text-[10px] leading-snug"
+                >
                   En rutas de alta exigencia o calor, cambiar{" "}
                   <span className="underline decoration-amber-400">1 o ambos bidones</span> a Mix libera
                   espacio en tus bolsillos y acelera la hidratación.
@@ -4985,7 +5029,9 @@ export function FuelingPlanner({
                   or editor needed since the catalog itself is already this
                   short (see the deleted "Mi Despensa" machinery above). */}
               <div>
-                <span className={cn(formFieldLabelClass, "mb-2 block")}>Comida en bolsillo</span>
+                <span className={cn(card04SubsectionLabelClass, "mb-2 block")}>
+                  Configuración de sólidos (bolsillo)
+                </span>
                 <div className="grid grid-cols-1 gap-0 md:grid-cols-2 md:gap-x-4 md:gap-y-0">
                   {POCKET_FOOD_TYPES.map((type) => (
                     <PocketFoodStepperRow

@@ -176,7 +176,17 @@ function SidebarContent({
         >
           <button
             type="button"
-            onClick={onToggleCollapse}
+            onClick={(e) => {
+              onToggleCollapse();
+              // "Corrección de Tooltip Persistente" — this tooltip is a pure
+              // CSS `group-focus-within` popover (see `SidebarToggleTooltip`
+              // above; no Radix primitive to configure here), so a button
+              // that keeps focus after a click — the normal, expected
+              // browser behavior — keeps the tooltip pinned open with the
+              // mouse long gone. Blurring immediately on click is what lets
+              // it close as soon as the pointer leaves.
+              e.currentTarget.blur();
+            }}
             aria-label={isCollapsed ? "Expandir menú" : "Colapsar menú"}
             className="hidden cursor-pointer items-center justify-center rounded-lg p-1.5 text-neutral-400 transition-all duration-150 hover:bg-neutral-100 hover:text-neutral-900 focus:outline-none lg:flex"
           >
@@ -249,6 +259,14 @@ function SidebarContent({
           }
 
           const active = pathname === item.href;
+          // "Rediseño de Estado Activo en Barra Lateral PC" — the previous
+          // `bg-surface` fill read as a heavy, boxy pill next to this app's
+          // otherwise flat/borderless nav rows. Replaced with a lighter
+          // bronze tint (`bg-[#5a5245]/10`, matching the same `#5a5245`
+          // bronze this app's other "selected" states already converged on)
+          // plus a thin left accent bar — a more precise, editorial "you are
+          // here" cue than a solid background box. `relative` on the row
+          // itself is what lets the bar position against it via `absolute`.
           const navLink = (
             <Link
               key={item.href}
@@ -256,13 +274,19 @@ function SidebarContent({
               onClick={onNavigate}
               title={isCollapsed ? item.label : undefined}
               className={cn(
-                "flex cursor-pointer items-center gap-3 rounded-sm px-3 py-2.5 font-mono text-xs tracking-wider uppercase transition-colors duration-150",
+                "relative flex cursor-pointer items-center gap-3 rounded-sm px-3 py-2.5 font-mono text-xs tracking-wider uppercase transition-colors duration-150",
                 isCollapsed && "lg:justify-center lg:px-0",
                 active
-                  ? "bg-surface font-semibold text-terracotta"
+                  ? "bg-[#5a5245]/10 font-semibold text-[#5a5245]"
                   : "font-medium text-neutral-600 hover:bg-neutral-100/60 hover:text-neutral-900"
               )}
             >
+              {active && (
+                <span
+                  aria-hidden="true"
+                  className="absolute top-2 bottom-2 left-0 w-1 rounded-r-full bg-[#5a5245]"
+                />
+              )}
               <item.icon className="size-4" strokeWidth={1.5} />
               <span className={cn(isCollapsed && "lg:hidden")}>{item.label}</span>
             </Link>
