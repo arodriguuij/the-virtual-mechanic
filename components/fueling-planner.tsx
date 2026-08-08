@@ -2685,6 +2685,11 @@ export function FuelingPlanner({
     const athleteBottleCount = result?.athleteBottleCount ?? 2;
     return getBottleConfigOptions(athleteBottleCount);
   }, [result]);
+  // "Panel de Edición Integrado" — the currently-selected bottle-config
+  // option's own label, surfaced in the collapsed bidón summary row (Estado
+  // A) so the athlete can see "Bidón 750ml · 1 Mix" at a glance without
+  // opening the edit panel just to check which mode is active.
+  const mixModeLabel = bottleConfigOptions.find((opt) => opt.value === bottleConfig)?.label ?? "";
 
   const electrolyteRec = useMemo(() => {
     const bottleSizeMl = displayBottlePlan?.bottleSizeMl ?? 550;
@@ -4320,7 +4325,7 @@ export function FuelingPlanner({
                   </div>
                   <div className="grid grid-cols-3 gap-1.5">
                     {[
-                      { value: "normal", label: "Normal (~70%)" },
+                      { value: "normal", label: "Normal" },
                       { value: "high", label: "Carga Alta" },
                       { value: "fasted", label: "Ayunas" },
                     ].map((opt) => (
@@ -4469,7 +4474,7 @@ export function FuelingPlanner({
                     Sincronizando Objetivos Metabólicos y Clima…
                   </p>
                   <div className="grid grid-cols-2 gap-3 *:min-w-0 lg:grid-cols-4">
-                    {["Duración", "Carbohidratos", "Hidratación", "Sodio (Na+)"].map((label) => (
+                    {["Gasto Calórico", "Carbohidratos", "Hidratación", "Sodio (Na+)"].map((label) => (
                       <div
                         key={label}
                         className="flex h-[92px] animate-pulse flex-col justify-between gap-1 rounded-[4px] border-none bg-[#f0f0f0] p-4 shadow-none"
@@ -4854,101 +4859,105 @@ export function FuelingPlanner({
               <hr className="border-t border-zinc-200/70 my-6" />
 
               <span className={card04SubsectionLabelClass}>Configuración de líquidos (bidones)</span>
-              {/* "Unificación de Acción 'Editar bidón'" — capacity and (in
-                  Modo Experto) the per-bottle malto/fructosa/sodio split
-                  used to sit on one status line with two separate edit
-                  links ("Cambiar"/"Ajuste fino"); now one status line, one
-                  "Editar bidón" action opening both panels below it
-                  together. Display-only preview of a different bottle size
-                  than the athlete's saved profile, re-scaling the
-                  per-bottle grams (and the reload-strategy Ziploc bag dose)
-                  everywhere below with zero server round-trip (see
-                  `displayBottlePlan`). */}
-              {displayBottlePlan && (
-                <div className="mt-1.5 mb-2 flex flex-wrap items-center justify-between gap-x-1.5 gap-y-1 font-mono text-[11px] text-zinc-500">
-                  <span>
-                    Bidón: <span className="font-semibold text-zinc-900">{displayBottlePlan.bottleSizeMl}ml</span>
+              {/* "Panel de Edición Integrado" — the bidón config used to
+                  scatter across a status line, a detached capacity
+                  quick-picker, a separate gray box for the malto/fructosa/
+                  sodio grid, a bottle-config button row, and a floating tip
+                  banner — four visually disconnected pieces sharing no
+                  container. Now exactly two clean states: a read-only
+                  summary row (Estado A, `!isEditingBottle`) or one single
+                  bordered panel holding every editable piece together
+                  (Estado B, `isEditingBottle`) — nothing lives outside
+                  either container anymore. */}
+              {displayBottlePlan && !isEditingBottle && (
+                <div className="mt-1.5 mb-2 flex items-center justify-between gap-2 rounded-xl border border-neutral-200/80 bg-neutral-50/80 p-3">
+                  <div className="flex min-w-0 flex-col gap-0.5 font-mono text-xs">
+                    <span className="truncate font-bold text-neutral-800">
+                      Bidón {displayBottlePlan.bottleSizeMl}ml
+                      {mixModeLabel && ` · ${mixModeLabel}`}
+                    </span>
                     {experienceMode === "advanced" && (
-                      <>
-                        {" "}
-                        ({displayBottlePlan.fuelBottles.maltodextrinGPerBottle}g Malto ·{" "}
+                      <span className="truncate text-[11px] text-neutral-500">
+                        {displayBottlePlan.fuelBottles.maltodextrinGPerBottle}g Malto ·{" "}
                         {displayBottlePlan.fuelBottles.fructoseGPerBottle}g Fructosa ·{" "}
-                        {displayBottlePlan.fuelBottles.sodiumMgPerBottle}mg Na+)
+                        {displayBottlePlan.fuelBottles.sodiumMgPerBottle}mg Na+
                         {maltoFructoseOverrideG && <span className="ml-1 text-amber-600">(manual)</span>}
-                      </>
+                      </span>
                     )}
-                  </span>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setIsEditingBottle((v) => !v)}
-                    className="flex cursor-pointer items-center gap-1 font-mono text-xs font-bold text-[#5a5245] underline transition-colors duration-150 hover:text-neutral-900"
+                    onClick={() => setIsEditingBottle(true)}
+                    className="shrink-0 cursor-pointer px-2 py-1 font-mono text-xs font-bold text-[#5a5245] underline transition-colors duration-150 hover:text-neutral-900"
                   >
-                    <Pencil className="size-3" />
                     Editar bidón
                   </button>
                 </div>
               )}
-              {isEditingBottle && (
-                <div className="mb-3 flex flex-wrap gap-1.5">
-                  {BOTTLE_CAPACITY_QUICK_OPTIONS.map((ml) => (
+              {displayBottlePlan && isEditingBottle && (
+                <div className="mt-1.5 mb-2 space-y-4 rounded-xl border border-neutral-200/80 bg-neutral-50 p-4">
+                  {/* Header del panel */}
+                  <div className="flex items-center justify-between border-b border-neutral-200/60 pb-2">
+                    <span className="font-mono text-[10px] tracking-widest text-neutral-400 uppercase">
+                      Configuración de bidones y mezcla
+                    </span>
                     <button
-                      key={ml}
                       type="button"
-                      onClick={() => setBottleCapacityOverrideMl(ml)}
-                      className={cn(
-                        "rounded-sm border px-2.5 py-1 font-mono text-[11px] font-semibold shadow-none transition-colors duration-150",
-                        displayBottlePlan?.bottleSizeMl === ml
-                          ? "bg-[#5a5245] text-white border-[#5a5245] font-bold shadow-sm hover:bg-[#4d463b]"
-                          : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
-                      )}
+                      onClick={() => setIsEditingBottle(false)}
+                      className="cursor-pointer font-mono text-xs font-bold text-[#5a5245] transition-colors duration-150 hover:underline"
                     >
-                      {ml}ml
+                      Guardar / Cerrar
                     </button>
-                  ))}
-                </div>
-              )}
+                  </div>
 
-              {/* "Personalización de Gramajes Finos (Modo Experto)" — an
-                  advanced athlete can override the server-computed
-                  malto:fructosa split directly, same client-only/display-
-                  only convention as the bottle-capacity override right
-                  above (see `displayBottlePlan`'s own doc comment for how
-                  the two combine). Standard mode never sees this — a
-                  precise 1:0.8-style gram tweak is exactly the kind of
-                  tactical detail Paso 02's own Carga Previa module is
-                  already scoped to Modo Experto for. Opens together with
-                  the capacity quick-picker above under the one shared
-                  "Editar bidón" toggle (`isEditingBottle`) now — see
-                  "Unificación de Acción 'Editar bidón'". A 3er campo (mg
-                  Na+ por bidón) joins Maltodextrina/Fructosa in the same
-                  grid, `grid-cols-3` at every breakpoint since all 3 are
-                  compact numeric fields that fit a narrow phone row just as
-                  well as two did. Editing it flows straight into
-                  `displayBottlePlan.fuelBottles.sodiumMgPerBottle` (see that
-                  memo's own doc comment), the exact field
-                  `getBottleSodiumContributionMg` already reads for Card
-                  04/05's sodium balance — no separate sync code needed,
-                  this *is* the sync. */}
-              {experienceMode === "advanced" && isEditingBottle && displayBottlePlan && (
-                    <div className="mb-3 rounded-lg bg-zinc-50 p-3">
-                      {/* "Corrección de Alineación del Grid (3 Columnas)" —
-                          only the Electrolitos column carries a helper line
-                          below its input (the Evolytes-gram equivalence);
-                          `items-start` (rather than the grid default,
-                          `stretch`) keeps every column's own height purely a
-                          function of its own content instead of all 3
-                          stretching to match the tallest, so the label/input
-                          pair lines up at the exact same y-position in all 3
-                          columns regardless of which one has extra text
-                          hanging below it. Each label also gets a fixed `h-4`
-                          so a future longer label can't reintroduce the same
-                          misalignment by wrapping onto 2 lines in one column
-                          only. */}
-                      <div className="grid grid-cols-3 items-start gap-2 sm:gap-3">
-                        <label className="flex flex-col gap-1">
-                          <span className="h-4 font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
-                            Maltodextrina (g)
-                          </span>
+                  {/* Bloque 1: Capacidad del bidón */}
+                  <div className="space-y-1.5">
+                    <span className="block font-mono text-[10px] text-neutral-500 uppercase">
+                      Capacidad del bidón
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {BOTTLE_CAPACITY_QUICK_OPTIONS.map((ml) => (
+                        <button
+                          key={ml}
+                          type="button"
+                          onClick={() => setBottleCapacityOverrideMl(ml)}
+                          className={cn(
+                            "rounded-lg py-1.5 font-mono text-xs font-medium transition-all",
+                            displayBottlePlan.bottleSizeMl === ml
+                              ? "bg-[#5a5245] text-white font-bold shadow-sm"
+                              : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100"
+                          )}
+                        >
+                          {ml}ml
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Bloque 2: Ajuste fino de mezcla (Modo Experto) — a
+                      precise 1:0.8-style gram tweak is exactly the kind of
+                      tactical detail Paso 02's own Carga Previa module is
+                      already scoped to Modo Experto for; standard mode
+                      never sees this block at all. `items-start` (rather
+                      than the grid default, `stretch`) plus each label's
+                      own fixed `h-4` keeps all 3 columns' input boxes lined
+                      up on the same top edge even though only Sodio carries
+                      a helper line below it. Editing the sodium field flows
+                      straight into `displayBottlePlan.fuelBottles.
+                      sodiumMgPerBottle`, the exact field
+                      `getBottleSodiumContributionMg` already reads for Card
+                      04/05's sodium balance — no separate sync code needed,
+                      this *is* the sync. */}
+                  {experienceMode === "advanced" && (
+                    <div className="space-y-1.5">
+                      <span className="block font-mono text-[10px] text-neutral-500 uppercase">
+                        Ajuste fino de mezcla por bidón
+                      </span>
+                      <div className="grid grid-cols-3 items-start gap-2">
+                        <div className="flex flex-col gap-1">
+                          <label className="h-4 truncate font-mono text-[9px] text-neutral-500 uppercase">
+                            Malto (g)
+                          </label>
                           <input
                             type="number"
                             min={0}
@@ -4968,13 +4977,13 @@ export function FuelingPlanner({
                                   displayBottlePlan.fuelBottles.sodiumMgPerBottle,
                               })
                             }
-                            className={cn(fieldClass, "w-full")}
+                            className="w-full rounded-lg border border-neutral-200 bg-white p-2 text-center font-mono text-xs text-neutral-900 focus:border-[#5a5245] focus:outline-none"
                           />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                          <span className="h-4 font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="h-4 truncate font-mono text-[9px] text-neutral-500 uppercase">
                             Fructosa (g)
-                          </span>
+                          </label>
                           <input
                             type="number"
                             min={0}
@@ -4994,13 +5003,13 @@ export function FuelingPlanner({
                                   displayBottlePlan.fuelBottles.sodiumMgPerBottle,
                               })
                             }
-                            className={cn(fieldClass, "w-full")}
+                            className="w-full rounded-lg border border-neutral-200 bg-white p-2 text-center font-mono text-xs text-neutral-900 focus:border-[#5a5245] focus:outline-none"
                           />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                          <span className="h-4 font-mono text-[10px] tracking-wider text-zinc-500 uppercase">
-                            Electrolitos (mg Na+)
-                          </span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="h-4 truncate font-mono text-[9px] text-neutral-500 uppercase">
+                            Sodio (mg)
+                          </label>
                           <input
                             type="number"
                             min={0}
@@ -5017,99 +5026,87 @@ export function FuelingPlanner({
                                 sodiumMg: Math.max(0, Number(e.target.value) || 0),
                               })
                             }
-                            className={cn(fieldClass, "w-full")}
+                            className="w-full rounded-lg border border-neutral-200 bg-white p-2 text-center font-mono text-xs text-neutral-900 focus:border-[#5a5245] focus:outline-none"
                           />
-                          {/* "Equivalencia en Gramos de Evolytes" — the mg
-                              Na+ figure above is a pure metabolic target
-                              with nothing to weigh it against on a kitchen
-                              scale; converts via the same official
-                              `EVOLYTES_SODIUM_MG_PER_G` (280mg Na+/g) ratio
-                              every other Evolytes-gram readout in this file
-                              already uses (the DIY-recipe reload-strategy
-                              suggestion, the deficit-to-capsules banner) —
-                              not the sal/NaCl conversion `getTableSaltGrams`
-                              provides elsewhere, which is a different real
-                              product with its own real ratio; showing two
-                              different "grams of Evolytes" figures for the
-                              same mg Na+ input would be a real
-                              inconsistency, not just a wording change. */}
-                          <span className="mt-0.5 font-mono text-[10px] text-zinc-400">
-                            ≈ {(editorSodiumMg / EVOLYTES_SODIUM_MG_PER_G).toFixed(1)}g de Evolytes
+                          {/* "Equivalencia en Gramos de Evolytes" — converts
+                              via the same official `EVOLYTES_SODIUM_MG_PER_G`
+                              (280mg Na+/g) ratio every other Evolytes-gram
+                              readout in this file already uses (the
+                              DIY-recipe reload-strategy suggestion, the
+                              deficit-to-capsules banner) — not a second,
+                              differently-tuned conversion. */}
+                          <span className="text-center font-mono text-[9px] leading-tight text-neutral-400">
+                            ≈ {(editorSodiumMg / EVOLYTES_SODIUM_MG_PER_G).toFixed(1)}g Evolytes
                           </span>
-                        </label>
+                        </div>
                       </div>
                       {maltoFructoseOverrideG && (
                         <button
                           type="button"
                           onClick={() => setMaltoFructoseOverrideG(null)}
-                          className="mt-2 cursor-pointer font-mono text-xs font-semibold text-zinc-500 transition-colors duration-150 hover:text-zinc-900 hover:underline"
+                          className="cursor-pointer font-mono text-xs font-semibold text-zinc-500 transition-colors duration-150 hover:text-zinc-900 hover:underline"
                         >
                           Restaurar automático
                         </button>
                       )}
                     </div>
-              )}
+                  )}
 
-              {/* Fixed row at every width — short Title Case labels ("Solo
-                  Agua"/"1 Mix"/"Ambos Mix", or "Solo Agua"/"Con Mix" on a
-                  1-cage bike) keep this legible even on a narrow phone, so
-                  this never needs to drop to a single stacked column the
-                  way the old, longer labels did. `athleteBottleCount === 1`
-                  (the athlete's real `athlete_profiles.bottle_count`) drops
-                  "Ambos Mix" entirely rather than showing it disabled — a
-                  second mix bottle simply doesn't fit on a 1-cage bike — so
-                  the grid itself goes from 3 to 2 columns to match. */}
-              <div className={cn("grid gap-2 *:min-w-0", bottleConfigOptions.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
-                {bottleConfigOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setBottleConfig(opt.value)}
-                    className={cn(
-                      segmentedButtonClass,
-                      // "Textos Compactos en Botones de Bidones" — a
-                      // tighter horizontal padding + smaller font on mobile
-                      // than `segmentedButtonClass`'s own default (`px-1
-                      // text-xs`, already the tightest in the file) so
-                      // "Ambos Mix" reliably fits one line on a narrow
-                      // phone without ellipsis; `sm:px-3 sm:text-sm` from
-                      // the base class still wins at `sm:` and up.
-                      "px-2 text-[11px]",
-                      bottleConfig === opt.value
-                        ? "bg-[#5a5245] text-white border-[#5a5245] font-bold shadow-sm hover:bg-[#4d463b]"
-                        : "border-zinc-300/70 bg-white text-zinc-700 hover:border-zinc-400"
-                    )}
-                  >
-                    <span className={segmentedButtonLabelClass}>{opt.label}</span>
-                  </button>
-                ))}
-              </div>
+                  {/* Bloque 3: Uso de mezcla en bidones — short Title Case
+                      labels ("Solo Agua"/"1 Mix"/"Ambos Mix", or "Solo
+                      Agua"/"Con Mix" on a 1-cage bike) keep this legible
+                      even on a narrow phone. `athleteBottleCount === 1`
+                      (the athlete's real `athlete_profiles.bottle_count`)
+                      drops "Ambos Mix" entirely rather than showing it
+                      disabled — a second mix bottle simply doesn't fit on a
+                      1-cage bike — so the grid itself goes from 3 to 2
+                      columns to match. */}
+                  <div className="space-y-1.5 border-t border-neutral-200/60 pt-2">
+                    <span className="block font-mono text-[10px] text-neutral-500 uppercase">
+                      Uso de mezcla en bidones
+                    </span>
+                    <div className={cn("grid gap-2", bottleConfigOptions.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
+                      {bottleConfigOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setBottleConfig(opt.value)}
+                          className={cn(
+                            "rounded-lg py-2 font-mono text-xs transition-all",
+                            bottleConfig === opt.value
+                              ? "bg-[#5a5245] text-white font-bold shadow-sm"
+                              : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100"
+                          )}
+                        >
+                          <span className={segmentedButtonLabelClass}>
+                            {optionButtonLabel(opt.label, bottleConfig === opt.value)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              {/* "Tip de Eficiencia: Mix vs. Solo Agua" — purely advisory,
-                  never changes the actual recipe/bottle-plan math (unlike
-                  the bottle-config buttons above it). Disappears the
-                  instant the athlete picks "1 Mix"/"Ambos Mix" — it's a
-                  suggestion for the current selection, not a persistent
-                  warning. Renders through the shared `AlertBanner` — the
-                  same 2-column component every "aviso" in Card 05 below
-                  uses too, so every alert box in this results flow reads as
-                  one consistent language — but with a dramatically tighter
-                  `className` override here specifically (`p-2`/`text-[10px]`
-                  vs. the base component's own `p-3`/`text-xs`, via `cn()`'s
-                  tailwind-merge "later utility wins") per "Estandarización
-                  de Tips Ultra-Compactos": this one tip shouldn't cost more
-                  vertical space than a single line of text. */}
-              {showWaterOnlyMixTip && (
-                <AlertBanner
-                  tone="warning"
-                  icon="💡"
-                  label="Tip de Eficiencia"
-                  className="mt-2.5 bg-amber-50/60 p-2 text-[10px] leading-snug"
-                >
-                  En rutas de alta exigencia o calor, cambiar{" "}
-                  <span className="underline decoration-amber-400">1 o ambos bidones</span> a Mix libera
-                  espacio en tus bolsillos y acelera la hidratación.
-                </AlertBanner>
+                  {/* "Tip de Eficiencia: Mix vs. Solo Agua" — purely
+                      advisory, never changes the actual recipe/bottle-plan
+                      math. Disappears the instant the athlete picks "1
+                      Mix"/"Ambos Mix" — it's a suggestion for the current
+                      selection, not a persistent warning. Now lives inside
+                      the same edit panel as the button that would actually
+                      resolve it, rather than floating below the (now-gone)
+                      always-visible button row. */}
+                  {showWaterOnlyMixTip && (
+                    <AlertBanner
+                      tone="warning"
+                      icon="💡"
+                      label="Tip de Eficiencia"
+                      className="bg-amber-100/60 p-2 text-[10px] leading-tight"
+                    >
+                      En rutas de alta exigencia o calor, cambiar{" "}
+                      <span className="underline decoration-amber-400">1 o ambos bidones</span> a Mix libera
+                      espacio en tus bolsillos y acelera la hidratación.
+                    </AlertBanner>
+                  )}
+                </div>
               )}
 
               <hr className="border-t border-zinc-200/70 my-6" />
